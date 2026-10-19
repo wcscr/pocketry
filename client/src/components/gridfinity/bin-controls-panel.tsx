@@ -171,6 +171,7 @@ import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
+import { ObjectGroupControls } from "./object-group-controls";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, binReducer, useBin, type BinState } from "@/state/bin-store";
@@ -959,6 +960,8 @@ export function BinControlsPanel({
               </div>
 
 
+              {!inspector && <ObjectGroupControls />}
+              {selectedCutout.placementGroup && <p className="py-2 text-xs text-muted-foreground">Geometry below applies to {pocketName(selectedCutout, selectedShape)}{selectedCutout.designLink ? " and its linked copies" : ""}. Move and Rotate affect the whole group.</p>}
               <label className="flex items-center gap-2 py-2 text-xs">
                 Type
                 <select aria-label="Outline type" className="h-9 min-w-0 flex-1 rounded border border-input bg-background px-2"
@@ -1141,6 +1144,8 @@ export function BinControlsPanel({
                   <h3 className="text-xs font-semibold">Finger access properties</h3>
                   <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
+              {!inspector && <ObjectGroupControls />}
+              {selectedFingerHole.placementGroup && <p className="py-2 text-xs text-muted-foreground">Geometry below applies to {selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}{selectedFingerHole.designLink ? " and its linked copies" : ""}. Move and Rotate affect the whole group.</p>}
               {!inspector && !!selectedFingerHole.designLink && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
 
 
@@ -1325,7 +1330,7 @@ export function BinControlsPanel({
 
                   </div>
                 </details>
-                <details className="group/position border-t pt-1 text-xs" data-testid="finger-position-settings">
+                {!selectedFingerHole.placementGroup && <details className="group/position border-t pt-1 text-xs" data-testid="finger-position-settings">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                     Position &amp; rotation
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/position:rotate-180" />
@@ -1401,9 +1406,9 @@ export function BinControlsPanel({
                       <span className="text-xs text-muted-foreground">°</span>
                     </div>
                 )}
-                {!selectedFingerHole.placementGroup && <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />}
+                <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
-                </details>
+                </details>}
                 {(inspector || !selectedFingerHole.designLink) && <AdvancedLinks linked={!!selectedFingerHole.designLink}><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
             </PropertySurface>
             );

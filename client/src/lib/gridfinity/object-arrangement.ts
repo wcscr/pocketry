@@ -144,7 +144,10 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
   if (![...delta.toArray(), ...rotation.toArray()].every(Number.isFinite)) return null;
   if (objects.some(objectGroup)) {
     const groupIds = new Set(objects.flatMap(o => objectGroup(o) ? [objectGroup(o)!.id] : []));
-    const members = allObjects.filter(o => objects.some(s => sameObject(objectRef(o), objectRef(s))) || groupIds.has(objectGroup(o)?.id ?? ""));
+    // Selected objects are the gesture's baseline. allObjects may already
+    // contain a live preview, so use it only to find missing group members.
+    const members = [...objects, ...allObjects.filter(o => groupIds.has(objectGroup(o)?.id ?? "")
+      && !objects.some(s => sameObject(objectRef(o), objectRef(s))))];
     const result: ObjectEdits = { cutouts: [], fingerHoles: [], placementOnly: true };
     for (const id of groupIds) {
       const unit = members.filter(o => objectGroup(o)?.id === id), group = objectGroup(unit[0])!;

@@ -33,6 +33,14 @@ describe("persistent placement groups", () => {
     const pair = grouped();
     expect(transformObjects(pair, spec, new Vector3())!.cutouts).toEqual(pair.map(o => o.cutout));
   });
+  it("uses the gesture baseline when allObjects contains the previous live preview", () => {
+    const pair = grouped();
+    const first = transformObjects(pair, spec, new Vector3(4, 0, 0))!;
+    const preview = applyObjectEdits(pair, first);
+    const next = transformObjects(pair, spec, new Vector3(7, 0, 0), new Quaternion(), "individual", preview)!;
+    expect(next.cutouts.map(c => c.position.x)).toEqual(pair.map(o => o.cutout.position.x + 7));
+    expect(next.cutouts[0].placementGroup!.pivot.x).toBeCloseTo(pair[0].cutout.placementGroup.pivot.x + 7);
+  });
   it.each(["x", "y", "z"] as const)("rotates every vertex and orientation about the same fixed %s pivot", axis => {
     const pair = grouped(), frame = pair[0].cutout.placementGroup;
     const pivot = new Vector3(frame.pivot.x, frame.pivot.y, frame.pivot.z);

@@ -1073,7 +1073,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     // Independent finger access features grab before pocket bodies when they overlap.
     const hitHole = hitFingerHole(point);
     if (hitHole?.placementGroup) {
-      const members = arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hitHole.placementGroup!.id);
+      const members = selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id) ? selectedObjects
+        : arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hitHole.placementGroup!.id);
       dispatch({ type: "SET_SELECTION", selection: members.map(objectRef) });
       dragRef.current = { kind: "selection-move", objects: members, start: point, latest: null };
       clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
@@ -1100,7 +1101,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
     const hit = hitCutout(point);
     if (hit?.placementGroup) {
-      const members = arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hit.placementGroup!.id);
+      const members = selection.some(ref => ref.kind === "pocket" && ref.id === hit.id) ? selectedObjects
+        : arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hit.placementGroup!.id);
       dispatch({ type: "SET_SELECTION", selection: members.map(objectRef) });
       dragRef.current = { kind: "selection-move", objects: members, start: point, latest: null };
       clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
@@ -1620,7 +1622,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   const selectableEdges = useMemo(() => boundaryEdges(spec), [spec]);
 
   const selectedControls = useMemo(() => {
-    if (!selected) return null;
+    // Hidden single-object handles must not intercept touch group drags.
+    if (!selected || selection.length !== 1) return null;
     const controlsPlacement = selected.cutout.profileBottom
       ? { ...selected.cutout, profileBottom: undefined, mirrored: false, tilt: undefined, zOffsetMm: undefined, scaleX: 1, scaleY: 1 }
       : selected.cutout;
@@ -1697,7 +1700,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       y: top.y + (outward.y / length) * (touchControls ? 64 : ROTATE_HANDLE_OFFSET_PX) * inv,
     };
     return { handles, actualHandles, cursors, center, top, rotate };
-  }, [selected, spec, inv, touchControls]);
+  }, [selected, selection.length, spec, inv, touchControls]);
 
   const rulerButton = (
     <Button

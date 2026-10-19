@@ -207,7 +207,6 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   const inspectionSection = (axis: BuildBinSection["axis"]): BuildBinSection => ({
     axis, offsetMm: axis === "x" ? (bounds.minX + bounds.maxX) / 2 : (bounds.minY + bounds.maxY) / 2,
   });
-  if (cutout.placementGroup) return <p className="text-xs text-muted-foreground">Use the group Move and Rotate tools to keep the objects together.</p>;
   return <div className="space-y-2">
     <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">

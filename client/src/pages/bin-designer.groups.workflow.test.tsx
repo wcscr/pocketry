@@ -2,7 +2,7 @@ import { EMPTY_PROJECT, rectangularShape, flushHydration, renderPage, toolButton
   openObjectContext, contextCommand } from "./bin-designer.test-support";
 import * as React from "react";
 import { expect, it, vi } from "vitest";
-import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import * as ProjectPersistence from "@/lib/project/persist";
@@ -13,6 +13,51 @@ const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 8 });
 const cutouts = [-20, 20].map((x, i) => parseCutoutPlacement({ id: `group-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
   position: { x, y: 0 }, rotationDeg: i * 20, depth: { mode: "mm", value: 12 } }));
 const current = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+
+it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: true }])(
+  "keeps named-member depth editing and grouping available in $layout properties (mobile: $mobile)", async ({ layout, mobile }) => {
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      selectPocket(container, cutouts[1].id);
+      React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Tool 1 in selection"]')!.click());
+      const properties = () => container.querySelector<HTMLElement>('#pocket-properties')!;
+      const groupButton = [...properties().querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Group objects");
+      expect(groupButton).toBeDefined();
+      React.act(() => groupButton!.click());
+      const frame = current()[0].placementGroup;
+      const depth = properties().querySelector<HTMLInputElement>('[aria-label="Pocket cut depth in millimetres"]');
+      expect(depth).not.toBeNull();
+      expect(properties().textContent).toContain("Geometry below applies to Tool 1");
+      expect(properties().querySelector('[aria-label="Pocket rotation in degrees"]')).toBeNull();
+      React.act(() => { depth!.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(depth, "8"); depth!.dispatchEvent(new Event("input", { bubbles: true })); });
+      React.act(() => depth!.blur());
+      expect(current().map(c => c.depth)).toEqual([{ mode: "mm", value: 8 }, cutouts[1].depth]);
+      expect(current().map(c => c.placementGroup)).toEqual([frame, frame]);
+      const ungroup = [...properties().querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Ungroup");
+      expect(ungroup).toBeDefined();
+      React.act(() => ungroup!.click());
+      expect(current().every(c => !c.placementGroup)).toBe(true);
+    } finally { unmount(); }
+  },
+);
+
+it("hides inoperative single-slot pose controls while grouped and retains geometry controls", async () => {
+  const holes = [-20, 20].map((x, i) => fingerHoleSchema.parse({ id: `finger-${i}`, name: `Slot ${i + 1}`, kind: "oblong-straight", center: { x, y: 0 }, lengthMm: 25 }));
+  const frame = createPlacementGroup(holes.map(hole => ({ kind: "finger", hole })), spec, "finger-group");
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, fingerHoles: holes.map(h => ({ ...h, placementGroup: frame })) });
+  const { container, unmount } = renderPage({ mobile: true });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-finger-0"]')!.click());
+    const properties = container.querySelector('#finger-access-properties')!;
+    expect(properties.querySelector('[aria-label="Elongated finger access rotation"]')).toBeNull();
+    expect(properties.querySelector('[aria-label="Depth in millimetres"]')).not.toBeNull();
+    expect(properties.textContent).toContain("Move and Rotate affect the whole group");
+  } finally { unmount(); }
+});
 
 it.each([
   { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
@@ -84,13 +129,44 @@ it.each(["commit", "cancel"] as const)("drags an initially unselected group as o
       Object.defineProperty(event, 'pointerId', { value: 1 }); body.dispatchEvent(event);
     });
     pointer("pointerdown", 63.75); pointer("pointermove", 75.75);
+    pointer("pointermove", 81.75);
     expect(container.querySelectorAll('[aria-label^="Include "]:checked')).toHaveLength(2);
-    pointer(finish === "cancel" ? "pointercancel" : "pointerup", 75.75);
+    pointer(finish === "cancel" ? "pointercancel" : "pointerup", 81.75);
     if (finish === "cancel") expect(current()).toEqual(grouped);
     else {
-      expect(current().map(c => c.position.x)).toEqual([-8, 32]);
-      expect(current()[0].placementGroup!.pivot.x).toBeCloseTo(frame.pivot.x + 12);
+      expect(current().map(c => c.position.x)).toEqual([-2, 38]);
+      expect(current()[0].placementGroup!.pivot.x).toBeCloseTo(frame.pivot.x + 18);
       clickBinHistory(container, "undo"); expect(current()).toEqual(grouped);
     }
+  } finally { unmount(); }
+});
+
+it.each(["multi-selection", "touch"] as const)("preserves a selected group during a %s drag", async mode => {
+  const frame = createPlacementGroup(cutouts.map(cutout => ({ kind: "pocket", cutout, shape })), spec, "saved-group");
+  const grouped = cutouts.map(c => ({ ...c, placementGroup: frame }));
+  const outside = { ...cutouts[0], id: "outside", name: "Tool 3", position: { x: 50, y: 25 } };
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts: [...grouped, outside] });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+    selectPocket(container, cutouts[0].id);
+    if (mode === "multi-selection") React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Tool 3 in selection"]')!.click());
+    const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+    Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperties(svg, {
+      createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+      setPointerCapture: { value: () => {} },
+    });
+    const pointer = (type: string, x: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 83.75, altKey: true });
+      Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: mode === "touch" ? "touch" : "mouse" } });
+      svg.querySelector(`[data-cutout-id="${cutouts[0].id}"]`)!.dispatchEvent(event);
+    });
+    expect(svg.querySelector('[data-pocket-resize-handle]')).toBeNull();
+    pointer("pointerdown", 63.75); pointer("pointermove", 75.75); pointer("pointerup", 75.75);
+    expect(current().map(c => c.position.x)).toEqual([-8, 32, mode === "multi-selection" ? 62 : 50]);
+    expect(container.querySelectorAll('[aria-label^="Include "]:checked')).toHaveLength(mode === "multi-selection" ? 3 : 2);
+    clickBinHistory(container, "undo"); expect(current()).toEqual([...grouped, outside]);
   } finally { unmount(); }
 });

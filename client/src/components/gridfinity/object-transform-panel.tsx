@@ -190,7 +190,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </Button>}
         {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : grouped ? "Drag a colored ring or enter a group angle. Relative spacing and orientation stay fixed." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}
       </>}
-      {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
+      {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform the whole selection. Keep every member within the height limits."}</p>}
     </div>
     {mobile && editor.groupControls}
     </fieldset>

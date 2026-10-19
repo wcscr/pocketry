@@ -53,7 +53,7 @@ export function adjustPocketsForFillHeight(
     });
   }
   if (designLinkErrors({ cutouts: adjusted, fingerHoles: [] }).length) {
-    return { error: "Linked pockets with different tilts need different depth adjustments. Link their tilts, make the copies independent, or uncheck Adjust fixed pocket depths." };
+    return { error: "Linked pockets with different tilts need different depth adjustments. Unlink their geometry or uncheck Adjust fixed pocket depths." };
   }
   return { cutouts: adjusted };
 }

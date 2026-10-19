@@ -6,6 +6,7 @@ import { BinProvider, useBin, getCommittedBinDoc, type BinAction, type BinStore 
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { objectGroupErrors } from "@shared/gridfinity/object-groups";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
+import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { createPlacementGroup, transformObjects } from "@/lib/gridfinity/object-arrangement";
 
@@ -99,4 +100,19 @@ it("keeps grouping independent of a member's geometry edits", () => {
   expect(ui.state().cutouts[0].scaleX).toBe(2);
   expect(ui.state().cutouts[1]).toEqual(before[1]);
   expect(ui.state().cutouts[0].placementGroup).toEqual(before[0].placementGroup);
+});
+
+it.each([false, true])("allows grouped depth modes without moving peers (rotated: %s)", rotated => {
+  const ui = mount(); ui.group();
+  if (rotated) ui.send({ type: "UPDATE_OBJECTS", historyLabel: "Rotate group", edits: transformObjects(ui.objects(), ui.state().spec, new Vector3(),
+    new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 0.2))! });
+  const before = ui.state().cutouts;
+  for (const depth of [{ mode: "mm", value: 8 }, { mode: "remaining", floorThicknessMm: 2 }, { mode: "through" }] as const) {
+    ui.send({ type: "UPDATE_CUTOUT", id: "p0", patch: pocketDepthChangePatch(ui.state().spec, ui.shape, ui.state().cutouts[0], depth) });
+    expect(ui.state().editError).toBeNull();
+    expect(ui.state().cutouts[0].depth.mode).toBe(depth.mode);
+    expect(ui.state().cutouts[0].placementGroup).toEqual(before[0].placementGroup);
+    expect(ui.state().cutouts[1]).toEqual(before[1]);
+    expect(parseProjectDoc({ schemaVersion: PROJECT_SCHEMA_VERSION, ...getCommittedBinDoc(ui.state()), shapes: [ui.shape], history: ui.state().history })).not.toBeNull();
+  }
 });

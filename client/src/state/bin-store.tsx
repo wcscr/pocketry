@@ -633,7 +633,13 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         },
       );
     case "UPDATE_CUTOUT": {
-      if (state.cutouts.find(c => c.id === action.id)?.placementGroup && ["position", "elevationMm", "zOffsetMm", "rotationDeg", "tilt", "profileRotation", "placementGroup"].some(key => key in action.patch)) {
+      const original = state.cutouts.find(c => c.id === action.id);
+      // Depth-mode changes may materialize the existing floor or clear a
+      // legacy anchor. Those are geometry edits, not independent group moves.
+      const depthEdit = action.patch.depth !== undefined || action.patch.split !== undefined;
+      const poseKeys: (keyof CutoutPlacement)[] = ["position", "rotationDeg", "tilt", "profileRotation", "placementGroup",
+        ...(!depthEdit ? ["elevationMm", "zOffsetMm"] as const : [])];
+      if (original?.placementGroup && poseKeys.some(key => key in action.patch && !sameJsonData(original[key], action.patch[key]))) {
         return { ...state, editError: "Use the group Move and Rotate tools, or ungroup to move this object independently." };
       }
       const edits = applyLinkedEdits(state, { cutouts: patchCutouts(state.cutouts, action.id, action.patch), fingerHoles: [] });
@@ -655,7 +661,8 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         { ...selectionState([{ kind: "finger", id: action.hole.id }]) },
       );
     case "UPDATE_FINGER_HOLE": {
-      if (state.fingerHoles.find(h => h.id === action.id)?.placementGroup && ["center", "rotationDeg", "placementGroup"].some(key => key in action.patch)) {
+      const original = state.fingerHoles.find(h => h.id === action.id);
+      if (original?.placementGroup && (["center", "rotationDeg", "placementGroup"] as const).some(key => key in action.patch && !sameJsonData(original[key], action.patch[key]))) {
         return { ...state, editError: "Use the group Move and Rotate tools, or ungroup to move this object independently." };
       }
       const source = state.fingerHoles.find(h => h.id === action.id);

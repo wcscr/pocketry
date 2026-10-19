@@ -211,7 +211,8 @@ Select at least two pockets, retained holes or finger-access objects and choose
 **Group objects** in Properties or the context menu. Clicking any member selects
 the whole group. **Ungroup** removes the relationship without moving anything.
 Grouping never creates geometry links; an object may be grouped, linked, or both.
-Properties explicitly edit all selected objects. Ungroup to edit one member alone.
+The named object's Properties edit its geometry; fields labeled for selected
+objects edit all selected members. Group controls remain available in Properties.
 
 The initial pivot is the center of the combined 3D bounds. All members rotate
 around that fixed point, preserving relative spacing and orientation. Moving a
