@@ -1,3 +1,4 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
@@ -181,11 +182,18 @@ export function createBinWorkerHandlers(
               : null,
           }
         : null;
-      // Partition the native solid once. Rounded export meshes must never
-      // become CSG inputs, including cutters for another material region.
+      // Keep material partitions native. Apply the same print orientation to
+      // every solid before repairing its serialized Float32 mesh.
+      const pegsUp = payload.exportTopology && spec.pegBottom?.underside === "flat";
+      const exportLiftMm = payload.exportTopology
+        ? (pegsUp ? solid.boundingBox().max[2] : pegBottomExtensionMm(spec)) : 0;
+      const orientPart = (part: BinMaterialParts["body"]) => {
+        const oriented = pegsUp ? arena.track(part.rotate([180, 0, 0])) : part;
+        return exportLiftMm ? arena.track(oriented.translate([0, 0, exportLiftMm])) : oriented;
+      };
       const extractPart = (part: BinMaterialParts["body"], normals = includePreviewNormals) =>
         payload.exportTopology
-          ? extractPrintableMeshData(kernel, part)
+          ? extractPrintableMeshData(kernel, orientPart(part))
           : extractMeshData(kernel, part, { normals });
       const mesh = extractPart(displayed,
         // The preview displays the material body when a partition exists.
@@ -218,11 +226,11 @@ export function createBinWorkerHandlers(
             bodyMesh: extractPart(payload.exportTopology ? binSolid : displayedPart(binSolid)),
           } : {}),
           textMeshes: textParts.map(part => ({
-            label: part.label, z: part.z,
+            label: part.label, z: pegsUp ? exportLiftMm - part.z : part.z + exportLiftMm,
             // Flat shading avoids normal-generation failures on nearly
             // coincident font contours without rebuilding the rounded solid.
             mesh: extractPrintableMeshData(kernel,
-              payload.exportTopology ? part.solid : displayedPart(part.solid)),
+              orientPart(payload.exportTopology ? part.solid : displayedPart(part.solid))),
           })),
         } : {}),
         materialMeshes,

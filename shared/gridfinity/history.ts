@@ -3,6 +3,7 @@ import { z } from "zod";
 import { cutoutPlacementSchema, fingerHoleSchema } from "./cutout";
 import { designLinkErrors } from "./design-links";
 import { binSpecSchema } from "./types";
+import { binMaterialsSchema } from "./materials";
 
 /** The same retention limit applies in memory and in portable projects. */
 export const BIN_HISTORY_LIMIT = 50;
@@ -19,6 +20,9 @@ export const binDocSchema = z.object({
 export const binHistoryEntrySchema = z.object({
   doc: binDocSchema,
   label: z.string().min(1).max(200),
+  /** Appearance changes made by a compound design command travel with its undo step.
+   * Ordinary color edits remain independent of geometry history. */
+  materialChange: z.object({ before: binMaterialsSchema, after: binMaterialsSchema }).strict().optional(),
 }).strict();
 
 export const binHistorySchema = z.object({

@@ -5,9 +5,12 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 
 import {
@@ -52,6 +55,42 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("undoes compound material changes across history jumps, reloads and redo branches", () => {
+    const { store, act } = mountBin();
+    const original = { ...DEFAULT_BIN_MATERIALS, pocketFloorColor: "#123456", stackingRimColor: "#abcdef" };
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [], materials: original }));
+    const spec = store().spec;
+    const materialPatch = { colorPocketFloors: false, colorStackingRim: false,
+      pocketFloorColor: original.binColor, stackingRimColor: original.binColor };
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: DEFAULT_PEG_BOTTOM, lip: "none", textColor: null },
+      materialPatch, historyLabel: "Use ULTIM8 jig pegs" }));
+    expect(store().history.index).toBe(1);
+    expect(store().materials).toEqual({ ...original, ...materialPatch });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 3 } }));
+    // Appearance edits outside the preset stay independent of geometry history.
+    act(() => store().dispatch({ type: "PATCH_MATERIALS", patch: { binColor: "#fedcba" } }));
+    expect(store().history.index).toBe(2);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().materials.binColor).toBe("#fedcba");
+    expect(store().materials.colorStackingRim).toBe(false);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec).toEqual(spec);
+    expect(store().materials).toEqual({ ...original, binColor: "#fedcba" });
+    const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+      ...getCommittedBinDoc(store()), shapes: [], materials: store().materials, history: store().history })))!;
+    expect(saved).not.toBeNull();
+    act(() => store().dispatch({ type: "HYDRATE", ...saved }));
+    act(() => store().dispatch({ type: "JUMP_TO_HISTORY", index: 2 }));
+    expect(store().spec.heightUnits).toBe(3);
+    expect(store().materials).toEqual({ ...original, ...materialPatch, binColor: "#fedcba" });
+    act(() => store().dispatch({ type: "JUMP_TO_HISTORY", index: 0 }));
+    expect(store().materials).toEqual({ ...original, binColor: "#fedcba" });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 4 } }));
+    expect(store().canRedo).toBe(false);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().materials).toEqual({ ...original, binColor: "#fedcba" });
+  });
+
   it("edits and selects portable-font labels without serializing their source bytes", () => {
     const { store, act } = mountBin();
     const font = { kind: "local", name: "Portable", resolution: 1000,
@@ -972,6 +1011,42 @@ describe("linked design transactions", () => {
     act(() => store().dispatch({ type: "UNDO" })); expect(getCommittedBinDoc(store())).toEqual(old);
     act(() => store().dispatch({ type: "REDO" })); expect(getCommittedBinDoc(store())).toEqual(linked);
   });
+  it.each([false, true])("links insertion paths without moving legacy floors and round-trips history (share tilt: %s)", tilt => {
+    const { store, act } = mountBin();
+    const shape: TracedShape = { id: "s1", name: "Tool", sourceMmPerPx: 1, pointCount: 4,
+      bboxMm: { minX: -5, minY: -10, maxX: 5, maxY: 10 },
+      outlineMm: [{ outer: [{ x: -5, y: -10 }, { x: 5, y: -10 }, { x: 5, y: 10 }, { x: -5, y: 10 }], holes: [] }] };
+    const targetShape: TracedShape = { ...shape, id: "target-shape", bboxMm: { minX: -8, minY: -6, maxX: 8, maxY: 6 },
+      outlineMm: [{ outer: [{ x: -8, y: -6 }, { x: 8, y: -6 }, { x: 8, y: 6 }, { x: -8, y: 6 }], holes: [] }] };
+    const source = parseCutoutPlacement({ ...CUTOUT, elevationMm: 7, insertionMode: "axis", depth: { mode: "mm", value: 20 }, tilt: { xDeg: 15, yDeg: 0 } });
+    const target = parseCutoutPlacement({ ...CUTOUT, id: "target", shapeId: targetShape.id, position: { x: 25, y: 0 }, rotationDeg: 90,
+      depth: { mode: "mm", value: 12 }, tilt: { xDeg: 5, yDeg: 0 } });
+    act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [source, target], gridX: 3, gridY: 3 }));
+    const original = getCommittedBinDoc(store());
+    const floor = rigidPocket(target, targetShape, store().spec).elevationMm;
+    // Shape context is supplied by the link controls; placement stays local.
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: [source.id, target.id], sourceId: source.id, linkId: "g", tilt,
+      shapes: [shape, targetShape] }));
+    const linked = getCommittedBinDoc(store());
+    expect(linked.cutouts[1]).toMatchObject({ shapeId: source.shapeId, insertionMode: "axis", elevationMm: floor,
+      position: target.position, rotationDeg: target.rotationDeg, depth: source.depth,
+      tilt: tilt ? source.tilt : target.tilt });
+    const project = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [shape, targetShape], ...linked, history: store().history };
+    const reopened = parseProjectDoc(JSON.parse(JSON.stringify(project)));
+    expect(reopened).not.toBeNull();
+    expect(reopened!.cutouts).toEqual(linked.cutouts);
+    act(() => store().dispatch({ type: "UNDO" })); expect(getCommittedBinDoc(store())).toEqual(original);
+    act(() => store().dispatch({ type: "REDO" })); expect(getCommittedBinDoc(store())).toEqual(linked);
+  });
+  it("rejects insertion-path linking atomically if a legacy pocket's outline is unavailable", () => {
+    const { store, act } = setup();
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 7, insertionMode: "axis" } }));
+    const original = getCommittedBinDoc(store()), history = store().history;
+    act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
+    expect(getCommittedBinDoc(store())).toBe(original);
+    expect(store().history).toBe(history);
+    expect(store().editError).toContain("outline");
+  });
   it("propagates edits from either member and stores one final snapshot for a transient gesture", () => {
     const { store, act } = setup();
     act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
@@ -1063,6 +1138,30 @@ it("recovers legacy origins from the earliest retained state, including redo-onl
   expect(store().transformOrigins.pockets[0].cutout).toEqual(CUTOUT);
 });
 
+
+it("changes peg bottoms and fit settings with undo, retaining custom pocket floors and hole preferences", () => {
+  const { store, act } = mountBin();
+  const custom = { ...CUTOUT, id: "custom", depth: { mode: "remaining" as const, floorThicknessMm: 4 } };
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [CUTOUT, custom] }));
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { magnetHoles: true, screwHoles: true } }));
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: { diameterMm: 4.8, lengthMm: 4 } } }));
+  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
+  expect(store().cutouts[0].depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  expect(store().cutouts[1]).toEqual(custom);
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: { diameterMm: 4.6, lengthMm: 3 } } }));
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().spec.pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "sloped", density: 1 });
+  act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().spec.pegBottom).toBeNull();
+  expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
+  act(() => store().dispatch({ type: "REDO" }));
+  act(() => store().dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2, cutouts: [{ ...CUTOUT, id: "new" }] }));
+  expect(store().cutouts.at(-1)!.depth).toEqual({ mode: "remaining", floorThicknessMm: 2 });
+  act(() => store().dispatch({ type: "PATCH_SPEC", patch: { pegBottom: null } }));
+  expect(store().spec.magnetHoles).toBe(true);
+  expect(store().spec.screwHoles).toBe(true);
+  expect(store().cutouts[0].depth).toEqual(CUTOUT.depth);
+});
 
 it("keeps authored placement labels and describes single hole additions", () => {
   const { store, act } = mountBin();

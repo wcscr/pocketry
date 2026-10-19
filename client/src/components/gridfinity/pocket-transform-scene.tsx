@@ -1,3 +1,4 @@
+import { pickBinContextTarget, type BinContextTarget } from "@/lib/gridfinity/context-target";
 import type { TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { Line, TransformControls } from "@react-three/drei";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
@@ -34,6 +35,7 @@ export interface PocketEditor {
   onSelectionChange?: (selection: ObjectRef[]) => void;
   onCommitObjects?: (edits: ObjectEdits, label: string) => void;
   onPreviewObjects?: (edits: ObjectEdits, label: string) => void;
+  onContextMenu?: (target: BinContextTarget, point: { x: number; y: number }) => void;
   onSelect: (id: string | null) => void;
   onCommit: (id: string, patch: PocketTransformPatch, mode: PocketTransformMode) => void;
 }
@@ -55,7 +57,13 @@ export function PocketSelectionPlane({ editor, width, length, disabled }: {
     editor.onSelectionChange(ref ? additive ? contains ? selection.filter(r => r.kind !== ref.kind || r.id !== ref.id) : [...selection, ref] : [ref]
       : additive ? [...selection] : []);
   };
-  return <mesh position={[0, 0, z + 0.01]} onClick={select}>
+  return <mesh position={[0, 0, z + 0.01]} onClick={select} onContextMenu={event => {
+    if (disabled || event.delta > 4 || !editor.onContextMenu) return;
+    const ref = pickBinContextTarget(objects, event.point, editor.pocketGeometry);
+    if (!ref) return;
+    event.stopPropagation(); event.nativeEvent.preventDefault();
+    editor.onContextMenu(ref, { x: event.clientX, y: event.clientY });
+  }}>
     <planeGeometry args={[width, length]} />
     <meshBasicMaterial side={DoubleSide} transparent opacity={0} depthWrite={false} colorWrite={false} />
   </mesh>;

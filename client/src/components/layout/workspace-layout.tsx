@@ -14,6 +14,7 @@ import { useElementSize } from "@/hooks/use-element-size";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { InspectorWorkspace } from "./inspector-workspace";
 import { MobileCanvasOverlayContext } from "./mobile-canvas-overlay";
+import { CanvasReturnButton } from "./canvas-return-button";
 import { CollapsedPanelRail } from "./collapsed-panel-rail";
 
 export interface WorkspaceLayoutProps {
@@ -197,9 +198,9 @@ function WorkspaceShell({
         </div>
         <section hidden={!panelOpen} aria-label="All properties" className={panelOpen ? "absolute inset-0 z-40 flex min-h-0 flex-col bg-background" : "hidden"} data-testid="mobile-properties-panel"
           {...(!panelOpen ? { inert: "" } : {})}>
-          <header className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3">
+          <header className="shrink-0 space-y-2 border-b bg-background p-3">
+            <CanvasReturnButton onClick={() => onPanelOpenChange(false)} />
             <h2 className="text-sm font-semibold">{panelTitle}</h2>
-            <Button variant="outline" className="min-h-11" onClick={() => onPanelOpenChange(false)}>Back to canvas</Button>
           </header>
           <div className="min-h-0 flex-1 overflow-hidden">{panel}</div>
         </section>

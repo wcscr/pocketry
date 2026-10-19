@@ -1,13 +1,18 @@
+import { useBinObjectContextMenu } from "./object-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
+import { arbitrarySizePatch, gridSizeFromArbitrary } from "@shared/gridfinity/bin-size";
 import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { sameJsonData } from "@shared/json-data-equal";
 import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
 import type { SampleLibrary } from "@/lib/project/samples";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
+import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
+import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
 import { MaterialColorSwatch } from "./material-color-swatch";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
-import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
+import { ZodError } from "zod";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
@@ -80,7 +85,6 @@ import {
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import {
-  binFootprintMm,
   D_WALL,
   GRID_PITCH_DIVISOR,
   HEIGHT_UNIT_MM,
@@ -92,8 +96,9 @@ import {
   standardCellSpan,
   type GridPitch,
 } from "@shared/gridfinity/standard";
-import { MAX_GRID, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
-import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { DEFAULT_PEG_BOTTOM, PEG_DENSITIES, hasSmoothBase, pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { MAX_GRID, MAX_HEIGHT_UNITS, maxGridCells, type BinSpecInput } from "@shared/gridfinity/types";
+import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 
 import {
   PanelSectionFilterContext,
@@ -165,7 +170,7 @@ import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch"
 import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
-import { INITIAL_BIN_SPEC, useBin } from "@/state/bin-store";
+import { INITIAL_BIN_SPEC, binReducer, useBin, type BinState } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
 /** Slider ceiling for height; the schema allows more, the UI keeps it sane. */
@@ -302,7 +307,9 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
+  const openObjectMenu = useBinObjectContextMenu();
   const { enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
+  const bin = useBin();
   const {
     spec,
     adjustFixedPocketDepths,
@@ -320,7 +327,7 @@ export function BinControlsPanel({
     hydrated,
     history,
     dispatch,
-  } = useBin();
+  } = bin;
   // Pocket inspection belongs to the selected pocket. General Check fit
   // cross-sections remain independent of object selection and navigation.
   const inspectedPocketId = useRef<string | null>(null);
@@ -388,9 +395,9 @@ export function BinControlsPanel({
   const enabledFeatureCount = [
     spec.lip === "standard",
     spec.fill === "solid",
-    spec.flatBottom,
-    !spec.flatBottom && spec.magnetHoles,
-    !spec.flatBottom && spec.screwHoles,
+    hasSmoothBase(spec),
+    !hasSmoothBase(spec) && spec.magnetHoles,
+    !hasSmoothBase(spec) && spec.screwHoles,
     spec.labelTab !== null,
   ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
@@ -398,6 +405,9 @@ export function BinControlsPanel({
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
   const [surfaceFitCheckStyle, setSurfaceFitCheckStyle] = useState<SurfaceFitCheckStyle>("outline");
+  const [ultim8DialogOpen, setUltim8DialogOpen] = useState(false);
+  const [jigThicknessDraft, setJigThicknessDraft] = useState("");
+  const jigThicknessRef = useRef<HTMLInputElement>(null);
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
   const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
@@ -439,6 +449,46 @@ export function BinControlsPanel({
     historyLabel?: string,
   ) => dispatch({ type: "PATCH_SPEC", patch, transient, historyLabel });
 
+  const jigSetup = useMemo(() => {
+    if (!ultim8DialogOpen) return null;
+    const thicknessMm = jigThicknessDraft.trim() === "" ? NaN : Number(jigThicknessDraft);
+    const min = spec.footprint.kind === "rectangle" ? 2 : HEIGHT_UNIT_MM;
+    const max = MAX_HEIGHT_UNITS * HEIGHT_UNIT_MM;
+    if (!Number.isFinite(thicknessMm) || thicknessMm < min || thicknessMm > max) {
+      return { patch: null, error: `Enter a body thickness from ${min} to ${max} mm.`, warnings: [] };
+    }
+    const patch: Partial<BinSpecInput> = {
+      flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
+      arbitrarySizeMm: arbitrarySizePatch(spec)?.arbitrarySizeMm ?? spec.arbitrarySizeMm,
+      heightUnits: thicknessMm / HEIGHT_UNIT_MM,
+      lip: "none", fill: "solid", fillHeightPercent: 100, textColor: null,
+    };
+    // Preview the same validation and adjustments as Apply, without changing the store.
+    let next: BinState;
+    try { next = binReducer(bin, { type: "PATCH_SPEC", patch }); }
+    catch (error) {
+      if (error instanceof ZodError) return { patch: null, error: error.issues[0].message, warnings: [] };
+      throw error;
+    }
+    if (next.editError) return { patch: null, error: next.editError, warnings: [] };
+    // Check original access depths before the reducer can clamp them to a thinner body.
+    const depthIssues = validateLayout(next.spec, next.cutouts, shapesById, fingerHoles).filter(issue =>
+      ["too-deep", "too-shallow", "floor-too-thin", "finger-hole-too-deep", "finger-hole-floor-too-thin"].includes(issue.code));
+    return { patch, error: depthIssues.filter(issue => issue.severity === "error").map(issue => issue.message).join(" ") || null,
+      warnings: depthIssues.filter(issue => issue.severity === "warning") };
+  }, [ultim8DialogOpen, jigThicknessDraft, bin, spec, shapesById, fingerHoles]);
+
+  const applyUltim8Bottom = (useJigSettings: boolean) => {
+    if (!experimentalEnabled || useJigSettings && (!jigSetup?.patch || jigSetup.error)) return;
+    dispatch({ type: "PATCH_SPEC", patch: useJigSettings ? jigSetup!.patch! : {
+      flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
+    }, historyLabel: "Use ULTIM8 jig pegs", ...(useJigSettings ? { materialPatch: {
+      colorPocketFloors: false, colorStackingRim: false,
+      pocketFloorColor: binColor, stackingRimColor: binColor,
+    } } : {}) });
+    setUltim8DialogOpen(false);
+  };
+
   const setRectangularCellSpan = (
     axis: "x" | "y",
     span: number,
@@ -472,20 +522,9 @@ export function BinControlsPanel({
     ? { ...selectedCutout, depth: selectedCutout.split.depths[selectedPocketSection] }
     : selectedCutout;
   const updatePocketDepth = (depth: DepthSpec, transient = false) => {
-    if (!selectedCutout) return;
-    // Ordinary retained outlines use Through to protect the complete bin depth.
-    // Deliberately posed volumes retain their original extrusion, as pockets do.
-    const keepFullDepth = selectedCutout.role === "hole" && !hasRigidPocket(selectedCutout) && depth.mode === "through";
-    const source = !keepFullDepth && depth.mode === "through" && selectedShape ? rigidPocket(selectedCutout,selectedShape,spec) : selectedCutout;
-    if (!keepFullDepth && (depth.mode === "through" || (depth.mode === "remaining" && hasRigidPocket(source))) && depthShape && depthCutout) {
-      const originalDepth = resolvePlacedPocketDepth(spec, depthCutout.depth, depthShape, depthCutout).axialDepthMm;
-      depth = { ...depth, sourceDepthMm: Math.max(0.1, originalDepth ?? resolvePocketDepth(spec,depth).infillTopZ) };
-    }
-    const depths = source.split ? [...source.split.depths] as [DepthSpec, DepthSpec] : null;
-    if (depths) depths[selectedPocketSection] = depth;
+    if (!selectedCutout || !selectedShape) return;
     dispatch({ type: "UPDATE_CUTOUT", id: selectedCutout.id,
-      patch: { elevationMm:source.elevationMm, zOffsetMm:source.zOffsetMm,
-        ...(source.split && depths ? { split: { ...source.split, depths } } : { depth }) },
+      patch: pocketDepthChangePatch(spec, selectedShape, selectedCutout, depth, selectedPocketSection),
       transient, historyLabel: selectedCutout.split ? "Change section depth" : selectedCutout.role === "hole" ? "Change kept depth" : "Change pocket depth" });
   };
   const selectedShape = selectedCutout
@@ -707,14 +746,14 @@ export function BinControlsPanel({
                   setRenamingPocketId(cutout.id);
                 };
                 return (
-                  <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} className={cn(
+                  <div key={cutout.id} data-testid={`cutout-row-${cutout.id}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openObjectMenu?.({ kind: "pocket", id: cutout.id }, contextMenuPoint(event))) event.preventDefault(); }} className={cn(
                     "flex items-center rounded-md border text-xs",
                     isSelected ? "border-violet-500/50 bg-violet-500/10" : "border-transparent hover:bg-accent",
                   )}>
                     {<label className="ml-1 flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Include ${name} in selection`} checked={isSelected}
                       onChange={() => { inspector?.keepObjectsOpen(); dispatch({ type: "SELECT_CUTOUT", id: cutout.id, additive: true }); }} /></label>}
                     {renamingPocketId === cutout.id && shape ? (
-                      <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
+                      <EditableObjectName key={cutout.id} name={name} kind="shape" onRename={(name) => dispatch({ type: "UPDATE_CUTOUT", id: cutout.id, patch: { name }, historyLabel: cutout.role === "hole" ? "Rename hole" : "Rename pocket" })} onDone={() => setRenamingPocketId(null)} />
                     ) : (
                     <button
                       type="button"
@@ -765,7 +804,7 @@ export function BinControlsPanel({
                     setRenamingFingerId(hole.id);
                   };
                   return (
-                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} className={cn(
+                    <div key={hole.id} data-testid={`finger-hole-row-${hole.id}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openObjectMenu?.({ kind: "finger", id: hole.id }, contextMenuPoint(event))) event.preventDefault(); }} className={cn(
                       "flex items-center rounded-md border text-xs",
                       isSelected ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent",
                     )}>
@@ -909,7 +948,7 @@ export function BinControlsPanel({
               {selectedCutout.designLink && <p className="pb-2 text-xs text-muted-foreground">Changing type updates every linked copy.</p>}
               {selectedCutout.role === "hole" && <p className="pb-2 text-xs text-muted-foreground">Keeps material wherever this object overlaps a pocket. Move, resize, edit its contour, or remove it independently. Depth sets how far down material is kept.</p>}
               <PocketInsertionControls cutout={selectedCutout} shape={selectedShape} />
-              {!inspector && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
+              {!inspector && !!selectedCutout.designLink && <LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} />}
               {selectedCutout.depthPending ? <Button variant="outline" onClick={() => onRevealIssue({ code: "pocket-depth-needed", severity: "error", message: "Depth needed", cutoutIds: [selectedCutout.id] })}>{selectedCutout.role === "hole" ? "Set hole depth" : "Set pocket depth"}</Button> : <PocketDepthSummary cutout={depthCutout!} shape={depthShape!} section={section} inspect={inspectPocket}>
                 {selectedCutout.split && <div className="flex gap-1 pb-2" role="group" aria-label="Section to edit">
                   {([0, 1] as const).map(index => <Button key={index} type="button" size="sm"
@@ -930,7 +969,7 @@ export function BinControlsPanel({
                             ? ({ mode: "through" } as const)
                             : mode === "mm"
                               ? ({ mode: "mm", value: Math.max(0.1, resolved.axialDepthMm ?? resolved.infillTopZ - defaultPocketFloorThicknessMm(spec)) } as const)
-                              : ({ mode: "remaining", floorThicknessMm: spec.flatBottom ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
+                              : ({ mode: "remaining", floorThicknessMm: hasSmoothBase(spec) ? defaultPocketFloorThicknessMm(spec) : Math.max(0, resolved.floorZ ?? defaultPocketFloorThicknessMm(spec)) } as const);
                         updatePocketDepth(depth);
                       }}
                     >
@@ -943,7 +982,7 @@ export function BinControlsPanel({
                         <SelectItem value="through">{selectedCutout.role === "hole" ? hasRigidPocket(selectedCutout) ? "Keep original depth" : "Keep full depth" : "Through"}</SelectItem>
                       </SelectContent>
                     </Select>
-                    {selectedCutout.role !== "hole" && spec.flatBottom && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat underside. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
+                    {selectedCutout.role !== "hole" && hasSmoothBase(spec) && depthCutout!.depth.mode === "remaining" && <HelpHint label="remaining floor thickness">Measured from the flat slab underside above any peg roots. A 2 mm floor lets pockets extend into the former base area.</HelpHint>}
                     {depthCutout!.depth.mode === "mm" && (
                       <DraftNumberInput
                         className="h-9 w-20 text-base font-semibold"
@@ -1064,11 +1103,11 @@ export function BinControlsPanel({
               {editorMode === "contour" && (
                 <p className="rounded-md bg-violet-500/10 px-2.5 py-2 text-[11px] text-violet-800 dark:text-violet-200">
                   Drag points to reshape. Click near an edge to add a point; right-click a
-                  point to remove it.
+                  point for actions.
                 </p>
               )}
 
-              {inspector && <AdvancedLinks><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
+              {(inspector || !selectedCutout.designLink) && <AdvancedLinks linked={!!selectedCutout.designLink}><LinkedDesignControls kind="pocket" activeId={selectedCutout.id} labels={new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))]))} /></AdvancedLinks>}
               {!selectedCutout.profileBottom && pocketClearance}
             </PropertySurface>
           );
@@ -1078,7 +1117,7 @@ export function BinControlsPanel({
                   <h3 className="text-xs font-semibold">Finger access properties</h3>
                   <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
-              {!inspector && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
+              {!inspector && !!selectedFingerHole.designLink && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
 
 
                 <FingerAccessShapeControls
@@ -1341,7 +1380,7 @@ export function BinControlsPanel({
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
                 </details>
-                {inspector && <AdvancedLinks><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
+                {(inspector || !selectedFingerHole.designLink) && <AdvancedLinks linked={!!selectedFingerHole.designLink}><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
             </PropertySurface>
             );
 
@@ -1374,8 +1413,9 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallThicknessMm !== D_WALL || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.pegBottom || spec.wallThicknessMm !== D_WALL || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
+          spec.pegBottom && "ULTIM8 jig pegs",
           spec.wallThicknessMm !== D_WALL && "wall thickness",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
@@ -1437,43 +1477,22 @@ export function BinControlsPanel({
           title="Bin size"
           icon={Scaling}
           tone="blue"
-          summary={`${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
+          summary={spec.arbitrarySizeMm ? `${Number(dims.widthMm.toFixed(2))} × ${Number(dims.lengthMm.toFixed(2))} × ${Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(2))} mm` : `${formatUnitCount(widthCellSpan)} × ${formatUnitCount(lengthCellSpan)} × ${formatUnitCount(spec.heightUnits)}u`}
           className="scroll-mt-16"
         >
-          <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Pitch changes preserve the outer size and custom shape. A coarser pitch is available only when existing cells combine into whole cells." className="shrink-0" />
-            <Select
-              value={spec.gridPitch}
-              onValueChange={(value) => {
-                const gridPitch = value as GridPitch;
-                const resized = changeBinGridPitchPreservingSize(spec, gridPitch);
-                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
-                patchSpec({
-                  ...resized,
-                  ...(gridPitch === "full"
-                    ? {}
-                    : {
-                        magnetHoles: false,
-                        magnetCrushRibs: false,
-                        screwHoles: false,
-                      }),
-                });
-              }}
-            >
-              <SelectTrigger id="bin-grid-pitch" aria-label="Grid pitch" className="h-8 flex-1" data-testid="select-grid-pitch">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["full", "half", "quarter"] as const).map((pitch) => {
-                  const resized = changeBinGridPitchPreservingSize(spec, pitch);
-                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
-                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />
-          {spec.footprint.kind === "rectangle" ? (
+          {spec.arbitrarySizeMm ? (
+            <>
+              {(["width", "length"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
+                <Label className="text-xs" htmlFor={`arbitrary-${axis}`}>{axis === "width" ? "Width" : "Length"}</Label>
+                <div className="flex items-center gap-1.5">
+                  <DraftNumberInput id={`arbitrary-${axis}`} className="h-8 w-24" aria-label={`Bin ${axis} in millimetres`} value={spec.arbitrarySizeMm![axis]} displayPrecision={2} min={10} max={671.5} step={0.1}
+                    onValueChange={value => patchSpec({ arbitrarySizeMm: { ...spec.arbitrarySizeMm!, [axis]: value } }, true)}
+                    onValueCommit={value => patchSpec({ arbitrarySizeMm: { ...spec.arbitrarySizeMm!, [axis]: value } })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>)}
+            </>
+          ) : spec.footprint.kind === "rectangle" ? (
             <>
               <CellSlider
                 label="Width"
@@ -1498,7 +1517,15 @@ export function BinControlsPanel({
               or reset to a rectangle to use the size sliders.
             </div>
           )}
-          <div className="space-y-1.5">
+          {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-2">
+            <SettingLabel label="Height" htmlFor="arbitrary-height" hint="Body height, excluding the stacking lip and peg length. Pocket floors stay measured from the flat backing." />
+            <div className="flex items-center gap-1.5">
+              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={spec.heightUnits * HEIGHT_UNIT_MM} displayPrecision={2} min={2} max={294} step={0.1}
+                onValueChange={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) }, true)}
+                onValueCommit={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) })} />
+              <span className="text-xs text-muted-foreground">mm</span>
+            </div>
+          </div> : <div className="space-y-1.5">
             <Label className="text-xs">Height</Label>
             <div className="flex items-center gap-2">
               <Slider
@@ -1517,7 +1544,7 @@ export function BinControlsPanel({
                 <DraftNumberInput className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
               </span>
             </div>
-          </div>
+          </div>}
           <div className="flex items-start gap-1">
             <p className="text-xs text-muted-foreground">
               Outer size {dims.widthMm.toFixed(1)} × {dims.lengthMm.toFixed(1)} ×{" "}
@@ -1533,7 +1560,7 @@ export function BinControlsPanel({
                 {HEIGHT_UNIT_MM} mm, including the base.
               </p>
               <p className="mt-2">
-                {spec.lip === "standard" ? <>
+                {spec.arbitrarySizeMm ? <>Height is the body height in millimetres. Pegs and an enabled lip add to the total height.</> : spec.lip === "standard" ? <>
                   Pocketry uses Gridfinity Rebuilt’s {STACKING_LIP_FILLET_RADIUS} mm
                   lip rounding. The displayed height includes this lip, which adds
                   approximately {STACKING_LIP_HEIGHT_ACTUAL.toFixed(2)} mm above the{" "}
@@ -1545,6 +1572,48 @@ export function BinControlsPanel({
               </p>
             </HelpHint>
           </div>
+          <div className="flex items-center gap-2">
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <Select
+              value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
+              onValueChange={(value) => {
+                if (value === "arbitrary") {
+                  const patch = arbitrarySizePatch(spec);
+                  if (patch) { patchSpec(patch); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }
+                  return;
+                }
+                const gridPitch = value as GridPitch;
+                const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, gridPitch) : changeBinGridPitchPreservingSize(spec, gridPitch);
+                if (!resized || resized.gridX > maxGridCells(gridPitch) || resized.gridY > maxGridCells(gridPitch)) return;
+                patchSpec({
+                  ...resized,
+                  ...(gridPitch === "full"
+                    ? {}
+                    : {
+                        magnetHoles: false,
+                        magnetCrushRibs: false,
+                        screwHoles: false,
+                      }),
+                });
+              }}
+            >
+              <SelectTrigger id="bin-grid-pitch" aria-label="Grid pitch" className="h-8 flex-1" data-testid="select-grid-pitch">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["full", "half", "quarter"] as const).map((pitch) => {
+                  const resized = spec.arbitrarySizeMm ? gridSizeFromArbitrary(spec, pitch) : changeBinGridPitchPreservingSize(spec, pitch);
+                  const available = resized && resized.gridX <= maxGridCells(pitch) && resized.gridY <= maxGridCells(pitch);
+                  return <SelectItem key={pitch} value={pitch} disabled={!available}>{pitch === "full" ? "Full · 42 mm" : pitch === "half" ? "Half · 21 mm" : "Quarter · 10.5 mm"}{!available ? " (would change shape)" : ""}</SelectItem>;
+                })}
+                <SelectItem value="arbitrary" disabled={spec.footprint.kind !== "rectangle"}>Arbitrary · no Gridfinity{spec.footprint.kind !== "rectangle" ? " (rectangles only)" : ""}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-3">
+            <SettingLabel label="Keep bin size fixed" hint="Arbitrary sizes always keep the entered dimensions. Change the millimetre fields or use Fit bin to contents to resize." />
+            <Switch checked disabled aria-label="Keep bin size fixed" />
+          </div> : <FeatureSwitch label="Keep bin size fixed" description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />}
           {showPreviewBusy && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
@@ -1572,6 +1641,7 @@ export function BinControlsPanel({
             size="sm"
             className="w-full"
             data-testid="button-edit-footprint"
+            disabled={!!spec.arbitrarySizeMm}
             onClick={() => {
               const editing = editorMode === "footprint";
               dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "footprint" });
@@ -1599,14 +1669,15 @@ export function BinControlsPanel({
           title="Construction"
           icon={Magnet}
           tone="rose"
-          summary={spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
+          summary={spec.pegBottom ? "ULTIM8 pegs" : spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
           defaultOpen={false}
           className="scroll-mt-16"
         >
           <FeatureSwitch
             label="Stacking lip"
-            description={spec.flatBottom ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
+            description={hasSmoothBase(spec) ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
             checked={spec.lip === "standard"}
+            disabled={spec.heightUnits < 1}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />
           <FeatureSwitch
@@ -1650,7 +1721,7 @@ export function BinControlsPanel({
               {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
             </div>
           )}
-          {!spec.flatBottom && (
+          {!hasSmoothBase(spec) && (
             <>
               <FeatureSwitch
                 label="Magnet holes"
@@ -1685,12 +1756,61 @@ export function BinControlsPanel({
             </>
           )}
 
-          <FeatureSwitch
-            label="Flat bottom"
-            description="Smooth underside; no Gridfinity base."
-            checked={spec.flatBottom}
-            onChange={(flatBottom) => patchSpec({ flatBottom })}
-          />
+          <div className="space-y-2 border-t pt-3">
+            <div className="flex items-center gap-2">
+              <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">For Wham Bam ULTIM8 mats on eufyMake E1. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>}</>} />
+              <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
+                onValueChange={(bottom) => {
+                  if (bottom === "ultim8") {
+                    if (experimentalEnabled) {
+                      setJigThicknessDraft(String(Number((spec.heightUnits * HEIGHT_UNIT_MM).toFixed(6))));
+                      setUltim8DialogOpen(true);
+                    }
+                    return;
+                  }
+                  patchSpec({ flatBottom: bottom === "flat", pegBottom: null });
+                }}>
+                <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gridfinity" disabled={!!spec.arbitrarySizeMm}>Gridfinity feet</SelectItem>
+                  <SelectItem value="flat">Flat bottom</SelectItem>
+                  {(experimentalEnabled || spec.pegBottom) && <SelectItem value="ultim8" disabled={!experimentalEnabled}>ULTIM8 jig pegs</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            {experimentalEnabled && spec.pegBottom && <PropertySurface tone="rose" role="group" aria-label="ULTIM8 peg settings" className="space-y-2">
+              <p className="text-xs font-medium">Peg settings</p>
+              <div className="flex items-center gap-2">
+                <SettingLabel label="Underside" htmlFor="select-peg-underside" hint={spec.pegBottom.underside === "flat" ? "Flat backing removes tall peg roots and exports pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : spec.pegBottom.underside === "bridged" ? "Short bridges join the flared peg collars. Print upright with pegs down and supports off. Print a small fit check before a full fixture." : "Sloped roots print upright with pegs down and supports off."} />
+                <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged" | "flat") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside, density: underside === "flat" ? spec.pegBottom!.density : 1 } })}>
+                  <SelectTrigger id="select-peg-underside" className="h-8 flex-1" aria-label="Peg underside"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="flat">Flat backing · pegs up</SelectItem>
+                    <SelectItem value="sloped">Sloped roots</SelectItem>
+                    <SelectItem value="bridged" disabled={spec.footprint.kind !== "rectangle"}>Short bridges</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {spec.pegBottom.underside === "flat" && <div className="flex items-center gap-2">
+                <SettingLabel label="Peg density" htmlFor="select-peg-density" hint="Spacing applies in both directions. Corner pegs remain, and through pockets omit any pegs they overlap. Fewer pegs reduce material; check fit and stiffness with a test print." />
+                <Select value={String(spec.pegBottom.density)} onValueChange={value => patchSpec({ pegBottom: { ...spec.pegBottom!, density: value === "corners" ? "corners" : Number(value) as 1 | 2 | 3 | 4 | 5 } })}>
+                  <SelectTrigger id="select-peg-density" className="h-8 flex-1" aria-label="Peg density"><SelectValue /></SelectTrigger>
+                  <SelectContent>{PEG_DENSITIES.map(density => <SelectItem key={density} value={String(density)}>{density === "corners" ? "Corners only" : density === 1 ? "Every hole" : `Every ${density} holes`}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>}
+              {(["diameterMm", "lengthMm"] as const).map((key) => <div key={key} className="flex items-center justify-between gap-3">
+                <SettingLabel label={key === "diameterMm" ? "Peg diameter" : "Peg length"} htmlFor={`peg-bottom-${key}`}
+                  hint={key === "diameterMm" ? "Locating pegs fit the jig’s 5 mm holes. Print a small fit check before a full bin." : "Straight peg length below the backing or root; tune it to your mat depth."} />
+                <div className="flex items-center gap-1.5">
+                  <DraftNumberInput id={`peg-bottom-${key}`} className="h-8 w-20" aria-label={key === "diameterMm" ? "Peg diameter in millimetres" : "Peg length in millimetres"}
+                    value={spec.pegBottom![key]} min={key === "diameterMm" ? 4 : 2} max={5} step={0.1}
+                    onValueChange={(value) => patchSpec({ pegBottom: { ...spec.pegBottom!, [key]: value } }, true)}
+                    onValueCommit={(value) => patchSpec({ pegBottom: { ...spec.pegBottom!, [key]: value } })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>)}
+            </PropertySurface>}
+          </div>
 
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
@@ -1753,6 +1873,7 @@ export function BinControlsPanel({
                   size="sm"
                   className="w-full"
                   data-testid="button-choose-label-edge"
+                  disabled={!!spec.arbitrarySizeMm}
                   onClick={() => {
                     const editing = editorMode === "label-edge";
                     dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "label-edge" });
@@ -2023,16 +2144,10 @@ export function BinControlsPanel({
                     label="Position"
                     value={section.offsetMm}
                     min={
-                      -binFootprintMm(
-                        section.axis === "x" ? spec.gridX : spec.gridY,
-                        spec.gridPitch,
-                      ) / 2
+                      -(section.axis === "x" ? dims.widthMm : dims.lengthMm) / 2
                     }
                     max={
-                      binFootprintMm(
-                        section.axis === "x" ? spec.gridX : spec.gridY,
-                        spec.gridPitch,
-                      ) / 2
+                      (section.axis === "x" ? dims.widthMm : dims.lengthMm) / 2
                     }
                     step={0.5}
                     onChange={(offsetMm) => changeBinSection({ ...section, offsetMm })}
@@ -2155,9 +2270,12 @@ export function BinControlsPanel({
 
           {exportOnly && fitTestControls}
 
-          {cutouts.length > 0 && (
+          {(cutouts.length > 0 || spec.pegBottom) && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">
-              <SettingLabel label="Export shadow-board layout (top view)" hint="Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards." />
+              <SettingLabel label={spec.pegBottom ? "ULTIM8 jig layout" : "Export shadow-board layout (top view)"}
+                hint={spec.pegBottom
+                  ? "Save jig SVG includes the bin outline, pocket openings, finger access, and actual peg locations at 1:1 scale. Align its peg circles with a zero-point-calibrated mat template. The origin is the bin’s top-left, not a bed position. DXF saves the ordinary pocket layout without pegs."
+                  : "Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards."} />
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -2178,20 +2296,61 @@ export function BinControlsPanel({
                   size="sm"
                   className="flex-1"
                   onClick={() => setPendingExport({
-                    title: "Save layout SVG?",
-                    description: "Download the bin footprint and pocket outlines in millimetres.",
+                    title: spec.pegBottom ? "Save ULTIM8 jig layout SVG?" : "Save layout SVG?",
+                    description: spec.pegBottom
+                      ? "Installed top view at 1:1 millimetres: bin outline, pocket openings, finger access, and retained pegs. Align the blue peg circles with matching holes in your calibrated mat template. The SVG origin is the bin’s top-left; it does not set a bed position."
+                      : "Download the bin footprint and pocket outlines in millimetres.",
                     confirmLabel: "Download SVG",
                     onConfirm: (includeProject) => onExportLayout("svg", includeProject),
                   })}
+                  disabled={Boolean(spec.pegBottom) && (exporting || hasErrors)}
                   data-testid="button-layout-svg"
                 >
-                  Save SVG
+                  {spec.pegBottom ? "Save jig SVG" : "Save SVG"}
                 </Button>
               </div>
             </div>
           )}
         </PanelSection>
       </InspectorPanelSections>
+
+      <AlertDialog open={ultim8DialogOpen && experimentalEnabled} onOpenChange={setUltim8DialogOpen}>
+        <AlertDialogContent onOpenAutoFocus={event => {
+          event.preventDefault(); jigThicknessRef.current?.focus(); jigThicknessRef.current?.select();
+        }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Use jig settings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove the stacking lip, set Solid fill to 100%, {spec.footprint.kind === "rectangle" ? "switch Grid pitch to Arbitrary, " : ""}and use the bin body color for floors, rim, and text?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center justify-between gap-3">
+            <SettingLabel label="Jig body thickness" htmlFor="ultim8-jig-thickness" hint={<>
+              <p>Body height only; peg length is added below it. The field starts at the current body height.</p>
+              {spec.footprint.kind !== "rectangle" && <p className="mt-2">Custom footprints use 3.5 mm height increments.</p>}
+            </>} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Input ref={jigThicknessRef} id="ultim8-jig-thickness" type="number" className="h-8 w-24"
+                aria-label="Jig body thickness in millimetres" aria-invalid={!!jigSetup?.error}
+                aria-describedby={jigSetup?.error ? "ultim8-jig-thickness-error" : undefined}
+                min={spec.footprint.kind === "rectangle" ? 2 : HEIGHT_UNIT_MM} max={MAX_HEIGHT_UNITS * HEIGHT_UNIT_MM}
+                step={spec.footprint.kind === "rectangle" ? 0.1 : HEIGHT_UNIT_MM / 2}
+                value={jigThicknessDraft} onChange={event => setJigThicknessDraft(event.target.value)} />
+              <span className="text-xs text-muted-foreground">mm</span>
+            </div>
+          </div>
+          {jigSetup?.error && <p id="ultim8-jig-thickness-error" role="alert" className="text-xs text-destructive">{jigSetup.error}</p>}
+          {!!jigSetup?.warnings.length && <ul aria-label="Jig thickness warnings" className="list-disc space-y-1 pl-4 text-xs text-amber-800 dark:text-amber-200">
+            {jigSetup.warnings.map((issue, index) => <li key={index}>{issue.message}</li>)}
+          </ul>}
+          <AlertDialogFooter className="flex-wrap gap-2 sm:space-x-0">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => applyUltim8Bottom(false)}>Keep current settings</AlertDialogAction>
+            <AlertDialogAction disabled={!jigSetup?.patch || !!jigSetup.error} onClick={() => applyUltim8Bottom(true)}>Use jig settings</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={pendingRemoval !== null}
@@ -3168,7 +3327,9 @@ function FeatureSwitch({
   );
 }
 
-function AdvancedLinks({ children }: { children: ReactNode }): JSX.Element {
-  const inspector = useSelectionInspector();
-  return inspector ? <details className="group/links border-t pt-1 text-xs"><summary className="flex cursor-pointer items-center justify-between gap-2 py-2 font-medium">Linked copies<ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/links:rotate-180" /></summary>{children}</details> : <>{children}</>;
+/** Optional linking stays collapsed; existing links always show their scope. */
+function AdvancedLinks({ linked, children }: { linked: boolean; children: ReactNode }): JSX.Element | null {
+  const { enabled } = useExperimentalFeatures();
+  if (!enabled && !linked) return null;
+  return linked ? <>{children}</> : <details className="group/links border-t pt-1 text-xs" data-testid="linked-copies-disclosure"><summary className="flex cursor-pointer items-center justify-between gap-2 py-2 font-medium">Linked copies<ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/links:rotate-180" /></summary>{children}</details>;
 }

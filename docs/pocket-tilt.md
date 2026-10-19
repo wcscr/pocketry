@@ -1,22 +1,14 @@
 # Tilted pockets
 
-These tools are experimental and hidden by default. Open **Settings** in the
-header (on mobile, **More options → Settings**) and turn on **Enable experimental
-features**. The setting exposes X/Y tilt, the 3D move/rotate widget,
-multi-selection, alignment/distribution, and linked designs. It persists in this
-browser and is independent of project files. Loading a project with tilted
-pockets, legacy Z offsets, or linked pocket/thumb designs automatically enables
-the tools and shows a notification. Detection includes saved undo/redo states.
-Ordinary projects leave the preference unchanged. If browser storage is blocked,
-the preference applies for the current tab.
+Pocket placement, rotation, multi-selection, alignment and distribution are
+available by default. Linked designs still require **App settings → Enable
+experimental features** (on mobile, **More options → App settings**). This choice
+is saved in the browser independently of project files. Opening a saved project
+never changes it; existing geometry stays visible and exportable.
 
-Turning it off cancels an unfinished group drag and returns to single selection.
-It does not remove tilt, break links, rewrite history, or alter exports. Projects
-that already use these features show a notice with a shortcut to settings.
-Ordinary edits do not turn the tools back on after the user disables them;
-automatic activation only runs when restoring, importing, or opening a project.
-Existing linked designs still propagate ordinary size/depth edits to their
-copies; enable the tools to manage or remove those links.
+Turning Experimental off cancels unfinished experimental edits without changing
+saved geometry, links or history. Placement and ordinary independent copies stay
+available. Shared linked-design edits require opting back in.
 
 Select a pocket and open **Position & rotation**. X and Y tilt turn its depth
 axis; the existing Z rotation sets its heading in the bin. **Reset tilt** returns
@@ -158,6 +150,22 @@ Regression coverage includes oblique opening dimensions, axial and remaining
 floor depths, combined transforms, resize anchors, split seats, floor colors,
 hidden intersections, through cuts, packing, legacy saves and export validation.
 
+## Object context menus
+
+Right-click an object in Layout, 3D, or the object list for Properties,
+Duplicate, Rename and Remove. Right-clicking an unselected object selects it;
+right-clicking a selected member keeps the current selection. Ordinary
+Duplicate creates independent copies. Experimental linking commands appear
+only when enabled and applicable; Link selected opens the existing source
+chooser, and mixed pocket/finger-access unlinking is one undo step.
+
+Retained-material holes are inner contours owned by their pocket, including
+holes created by Trace's Pocket/Hole workflow. Their menu opens the parent
+properties or removes the hole through an immutable contour revision. Trace
+contours have Properties, Edit contour and applicable removal commands.
+Right-clicking a contour node offers explicit removal rather than deleting it
+immediately. Name fields keep the browser's native editing menu.
+
 ## Linked designs
 
 **Duplicate linked** creates another instance of the selected pocket or thumb
@@ -175,15 +183,22 @@ Z heading always remains independent. Enabling it adopts the active pocket's
 tilt for the set. Thumb slots share opening shape, width, length, depth and edge
 settings while keeping their positions, headings and names independent.
 
-Object controls and properties display the linked count and member names. **Select linked** selects
-that set. **Unlink** removes links from the selected members
+Independent properties keep **Linked copies** collapsed, and hide it completely
+when Experimental is off. Existing links show the copy count and the scope of
+shared edits; additional guidance is in **About linked copies**. The toolbar's
+**Link** action manages even one selected linked copy. It requires at least two
+objects of the same kind to create a link; a pocket and a finger access cannot
+link to one another. **Select linked** selects that set. **Unlink** removes links from the selected members
 without changing geometry. There is no master instance: deleting the original
 does not delete or disconnect the remaining copies. Every link, unlink, linked
 edit and linked duplication is one undo step, including changes to unselected
 copies. Links survive project/library export, import and saved undo/redo history.
 
-Movement across the surface stays independent. Z movement edits shared depth,
-so it changes all linked copies' depths. A group transform that gives linked
+Placement, including rigid Z elevation, stays independent. Depth edits update
+the shared source dimensions. Linking an insertion path initializes any legacy
+copy's rigid elevation from its own original outline and orientation before
+adopting the shared design, retaining its current floor. If that outline is
+unavailable, the entire link operation is rejected without changing history. A group transform that gives linked
 members contradictory shared settings is rejected as a whole. Edit one member,
 use each-object rotation, or make copies independent when distinct designs are
 needed. Transform previews check affected unselected seats too. Normal layout
