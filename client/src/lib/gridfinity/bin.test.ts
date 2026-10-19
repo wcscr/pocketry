@@ -78,6 +78,29 @@ function wallRingAreaMm2(widthMm: number, lengthMm: number): number {
 }
 
 describe("buildWallRing", () => {
+  it.each(["x", "y"] as const)("keeps the opposite %s wall vertical for either single-wall selection", axis => {
+    const index = axis === "x" ? 0 : 1;
+    const upright = buildBin(kernel, spec({ lip: "none", fill: "solid" }), QUALITY);
+    const half = upright.parts.wall!.boundingBox().max[index];
+    for (const side of ["negative", "positive"] as const) {
+      for (const angleDeg of [-20, 20]) {
+        const built = buildBin(kernel, spec({ lip: "none", fill: "solid", wallSlant: { axis, angleDeg, side } }), QUALITY);
+        expect(built.solid.status()).toBe("NoError");
+        expect(built.parts.base.boundingBox()).toEqual(upright.parts.base.boundingBox());
+        expect(built.solid.decompose().map(part => arena.track(part))).toHaveLength(1);
+        for (const z of [BASE_HEIGHT + 0.1, 24.5, 41.9]) {
+          const section = arena.track(built.parts.wall!.slice(z));
+          const bounds = section.bounds();
+          const delta = (z - BASE_HEIGHT) * Math.tan(angleDeg * Math.PI / 180);
+          expect(bounds.min[index]).toBeCloseTo(-half + (side === "negative" ? delta : 0), 5);
+          expect(bounds.max[index]).toBeCloseTo(half + (side === "positive" ? delta : 0), 5);
+        }
+        const mesh = extractPrintableMeshData(kernel, built.solid);
+        expect(mesh.indices.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("leans the body along one axis while leaving the Gridfinity base fixed", () => {
     const upright = buildBin(kernel, spec({ lip: "none", fill: "solid" }), QUALITY);
     const slanted = buildBin(kernel, spec({ lip: "none", fill: "solid",

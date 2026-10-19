@@ -47,16 +47,21 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
-  it.each([37, 38, 39, 44])("migrates v%s projects and saves a slanted wall through history", schemaVersion => {
+  it.each([37, 38, 39, 40, 44, 45, 46])("migrates v%s projects and saves a slanted wall through history", schemaVersion => {
     const old = { ...VALID, schemaVersion };
     const migrated = parseProjectDoc(old)!;
     expect(migrated.spec.wallSlant).toBeNull();
-    const slanted = { ...migrated.spec, lip: "none" as const, wallSlant: { axis: "y" as const, angleDeg: 30 } };
+    const slanted = { ...migrated.spec, lip: "none" as const, wallSlant: { axis: "y" as const, angleDeg: -75, side: "positive" as const } };
     const saved = { ...migrated, spec: slanted, history: { index: 1, stack: [
       { doc: { spec: migrated.spec, cutouts: migrated.cutouts, fingerHoles: migrated.fingerHoles }, label: "Before" },
       { doc: { spec: slanted, cutouts: migrated.cutouts, fingerHoles: migrated.fingerHoles }, label: "Slant walls" },
     ] } };
     expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
+  it.each([40, 45])("keeps v%s slanted projects tilting both walls", schemaVersion => {
+    const doc = parseProjectDoc({ ...VALID, schemaVersion,
+      spec: { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 } } })!;
+    expect(doc.spec.wallSlant).toEqual({ axis: "x", angleDeg: 20 });
   });
   it("migrates v31 wall thickness through the design, history, and transform references", () => {
     const { wallThicknessMm: _removed, ...spec } = VALID.spec;

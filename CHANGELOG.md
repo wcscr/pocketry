@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify App settings with a bulleted experimental-feature list and shorter explanations.
+- Allow wall slants up to 89°. Inward walls can meet the vertical wall below the requested height to form a support wedge, with a warning and printable export.
 - Fixed side mirroring in Symmetry & straighten for syringe grips and other concave outlines; averaging now explains when to choose a side.
 
 - Preserve unresolved pocket-depth drafts while switching pockets or reopening the prompt, and link depth-limit warnings directly to bin height controls. Explain tool exposure and show Through pockets with an open bottom.
@@ -37,7 +39,7 @@
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
 - Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.
 - Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.
-- Add experimental one-axis slanted bin walls above a fixed Gridfinity base, with X/Y angle controls, a shifted rim outline, and a shortcut to match a selected tilted pocket. Export checks pocket collisions against the slanted wall.
+- Add experimental one-axis slanted bin walls above a fixed Gridfinity base, with X/Y angle controls, a shifted rim outline, and a shortcut to match a selected tilted pocket. Choose both opposing walls or tilt one while keeping the other vertical. Export checks pocket collisions against the actual walls.
 - Allow label tabs on slanted bin walls, including shifted pocket-shadow warnings.
 - Keep short slanted label tabs above the base and prevent preview flicker along their colored rim band.
 - Link to Form Fit Print from About and credit the slanted-gridfinity project for inspiring slanted bin walls.
