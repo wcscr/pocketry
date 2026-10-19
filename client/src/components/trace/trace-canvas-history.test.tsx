@@ -231,6 +231,92 @@ afterEach(() => {
 });
 
 describe("TraceCanvas edit history", () => {
+  it.each([false, true])("preserves zoom and pan when adding, undoing, and redoing a contour (mobile: %s)", async mobile => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", mobile ? 390 : 1200);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
+    const bounds = vi.spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, mobile ? 390 : 1000, 600));
+    const host = document.createElement("div"); document.body.appendChild(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => trace!.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } }));
+      const svg = host.querySelector("svg")!;
+      const transform = () => svg.querySelector("g[transform]")!.getAttribute("transform");
+      const fitted = transform();
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Zoom in (+)"]')!.click());
+      React.act(() => svg.dispatchEvent(new WheelEvent("wheel", { deltaX: 37, deltaY: 53, bubbles: true, cancelable: true })));
+      const positioned = transform();
+      expect(positioned).not.toBe(fitted);
+
+      React.act(() => trace!.dispatch({ type: "ADD_CONTOUR" }));
+      expect(trace!.outline).toHaveLength(2);
+      expect(trace!.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+      expect(transform()).toBe(positioned);
+      React.act(() => trace!.undo());
+      expect(trace!.outline).toHaveLength(1);
+      expect(transform()).toBe(positioned);
+      React.act(() => trace!.redo());
+      expect(trace!.outline).toHaveLength(2);
+      expect(transform()).toBe(positioned);
+    } finally { React.act(() => root.unmount()); bounds.mockRestore(); }
+  });
+
+  it.each(["mouse", "touch"])("edits a new square immediately with %s and undoes creation independently", async pointerType => {
+    const mobile = pointerType === "touch";
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", mobile ? 390 : 1200);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
+    const restoreCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.appendChild(host);
+    const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe(): null { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      const original = trace!.outline;
+      React.act(() => {
+        trace!.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+        trace!.dispatch({ type: "SET_REGION", region: { x: 100, y: 200, width: 400, height: 200 } });
+        trace!.dispatch({ type: "ADD_CONTOUR" });
+      });
+      const square = trace!.outline[1].outer;
+      const svg = host.querySelector("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+      const pointer = (type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerType: { value: pointerType }, pointerId: { value: 1 } });
+        svg.dispatchEvent(event);
+      });
+      pointer("pointerdown", 300, 275); pointer("pointerup", 300, 275);
+      expect(trace!.outline[1].outer).toHaveLength(5);
+      pointer("pointerdown", 300, 275); pointer("pointermove", 300, 250); pointer("pointerup", 300, 250);
+      expect(trace!.outline[1].outer).toContainEqual({ x: 300, y: 250 });
+      expect(trace!.outline[0]).toEqual(original[0]);
+      React.act(() => trace!.undo());
+      expect(trace!.outline[1].outer).toContainEqual({ x: 300, y: 275 });
+      React.act(() => trace!.undo());
+      expect(trace!.outline[1].outer).toEqual(square);
+      React.act(() => trace!.undo());
+      expect(trace!.outline).toEqual(original);
+      React.act(() => trace!.redo());
+      expect(trace!.outline[1].outer).toEqual(square);
+      // Two untouched starter squares coincide. Point insertion must still
+      // target the newly selected contour, not the older one underneath it.
+      React.act(() => trace!.dispatch({ type: "ADD_CONTOUR" }));
+      pointer("pointerdown", 300, 275); pointer("pointerup", 300, 275);
+      expect(trace!.outline[2].outer).toHaveLength(5);
+      expect(trace!.outline[1].outer).toEqual(square);
+      pointer("pointerdown", 275, 275); pointer("pointermove", 255, 255); pointer("pointerup", 255, 255);
+      expect(trace!.outline[2].outer[0]).toEqual({ x: 255, y: 255 });
+      expect(trace!.outline[1].outer).toEqual(square);
+    } finally { React.act(() => root.unmount()); restoreCoordinates(); }
+  });
   it.each(["click", "tiny", "cancel", "escape", "commit", "decline"])("preserves edited geometry through region %s", async gesture => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -1048,7 +1134,9 @@ describe("desktop point focus", () => {
       pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
       const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
       React.act(() => svg.dispatchEvent(menu));
-      expect(menu.defaultPrevented).toBe(false);
+      expect(menu.defaultPrevented).toBe(true);
+      expect(document.querySelector('[role="menu"]')?.textContent).toContain("Properties");
+      React.act(() => document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       pointer("pointerdown", 200, 200); pointer("pointerup", 200, 200);
       expect(trace!.selection).toBeNull();
       pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
@@ -1105,7 +1193,17 @@ describe("desktop point focus", () => {
       pointer('pointerdown', 50, 10); pointer('pointerup', 50, 10);
       expect(trace!.outline[0].outer).toHaveLength(6);
       expect(remove()).toBeDefined();
-      React.act(() => svg.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 10 })));
+      const beforeRemoval = trace!.history.index;
+      const rightClick = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 50, clientY: 10 });
+      React.act(() => svg.dispatchEvent(rightClick));
+      expect(rightClick.defaultPrevented).toBe(true);
+      expect(document.querySelector('[role="menu"]')).toBeNull();
+      expect(trace!.outline[0].outer).toHaveLength(5);
+      expect(trace!.history.index).toBe(beforeRemoval + 1);
+      expect(remove()).toBeUndefined();
+      React.act(() => trace!.undo());
+      expect(trace!.outline[0].outer).toHaveLength(6);
+      React.act(() => trace!.redo());
       expect(trace!.outline[0].outer).toHaveLength(5);
       pointer('pointerdown', 10, 10); pointer('pointermove', 25, 25); pointer('pointerup', 25, 25);
       expect(trace!.outline[0].outer[0]).toEqual({ x: 25, y: 25 });

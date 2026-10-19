@@ -1,3 +1,4 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { hasRigidPocket, rigidPocketFootprint } from "@shared/gridfinity/rigid-pocket";
 import { resolvedPocketGeometry } from "@/lib/gridfinity/pocket-geometry";
 import {
@@ -10,7 +11,7 @@ import {
   type FingerHole,
   type TracedShape,
 } from "@shared/gridfinity/cutout";
-import { binFootprintMm, BASE_TOP_RADIUS } from "@shared/gridfinity/standard";
+import { BASE_TOP_RADIUS } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { isValidRing } from "@shared/geometry/rings";
 import type { Point, Ring } from "@shared/geometry/types";
@@ -18,6 +19,12 @@ import { footprintOuterRingMm } from "@shared/gridfinity/footprint";
 import { profileFootprint } from "@shared/gridfinity/profile-bottom";
 import { resolvedProfileFootprint } from "@/lib/gridfinity/profile-bottom";
 import { withKernel, type Kernel } from "@/lib/manifold/runtime";
+
+import type { Manifold } from "manifold-3d";
+import { validateLayout } from "@shared/gridfinity/validate";
+import { retainedUltim8PegCenters } from "@/lib/gridfinity/peg-bottom";
+import { EXPORT_QUALITY } from "@/lib/gridfinity/bin";
+import { buildCutoutCutters, buildFingerHoleCutters } from "@/lib/gridfinity/cutouts";
 
 import { toCrossSection, polygonsToOutline } from "@/lib/geometry/offset";
 import { budgetOutline } from "@/lib/gridfinity/cutouts";
@@ -49,8 +56,8 @@ export function layoutRingsMm(
     spec.footprint.kind === "custom"
       ? footprintOuterRingMm(spec, CIRCLE_SEGMENTS)
       : roundedRectRing(
-          binFootprintMm(spec.gridX, spec.gridPitch),
-          binFootprintMm(spec.gridY, spec.gridPitch),
+          binWidthMm(spec),
+          binLengthMm(spec),
           BASE_TOP_RADIUS,
         ),
   ];
@@ -143,23 +150,11 @@ export async function generateLayoutSVG(
   shapesById: ReadonlyMap<string, TracedShape>,
   fingerHoles: readonly FingerHole[] = [],
 ): Promise<string> {
-  const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
-  const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
+  const widthMm = binWidthMm(spec);
+  const lengthMm = binLengthMm(spec);
   const rings = await exportLayoutRings(spec, cutouts, shapesById, fingerHoles);
 
-  const toView = (point: Point): Point => ({
-    x: point.x + widthMm / 2,
-    y: lengthMm / 2 - point.y,
-  });
-  const paths = rings.map((ring) => {
-    const d = ring
-      .map((point, index) => {
-        const v = toView(point);
-        return `${index === 0 ? "M" : "L"} ${v.x.toFixed(4)} ${v.y.toFixed(4)}`;
-      })
-      .join(" ");
-    return `  <path d="${d} Z" fill="none" stroke="#000" stroke-width="0.2"/>`;
-  });
+  const paths = rings.map(ring => `  <path d="${svgRingPath(ring, widthMm, lengthMm)}" fill="none" stroke="#000" stroke-width="0.2"/>`);
 
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
@@ -175,4 +170,72 @@ async function exportLayoutRings(spec: BinSpec, cutouts: readonly CutoutPlacemen
   return cutouts.some(c => c.role === "hole" || c.profileBottom || hasRigidPocket(c))
     ? withKernel(kernel => layoutRingsMm(spec, cutouts, shapes, fingers, kernel))
     : layoutRingsMm(spec, cutouts, shapes, fingers);
+}
+
+/** Millimetre top view of the installed jig, independent of pegs-up print
+ * orientation. The document origin is the bin's upper-left bound, not a bed
+ * origin: users register the actual peg circles to their calibrated mat. */
+export async function generateUltim8JigSVG(
+  spec: BinSpec, cutouts: readonly CutoutPlacement[],
+  shapesById: ReadonlyMap<string, TracedShape>, fingerHoles: readonly FingerHole[] = [],
+): Promise<string> {
+  if (!spec.pegBottom) throw new Error("ULTIM8 jig pegs are required for a jig layout SVG.");
+  const error = validateLayout(spec, cutouts, shapesById, fingerHoles).find(issue => issue.severity === "error");
+  if (error) throw new Error(error.message);
+  const radius = spec.pegBottom.diameterMm / 2;
+  const width = binWidthMm(spec), length = binLengthMm(spec);
+  return withKernel(kernel => {
+    const { arena, Manifold } = kernel;
+    const built = buildCutoutCutters(kernel, shapesById, cutouts, spec, EXPORT_QUALITY);
+    const cutterError = built.validationIssues?.find(issue => issue.severity === "error");
+    if (cutterError) throw new Error(cutterError.message);
+    if (built.reports.some(report => report.emptied)) throw new Error("A pocket has no usable geometry. Fix the pocket before exporting the jig layout.");
+    const throughCutters = built.throughCutters ?? [];
+    const through = throughCutters.length ? arena.track(Manifold.union(throughCutters)) : null;
+    const pegs = retainedUltim8PegCenters(kernel, spec, EXPORT_QUALITY.circularSegments, through);
+    if (!pegs.length) throw new Error("This layout has no fitting ULTIM8 pegs. Move or resize the pockets, or enlarge the footprint.");
+    const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+    const openingRings = (cutters: readonly Manifold[]): Ring[] => {
+      if (!cutters.length) return [];
+      const solid = arena.track(Manifold.union(cutters));
+      if (solid.isEmpty() || solid.boundingBox().min[2] >= top - 1e-8) return [];
+      // Slice on the material side, matching the 3D opening inspection.
+      return arena.track(solid.slice(top - 1e-7)).toPolygons()
+        .map(ring => ring.map(([x, y]) => ({ x, y }))).filter(ring => isValidRing(ring));
+    };
+    const group = (id: string, color: string, rings: Ring[]) => [
+      `  <g id="${id}" fill="none" stroke="${color}" stroke-width="0.2">`,
+      ...rings.map(ring => `    <path d="${svgRingPath(ring, width, length)}"/>`),
+      `  </g>`,
+    ];
+    return [
+      `<?xml version="1.0" encoding="UTF-8"?>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${length}mm" viewBox="0 0 ${width} ${length}">`,
+      `  <title>ULTIM8 jig layout</title>`,
+      `  <desc>1:1 millimetres. Installed top view, not the pegs-up print orientation. Origin: top-left of the bin bounds. Align peg circles to matching holes in your zero-point-calibrated mat template; this SVG does not assign a bed position. Gray: bin outline. Black: pocket openings. Orange: finger access. Blue: retained peg shafts.</desc>`,
+      ...group("bin-outline", "#64748b", [footprintOuterRingMm(spec, EXPORT_QUALITY.circularSegments)]),
+      ...group("pocket-openings", "#000000", (built.cutterGroups ?? []).flatMap(group => openingRings(group.cutters))),
+      ...group("finger-access", "#d97706", fingerHoles.flatMap(hole => openingRings(buildFingerHoleCutters(kernel, [hole], spec, EXPORT_QUALITY)))),
+      `  <g id="peg-locations" fill="none" stroke="#2563eb" stroke-width="0.2">`,
+      ...pegs.map(point => {
+        const view = svgViewPoint(point, width, length);
+        return `    <circle cx="${view.x.toFixed(4)}" cy="${view.y.toFixed(4)}" r="${radius.toFixed(4)}"/>`;
+      }),
+      `  </g>`,
+      `</svg>`,
+      ``,
+    ].join("\n");
+  });
+}
+
+/** Apply the bin-frame y-up to SVG y-down conversion exactly once. */
+function svgViewPoint(point: Point, width: number, length: number): Point {
+  return { x: point.x + width / 2, y: length / 2 - point.y };
+}
+
+function svgRingPath(ring: Ring, width: number, length: number): string {
+  return ring.map((point, index) => {
+    const view = svgViewPoint(point, width, length);
+    return `${index === 0 ? "M" : "L"} ${view.x.toFixed(4)} ${view.y.toFixed(4)}`;
+  }).join(" ") + " Z";
 }

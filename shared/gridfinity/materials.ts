@@ -18,7 +18,8 @@ export const MULTICOLOR_RIM_MAX_THICKNESS_MM = Math.floor(
 
 const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
-/** Project appearance is separate from the geometry and its edit history. */
+/** Ordinary appearance edits stay independent of geometry history. Compound
+ * commands may retain before/after appearance alongside their design step. */
 export const binMaterialsSchema = z.object({
   binColor: colorSchema,
   pocketFloorColor: colorSchema,

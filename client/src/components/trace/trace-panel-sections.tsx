@@ -1,6 +1,6 @@
 import { Children, cloneElement, isValidElement, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, RotateCcw } from "lucide-react";
 import { PanelBody, type PanelSectionProps } from "@/components/layout/panel-section";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
@@ -8,7 +8,7 @@ import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 
 /** A single copy of each form moves to the selected workflow's properties. */
-export function TracePanelSections({ children }: { children: ReactNode }): JSX.Element {
+export function TracePanelSections({ children, onStartOver }: { children: ReactNode; onStartOver: () => void }): JSX.Element {
   const inspector = useTraceInspector();
   const trace = useTrace();
   const sections = Children.toArray(children).filter(child => isValidElement<PanelSectionProps>(child));
@@ -19,8 +19,14 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
     ? sections.slice(0, selectedIndex).reverse().find(child => !child.props.disabled)?.props.id : undefined;
   const showSection = inspector?.showSection;
   useEffect(() => { if (fallback) showSection?.(fallback, false); }, [fallback, showSection]);
+  const restart = <button type="button" data-testid="button-start-over" data-property-tone="rose"
+    className="property-heading flex min-h-14 w-full items-center gap-2 border-b border-l-2 px-3 py-2 text-left text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+    disabled={!trace.imageSize.width} onClick={onStartOver}>
+    <RotateCcw className="h-5 w-5 shrink-0" aria-hidden />Start Over
+  </button>;
   if (!inspector) return <PanelBody className="[overflow-anchor:none]">
     {sections.map(child => child.props.disabled ? cloneElement(child, { children: null }) : child)}
+    {restart}
   </PanelBody>;
   const acceptedScale = !!trace.calibration && !trace.pendingAutoCalibration && !hasPendingManualCalibration(trace);
   const complete = [!!trace.imageSize.width, acceptedScale,
@@ -33,6 +39,11 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
         const { id, summary, disabled } = child.props;
         const step = TRACE_WORKFLOW_SECTIONS.find(item => item.id === id);
         if (!step) return null;
+        if (id === "trace-settings-output") return <div key={id} data-property-tone={step.tone}
+          className="property-heading flex w-full items-start gap-2 border-b border-l-2 px-3 py-3" role="group" aria-label="6. Add or Export">
+          <span className="mt-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px]" aria-hidden>6</span>
+          <div className="min-w-0 flex-1 space-y-2">{child.props.children}</div>
+        </div>;
         return <button key={id} type="button" data-testid={`trace-workflow-${step.label.toLowerCase().replace(/\s+/g, "-")}`} data-property-tone={step.tone}
           className="property-heading flex min-h-14 w-full items-start gap-2 border-b border-l-2 px-3 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-[current=step]:border-l-4 aria-[current=step]:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={`${index + 1}. ${step.label}${complete[index] ? " (complete)" : ""}`} aria-current={inspector.activeSection === id ? "step" : undefined}
@@ -46,8 +57,9 @@ export function TracePanelSections({ children }: { children: ReactNode }): JSX.E
           </span>
         </button>;
       })}
+      {restart}
     </nav>
-    {inspector.settings && active && createPortal(sections.filter(child => child.props.id === active.id && !child.props.disabled).map(child =>
+    {inspector.settings && active && createPortal(sections.filter(child => child.props.id === active.id && child.props.id !== "trace-settings-output" && !child.props.disabled).map(child =>
       <PropertySurface id={active.id} key={active.id} tone={active.tone} className="m-3" tabIndex={-1} aria-label={`${active.label} properties`}>
         {child.props.children}
       </PropertySurface>), inspector.settings)}

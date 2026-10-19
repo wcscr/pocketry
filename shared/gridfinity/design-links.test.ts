@@ -12,6 +12,27 @@ const f = fingerHoleSchema.parse({ id: "f", kind: "oblong-deep-scoop", center: {
 const g = { ...f, id: "g", center: { x: 15, y: 0 }, rotationDeg: 90 };
 
 describe("explicit linked designs", () => {
+  it("shares an edited elevation and thickness while preserving XY, heading and independent copies", () => {
+    const placed = { ...before, cutouts: [{ ...a, elevationMm: 5 }, { ...b, elevationMm: 9 }, independent] };
+    const result = applyLinkedEdits(placed, { cutouts: [{ ...placed.cutouts[0], elevationMm: 12, depth: { mode: "mm", value: 6 } }], fingerHoles: [] })!;
+    expect(result.cutouts.slice(0, 2).map(c => [c.elevationMm, c.depth])).toEqual([[12, { mode: "mm", value: 6 }], [12, { mode: "mm", value: 6 }]]);
+    expect(result.cutouts[1]).toMatchObject({ position: b.position, rotationDeg: 90, mirrored: true });
+    expect(result.cutouts[2]).toEqual(independent);
+    expect(designLinkErrors(result)).toEqual([]);
+  });
+  it("retains legacy height differences through unrelated edits and source initialization during rotation", () => {
+    const placed = { ...before, cutouts: [{ ...a, elevationMm: 5 }, { ...b, elevationMm: 9 }] };
+    expect(designLinkErrors(placed)).toEqual([]);
+    const resized = applyLinkedEdits(placed, { cutouts: [{ ...placed.cutouts[0], scaleX: 2 }], fingerHoles: [] })!;
+    expect(resized.cutouts.map(c => c.elevationMm)).toEqual([5, 9]);
+    const rotated = applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 5, tilt: { xDeg: 30, yDeg: 0 } }], fingerHoles: [] })!;
+    expect(rotated.cutouts[1].elevationMm).toBeUndefined();
+  });
+  it("rejects contradictory simultaneous height edits atomically", () => {
+    expect(applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 12 }, { ...b, elevationMm: 14 }], fingerHoles: [] })).toBeNull();
+    const matching = applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 12 }, { ...b, elevationMm: 12 }], fingerHoles: [] })!;
+    expect(matching.cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([12, 12]);
+  });
   it("resolves depth for every linked copy without inventing depth for independent pockets", () => {
     const pending = { ...before, cutouts: before.cutouts.map(c => ({ ...c, depthPending: true as const })) };
     const result = applyLinkedEdits(pending, { cutouts: [{ ...pending.cutouts[0], depthPending: undefined, depth: { mode: "mm", value: 8 } }], fingerHoles: [] })!;

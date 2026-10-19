@@ -26,6 +26,18 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("recovers an added contour, its selected corners, and creation history", async () => {
+    const before = { ...calibrated(), processing: false };
+    const added = traceReducer(before, { type: "ADD_CONTOUR" });
+    await saveTraceDraft(traceDraftSnapshot(added));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.outline).toEqual(added.outline);
+    expect(restored.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    expect(restored.mode).toBe("edit");
+    expect(restored.calibration).toEqual(before.calibration);
+    expect(traceReducer(restored, { type: "UNDO" }).outline).toEqual(before.outline);
+    expect(traceReducer(traceReducer(restored, { type: "UNDO" }), { type: "REDO" }).outline).toEqual(added.outline);
+  });
   it.each([false, true])("recovers a replacement ruler without losing accepted scale (complete: %s)", async complete => {
     const before = calibrated();
     let pending = traceReducer(before, { type: "SET_MODE", mode: "calibrate" });

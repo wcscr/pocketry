@@ -66,11 +66,10 @@ Use **Edit Contour** for manual corrections and **Margin** for clearance.
 Choose **Add to bin**. New pockets default to **To bin floor**; adjust the depth
 in Bin as needed. Repeat for each tool.
 Multiple objects traced together keep their relative positions in Bin, including
-overlaps. They remain separate pockets unless you choose **Keep these outlines together**.
+overlaps. Each pocket and hole stays separate and editable; no grouping option is needed.
 In **Detected Contours**, choose **Pocket** to cut material or **Hole** to keep
 material inside the surrounding pockets. A hole crossing a pocket edge makes a
-notch. Holes arrive in Bin as separate objects, including when the pockets are
-combined. Select a hole to move, resize, edit its contour, change its type, or
+notch. Select a hole to move, resize, edit its contour, change its type, or
 remove it; deleting it restores the original pocket. Undo/redo and project
 backups preserve these objects. Automatic arrangement keeps overlapping holes
 and pockets together. Trace margin and detail edits preserve the separate objects;

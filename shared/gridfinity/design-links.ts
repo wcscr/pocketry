@@ -4,6 +4,15 @@ import type { BinSpec } from "./types";
 export type DesignObjectKind = "pocket" | "finger";
 export interface DesignObjects { cutouts: CutoutPlacement[]; fingerHoles: FingerHole[] }
 
+/** Link like objects, or manage an existing link from any selected member. */
+export function canManageDesignLinks(objects: DesignObjects, selection: readonly { kind: DesignObjectKind; id: string }[]): boolean {
+  return (["pocket", "finger"] as const).some(kind => {
+    const selected = (kind === "pocket" ? objects.cutouts : objects.fingerHoles)
+      .filter(item => selection.some(ref => ref.kind === kind && ref.id === item.id));
+    return selected.length > 1 || selected.some(item => item.designLink);
+  });
+}
+
 // Copies retain complete geometry for the existing worker/export paths. The
 // explicit link id, validated in every saved snapshot, makes these fields one
 // shared design. Shape revisions remain immutable and update all references.
@@ -40,9 +49,32 @@ function propagate<T extends LinkedObject>(before: T[], edits: T[], design: (ite
     ...(item.designLink ? changes.get(item.designLink.id) : {}) }));
 }
 
+/** Pose conversion accompanying rotation is not an explicit height edit. */
+export function pocketElevationEdited(before: CutoutPlacement, after: CutoutPlacement): boolean {
+  return before.elevationMm !== after.elevationMm && before.rotationDeg === after.rotationDeg
+    && equal(before.tilt, after.tilt) && equal(before.profileRotation, after.profileRotation);
+}
+
 /** Conflicting simultaneous edits reject the entire command, without picking a winner. */
-export function applyLinkedEdits(before: DesignObjects, edits: DesignObjects): DesignObjects | null {
-  const cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign);
+export function applyLinkedEdits(before: DesignObjects, edits: DesignObjects,
+  { shareElevation = true }: { shareElevation?: boolean } = {},
+): DesignObjects | null {
+  // Elevation is shared when edited, rather than a saved-design invariant:
+  // existing projects and their history may contain differently placed copies.
+  // Rotation/legacy conversion callers can retain those placements explicitly.
+  let cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign);
+  if (cutouts && shareElevation) {
+    const heights = propagate(before.cutouts, edits.cutouts.filter(next => {
+      const original = before.cutouts.find(pocket => pocket.id === next.id);
+      return original && pocketElevationEdited(original, next);
+    }), pocket => ({ elevationMm: pocket.elevationMm }));
+    if (!heights) return null;
+    cutouts = cutouts.map((pocket, i) => heights[i].elevationMm !== before.cutouts[i].elevationMm
+      ? { ...pocket, elevationMm: heights[i].elevationMm } : pocket);
+  }
+  if (cutouts && shareElevation) cutouts.forEach((pocket, i) => {
+    if (pocket.elevationMm !== undefined && pocket.elevationMm !== before.cutouts[i].elevationMm) pocket.zOffsetMm = undefined;
+  });
   const fingerHoles = propagate(before.fingerHoles, edits.fingerHoles, fingerDesign);
   return cutouts && fingerHoles ? { cutouts, fingerHoles } : null;
 }

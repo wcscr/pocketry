@@ -18,6 +18,7 @@ import { RulerLengthInput, useRulerConfirmation } from "./ruler-length-input";
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
   onAddToBin: () => void;
+  onExport: () => void;
   addToBinReady?: boolean;
   addToBinHint?: ReactNode;
   onStartOver: () => void;
@@ -31,7 +32,7 @@ type TraceStep = "photo" | "scale" | "region" | "outline";
 const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
-export function MobileTraceActions({ onChoosePhoto, onAddToBin, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
+export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
@@ -100,7 +101,8 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, addToBinReady = 
       <TraceDetectionControls compact onReprocess={onReprocess} />
       <div className="mt-1 grid grid-cols-2 gap-1">
         <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
-        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-output")}>Export Outline</Button>
+        <Button variant="ghost" className="h-11 whitespace-normal leading-tight" disabled={!trace.outline.length || processing || !!pendingAutoCalibration || replacingRuler}
+          onClick={() => { setAdjustOpen(false); onExport(); }}>Export Tool Outline</Button>
       </div>
     </MobileAdjustmentTray>}
     {step === "scale" && replacingRuler && <Button variant="outline" className="mb-2 min-h-11 w-full"

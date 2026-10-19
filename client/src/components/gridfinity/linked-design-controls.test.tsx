@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { parseCutoutPlacement, fingerHoleSchema } from "@shared/gridfinity/cutout";
+import { ShapeLibraryProvider } from "@/state/shape-library";
 import { LinkedDesignControls } from "./linked-design-controls";
 const cleanups: (() => void)[] = [];
 afterEach(() => { cleanups.splice(0).forEach(fn => fn()); vi.unstubAllGlobals(); });
@@ -19,7 +20,7 @@ function mount() {
     const id = state.selectedCutoutId ?? state.selectedFingerHoleId;
     return id ? <LinkedDesignControls kind={state.selectedCutoutId ? "pocket" : "finger"} activeId={id} labels={labels} /> : null;
   }
-  React.act(() => root.render(<BinProvider><Harness /></BinProvider>));
+  React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Harness /></BinProvider></ShapeLibraryProvider>));
   const a = parseCutoutPlacement({ id: "a", shapeId: "s", name: "Alpha", position: { x: -15, y: 0 } });
   React.act(() => {
     state.dispatch({ type: "ADD_PLACED", cutouts: [a, { ...a, id: "b", name: "Beta", scaleX: 2, position: { x: 15, y: 0 } }], gridX: 3, gridY: 3 });
@@ -60,6 +61,8 @@ it("offers linked duplication, optional tilt and selection of all linked copies"
   expect(store().cutouts[0].designLink!.tilt).toBe(true);
   click("Select linked");
   expect(store().selection.map(s => s.id)).toEqual([original.id, duplicate.id]);
+  React.act(() => store().dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: original.id }, { kind: "pocket", id: "b" }] }));
+  expect(host.textContent).toContain("Unlink 1 pocket");
 });
 it("keeps mixed pocket and thumb selections in separate design sets", () => {
   const { host, button, store } = mount();
@@ -67,8 +70,8 @@ it("keeps mixed pocket and thumb selections in separate design sets", () => {
     store().dispatch({ type: "ADD_FINGER_HOLE", hole: fingerHoleSchema.parse({ id: "f", center: { x: 0, y: 0 } }) });
     store().dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: "a" }, { kind: "finger", id: "f" }] });
   });
-  expect(button("Link 2 thumb slots")).toBeUndefined();
-  expect(host.textContent).toContain("Pockets and thumb slots use separate designs");
+  expect(button("Link 2 finger accesses")).toBeUndefined();
+  expect(host.textContent).toContain("Pockets and finger access link separately");
 });
 
 
@@ -78,7 +81,9 @@ it("discloses hole type adoption and propagation for linked copies", () => {
   expect(host.textContent).toContain("including its Pocket or Hole type");
   click("Link 2 objects");
   expect(store().cutouts.every(c => c.role === "hole")).toBe(true);
-  expect(host.textContent).toContain("Editing type, size, shape or depth updates every linked copy");
+  expect(host.textContent).toContain("Edits update all 2 copies.");
+  React.act(() => (host.querySelector('[aria-label="About linked copies"]') as HTMLButtonElement).click());
+  expect(document.body.textContent).toContain("Linked copies share Pocket or Hole type, shape, size, depth");
   React.act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "b", patch: { role: undefined } }));
   expect(store().cutouts.every(c => c.role === undefined)).toBe(true);
 });

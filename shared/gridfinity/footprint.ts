@@ -31,6 +31,7 @@ export interface FootprintSpec {
   gridX: number;
   gridY: number;
   gridPitch?: GridPitch;
+  arbitrarySizeMm?: { width: number; length: number } | null;
   footprint?: BinFootprint;
 }
 
@@ -263,8 +264,8 @@ function roundedOffsetRing(
   if (lattice.length < 3) return [];
   const pitch = gridPitchMm(spec.gridPitch);
   const points = lattice.map((point) => ({
-    x: (point.x - spec.gridX / 2) * pitch,
-    y: (point.y - spec.gridY / 2) * pitch,
+    x: (point.x - spec.gridX / 2) * (spec.arbitrarySizeMm ? (spec.arbitrarySizeMm.width + BASE_GAP_MM) / spec.gridX : pitch),
+    y: (point.y - spec.gridY / 2) * (spec.arbitrarySizeMm ? (spec.arbitrarySizeMm.length + BASE_GAP_MM) / spec.gridY : pitch),
   }));
   const result: Ring = [];
   const quarterSegments = Math.max(1, Math.round(circularSegments / 4));
@@ -356,6 +357,15 @@ export function isBoundaryEdge(spec: FootprintSpec, edge: BoundaryEdge): boolean
 /** Resolves an anchored unit edge to its maximal collinear boundary run. */
 export function resolveBoundaryRun(spec: FootprintSpec, edge: BoundaryEdge): BoundaryRun | null {
   if (!isBoundaryEdge(spec, edge)) return null;
+  if (spec.arbitrarySizeMm) {
+    const halfW = spec.arbitrarySizeMm.width / 2, halfL = spec.arbitrarySizeMm.length / 2;
+    const horizontal = edge.side === "north" || edge.side === "south";
+    const sign = edge.side === "north" || edge.side === "east" ? 1 : -1;
+    return { side: edge.side, cells: [edge.cell],
+      start: horizontal ? { x: -halfW, y: sign * halfL } : { x: sign * halfW, y: -halfL },
+      end: horizontal ? { x: halfW, y: sign * halfL } : { x: sign * halfW, y: halfL },
+      lengthMm: horizontal ? 2 * halfW : 2 * halfL };
+  }
   const horizontal = edge.side === "north" || edge.side === "south";
   const cells: GridCell[] = [edge.cell];
   for (const direction of [-1, 1] as const) {

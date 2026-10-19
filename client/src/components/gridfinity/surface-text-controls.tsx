@@ -1,3 +1,5 @@
+import { useBinObjectContextMenu } from "./object-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { HelpHint } from "@/components/ui/help-hint";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,7 @@ import { useBin } from "@/state/bin-store";
 export function SurfaceTextControls({ onPositionText }: { onPositionText: () => void }): JSX.Element {
   const { spec, selectedSurfaceTextId, dispatch } = useBin();
   const inspector = useSelectionInspector();
+  const openObjectMenu = useBinObjectContextMenu();
   const addText = useAddSurfaceText(onPositionText);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const update = (labels: SurfaceText[], historyLabel: string, transient = false) =>
@@ -34,7 +37,7 @@ export function SurfaceTextControls({ onPositionText }: { onPositionText: () => 
         };
         return <div key={label.id} className={cn("flex items-center rounded-md border text-xs",
         label.id === selectedSurfaceTextId ? "border-cyan-500/50 bg-cyan-500/10" : "border-transparent hover:bg-accent")}
-        data-testid={`surface-text-row-${label.id}`}>
+        data-testid={`surface-text-row-${label.id}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openObjectMenu?.({ kind: "text", id: label.id }, contextMenuPoint(event))) event.preventDefault(); }}>
         {renamingId === label.id ? <EditableObjectName key={label.id} kind="surface-text" name={name}
           onRename={name => update(spec.surfaceTexts.map(item => item.id === label.id ? { ...item, name } : item), "Rename surface text")}
           onDone={() => setRenamingId(null)} /> : <button type="button" className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11"

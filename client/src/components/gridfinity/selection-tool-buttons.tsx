@@ -5,6 +5,7 @@ import { AddPocketMenu } from "./add-pocket-menu";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { canManageDesignLinks } from "@shared/gridfinity/design-links";
 import { useBin } from "@/state/bin-store";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useObjectToolbar } from "./object-toolbar-context";
@@ -29,7 +30,8 @@ export function SelectionToolButtons({ count, onActivate, inactive = false, pann
   const mobile = useMobileObjectTools();
   const inspector = selectionInspector ?? objectToolbar;
   const { enabled } = useExperimentalFeatures();
-  const { editorMode, selectedSurfaceTextId, dispatch, canUndo, canRedo, history } = useBin();
+  const bin = useBin();
+  const { editorMode, selectedSurfaceTextId, dispatch, canUndo, canRedo, history } = bin;
   const [wide, setWide] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
@@ -50,7 +52,9 @@ export function SelectionToolButtons({ count, onActivate, inactive = false, pann
   const textSelected = !!selectedSurfaceTextId;
   const available = tools.filter(item => item.tool !== "links" || enabled && !textSelected);
   const primary = (item: typeof tools[number]) => !mobile && wide || item.tool === "properties" || !!mobile && (item.tool === "translate" || item.tool === "rotate");
-  const disabled = (item: typeof tools[number]) => panning || (textSelected ? item.tool === "arrange" || item.tool === "links" : count < item.minimum);
+  const disabled = (item: typeof tools[number]) => panning || (item.tool === "links"
+    ? textSelected || !canManageDesignLinks(bin, bin.selection)
+    : textSelected ? item.tool === "arrange" : count < item.minimum);
   const activate = (tool: typeof tools[number]["tool"]) => {
     if (textSelected && (tool === "translate" || tool === "rotate")) dispatch({ type: "SET_TEXT_TOOL", tool });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); onActivate(); inspector.setTool(tool);

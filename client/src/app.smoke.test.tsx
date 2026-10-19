@@ -313,7 +313,9 @@ describe("App", () => {
     expect(help?.querySelectorAll("ol > li")).toHaveLength(7);
     expect(help?.textContent).toContain("Workflow + properties");
     expect(help?.textContent).toContain("Confirm scale");
-    expect(help?.textContent).toContain("Add to bin");
+    expect(help?.textContent).toContain("Add to Bin");
+    expect(help?.textContent).toContain("Export Tool Outline");
+    expect(help?.textContent).toContain("Back to Canvas");
     expect(help?.textContent).toContain("Save surface fit test STL");
     expect(help?.textContent).toContain("Save 3MF");
     expect(help?.textContent).toContain("Download optional calibration aids");
@@ -352,7 +354,7 @@ describe("App", () => {
       "Scale",
       "Region",
       "Margin",
-      "Export Outline",
+      "Export Tool Outline",
     ]) {
       expect(text).toContain(section);
     }
@@ -371,7 +373,7 @@ describe("App", () => {
       ["trace-settings-detect", "blue", "closed"],
       ["trace-settings-crop", "rose", "closed"],
       ["trace-settings-margin", "violet", "closed"],
-      ["trace-settings-output", "emerald", "closed"],
+      ["trace-settings-output", "emerald", "open"],
     ] as const) {
       const section = container.querySelector<HTMLElement>(`#${id}`);
       expect(section?.dataset.tone).toBe(tone);
@@ -401,7 +403,7 @@ describe("App", () => {
     expect(
       container.querySelector<HTMLElement>("#trace-settings-output")?.dataset
         .state,
-    ).toBe("closed");
+    ).toBe("open");
   });
 
   it("does not expose detection controls before source and scale", () => {
@@ -417,7 +419,7 @@ describe("App", () => {
   it("disables export until something has been traced", () => {
     renderApp();
     const buttons = [...container.querySelectorAll("button")];
-    const save = buttons.find((b) => b.textContent?.includes("Save"));
+    const save = buttons.find((b) => b.textContent === "Export Tool Outline");
     expect(save).toBeDefined();
     expect(save?.disabled).toBe(true);
   });

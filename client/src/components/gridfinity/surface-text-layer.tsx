@@ -119,7 +119,7 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
     drag.current = { kind, pointerId: event.pointerId, id: label.id, start, center: binToCanvas(label.position, spec), clientX: event.clientX, clientY: event.clientY, moved: false, original: label, labels: spec.surfaceTexts };
   };
   return <g ref={group} data-testid="surface-text-layer">
-    {labels.map(({ label, d, bounds, center, stem, handle }) => <g key={label.id} className="group"
+    {labels.map(({ label, d, bounds, center, stem, handle }) => <g key={label.id} data-surface-text-id={label.id} className="group"
       style={{ cursor: interactive ? "grab" : undefined }}
       onPointerDown={event => begin(event, label, (inspector ? inspector.tool === "rotate" : textTool === "rotate") ? "rotate" : "move")}
       onDoubleClick={event => {

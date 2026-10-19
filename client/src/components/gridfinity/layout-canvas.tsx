@@ -1,3 +1,7 @@
+import { pickBinContextTarget } from "@/lib/gridfinity/context-target";
+import { useBinObjectContextMenu, type BinContextTarget } from "./object-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionToolButtons } from "./selection-tool-buttons";
 import { SurfaceTextLayer } from "./surface-text-layer";
@@ -48,7 +52,6 @@ import {
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
-  binFootprintMm,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
 import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
@@ -260,6 +263,7 @@ export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor,
 }
 
 function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+  const openObjectMenu = useBinObjectContextMenu();
   const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -297,8 +301,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   const [modeRequest, setModeRequest] = useState(0);
   const [objectPivot, setObjectPivot] = useState<RotationPivot>("individual");
   const [objectSnap, setObjectSnap] = useState(false);
-  const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
-  const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
+  const widthMm = binWidthMm(spec);
+  const lengthMm = binLengthMm(spec);
   const topOffset = wallSlantTopOffsetMm(spec);
   const footprintEditorPaddingMm = Math.max(editorMode === "footprint" ? pitchMm : 0,
     Math.abs(topOffset.x), Math.abs(topOffset.y));
@@ -679,6 +683,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   /** Snap targets: bin centre, cell centres, cell boundaries. */
   const snapTargets = (cells: number): number[] => {
+    if (spec.arbitrarySizeMm) return [0];
     const targets = [0];
     for (let i = 0; i < cells; i++) {
       targets.push((i - (cells - 1) / 2) * pitchMm);
@@ -1351,11 +1356,23 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (editorMode !== "contour" || !selected) return;
-    const handle = contourHandle(event.target as Element);
-    if (!handle || handle.cutoutId !== selected.cutout.id) return;
+    if (usesNativeEditingMenu(event.target)) return;
+    if (editorMode === "placement" && !rulerActive && !panActive) {
+      const element = event.target as Element;
+      const text = element.closest("[data-surface-text-id]")?.getAttribute("data-surface-text-id");
+      const finger = element.closest("[data-feature-id]")?.getAttribute("data-feature-id");
+      const pocket = element.closest("[data-cutout-id]")?.getAttribute("data-cutout-id");
+      const point = toBin(event.clientX, event.clientY);
+      const hit = point ? pickBinContextTarget(arrangementObjects, point, profileOutlines) : null;
+      const target: BinContextTarget | null = text ? { kind: "text", id: text } : finger ? { kind: "finger", id: finger }
+        : hit ?? (pocket ? { kind: "pocket", id: pocket } : null);
+      if (target && openObjectMenu?.(target, contextMenuPoint(event))) event.preventDefault();
+      return;
+    }
+    if (editorMode !== "contour") return;
     event.preventDefault();
-    removeContourVertex(handle);
+    const handle = contourHandle(event.target as Element);
+    if (handle) removeContourVertex(handle);
   };
 
   // Keyboard: nudge, rotate (visually clockwise = model +deg on the flipped
@@ -1559,6 +1576,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   const gridLines = useMemo(() => {
     const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    if (spec.arbitrarySizeMm) return lines;
     for (let i = 0; i < spec.gridX - 1; i++) {
       const xBin = (i - (spec.gridX - 1) / 2) * pitchMm + pitchMm / 2;
       const x = xBin + widthMm / 2;
@@ -1570,7 +1588,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       lines.push({ x1: 0, y1: y, x2: widthMm, y2: y });
     }
     return lines;
-  }, [spec.gridX, spec.gridY, pitchMm, widthMm, lengthMm]);
+  }, [spec.gridX, spec.gridY, spec.arbitrarySizeMm, pitchMm, widthMm, lengthMm]);
 
   const outerFootprint = useMemo(() => footprintOuterRingMm(spec), [spec]);
   const topFootprint = useMemo(() => spec.wallSlant && spec.wallSlant.angleDeg !== 0
