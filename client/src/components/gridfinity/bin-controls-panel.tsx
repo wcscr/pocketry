@@ -393,6 +393,7 @@ export function BinControlsPanel({
     return () => window.cancelAnimationFrame(frame);
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
+  const showNoCutoutsWarning = spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0;
   const enabledFeatureCount = [
     spec.lip === "standard",
     spec.fill === "solid",
@@ -2175,7 +2176,7 @@ export function BinControlsPanel({
                   : "Building"
                 : !building && statsAreStale
                   ? "Preview unavailable"
-                : cutouts.length === 0 && fingerHoles.length === 0
+                : showNoCutoutsWarning
                   ? "No cutouts"
                 : stats
                   ? "Ready"
@@ -2202,7 +2203,7 @@ export function BinControlsPanel({
               </p>
             )}
           </div>
-          {cutouts.length === 0 && fingerHoles.length === 0 ? (
+          {showNoCutoutsWarning ? (
             <div
               className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100"
               role="status"
@@ -2210,9 +2211,9 @@ export function BinControlsPanel({
             >
               <p className="font-medium">This bin has no tool cutouts.</p>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                The final model is a solid bin and may use a large amount of
-                material. Add a tool from Trace for a fitted bin, or export only
-                if the solid model is intentional.
+                Solid fill is enabled at {spec.fillHeightPercent}% height. Add a
+                pocket, turn off Solid fill for a hollow bin, or export with the
+                current fill.
               </p>
             </div>
           ) : null}
