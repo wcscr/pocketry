@@ -49,7 +49,7 @@ import {
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
-import { wallSlantTopOffsetMm } from "./wall-slant";
+import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -136,8 +136,6 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   if (spec.wallSlant) {
     if (spec.lip === "standard") issues.push({ code: "slanted-wall-lip", severity: "error",
       message: "Slanted walls need a flush rim; turn off the stacking lip." });
-    if (spec.labelTab) issues.push({ code: "slanted-wall-label-tab", severity: "error",
-      message: "Remove the label tab before slanting the bin body." });
     if (spec.surfaceTexts.length) issues.push({ code: "slanted-wall-surface-text", severity: "error",
       message: "Remove surface text before slanting the bin body." });
     if (wallHeight <= 0) issues.push({ code: "slanted-wall-height", severity: "error",
@@ -261,11 +259,17 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
     x: midpoint.x + point.x * Math.cos(radians) - point.y * Math.sin(radians),
     y: midpoint.y + point.x * Math.sin(radians) + point.y * Math.cos(radians),
   }));
+  // The tab is sheared together with the wall. Its footprint sweeps between
+  // the lower edge of the tab and the rim, so warn over that full XY extent.
+  const lowerOffset = wallSlantOffsetMm(spec, binHeightMm(spec.heightUnits) - TAB_HEIGHT_MM);
+  const topOffset = wallSlantTopOffsetMm(spec);
+  const sweptCorners = [lowerOffset, topOffset].flatMap(offset =>
+    corners.map(point => ({ x: point.x + offset.x, y: point.y + offset.y })));
   return {
-    minX: Math.min(...corners.map((point) => point.x)),
-    maxX: Math.max(...corners.map((point) => point.x)),
-    minY: Math.min(...corners.map((point) => point.y)),
-    maxY: Math.max(...corners.map((point) => point.y)),
+    minX: Math.min(...sweptCorners.map(point => point.x)),
+    maxX: Math.max(...sweptCorners.map(point => point.x)),
+    minY: Math.min(...sweptCorners.map(point => point.y)),
+    maxY: Math.max(...sweptCorners.map(point => point.y)),
   };
 }
 

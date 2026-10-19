@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
+import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 
 import { buildBin } from "./bin";
 
@@ -50,6 +51,34 @@ function volume(partial: Partial<BinSpecInput>): number {
 }
 
 describe("buildLabelTab (via buildBin)", () => {
+  it.each([
+    { axis: "y" as const, angleDeg: 45, wall: "north" as const, heightUnits: 4 },
+    { axis: "y" as const, angleDeg: 45, wall: "north" as const, heightUnits: 6 },
+    { axis: "x" as const, angleDeg: -35, wall: "east" as const, heightUnits: 6 },
+  ])("follows the slanted $axis wall at $heightUnits units and remains a single printable solid", ({ axis, angleDeg, wall, heightUnits }) => {
+    const wallSlant = { axis, angleDeg };
+    const plain = buildBin(kernel, spec({ wallSlant, heightUnits }), QUALITY).solid;
+    const tabbed = buildBin(kernel, spec({ wallSlant, heightUnits,
+      labelTab: { wall, width: "full" } }), QUALITY).solid;
+    expect(tabbed.status()).toBe("NoError");
+    expect(tabbed.decompose()).toHaveLength(1);
+    expect(tabbed.volume()).toBeGreaterThan(plain.volume());
+    const added = arena.track(tabbed.subtract(plain));
+    const addedBounds = added.boundingBox();
+    expect(addedBounds.max[2]).toBeCloseTo(heightUnits * 7, 6);
+    const flat = buildBin(kernel, spec({ heightUnits, labelTab: { wall, width: "full" } }), QUALITY).solid;
+    const flatPlain = buildBin(kernel, spec({ heightUnits }), QUALITY).solid;
+    const flatAdded = arena.track(flat.subtract(flatPlain));
+    const flatAddedBounds = flatAdded.boundingBox();
+    const shiftedAxis = axis === "x" ? 0 : 1;
+    const topShift = Math.tan(angleDeg * Math.PI / 180) * (heightUnits * 7 - 7);
+    const outwardBound = topShift > 0 ? "max" : "min";
+    expect(addedBounds[outwardBound][shiftedAxis]).toBeCloseTo(
+      flatAddedBounds[outwardBound][shiftedAxis] + topShift, 2);
+    expect(added.volume()).toBeCloseTo(flatAdded.volume(), 3);
+    expect(extractPrintableMeshData(kernel, tabbed).indices.length).toBeGreaterThan(0);
+  });
+
   it("attaches soundly to a selected re-entrant L-footprint edge", () => {
     const shaped = {
       gridX: 2,

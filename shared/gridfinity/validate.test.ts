@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
-import { validateBinSpec } from "./validate";
-import { binFootprintMm } from "./standard";
+import { labelTabStripMm, validateBinSpec } from "./validate";
+import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
+import { binFootprintMm, binHeightMm, TAB_HEIGHT_MM } from "./standard";
 
 function spec(partial: Partial<BinSpecInput> = {}) {
   return parseBinSpec({ gridX: 2, gridY: 3, heightUnits: 6, ...partial });
@@ -126,6 +127,26 @@ describe("validateBinSpec", () => {
 });
 
 describe("label tab spec rule (G5)", () => {
+  it("allows a label tab on a slanted bin while preserving the flush-rim rule", () => {
+    const slanted = spec({ lip: "none", wallSlant: { axis: "y", angleDeg: 45 },
+      labelTab: { wall: "north", width: "full" } });
+    expect(validateBinSpec(slanted).ok).toBe(true);
+    expect(validateBinSpec({ ...slanted, lip: "standard" }).issues.map(issue => issue.code))
+      .toContain("slanted-wall-lip");
+  });
+
+  it.each([45, -45])("includes the swept tab position in pocket-shadow bounds at %i°", angleDeg => {
+    const flat = spec({ lip: "none", labelTab: { wall: "north", width: "center" } });
+    const slanted = spec({ lip: "none", labelTab: flat.labelTab,
+      wallSlant: { axis: "y", angleDeg } });
+    const original = labelTabStripMm(flat)!;
+    const swept = labelTabStripMm(slanted)!;
+    const lower = wallSlantOffsetMm(slanted, binHeightMm(slanted.heightUnits) - TAB_HEIGHT_MM).y;
+    const upper = wallSlantTopOffsetMm(slanted).y;
+    expect(swept.minY).toBeCloseTo(original.minY + Math.min(lower, upper), 6);
+    expect(swept.maxY).toBeCloseTo(original.maxY + Math.max(lower, upper), 6);
+  });
+
   it("warns when the bin is shorter than the tab", () => {
     const stubby = validateBinSpec(
       parseBinSpec({
