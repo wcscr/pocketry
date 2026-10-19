@@ -85,7 +85,7 @@ it("defaults off, persists an explicit choice and restores it after remount", ()
   React.act(() => state.setSettingsOpen(true));
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   expect(document.querySelector('#experimental-features-description')!.textContent).not.toMatch(/surface text|system fonts/);
-  expect(document.querySelector('#experimental-features-description')!.textContent).toContain("linked pockets or finger access. Size, shape, and depth changes automatically update all linked copies.");
+  expect(document.querySelector('#experimental-features-description')!.textContent).toContain("Linked pockets and finger access with shared size, shape, and depth");
   expect(toggle.getAttribute("aria-checked")).toBe("false");
   React.act(() => toggle.click());
   expect(state.enabled).toBe(true); expect(localStorage.getItem(EXPERIMENTAL_FEATURES_KEY)).toBe("true");
@@ -137,7 +137,7 @@ it("defaults to Original Single Panel UI on narrow screens and offers only the t
   expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   const toggle = document.querySelector<HTMLButtonElement>('#experimental-features')!;
   React.act(() => toggle.click());
-  expect(document.querySelector('#experimental-layout-recommendation')!.textContent).toContain("we recommend Workflow + properties");
+  expect(document.querySelector('#experimental-layout-recommendation')).toBeNull();
   expect(state.editorLayout).toBe("standard");
   expect(choices[1].checked).toBe(true);
   React.act(() => choices[0].click());
