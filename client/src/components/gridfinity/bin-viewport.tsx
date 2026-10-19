@@ -466,11 +466,9 @@ export function BinViewport({
               color={showPocketFloorColor ? pocketFloorColor : binColor}
               roughness={0.55}
               metalness={0.02}
-              // Native material interfaces can differ by less than one depth
-              // buffer unit after Float32 extraction. Prefer the lining at
-              // that shared boundary without moving vertices or export faces.
+              // Keep the color above the complete preview body while orbiting.
               polygonOffset
-              polygonOffsetFactor={0}
+              polygonOffsetFactor={-1}
               polygonOffsetUnits={-1}
             />
           </mesh>
@@ -495,6 +493,12 @@ export function BinViewport({
               color={showStackingRimColor ? stackingRimColor : binColor}
               roughness={0.5}
               metalness={0.02}
+              // The separately triangulated material volumes meet on the
+              // same surface. Keep the accent in front at their shared edge
+              // while orbit damping moves the camera through subpixel angles.
+              polygonOffset
+              polygonOffsetFactor={-1}
+              polygonOffsetUnits={-1}
             />
           </mesh>
         ) : null}

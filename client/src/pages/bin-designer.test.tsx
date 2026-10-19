@@ -3152,6 +3152,93 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each(["standard", "workflow"])("gates one-axis wall slant behind experimental opt-in in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      const toggle = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Slanted walls (prototype)"]');
+      const angle = () => container.querySelector<HTMLInputElement>('[aria-label="Wall angle in degrees"]');
+      expect(toggle()).toBeNull();
+      expect(angle()).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(true));
+      React.act(() => toggle()!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({
+        wallSlant: { axis: "y", angleDeg: 20 }, lip: "none",
+      });
+      expect(container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Stacking lip"]')!.disabled).toBe(true);
+      expect(angle()?.value).toBe("20");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ wallSlant: null, lip: "standard" });
+      clickBinHistory(container, "redo");
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(toggle()).toBeNull();
+      expect(angle()).toBeNull();
+      expect(container.querySelector('[aria-label="Wall slant axis"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" });
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("slanted walls");
+      React.act(() => experimentalSettings.setEnabled(true));
+      expect(angle()?.value).toBe("20");
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each([
+    { tilt: { xDeg: 0, yDeg: 30 }, role: undefined, expected: { axis: "x", angleDeg: 30 } },
+    { tilt: { xDeg: -30, yDeg: 0 }, role: undefined, expected: { axis: "y", angleDeg: 30 } },
+    { tilt: { xDeg: 20, yDeg: 30 }, role: undefined, expected: null },
+    { tilt: { xDeg: 0, yDeg: 30 }, role: "hole" as const, expected: null },
+  ])("matches slanted walls only to a pocket leaning along one bin axis: %o", async ({ tilt, role, expected }) => {
+    const shape = rectangularShape("slanted-source", "Tilted tool");
+    const pocket = parseCutoutPlacement({ id: "tilted", shapeId: shape.id, position: { x: 0, y: 0 }, tilt, role,
+      depth: { mode: "mm", value: 10 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [pocket],
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", wallSlant: { axis: "y", angleDeg: 20 } }) });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "tool-cutouts");
+      selectPocket(container, pocket.id);
+      openSettingsSection(container, "construction");
+      const match = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Match selected pocket angle");
+      if (expected) {
+        expect(match).toBeDefined();
+        React.act(() => match!.click());
+        const slant = vi.mocked(useBinGeometry).mock.lastCall![0].wallSlant!;
+        expect(slant.axis).toBe(expected.axis);
+        expect(slant.angleDeg).toBeCloseTo(expected.angleDeg, 8);
+      } else expect(match).toBeUndefined();
+    } finally { unmount(); }
+  });
+
+  it.each([false, true])("preserves opt-out for restored slanted walls, including history-only=%s", async historyOnly => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", wallSlant: { axis: "x", angleDeg: -30 } });
+    const doc = { spec, cutouts: [], fingerHoles: [] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: historyOnly ? EMPTY_PROJECT.spec : spec,
+      history: { index: historyOnly ? 1 : 0, stack: [
+        { doc, label: "Slanted walls" }, { doc: { ...doc, spec: EMPTY_PROJECT.spec }, label: "Upright walls" },
+      ] },
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      expect(experimentalSettings.enabled).toBe(false);
+      expect(container.querySelector('[data-testid="experimental-design-notice"]') === null).toBe(historyOnly);
+      if (historyOnly) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
+      openSettingsSection(container, "construction");
+      expect(experimentalSettings.enabled).toBe(false);
+      expect(container.querySelector('[aria-label="Wall angle in degrees"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ wallSlant: { axis: "x", angleDeg: -30 } });
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="experimental-design-notice"] button')!.click());
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall angle in degrees"]')?.value).toBe("-30");
+    } finally { unmount(); }
+  });
+
   it.each([false, true])("offers checked-by-default fixed-depth adjustment under Construction fill height (experimental=%s)", async experimental => {
     const pocket = parseCutoutPlacement({ id: "fixed", shapeId: "s", position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 } });
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [rectangularShape("s", "Fixed")], cutouts: [pocket] });

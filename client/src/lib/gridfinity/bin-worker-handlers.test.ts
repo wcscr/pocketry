@@ -45,6 +45,45 @@ function getHandler(): BuildHandler {
   return createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as unknown as BuildHandler;
 }
 
+function previewMeshVolume(mesh: BuildBinResult["mesh"]): number {
+  let sixTimesVolume = 0;
+  for (let index = 0; index < mesh.indices.length; index += 3) {
+    const [a, b, c] = Array.from(mesh.indices.subarray(index, index + 3), vertex =>
+      mesh.positions.subarray(vertex * 3, vertex * 3 + 3));
+    sixTimesVolume += a[0] * (b[1] * c[2] - b[2] * c[1]) +
+      a[1] * (b[2] * c[0] - b[0] * c[2]) +
+      a[2] * (b[0] * c[1] - b[1] * c[0]);
+  }
+  return sixTimesVolume / 6;
+}
+
+it("keeps a complete preview surface beneath a colored slanted tab border", async () => {
+  const request: BuildBinRequest = {
+    spec: parseBinSpec({
+      gridX: 1, gridY: 4, heightUnits: 2.5, lip: "none", fill: "none",
+      wallSlant: { axis: "y", angleDeg: 45 },
+      labelTab: { wall: "north", width: "full" },
+    }),
+    quality: { circularSegments: 32 },
+    stackingRimMaterialThicknessMm: 1.25,
+    borderWidthMm: 0.95,
+  };
+  const handler = getHandler();
+  const preview = (await handler(request, context())).value;
+  const printable = (await handler({ ...request, exportTopology: true }, context())).value;
+  expect(preview.materialMeshes?.stackingRim).toBeDefined();
+  expect(previewMeshVolume(preview.materialMeshes!.body)).toBeCloseTo(
+    previewMeshVolume(preview.mesh), 2,
+  );
+  expect(printableMeshVolume(printable.materialMeshes!.body)).toBeLessThan(
+    printableMeshVolume(printable.mesh),
+  );
+  expect(printableMeshVolume(printable.materialMeshes!.body) +
+    printableMeshVolume(printable.materialMeshes!.stackingRim!)).toBeCloseTo(
+      printableMeshVolume(printable.mesh), 2,
+    );
+});
+
 it("keeps pending pockets uncut in preview and rejects printable export until depth is chosen", async () => {
   const { shape, cutout } = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "unmeasured")!;
   const pending = parseCutoutPlacement({ ...cutout, depthPending: true });

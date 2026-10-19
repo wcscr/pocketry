@@ -39,6 +39,15 @@ it.each(["none", "solid"] as const)("detects retained custom wall thickness with
   expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, fill } })).toBe(false);
 });
 
+it.each(["x", "y"] as const)("detects slanted walls along %s in the current design and saved history", axis => {
+  const spec = { ...ordinary.spec, wallSlant: { axis, angleDeg: 30 } };
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
+    { label: "Slanted walls", doc: { spec, cutouts: [], fingerHoles: [] } },
+    { label: "Upright walls", doc: { spec: ordinary.spec, cutouts: [], fingerHoles: [] } },
+  ] } })).toBe(true);
+});
+
 it.each([
   { tilt: { xDeg: 45, yDeg: 0 } },
   { tilt: { xDeg: 0, yDeg: -30 } },
