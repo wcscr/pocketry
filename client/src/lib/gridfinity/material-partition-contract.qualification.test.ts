@@ -7,7 +7,12 @@ import { normalizeOutline, outlineBounds, outlinePointCount } from "@/lib/geomet
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type ManifoldToplevel } from "@/lib/manifold/runtime";
 import { extractMeshData, type MeshData } from "@/lib/mesh/mesh-data";
-import { expectPartitionOccupancy, expectPrintableTopology, expectSameGeometry, signedMeshVolume } from "@/lib/mesh/mesh-contract.test-helpers";
+import {
+  expectPartitionOccupancy,
+  expectPrintableTopology,
+  expectSameGeometry,
+  signedMeshVolume,
+} from "@/lib/mesh/mesh-contract.test-helpers";
 import { writeThreeMf } from "@/lib/mesh/threemf";
 import type { HandlerContext, TransferableResult } from "@/lib/worker/host";
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
