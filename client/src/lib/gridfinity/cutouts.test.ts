@@ -437,9 +437,9 @@ describe("buildBinWithCutouts", () => {
     }
   });
 
-  it("keeps a colored flush border aligned with a slanted rim", () => {
+  it.each([undefined, "negative", "positive"] as const)("keeps a colored flush border aligned with slanted wall selection %s", side => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none",
-      wallSlant: { axis: "y", angleDeg: 30 } });
+      wallSlant: { axis: "y", angleDeg: 30, side } });
     const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 1.25 });
     const { body, stackingRim: border } = built.materialParts!;
     expect(border).not.toBeNull();
@@ -447,12 +447,14 @@ describe("buildBinWithCutouts", () => {
     expect(border!.boundingBox().max[1]).toBeCloseTo(built.solid.boundingBox().max[1], 5);
     expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
     expect(arena.track(body.add(border!)).volume()).toBeCloseTo(built.solid.volume(), 5);
+    expect(extractPrintableMeshData(kernel, body).indices.length).toBeGreaterThan(0);
+    expect(extractPrintableMeshData(kernel, border!).indices.length).toBeGreaterThan(0);
   });
 
-  it("keeps a colored slanted border connected on a custom footprint", () => {
+  it.each([undefined, "negative", "positive"] as const)("keeps a colored slanted border connected on a custom footprint with wall selection %s", side => {
     const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 2.5, lip: "none", fill: "none",
       footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
-      wallSlant: { axis: "y", angleDeg: 45 } });
+      wallSlant: { axis: "y", angleDeg: 45, side } });
     const built = buildBinWithCutouts(kernel, spec, null, QUALITY,
       { rimInsertThicknessMm: 1.25, borderWidthMm: 0.95 });
     const { body, stackingRim: border } = built.materialParts!;
@@ -462,9 +464,9 @@ describe("buildBinWithCutouts", () => {
     expect(body.volume() + border!.volume()).toBeCloseTo(built.solid.volume(), 3);
   });
 
-  it.each([1.5, 2, 2.5])("partitions the colored rim and short slanted tab on a %su bin", heightUnits => {
+  it.each([1.5, 2, 2.5].flatMap(heightUnits => [undefined, "negative", "positive"].map(side => ({ heightUnits, side }))))("partitions the colored rim and short slanted tab on a $heightUnits u bin with selection $side", ({ heightUnits, side }) => {
     const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits, lip: "none", fill: "none",
-      wallSlant: { axis: "y", angleDeg: 45 }, labelTab: { wall: "north", width: "full" } });
+      wallSlant: { axis: "y", angleDeg: 45, side }, labelTab: { wall: "north", width: "full" } });
     const built = buildBinWithCutouts(kernel, spec, null, QUALITY,
       { floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 1.25, borderWidthMm: 0.95 });
     const { body, stackingRim: border, pocketFloors: floor } = built.materialParts!;
