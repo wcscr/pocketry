@@ -89,7 +89,7 @@ export function symmetrizeShape(shape: Shape, axis: SymmetryAxis, side: Symmetry
     const mid = (y0 + y1) / 2;
     const crossing = edges.filter(({ a, b }) => (a.y > mid) !== (b.y > mid))
       .sort((a, b) => xAt(a, mid) - xAt(b, mid));
-    if (crossing.length !== 2) return { error: "Average both needs a continuous width profile. Choose Use left side or Use right side to preserve grips and recesses." };
+    if (crossing.length !== 2) return { error: "Average needs a continuous width profile. Choose Left or Right to preserve grips and recesses." };
     const width = (y: number) => {
       const left = xAt(crossing[0], y), right = xAt(crossing[1], y);
       return (right - left) / 2;

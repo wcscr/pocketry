@@ -48,6 +48,33 @@ describe("canvas keyboard ownership", () => {
     expect(eligible(document.body, { isComposing: true })).toBe(false);
   });
 
+  it.each(['<button>Zoom</button>', '<button role="tab">Layout</button>', '<button role="switch">Fill</button>'])(
+    "allows editor commands after focusing %s without taking its navigation keys", (html) => {
+      document.body.innerHTML = html;
+      const target = document.body.firstElementChild!;
+      for (const key of ["z", "Z", "y", "d", "a"]) {
+        expect(eligible(target, { key, ctrlKey: true })).toBe(true);
+        expect(eligible(target, { key, metaKey: true })).toBe(true);
+      }
+      for (const key of [" ", "Enter", "ArrowLeft", "Delete", "1", "w"]) expect(eligible(target, { key })).toBe(false);
+      expect(eligible(target, { key: "z", metaKey: true, altKey: true })).toBe(false);
+      expect(eligible(target, { key: "z", metaKey: true, isComposing: true })).toBe(false);
+      const dialog = document.createElement("div");
+      dialog.setAttribute("role", "dialog");
+      document.body.append(dialog);
+      expect(eligible(target, { key: "z", metaKey: true })).toBe(false);
+    },
+  );
+
+  it.each(['<input />', '<textarea />', '<select />', '<div contenteditable="true"><button>Nested</button></div>',
+    '<button role="combobox">Choose</button>', '<span role="slider" tabindex="0"></span>'])(
+    "keeps modifier commands with text entry and composite controls: %s", (html) => {
+      document.body.innerHTML = html;
+      const target = document.querySelector("button") ?? document.body.firstElementChild!;
+      for (const key of ["z", "y", "d", "a"]) expect(eligible(target, { key, metaKey: true })).toBe(false);
+    },
+  );
+
   it("allows a canvas tool's Escape from its button, while dialogs and widgets retain Escape", () => {
     document.body.innerHTML = '<button>Measure</button><button role="combobox">Choose</button>';
     const button = document.querySelector("button")!;

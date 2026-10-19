@@ -1,6 +1,9 @@
+import { binWidthMm, binLengthMm } from "./bin-size";
+import { hasSmoothBase, ultim8PegCenters } from "./peg-bottom";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
 import { pocketInsertionError } from "./pocket-insertion";
+import { pocketColorAxis } from "./pocket-color";
 import {
   distanceToSegment,
   ringBounds,
@@ -86,8 +89,8 @@ export interface ValidationResult {
  * full-pitch screw bores can reach BASE_HEIGHT. Actual exposure
  * also depends on where the pocket overlaps those features, so this is a
  * warning, not a claim that every affected pocket has an exposed color face.
- * Pass zero when floor coloring is disabled. Like the builder, the colored
- * volume extends down from the resolved floor and stops at z = 0.
+ * Pass zero when coloring is disabled. Use the selected direction's vertical
+ * reach; an interior lining can also reach recesses beside a through opening.
  */
 export function validatePocketFloorMaterials(
   spec: BinSpec,
@@ -95,27 +98,36 @@ export function validatePocketFloorMaterials(
   shapesById: ReadonlyMap<string, TracedShape>,
   floorColorThicknessMm: number,
 ): ValidationIssue[] {
-  if (spec.flatBottom || spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
+  if (hasSmoothBase(spec) || spec.fill !== "solid" || !Number.isFinite(floorColorThicknessMm) || floorColorThicknessMm <= 0) return [];
 
   const hasScrewBores = spec.screwHoles && spec.gridPitch === "full";
   const undersideHeightMm = hasScrewBores ? BASE_HEIGHT : BASE_PROFILE_HEIGHT;
   const recess = hasScrewBores ? "the screw holes" : "the recesses between the base feet";
   const issues: ValidationIssue[] = [];
   for (const cutout of cutouts) {
+    if (cutout.depthPending || cutout.role === "hole") continue;
     const shape = shapesById.get(cutout.shapeId);
+    const axis = pocketColorAxis(cutout);
+    const interior = cutout.colorCoverage === "interior";
+    const hasWallColor = interior || Math.hypot(axis.x, axis.y) > 1e-6;
+    const objectUp = pocketColorAxis({ ...cutout, colorFloorAxis: "z" }).z;
+    const verticalReach = floorColorThicknessMm * (interior
+      ? Math.sqrt(Math.max(0, 1 - objectUp * objectUp)) + objectUp
+      : axis.z);
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = shape ? resolvePlacedPocketDepth(spec, depth, shape, cutout) : resolvePocketDepth(spec, depth);
-      // Invalid and through pockets have no printable floor-color volume.
-      if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
-      const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
-      if (floorZ - thicknessMm > undersideHeightMm + 1e-6) continue;
+      const lowestSurface = depth.mode === "through" && hasWallColor ? 0 : floorZ;
+      if (!shape || lowestSurface === null || lowestSurface < 0 ||
+          (lowestSurface === 0 && !hasWallColor) ||
+          (depth.mode !== "through" && (depthMm === null || depthMm <= 0))) continue;
+      if (lowestSurface - verticalReach > undersideHeightMm + 1e-6) continue;
       issues.push({
         code: "floor-color-on-underside",
         severity: "warning",
         cutoutIds: [cutout.id],
         message:
-          `“${pocketName(cutout, shape)}”: Floor color may show on the underside. ` +
-          `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
+          `“${pocketName(cutout, shape)}”: ${hasWallColor ? "Pocket" : "Floor"} color may show on the underside. ` +
+          `The ${floorColorThicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
           `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
       });
       break;
@@ -130,13 +142,21 @@ const FOOTPRINT_WARN_MM = 260;
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
   const wallHeight = binWallHeightMm(spec.heightUnits);
+  const heightLabel = spec.arbitrarySizeMm ? `${binHeightMm(spec.heightUnits).toFixed(1)} mm` : `${spec.heightUnits}u`;
+  if (spec.pegBottom?.underside === "flat" && (spec.fill === "none" || spec.lip === "standard" || spec.labelTab || spec.surfaceTexts.length)) {
+    issues.push({ code: "pegs-up-overhang", severity: "warning", message: "Pegs-up printing places the top face on the bed. The cavity, lip, label tab or raised text can leave bridges or reduce bed contact. Inspect overhangs and first-layer contact in your slicer." });
+  }
+  if (spec.pegBottom && ultim8PegCenters(spec).length === 0) {
+    issues.push({ code: "no-ultim8-pegs", severity: "error",
+      message: "This footprint has no room for ULTIM8 pegs. Enlarge it or choose another bottom." });
+  }
 
   if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
     issues.push({
       code: "lip-support-clipped",
       severity: "warning",
       message:
-        `A ${spec.heightUnits}u bin leaves only ${wallHeight.toFixed(1)} mm of wall; ` +
+        `A ${heightLabel} bin leaves only ${wallHeight.toFixed(1)} mm of wall; ` +
         `the stacking lip's ${STACKING_LIP_SUPPORT_HEIGHT_MM} mm support is clipped ` +
         `and the lip will be weaker than the spec intends.`,
     });
@@ -144,12 +164,12 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
 
   if (spec.fill === "solid") {
     const fillHeight = infillHeightMm(spec);
-    if (fillHeight <= 0) {
+    if (fillHeight <= 0 && !spec.arbitrarySizeMm) {
       issues.push({
         code: "no-infill-space",
         severity: "warning",
         message:
-          `A ${spec.heightUnits}u bin has no room above the ${BASE_HEIGHT} mm base ` +
+          `A ${heightLabel} bin has no room above the ${BASE_HEIGHT} mm base ` +
           `for solid fill; the bin will build as if fill were "none".`,
       });
     }
@@ -159,20 +179,19 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     ["x", spec.gridX],
     ["y", spec.gridY],
   ] as const) {
-    const span = binFootprintMm(cells, spec.gridPitch);
+    const span = axis === "x" ? binWidthMm(spec) : binLengthMm(spec);
     const pitchMm = gridPitchMm(spec.gridPitch);
     if (span > FOOTPRINT_WARN_MM) {
       issues.push({
         code: "large-footprint",
         severity: "warning",
         message:
-          `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm ` +
-          `(${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
+          spec.arbitrarySizeMm ? `${span.toFixed(1)} mm along ${axis} — check it fits the print bed.` : `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm (${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
       });
     }
   }
 
-  if (!spec.flatBottom && spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
+  if (!hasSmoothBase(spec) && spec.gridPitch !== "full" && (spec.magnetHoles || spec.screwHoles)) {
     issues.push({
       code: "fractional-grid-holes",
       severity: "warning",
@@ -189,7 +208,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
       code: "label-tab-clipped",
       severity: "warning",
       message:
-        `A ${spec.heightUnits}u bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
+        `A ${heightLabel} bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
         `label tab — the tab reaches down into the base and will look truncated.`,
     });
   }
@@ -296,8 +315,11 @@ export function validateLayout(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (cutouts.length === 0 && fingerHoles.length === 0) return issues;
+  if (spec.pegBottom?.underside === "flat" && (fingerHoles.length > 0 || cutouts.some(c => pocketDepths(c).some(d => d.mode !== "through") || hasRigidPocket(c) || hasPocketTilt(c)))) {
+    issues.push({ code: "pegs-up-pocket-roof", severity: "warning", message: "With pegs up, blind pockets and finger access print as pocket roofs. Bridge across the shortest span and inspect pocket overhangs in your slicer; some pocket shapes may need supports." });
+  }
 
-  if (spec.fill !== "solid") {
+  if (spec.fill !== "solid" && (cutouts.some(c => c.role !== "hole") || fingerHoles.length > 0)) {
     issues.push({
       code: "cutouts-require-solid-fill",
       severity: "error",
@@ -368,7 +390,7 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
-    if (hasPocketTilt(p.cutout)) {
+    if (p.cutout.role !== "hole" && hasPocketTilt(p.cutout)) {
       const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
       const allowance = pocketLayoutAllowanceMm(p.cutout);
       if (occupied.some(s => s.outer.some(point => signedDistanceToInterior(point, spec) < allowance))) {
@@ -393,6 +415,7 @@ export function validateLayout(
   const tabStrip = labelTabStripMm(spec);
   if (tabStrip) {
     for (const p of placed) {
+      if (p.cutout.role === "hole") continue;
       const overlaps =
         p.bounds.minX < tabStrip.maxX &&
         p.bounds.maxX > tabStrip.minX &&
@@ -414,9 +437,17 @@ export function validateLayout(
 function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const { cutout, label } = p;
+  if (cutout.depthPending) return [{
+    code: "pocket-depth-needed", severity: "error", cutoutIds: [cutout.id],
+    message: `“${label}”: Choose a pocket depth before exporting a printable bin.`,
+  }];
+  // A retained volume cannot cut a wall or floor. Its transform and source are
+  // still validated above, and a missing depth must never silently drop it.
+  // The geometry worker checks whether retained material connects to the bin.
+  if (cutout.role === "hole") return [];
 
-  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
-  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  const halfW = binWidthMm(spec) / 2;
+  const halfL = binLengthMm(spec) / 2;
   const outerBoundary = spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
   const outside = outerBoundary
     ? p.rings.some((ring) => !ringInsideBoundary(ring, outerBoundary))
@@ -535,7 +566,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
             message: `“${label}” leaves a ${pocket.floorZ.toFixed(1)} mm floor — likely to flex or delaminate.`,
           });
         }
-        if (!spec.flatBottom && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
+        if (!hasSmoothBase(spec) && spec.magnetHoles && pocket.floorZ < BASE_HEIGHT) {
           issues.push({
             code: "floor-in-base",
             severity: "warning",
@@ -578,8 +609,8 @@ function validateFingerHoleAgainstBin(
   if (!bounds) return issues;
   const topAllowanceMm = hole.topFilletMm;
 
-  const halfW = binFootprintMm(spec.gridX, spec.gridPitch) / 2;
-  const halfL = binFootprintMm(spec.gridY, spec.gridPitch) / 2;
+  const halfW = binWidthMm(spec) / 2;
+  const halfL = binLengthMm(spec) / 2;
   const outerBoundary =
     spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
   const outside = outerBoundary
@@ -687,6 +718,7 @@ function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean 
 }
 
 function validatePair(a: PlacedCutout, b: PlacedCutout): ValidationIssue | null {
+  if (a.cutout.role === "hole" || b.cutout.role === "hole") return null;
   // Projected solids can overlap while occupying different heights. The worker
   // checks their actual intersection, including buried and raised objects.
   if (hasRigidPocket(a.cutout) || hasRigidPocket(b.cutout)) return null;

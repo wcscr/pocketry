@@ -2,11 +2,13 @@ import { AlertTriangle, ChevronDown, CircleAlert } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 /** Persistent model feedback shared by Layout and 3D, separate from property fields. */
-export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId, onRevealIssue }: {
+export function CanvasWarnings({ issues, holeIds, selectedCutoutId, selectedFingerHoleId, onRevealIssue }: {
   issues: readonly ValidationIssue[];
+  holeIds?: ReadonlySet<string>;
   selectedCutoutId: string | null;
   selectedFingerHoleId: string | null;
   onRevealIssue: (issue: ValidationIssue) => void;
@@ -55,6 +57,11 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
               (selectedCutoutId && issue.cutoutIds?.includes(selectedCutoutId)) ||
               (selectedFingerHoleId && issue.fingerHoleIds?.includes(selectedFingerHoleId)),
             );
+            const retained = issue.cutoutIds?.filter(id => holeIds?.has(id)).length ?? 0;
+            const objectAction = issue.cutoutIds?.length
+              ? issue.cutoutIds.length > 1 ? `Show ${retained === issue.cutoutIds.length ? "holes" : retained ? "objects" : "pockets"} · click to switch`
+                : retained ? "Edit hole" : "Edit pocket"
+              : issue.fingerHoleIds?.length ? "Edit finger access" : "Open bin settings";
             return (
               <button
                 type="button"
@@ -70,7 +77,7 @@ export function CanvasWarnings({ issues, selectedCutoutId, selectedFingerHoleId,
               >
                 <span className="block">{issue.message}</span>
                 <span className="mt-1 block font-medium underline underline-offset-2">
-                  {issue.cutoutIds?.length ? issue.cutoutIds.length > 1 ? "Show pockets · click to switch" : "Edit pocket" : issue.fingerHoleIds?.length ? "Edit finger access" : "Open bin settings"}
+                  {issueSettingsTarget(issue.code)?.label ?? objectAction}
                 </span>
               </button>
             );

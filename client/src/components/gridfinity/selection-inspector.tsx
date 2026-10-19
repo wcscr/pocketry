@@ -1,3 +1,4 @@
+import { BinObjectMenuProvider, type BinContextTarget } from "./object-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
+import { canManageDesignLinks } from "@shared/gridfinity/design-links";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import { pocketName } from "@shared/gridfinity/cutout";
 import { sameObject, objectRef, type EditableObject } from "@/lib/gridfinity/object-arrangement";
@@ -18,7 +20,7 @@ import { MobileObjectToolsContext } from "./mobile-object-tools-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /** Both layouts reuse the editor, geometry, persistence and history. */
-export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps & { enabled: boolean }): JSX.Element {
+export function BinEditingWorkspace({ enabled, onObjectProperties, ...props }: WorkspaceLayoutProps & { enabled: boolean; onObjectProperties: (kind: BinContextTarget["kind"]) => void }): JSX.Element {
   const isMobile = useIsMobile();
   const [mobileControls, setMobileControls] = useState<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>("bin-settings-size");
@@ -35,8 +37,9 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
   const setTool = useCallback((next: InspectorTool) => { setActiveSection(null); updateTool(next); if (!isMobile && next !== "properties") openInspector(); }, [isMobile, openInspector]);
   const keepList = useRef(false);
   const keepObjectsOpen = useCallback(() => { keepList.current = true; setActiveSection(null); updateTool("properties"); }, []);
-  const { selection, selectedSurfaceTextId, editorMode, viewMode } = useBin();
-  const textSelection = experimentalEnabled ? selectedSurfaceTextId : null;
+  const { selection, selectedSurfaceTextId, editorMode, viewMode, cutouts, fingerHoles } = useBin();
+  const pendingDepth = selection.some(ref => ref.kind === "pocket" && cutouts.some(c => c.id === ref.id && c.depthPending));
+  const textSelection = selectedSurfaceTextId;
   const showSection = useCallback((id: string) => {
     setActiveSection(id); updateTool("properties");
     // Object navigation keeps the list available, including in the phone drawer.
@@ -44,21 +47,24 @@ export function BinEditingWorkspace({ enabled, ...props }: WorkspaceLayoutProps 
     if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
   }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector]);
-  useEffect(() => { if (!selection.length && !textSelection || selection.length < 2 && (tool === "arrange" || tool === "links")) updateTool("properties"); }, [selection.length, textSelection, viewMode, tool]);
+  useEffect(() => { if (enabled && !pendingDepth && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector, pendingDepth]);
+  const canLink = canManageDesignLinks({ cutouts, fingerHoles }, selection);
+  useEffect(() => {
+    if (!selection.length && !textSelection || selection.length < 2 && tool === "arrange" || !canLink && tool === "links") updateTool("properties");
+  }, [selection.length, textSelection, viewMode, tool, canLink]);
   useEffect(() => { if (props.inspectorRequest) setActiveSection(null); }, [props.inspectorRequest]);
   const targets = useMemo(() => ({ activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen }),
     [activeSection, properties, transforms, settings, projectHeader, toolbar, showSection, tool, setTool, openInspector, keepObjectsOpen]);
   return <MobileObjectToolsContext.Provider value={isMobile ? { tool, setTool, controls: mobileControls, setControls: setMobileControls } : null}>
-    {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><WorkspaceLayout {...props}
-      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />} /></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}>
+    {!enabled ? <ObjectToolbarContext.Provider value={{ toolbar, tool, setTool }}><BinObjectMenuProvider onProperties={onObjectProperties}><WorkspaceLayout {...props}
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />} /></BinObjectMenuProvider></ObjectToolbarContext.Provider> : <SelectionInspectorContext.Provider value={targets}><BinObjectMenuProvider onProperties={onObjectProperties}>
     <WorkspaceLayout {...props} autoSaveId={`${props.autoSaveId}:inspector`} inspectorPanelTitle="Workflow"
       inspectorRequest={(props.inspectorRequest ?? 0) + openRequest}
       canvasEditingMode={editorMode}
       inspectorHeader={<div ref={setProjectHeader} />}
-      inspectorToolbar={<div ref={setToolbar} className="flex w-full min-w-0 items-center gap-1" />}
+      inspectorToolbar={<div ref={setToolbar} className={isMobile ? "flex w-full min-w-0 items-center justify-between" : "flex w-full min-w-0 items-center gap-1"} />}
       inspector={<SelectionInspector propertiesRef={setProperties} transformsRef={setTransforms} settingsRef={setSettings} />} />
-    </SelectionInspectorContext.Provider>}
+    </BinObjectMenuProvider></SelectionInspectorContext.Provider>}
   </MobileObjectToolsContext.Provider>;
 }
 
@@ -69,23 +75,25 @@ function BatchField({ objects, all, kind, property, label }: {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const value = commonSelectionValue(objects, property);
+  const holeCount = objects.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;
+  const noun = kind === "finger" ? "finger accesses" : holeCount === objects.length ? "holes" : holeCount ? "pockets and holes" : "pockets";
   return <form className="space-y-1.5" onSubmit={event => {
     event.preventDefault();
     if (draft === null || !draft.trim()) return;
     try {
       const edits = selectionPropertyEdits(all, selection, kind, property, Number(draft), spec);
-      dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: `Change ${label.toLowerCase()} for ${objects.length} ${kind === "pocket" ? "pockets" : "finger accesses"}` });
+      dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel: `Change ${label.toLowerCase()} for ${objects.length} ${noun}` });
       setDraft(null); setError(null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not apply this change."); }
   }}>
     <label className="block text-xs font-medium" htmlFor={`batch-${kind}-${property}`}>{label}</label>
     <div className="flex items-center gap-2">
-      <Input id={`batch-${kind}-${property}`} aria-label={`${label} for selected ${kind === "pocket" ? "pockets" : "finger accesses"}`}
+      <Input id={`batch-${kind}-${property}`} aria-label={`${label} for selected ${noun}`}
         className="h-9 min-w-0 flex-1 text-sm" type="number" step="any" placeholder="Mixed" value={draft ?? value ?? ""}
         onChange={event => { setDraft(event.target.value); setError(null); }}
         onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setDraft(null); setError(null); event.currentTarget.blur(); } }} />
       <span className="text-xs text-muted-foreground">mm</span>
-      <Button type="submit" variant="outline" size="sm" disabled={draft === null || !draft.trim()} aria-label={`Apply ${label.toLowerCase()} to selected ${kind === "pocket" ? "pockets" : "finger accesses"}`}>Apply</Button>
+      <Button type="submit" variant="outline" size="sm" disabled={draft === null || !draft.trim()} aria-label={`Apply ${label.toLowerCase()} to selected ${noun}`}>Apply</Button>
     </div>
     {error && <p className="text-xs text-destructive" role="alert">{error}</p>}
   </form>;
@@ -96,8 +104,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   settingsRef: (node: HTMLDivElement | null) => void;
 }): JSX.Element {
   const bin = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
-  const selectedText = experimentalEnabled ? bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId) : undefined;
+  const selectedText = bin.spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId);
   const inspector = useSelectionInspector();
   const { shapes } = useShapeLibrary();
   const objects: EditableObject[] = [...bin.cutouts.flatMap(cutout => {
@@ -120,7 +127,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
     <header data-property-tone={tone} className="property-heading flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
       <div className="mr-auto min-w-0" aria-live="polite">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : selectedText ? "Surface text" : single ? single.kind === "pocket" ? "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{section ? "Workflow properties" : selectedText ? "Surface text" : single ? single.kind === "pocket" ? single.cutout.role === "hole" ? "Hole" : "Pocket" : "Finger access" : chosen.length ? "Selection" : "Properties"}</p>
         <h3 className="truncate text-sm font-semibold" title={title}>{title}</h3>
       </div>
       {!showingSection && (chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", labels: new Map(objects.map(o => [objectRef(o).id, o.kind === "pocket" ? pocketName(o.cutout, o.shape) : o.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(o.hole) + 1}`])), ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
@@ -135,15 +142,22 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
       <div ref={settingsRef} hidden={!showingSection && hasSelection} data-testid="inspector-bin-settings" />
       <div hidden={showingSection || !hasSelection || !selectedText && inspector?.tool !== "properties"}>
-      {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Movement stays independent.</p>}
+      {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design and height edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. X/Y movement stays independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
-        {([pockets, fingers]).filter(items => items.length).map(items => <PropertySurface key={items[0].kind} tone={items[0].kind === "pocket" ? "violet" : "cyan"} role="region" aria-label={`${items.length} selected ${items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}`}>
-          <h3 className="border-b pb-2 text-xs font-semibold">{items.length} selected {items[0].kind === "pocket" ? `pocket${items.length === 1 ? "" : "s"}` : `finger access${items.length === 1 ? "" : "es"}`}</h3>
-          {(["depth", "topFilletMm", ...(items[0].kind === "pocket" ? ["clearanceMm"] : [])] as SelectionProperty[]).map(property => <BatchField
-            key={`${JSON.stringify(bin.selection)}:${JSON.stringify(items)}:${property}`} objects={items} all={objects} kind={items[0].kind} property={property}
-            label={property === "depth" ? "Fixed cut depth" : property === "topFilletMm" ? "Top rounding" : "Extra clearance"} />)}
-          {items.some(o => o.kind === "pocket" && o.cutout.split) && <p className="text-xs text-muted-foreground">Setting depth updates both sections of selected split pockets.</p>}
-        </PropertySurface>)}
+        {([pockets, fingers]).filter(items => items.length).map(items => {
+          const holes = items.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;
+          const noun = items[0].kind === "finger" ? `finger access${items.length === 1 ? "" : "es"}`
+            : holes === items.length ? `hole${holes === 1 ? "" : "s"}` : holes ? "pockets and holes" : `pocket${items.length === 1 ? "" : "s"}`;
+          return <PropertySurface key={items[0].kind} tone={items[0].kind === "pocket" ? "violet" : "cyan"} role="region" aria-label={`${items.length} selected ${noun}`}>
+            <h3 className="border-b pb-2 text-xs font-semibold">{items.length} selected {noun}</h3>
+            {holes > 0 && <p className="text-xs text-muted-foreground">Depth sets how far down holes keep material{holes < items.length ? " and pockets cut material" : ""}. Positive hole offset keeps more material and reduces the surrounding opening.</p>}
+            {(["depth", "topFilletMm", ...(items[0].kind === "pocket" ? ["clearanceMm"] : [])] as SelectionProperty[]).map(property => <BatchField
+              key={`${JSON.stringify(bin.selection)}:${JSON.stringify(items)}:${property}`} objects={items} all={objects} kind={items[0].kind} property={property}
+              label={property === "depth" ? holes === items.length ? "Fixed kept depth" : holes ? "Fixed cut and kept depth" : "Fixed cut depth"
+                : property === "topFilletMm" ? "Top rounding" : holes === items.length ? "Hole offset" : holes ? "Pocket clearance and hole offset" : "Extra clearance"} />)}
+            {items.some(o => o.kind === "pocket" && o.cutout.split) && <p className="text-xs text-muted-foreground">Setting depth updates both sections of selected split objects.</p>}
+          </PropertySurface>;
+        })}
       </div>}
       <div ref={propertiesRef} className="p-3 empty:hidden" data-testid="inspector-properties" />
       </div>

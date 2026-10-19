@@ -8,6 +8,10 @@ export interface ImageDimensions {
   height: number;
 }
 
+export interface ImageRasterLimit extends ImageDimensions {
+  maxPixels?: number;
+}
+
 /** Clockwise quarter-turns from the decoded source image. */
 export type ImageQuarterTurns = 0 | 1 | 2 | 3;
 export type ImageRotationDirection = "clockwise" | "counterclockwise";
@@ -41,7 +45,7 @@ export function rotatedImageDimensions(
 /** Fits dimensions inside a cap without changing their aspect ratio. */
 export function fitImageWithin(
   natural: ImageDimensions,
-  max: ImageDimensions,
+  max: ImageRasterLimit,
 ): ImageDimensions {
   let { width, height } = natural;
   if (width > max.width) {
@@ -51,6 +55,11 @@ export function fitImageWithin(
   if (height > max.height) {
     width = (max.height / height) * width;
     height = max.height;
+  }
+  if (max.maxPixels && Math.round(width) * Math.round(height) > max.maxPixels) {
+    const scale = Math.min(1, Math.sqrt(max.maxPixels / (width * height)));
+    // Round down so the allocated raster never exceeds its memory budget.
+    return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
   }
   return {
     width: Math.max(1, Math.round(width)),

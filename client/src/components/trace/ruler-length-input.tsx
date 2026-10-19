@@ -1,17 +1,18 @@
 import { calibrationFromDraft, hasCalibrationEndpoints } from "@shared/geometry/scale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 
 /** Both the inline desktop control and mobile primary action share validation. */
 export function useRulerConfirmation() {
-  const { rulerLengthInput, draftCalibration, calibration, calibrationSource, dispatch } = useTrace();
+  const trace = useTrace();
+  const { rulerLengthInput, draftCalibration, calibration, calibrationSource, dispatch } = trace;
   // A decimal keyboard may supply the user's locale separator.
   const lengthMm = Number(rulerLengthInput.trim().replace(",", "."));
   const valid = rulerLengthInput.trim() !== "" && Number.isFinite(lengthMm) && lengthMm > 0;
   const draft = valid ? calibrationFromDraft(draftCalibration, lengthMm) : null;
-  const current = valid && calibrationSource === "manual" && calibration ? { ...calibration, lengthMm } : null;
-  const canConfirmScale = hasCalibrationEndpoints(draftCalibration) || (calibrationSource === "manual" && calibration !== null);
+  const current = valid && !hasPendingManualCalibration(trace) && calibrationSource === "manual" && calibration ? { ...calibration, lengthMm } : null;
+  const canConfirmScale = hasCalibrationEndpoints(draftCalibration) || (!hasPendingManualCalibration(trace) && calibrationSource === "manual" && calibration !== null);
   const canConfirm = valid && !!(draft ?? current);
   const confirm = () => {
     if (!canConfirm) return false;

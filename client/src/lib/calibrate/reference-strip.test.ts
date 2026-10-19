@@ -7,6 +7,7 @@ import { POCKETRY_ARUCO_BITS } from "./aruco-4x4";
 import { createPocketryTemplateDictionary, detectReferenceStripMarkers } from "./detect";
 import { REFERENCE_STRIP, referenceStripMarkers } from "./reference-strip";
 import { solveReferenceStrip } from "./solve-reference-strip";
+import { ringBounds } from "@shared/geometry/rings";
 import { perspectiveLayout, runPerspectiveCorrection } from "./perspective";
 import { referenceStripPdf } from "./reference-strip-pdf";
 import { PDF_POINTS_PER_MM } from "./template-pdf";
@@ -113,6 +114,9 @@ describe("object reference strip", () => {
     expect(result.kind).toBe("calibrated-strip");
     if (result.kind !== "calibrated-strip") return;
     expect(result.calibration.lengthMm).toBe(80);
+    const bounds = ringBounds(result.aidOutline!)!;
+    expect(bounds.minX).toBeCloseTo(150 - 4.5 * pxPerMm - 0.5, 0);
+    expect(bounds.maxX).toBeCloseTo(150 + 99.5 * pxPerMm - 0.5, 0);
     expect(mmPerPixel(result.calibration)).toBeCloseTo(1 / pxPerMm, 3);
     expect("perspectiveProposal" in result).toBe(false);
   });
@@ -174,6 +178,7 @@ describe("object reference strip", () => {
     expect(result.kind).toBe("calibrated-strip");
     if (result.kind !== "calibrated-strip") return;
     expect(result.requiresPerspectiveCorrection).toBe(true);
+    expect(result.aidOutline).toHaveLength(4);
     expect(result.sheet?.template).toBe(sheet);
     expect(result.calibration.lengthMm).toBe(85);
     // Source-image endpoints must survive for the eventual image warp; the

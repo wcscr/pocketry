@@ -1,3 +1,5 @@
+import { binWidthMm, binLengthMm } from "./bin-size";
+import { hasSmoothBase } from "./peg-bottom";
 import { z } from "zod";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
@@ -221,13 +223,13 @@ export const DEFAULT_TOP_EDGE_FILLET_MM = 1;
 export const DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM = 36;
 export const MIN_OBLONG_DEEP_SCOOP_SPAN_MM = 2;
 
-type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch"> & FillHeightSpec;
+type FingerAccessBinSpec = Pick<BinSpec, "gridX" | "gridY" | "gridPitch"> & Partial<Pick<BinSpec, "arbitrarySizeMm">> & FillHeightSpec;
 
 function fingerAccessBinBounds(spec: FingerAccessBinSpec, hole: FingerHole) {
   const allowance = isElongatedFingerHole(hole) ? FINGER_ACCESS_BIN_ALLOWANCE : 1;
   return {
-    x: binFootprintMm(spec.gridX, spec.gridPitch) * allowance,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) * allowance,
+    x: binWidthMm(spec) * allowance,
+    y: binLengthMm(spec) * allowance,
   };
 }
 
@@ -574,6 +576,8 @@ const cutoutPlacementInputSchema = z
   .object({
     id: z.string().min(1),
     shapeId: z.string().min(1),
+    /** Hole objects retain material wherever their volume overlaps a pocket. */
+    role: z.literal("hole").optional(),
     designLink: designLinkSchema.optional(),
     /** Unadjusted depths and mouth anchor retained for reversible fill edits. */
     fillHeightReference: z.object({
@@ -592,6 +596,11 @@ const cutoutPlacementInputSchema = z
     elevationMm: z.number().finite().min(0).max(300).optional(),
     /** Optional upward clearance; absent preserves the finite authored pocket. */
     insertionMode: z.enum(["axis", "vertical"]).optional(),
+    /** Local object axis for axial insertion; absent retains the original Z axis. */
+    insertionAxis: z.enum(["x", "y", "z"]).optional(),
+    /** Missing coverage and axis preserve legacy bin-vertical floor coloring. */
+    colorCoverage: z.enum(["floor", "interior"]).optional(),
+    colorFloorAxis: z.enum(["insertion", "vertical", "x", "y", "z"]).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
     /** X/Y orientation in the authored frame; Z heading remains rotationDeg. */
@@ -606,6 +615,8 @@ const cutoutPlacementInputSchema = z
       mode: "remaining",
       floorThicknessMm: BASE_HEIGHT,
     }),
+    /** An arrangeable outline awaiting a user's depth choice; never cut or print it. */
+    depthPending: z.literal(true).optional(),
     split: pocketSplitSchema.optional(),
     profileBottom: profileBottomSchema.optional(),
     /** Free X/Y rotation of a profile object, independent of ordinary pocket tilt. */
@@ -696,7 +707,7 @@ export function parseCutoutPlacement(input: unknown): CutoutPlacement {
 export type PlacementTransform = Pick<
   CutoutPlacement,
   "position" | "rotationDeg" | "mirrored"
-> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode">>;
+> & Partial<Pick<CutoutPlacement, "scaleX" | "scaleY" | "tilt" | "zOffsetMm" | "profileBottom" | "profileRotation" | "elevationMm" | "depth" | "split" | "insertionMode" | "insertionAxis">>;
 
 /** Applies scale → mirror → rotate → translate to one shape-local point. */
 export function transformPointPlacement(
@@ -1098,8 +1109,8 @@ export function placementFootprint(
 // ---------------------------------------------------------------------------
 
 /** Default material left under a new pocket, measured from the actual underside. */
-export function defaultPocketFloorThicknessMm(spec: Pick<BinSpec, "flatBottom">): number {
-  return spec.flatBottom ? 2 : BASE_HEIGHT;
+export function defaultPocketFloorThicknessMm(spec: Pick<BinSpec, "flatBottom"> & Partial<Pick<BinSpec, "pegBottom">>): number {
+  return hasSmoothBase(spec) ? 2 : BASE_HEIGHT;
 }
 
 export interface ResolvedPocket {
@@ -1153,11 +1164,12 @@ export function resolvePocketDepth(
 /** Initial access bottom sits 1 mm above the highest usable pocket floor. */
 export function defaultFingerAccessDepthMm(
   spec: FillHeightSpec,
-  cutouts: readonly Pick<CutoutPlacement, "depth" | "split">[],
+  cutouts: readonly Pick<CutoutPlacement, "depth" | "split" | "role">[],
 ): number {
   const { infillTopZ } = resolvePocketDepth(spec, { mode: "through" });
   let highestFloor: number | null = null;
   for (const cutout of cutouts) {
+    if (cutout.role === "hole") continue;
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = resolvePocketDepth(spec, depth);
       if (floorZ === null || floorZ < 0 || depthMm === null || depthMm <= 0) continue;
@@ -1181,13 +1193,13 @@ export interface BinInterior {
 }
 
 type GridFootprintSpec = Pick<BinSpec, "gridX" | "gridY"> &
-  Partial<Pick<BinSpec, "gridPitch">> & { footprint?: BinFootprint };
+  Partial<Pick<BinSpec, "gridPitch" | "arbitrarySizeMm">> & { footprint?: BinFootprint };
 
 /** The cavity footprint the pockets must stay inside. */
 export function binInteriorMm(spec: GridFootprintSpec): BinInterior {
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch) - 2 * D_WALL,
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch) - 2 * D_WALL,
+    widthMm: binWidthMm(spec) - 2 * D_WALL,
+    lengthMm: binLengthMm(spec) - 2 * D_WALL,
     cornerRadiusMm: R_F2,
   };
 }
@@ -1227,8 +1239,8 @@ export function binToCanvas(
   spec: GridFootprintSpec,
 ): Point {
   return {
-    x: point.x + binFootprintMm(spec.gridX, spec.gridPitch) / 2,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) / 2 - point.y,
+    x: point.x + binWidthMm(spec) / 2,
+    y: binLengthMm(spec) / 2 - point.y,
   };
 }
 
@@ -1238,8 +1250,8 @@ export function canvasToBin(
   spec: GridFootprintSpec,
 ): Point {
   return {
-    x: point.x - binFootprintMm(spec.gridX, spec.gridPitch) / 2,
-    y: binFootprintMm(spec.gridY, spec.gridPitch) / 2 - point.y,
+    x: point.x - binWidthMm(spec) / 2,
+    y: binLengthMm(spec) / 2 - point.y,
   };
 }
 

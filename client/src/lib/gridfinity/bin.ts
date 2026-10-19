@@ -1,6 +1,9 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
+import { validateRetainedMaterial } from "./validate-retained-material";
+import { validateInsertionPaths, type PocketInsertionPath } from "./validate-insertion-paths";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
@@ -16,7 +19,6 @@ import {
 import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
-  binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
   D_WALL,
@@ -28,6 +30,8 @@ export { infillHeightMm } from "@shared/gridfinity/fill";
 import type { Kernel } from "@/lib/manifold/runtime";
 
 import { buildBase } from "./base";
+import { buildPegBottom } from "./peg-bottom";
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import {
   buildCutoutCutters,
   buildFingerHoleCutters,
@@ -98,7 +102,7 @@ export {
 } from "@shared/gridfinity/materials";
 
 export interface BinParts {
-  /** Sockets plus bridge, or a flat slab, z ∈ [0, 7]. */
+  /** Sockets/flat slab at z ∈ [0, 7]; peg roots and shafts extend below zero. */
   base: Manifold;
   /** Plain wall ring, z ∈ [7, units·7]. `null` for 1u bins (zero height). */
   wall: Manifold | null;
@@ -116,10 +120,10 @@ export function binDimensionsMm(spec: BinSpec): {
   totalHeightMm: number;
 } {
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch),
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch),
+    widthMm: binWidthMm(spec),
+    lengthMm: binLengthMm(spec),
     heightToRimMm: binHeightMm(spec.heightUnits),
-    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard"),
+    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard") + pegBottomExtensionMm(spec),
   };
 }
 
@@ -128,12 +132,15 @@ export function buildBinParts(
   kernel: Kernel,
   spec: BinSpec,
   quality: BuildQuality,
+  throughCutters: readonly Manifold[] = [],
 ): BinParts {
   const { CrossSection, arena } = kernel;
   const segments = quality.circularSegments;
 
-  const base = spec.flatBottom
-    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(BASE_HEIGHT))
+  const base = spec.pegBottom
+    ? buildPegBottom(kernel, spec, segments, throughCutters)
+    : spec.flatBottom
+    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits))))
     : buildBase(
         kernel,
         spec,
@@ -162,8 +169,8 @@ export function buildBinParts(
       : arena.track(
           new CrossSection([
             roundedRectPolygon(
-              binFootprintMm(spec.gridX, spec.gridPitch),
-              binFootprintMm(spec.gridY, spec.gridPitch),
+              binWidthMm(spec),
+              binLengthMm(spec),
               BASE_TOP_RADIUS,
               segments,
             ),
@@ -226,31 +233,31 @@ export function buildBinWithCutouts(
   validationIssues: ValidationIssue[];
 } {
   const { Manifold, arena } = kernel;
-  const base = buildBin(kernel, spec, quality);
+  const builtCutouts = layout?.cutouts.length ? buildCutoutCutters(
+    kernel, layout.shapesById, layout.cutouts, spec, quality,
+    { floorInsertThicknessMm: options.floorInsertThicknessMm },
+  ) : null;
+  const base = buildBin(kernel, spec, quality, builtCutouts?.throughCutters);
   let solid = base.solid;
   let floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
   let validationIssues: ValidationIssue[] = [];
+  let insertionPaths: PocketInsertionPath[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
-    const builtCutouts = buildCutoutCutters(
-      kernel,
-      layout.shapesById,
-      layout.cutouts,
-      spec,
-      quality,
-      { floorInsertThicknessMm: options.floorInsertThicknessMm },
-    );
-    validationIssues = [
-      ...(builtCutouts.validationIssues ?? []),
-      ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
-        .filter(issue => issue.code === "invalid-pocket-insertion"),
-      ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
-    ];
-    floorInserts = builtCutouts.floorInserts;
-    floorRegions = builtCutouts.floorRegions ?? floorInserts;
-    reports = builtCutouts.reports;
+    if (builtCutouts) {
+      validationIssues = [
+        ...(builtCutouts.validationIssues ?? []),
+        ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
+          .filter(issue => issue.code === "invalid-pocket-insertion" || issue.code === "pocket-depth-needed"),
+        ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
+      ];
+      floorInserts = builtCutouts.floorInserts;
+      floorRegions = builtCutouts.floorRegions ?? floorInserts;
+      reports = builtCutouts.reports;
+      insertionPaths = builtCutouts.insertionPaths ?? [];
+    }
     const allCutters = [
-      ...builtCutouts.cutters,
+      ...(builtCutouts?.cutters ?? []),
       ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
     ];
     if (allCutters.length > 0) {
@@ -260,6 +267,7 @@ export function buildBinWithCutouts(
           : arena.track(Manifold.union(allCutters));
       solid = arena.track(base.solid.subtract(cutter));
     }
+    validationIssues.push(...validateRetainedMaterial(kernel, solid, builtCutouts?.retainedGroups ?? [], layout.cutouts, layout.shapesById));
   }
   const status = solid.status();
   if (status !== "NoError") {
@@ -280,7 +288,7 @@ export function buildBinWithCutouts(
     const interior = arena.track(outer.subtract(wall));
     const floorRegion = arena.track(
       arena.track(interior.extrude(options.floorInsertThicknessMm))
-        .translate([0, 0, BASE_HEIGHT - options.floorInsertThicknessMm]),
+        .translate([0, 0, Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits)) - options.floorInsertThicknessMm]),
     );
     floorInserts = [...floorInserts, floorRegion];
     floorRegions = [...floorRegions, floorRegion];
@@ -340,6 +348,8 @@ export function buildBinWithCutouts(
   const bodySolid = solid;
   const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
   if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
+  if (layout) validationIssues.push(...validateInsertionPaths(kernel, solid, insertionPaths, layout.cutouts, layout.shapesById,
+    textParts.map(part => part.solid)));
   return { parts: base.parts, solid, bodySolid, textParts, materialParts, cutoutReports: reports, validationIssues };
 }
 
@@ -364,9 +374,10 @@ export function buildBin(
   kernel: Kernel,
   spec: BinSpec,
   quality: BuildQuality,
+  throughCutters: readonly Manifold[] = [],
 ): { parts: BinParts; solid: Manifold } {
   const { Manifold, arena } = kernel;
-  const parts = buildBinParts(kernel, spec, quality);
+  const parts = buildBinParts(kernel, spec, quality, throughCutters);
   const present = [parts.base, parts.wall, parts.lip, parts.infill].filter(
     (part): part is Manifold => part !== null,
   );

@@ -167,3 +167,18 @@ it.each(["shiftKey", "ctrlKey", "metaKey"])("toggles 3D mouse selection with %s"
   click(0, { ...editor, selection: onSelectionChange.mock.lastCall![0] });
   expect(onSelectionChange).toHaveBeenLastCalledWith([{ kind: "pocket", id: "other" }]);
 });
+
+it("opens 3D context actions for the object under the pointer without changing selection or responding to a pan", () => {
+  const onContextMenu = vi.fn(), onSelectionChange = vi.fn();
+  const editor: PocketEditor = { spec, pockets: [{ cutout, shape }], selectedId: null, onSelect: vi.fn(), onCommit: vi.fn(), onSelectionChange, onContextMenu };
+  const plane = PocketSelectionPlane({ editor, width: 126, length: 126, disabled: false });
+  const event = { delta: 0, point: { x: 0, y: 0 }, clientX: 200, clientY: 120, stopPropagation: vi.fn(), nativeEvent: { preventDefault: vi.fn() } };
+  plane.props.onContextMenu(event);
+  expect(onContextMenu).toHaveBeenCalledWith({ kind: "pocket", id: cutout.id }, { x: 200, y: 120 });
+  expect(onSelectionChange).not.toHaveBeenCalled();
+  plane.props.onContextMenu({ ...event, delta: 20 });
+  expect(onContextMenu).toHaveBeenCalledTimes(1);
+  const disabled = PocketSelectionPlane({ editor, width: 126, length: 126, disabled: true });
+  disabled.props.onContextMenu(event);
+  expect(onContextMenu).toHaveBeenCalledTimes(1);
+});

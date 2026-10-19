@@ -33,7 +33,7 @@ describe("contour symmetry", () => {
       expect(pointInOutline([result.shape!], point(x, y))).toBe(expected);
       expect(pointInOutline([result.shape!], point(-x, y))).toBe(expected);
     }
-    expect(symmetrizeShape(syringe.shape, syringe.axis, "average").error).toContain("Choose Use left side");
+    expect(symmetrizeShape(syringe.shape, syringe.axis, "average").error).toContain("Choose Left or Right");
   });
 
   it.each([0, Math.PI / 2, -.6, 2.1])("aligns a tool rotated by %s upright without resizing or losing its profile", angle => {
@@ -177,7 +177,7 @@ describe("contour symmetry", () => {
     expect(symmetrizeShape({ ...tool, holes: [rectRing(-1, 70, 2, 5)] }, axis, "average").error).toMatch(/holes/);
     const u: Shape = { outer: [{ x: -8, y: 0 }, { x: -4, y: 0 }, { x: -4, y: 80 }, { x: 4, y: 80 },
       { x: 4, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 100 }, { x: -8, y: 100 }], holes: [] };
-    expect(symmetrizeShape(u, axis, "average").error).toMatch(/Choose Use left side or Use right side/);
+    expect(symmetrizeShape(u, axis, "average").error).toMatch(/Choose Left or Right/);
     corrected("left");
     expect(tool).toEqual(before);
   });

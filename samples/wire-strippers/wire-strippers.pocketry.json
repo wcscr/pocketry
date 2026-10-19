@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 19,
+  "schemaVersion": 36,
   "shapes": [
     {
       "id": "47587930-216b-44f6-b384-5f41b739b198",
@@ -460,16 +460,35 @@
     "heightUnits": 3.5,
     "lip": "standard",
     "fill": "solid",
+    "wallThicknessMm": 0.95,
+    "fillHeightPercent": 100,
+    "adjustFixedPocketDepths": true,
     "flatBottom": false,
     "magnetHoles": false,
     "magnetCrushRibs": false,
     "screwHoles": false,
-    "labelTab": null
+    "labelTab": null,
+    "textColor": "#000000",
+    "surfaceTexts": [
+      {
+        "id": "sample-wire-strippers-text-1",
+        "text": "Wire Stripper",
+        "position": {
+          "x": -81,
+          "y": 27
+        },
+        "font": "sans-bold",
+        "sizeMm": 5.75,
+        "heightMm": 0.8,
+        "rotationDeg": 0
+      }
+    ]
   },
   "cutouts": [
     {
       "id": "cutout-191f8fff-2906-4f82-92de-6dc2d81d94b1-sx4unv",
       "shapeId": "47587930-216b-44f6-b384-5f41b739b198",
+      "name": "Wire strippers",
       "position": {
         "x": 8.7,
         "y": 0.5
@@ -487,13 +506,13 @@
       "cornerRoundMm": 1,
       "topFilletMm": 1.2,
       "bottomFilletMm": 1.2,
-      "fingerHoles": [],
-      "name": "Wire strippers"
+      "fingerHoles": []
     }
   ],
   "fingerHoles": [
     {
       "id": "469aefc8-4798-4b2d-baab-9df5bf77b66d",
+      "name": "Wire strippers grip access",
       "center": {
         "x": -30.3,
         "y": -2.3
@@ -504,8 +523,7 @@
       "bottomFilletMm": 0,
       "lengthMm": 66.2,
       "rotationDeg": 270.1,
-      "kind": "oblong-deep-scoop",
-      "name": "Wire strippers grip access"
+      "kind": "oblong-deep-scoop"
     }
   ],
   "name": "Wire Strippers",

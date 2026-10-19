@@ -1,10 +1,15 @@
 import type { Config } from "tailwindcss";
 
 export default {
-  darkMode: ["class"],
+  darkMode: "class",
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      // Preserve the existing v3 appearance while removing its vulnerable toolchain.
+      boxShadow: { sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)" },
+      blur: { sm: "4px" },
+      backdropBlur: { sm: "4px" },
+      dropShadow: { sm: "0 1px 1px rgb(0 0 0 / 0.05)" },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -95,5 +100,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [require("tailwindcss-animate")],
 } satisfies Config;

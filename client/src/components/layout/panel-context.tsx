@@ -16,6 +16,9 @@ interface PanelState {
   togglePanel: () => void;
   traceRestart: (() => void) | null;
   registerTraceRestart: (action: (() => void) | null) => void;
+  /** Survives navigation from Welcome or Trace until Bin can show the samples. */
+  sampleLibraryRequested: boolean;
+  setSampleLibraryRequested: (requested: boolean) => void;
   /** Survives navigation from Trace until Bin can open the library manager. */
   libraryRequested: boolean;
   setLibraryRequested: (requested: boolean) => void;
@@ -27,6 +30,7 @@ export function PanelProvider({ children }: { children: ReactNode }): JSX.Elemen
   const [panelOpen, setPanelOpen] = useState(() => !getMobileLayoutSnapshot());
   const [traceRestart, setTraceRestart] = useState<(() => void) | null>(null);
   const [libraryRequested, setLibraryRequested] = useState(false);
+  const [sampleLibraryRequested, setSampleLibraryRequested] = useState(false);
   const registerTraceRestart = useCallback((action: (() => void) | null) => setTraceRestart(() => action), []);
 
   const value = useMemo<PanelState>(
@@ -36,10 +40,12 @@ export function PanelProvider({ children }: { children: ReactNode }): JSX.Elemen
       togglePanel: () => setPanelOpen((open) => !open),
       traceRestart,
       registerTraceRestart,
+      sampleLibraryRequested,
+      setSampleLibraryRequested,
       libraryRequested,
       setLibraryRequested,
     }),
-    [panelOpen, traceRestart, registerTraceRestart, libraryRequested],
+    [panelOpen, traceRestart, registerTraceRestart, libraryRequested, sampleLibraryRequested],
   );
 
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;

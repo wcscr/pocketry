@@ -1,7 +1,8 @@
+import { pickBinContextTarget, type BinContextTarget } from "@/lib/gridfinity/context-target";
 import type { TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { Line, TransformControls } from "@react-three/drei";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementRef, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ElementRef, type ReactNode } from "react";
 import { DoubleSide, Object3D, Quaternion, Vector3 } from "three";
 import { objectEdges } from "@/lib/mesh/object-edges";
 import { toBufferGeometry } from "@/lib/mesh/to-buffer-geometry";
@@ -15,7 +16,8 @@ import {
   type EditablePocket, type PocketTransformMode, type PocketTransformPatch,
 } from "@/lib/gridfinity/pocket-transform";
 
-import { styleTransformGizmo } from "@/lib/gridfinity/transform-gizmo-style";
+import { styleTransformGizmo, transformGizmoSize } from "@/lib/gridfinity/transform-gizmo-style";
+import { useTransformTouchGuard } from "@/hooks/use-transform-touch-guard";
 import { applyObjectEdits, objectEditsChanged, objectOutline, pickObject, selectionCenter, transformObjects,
   type EditableObject, type ObjectRef, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 
@@ -33,6 +35,7 @@ export interface PocketEditor {
   onSelectionChange?: (selection: ObjectRef[]) => void;
   onCommitObjects?: (edits: ObjectEdits, label: string) => void;
   onPreviewObjects?: (edits: ObjectEdits, label: string) => void;
+  onContextMenu?: (target: BinContextTarget, point: { x: number; y: number }) => void;
   onSelect: (id: string | null) => void;
   onCommit: (id: string, patch: PocketTransformPatch, mode: PocketTransformMode) => void;
 }
@@ -54,7 +57,13 @@ export function PocketSelectionPlane({ editor, width, length, disabled }: {
     editor.onSelectionChange(ref ? additive ? contains ? selection.filter(r => r.kind !== ref.kind || r.id !== ref.id) : [...selection, ref] : [ref]
       : additive ? [...selection] : []);
   };
-  return <mesh position={[0, 0, z + 0.01]} onClick={select}>
+  return <mesh position={[0, 0, z + 0.01]} onClick={select} onContextMenu={event => {
+    if (disabled || event.delta > 4 || !editor.onContextMenu) return;
+    const ref = pickBinContextTarget(objects, event.point, editor.pocketGeometry);
+    if (!ref) return;
+    event.stopPropagation(); event.nativeEvent.preventDefault();
+    editor.onContextMenu(ref, { x: event.clientX, y: event.clientY });
+  }}>
     <planeGeometry args={[width, length]} />
     <meshBasicMaterial side={DoubleSide} transparent opacity={0} depthWrite={false} colorWrite={false} />
   </mesh>;
@@ -75,23 +84,23 @@ export function PocketTransformScene({ pocket, spec, mode, snap, onPreview, onCo
     onCommit={edits => { const cutout = edits.cutouts[0]; if (cutout) onCommit(cutout.id, cutout, mode); }} />;
 }
 
-export function SelectionTransformScene({ objects, allObjects = objects, spec, mode, snap, pivot, onPreview, onCommit, onLimit }: {
+export function SelectionTransformScene({ objects, allObjects = objects, spec, mode, snap, pivot, onPreview, onCommit, onLimit, touchTargets = false, viewportHeight = 650 }: {
   objects: readonly EditableObject[]; allObjects?: readonly EditableObject[]; spec: BinSpec; mode: PocketTransformMode; snap: boolean; pivot: RotationPivot;
   onPreview: (edits: ObjectEdits | null) => void; onCommit: (edits: ObjectEdits) => void; onLimit: (limited: boolean) => void;
+  touchTargets?: boolean; viewportHeight?: number;
 }): JSX.Element {
   const object = useMemo(() => new Object3D(), []);
-  const [controlEpoch, setControlEpoch] = useState(0);
   const controls = useRef<ElementRef<typeof TransformControls> | null>(null);
   // This Drei version leaves externally managed primitives undisposed.
-  // Release DOM listeners and GPU resources on cancel, mode/selection changes.
+  // Release DOM listeners and GPU resources when the controls are replaced.
   const restoreHandles = useRef<() => void>(() => {});
   const attachControls = useCallback((next: ElementRef<typeof TransformControls> | null) => {
     if (controls.current === next) return;
     restoreHandles.current();
     controls.current?.dispose();
     controls.current = next;
-    restoreHandles.current = next ? styleTransformGizmo(next) : () => {};
-  }, []);
+    restoreHandles.current = next ? styleTransformGizmo(next, touchTargets) : () => {};
+  }, [touchTargets]);
   const orbit = useThree(state => state.controls) as unknown as { enabled: boolean } | null;
   const gesture = useRef<{ original: readonly EditableObject[]; patch: ObjectEdits | null } | null>(null);
   const callbacks = useRef({ onPreview, onCommit, onLimit });
@@ -107,12 +116,17 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
   const cancel = useCallback(() => {
     const original = gesture.current?.original;
     gesture.current = null;
-    if (original) { controls.current?.reset(); setControlEpoch(epoch => epoch + 1); }
+    if (original && controls.current) {
+      controls.current.reset();
+      // End without emitting mouseUp: canceled previews must never commit.
+      Object.assign(controls.current, { dragging: false, axis: null });
+    }
     if (original) place(original);
     if (original && orbit) orbit.enabled = true;
     callbacks.current.onPreview(null);
     callbacks.current.onLimit(false);
   }, [place, orbit]);
+  useTransformTouchGuard(controls, cancel, touchTargets);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape" && gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); cancel(); }
@@ -160,7 +174,7 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
   };
   return <>
     <primitive object={object} />
-    <TransformControls key={controlEpoch} ref={attachControls} object={object} mode={mode} space="world" size={0.95}
+    <TransformControls key={String(touchTargets)} ref={attachControls} object={object} mode={mode} space="world" size={transformGizmoSize(viewportHeight, touchTargets)}
       showX={mode !== "rotate" || objects.every(o => o.kind === "pocket")} showY={mode !== "rotate" || objects.every(o => o.kind === "pocket")}
       translationSnap={snap ? 1 : null} rotationSnap={snap ? Math.PI / 36 : null}
       onMouseDown={() => { gesture.current = { original: objects, patch: null }; callbacks.current.onPreview({ cutouts: objects.flatMap(o => o.kind === "pocket" ? [o.cutout] : []), fingerHoles: objects.flatMap(o => o.kind === "finger" ? [o.hole] : []) }); }}

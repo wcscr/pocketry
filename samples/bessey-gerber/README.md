@@ -1,6 +1,6 @@
 <p align="right"><a href="../README.md">All samples</a></p>
 
-# Bessey (aka "Bessy") Utility Knife and Gerber Multitool
+# Bessey Utility Knife and Gerber Multitool
 
 A shared Gridfinity bin for a closed Bessey D-BKWH folding utility knife
 and Gerber Multitool. Two fitted pockets keep the tools side by side, with a
@@ -22,10 +22,11 @@ provided for each tool below.
 
 <a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="720" alt="Original printed bin holding a wood-handle Bessey folding utility knife and a closed Gerber Multitool, with a purple rim and labels"></a>
 
-The label says **Bessy**. We’re now aware that **Bessey** is spelled with two e’s. At least the knife fits.
+The original print says **Bessy**. The editable project now includes photo-matched
+**Bessey** and **Gerber** labels, with the Bessey spelling corrected.
 
-The lettering shown in the photo is not included in the downloadable design.
-The 3MF includes separate body, pocket-floor, and rim color parts. Use your own
+The supplied 3MF is unchanged and has separate body, pocket-floor, and rim color
+parts. Export the updated project for a model with the labels. Use your own
 filament, printer, and process settings at **100% scale**.
 
 ## Layout

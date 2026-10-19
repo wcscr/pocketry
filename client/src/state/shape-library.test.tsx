@@ -67,6 +67,56 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
+  it("keeps photo arrangements through reload, hydration and retargeting without altering library geometry", () => {
+    const first = mountLibrary();
+    const placement = { batchId: "photo-a", center: { x: 24, y: -18 } };
+    first.act(() => first.library().addShape(makeShape("a"), { mode: "unset" }, undefined, placement));
+    first.act(() => first.library().replaceShapes([makeShape("stored")], true));
+    first.act(() => first.library().retargetPending({ key: "project:b", name: "B" }));
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingPlacements).toEqual({ a: placement });
+    expect(reloaded.library().shapes).toEqual([makeShape("a")]);
+    reloaded.act(() => reloaded.library().removeShape("a"));
+    expect(reloaded.library().pendingPlacements).toEqual({});
+    expect(mountLibrary().library().pendingPlacements).toEqual({});
+  });
+
+  it("retains destination-bound tools when opening a project and through reload", () => {
+    const first = mountLibrary();
+    const destination = { key: "project:a", name: "Project A" };
+    first.act(() => first.library().addShape(makeShape("queued"), { mode: "to-floor" }, destination));
+    first.act(() => first.library().replaceShapes([makeShape("stored-b")], true));
+    expect(first.library().pendingIds).toEqual(["queued"]);
+    expect(first.library().pendingDestinations).toEqual({ queued: destination });
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingDestinations).toEqual({ queued: destination });
+    expect(reloaded.library().shapes).toEqual([makeShape("queued")]);
+    reloaded.act(() => reloaded.library().retargetPending({ key: "project:b", name: "Project B" }));
+    expect(mountLibrary().library().pendingDestinations).toEqual({ queued: { key: "project:b", name: "Project B" } });
+  });
+
+  it("recovers each chosen depth without adding placement metadata to reusable shapes", () => {
+    const first = mountLibrary();
+    first.act(() => {
+      first.library().addShape(makeShape("shallow"), { mode: "mm", value: 7.5 });
+      first.library().addShape(makeShape("jig"), { mode: "through" });
+      first.library().addShape(makeShape("floor"), { mode: "to-floor" });
+    });
+    first.act(() => first.library().consumePending());
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingDepths).toEqual({ shallow: { mode: "mm", value: 7.5 }, jig: { mode: "through" }, floor: { mode: "to-floor" } });
+    expect(reloaded.library().shapes).toEqual([makeShape("shallow"), makeShape("jig"), makeShape("floor")]);
+    reloaded.act(() => reloaded.library().removeShape("shallow"));
+    expect(mountLibrary().library().pendingDepths).toEqual({ jig: { mode: "through" }, floor: { mode: "to-floor" } });
+  });
+
+  it("still restores the older shape-only session queue", () => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([makeShape("legacy")]));
+    const restored = mountLibrary().library();
+    expect(restored.shapes).toEqual([makeShape("legacy")]);
+    expect(restored.pendingDepths).toEqual({});
+  });
+
   it("recovers queued geometry after reload and keeps it until placement is durable", () => {
     const first = mountLibrary();
     const shape = { ...makeShape("hand-edited"), traceMarginMm: 0.5 };

@@ -65,7 +65,12 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const applyAxis = (axis: number, value: number, preview = false) => {
     const numbers = [0, 1, 2].map(i => i === axis ? value : undefined);
     const edits = setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, pivot, objects, editor.originShapes);
-    if (!edits) { setError("Cannot transform every affected copy. Check depth and tilt limits."); return; }
+    if (!edits) {
+      setError(mode === "translate" && axis === 2 && selected.length > 1 && selected.some(o => o.kind === "pocket" && o.cutout.designLink)
+        ? "Linked copies need a common Z move. Select every linked copy to restore individual heights, or set Elevation on one copy. Check height limits too."
+        : "Cannot transform every affected copy. Check depth and tilt limits.");
+      return;
+    }
     setError(null);
     const label = `${mode === "translate" ? "Move" : "Rotate"} ${selected.length} objects`;
     if (preview) editor.onPreviewObjects?.(edits, label);
@@ -151,6 +156,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             title={`Snap ${snap ? "on" : "off"}: 1 mm moves / 5° rotations`} onClick={() => setSnap(!snap)}><Magnet className="h-4 w-4" /></Button>
         </div>
         {!mobile && <p className="text-[10px] text-muted-foreground">From as drawn · Set an axis to 0 to restore it.</p>}
+        {mode === "translate" && selected.some(o => o.kind === "pocket" && o.cutout.designLink) && <p className="text-[10px] text-muted-foreground">Z moves also raise or lower linked copies. X/Y movement stays independent.</p>}
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">{["X", "Y", "Z"].map((a, i) => <label key={a} className="space-y-1">
             <span className={cn("font-semibold", i === 0 ? "text-red-500" : i === 1 ? "text-emerald-600 dark:text-emerald-400" : "text-blue-500")}>{a}</span>
@@ -176,7 +182,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         {mode === "rotate" && !mixed && <Button size="sm" variant="outline" className="w-full"
           disabled={!selected.some(o => o.kind === "pocket" && ((o.cutout.tilt?.xDeg ?? 0) !== 0 || (o.cutout.tilt?.yDeg ?? 0) !== 0))}
           onClick={() => commit(expandLinkedObjectEdits(objects, editor.spec, { cutouts: selected.flatMap(o => o.kind === "pocket"
-            ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [] }), "Reset pockets to X–Y plane")}>
+            ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [], linkedElevation: "preserve" }), "Reset pockets to X–Y plane")}>
           Reset to X–Y plane
         </Button>}
         {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}

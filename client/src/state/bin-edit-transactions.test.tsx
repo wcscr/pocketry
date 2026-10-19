@@ -96,6 +96,8 @@ it.each(["UNDO", "REDO", "HYDRATE", "SET_EDITING_CAPABILITY"] as const)("invalid
 
 it.each([
   (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { scaleX: 2 } }),
+  (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { elevationMm: 12 } }),
+  (s: BinStore): BinAction => ({ type: "UPDATE_OBJECTS", edits: { cutouts: s.cutouts.map(c => ({ ...c, elevationMm: 12 })), fingerHoles: [], linkedElevation: "offset" }, historyLabel: "Move linked heights" }),
   (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { tilt: { xDeg: 20, yDeg: 0 } }, transient: true }),
   (s: BinStore): BinAction => ({ type: "UPDATE_OBJECTS", edits: { cutouts: [{ ...s.cutouts[0], depth: { mode: "mm", value: 12 } }], fingerHoles: [] }, historyLabel: "Batch" }),
   (s: BinStore): BinAction => ({ type: "UPDATE_FINGER_HOLE", id: "f", patch: { diameterMm: 6 } }),

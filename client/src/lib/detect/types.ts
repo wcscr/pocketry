@@ -1,4 +1,4 @@
-import type { Outline, Rect } from "@shared/geometry/types";
+import type { Outline, Rect, Ring } from "@shared/geometry/types";
 
 /**
  * The pixel input the pipeline accepts.
@@ -16,6 +16,8 @@ export interface ImageLike {
 export type DetectEngine = "opencv" | "js";
 
 export interface DetectOptions {
+  /** Validated calibration carriers, in input-image pixels. Their contents are unknown. */
+  occlusions?: readonly Ring[];
   /** Restrict detection to this region of the image. */
   roi?: Rect | null;
   /**
@@ -53,6 +55,10 @@ export interface DetectOptions {
 }
 
 export interface DetectResult {
+  /** True when a recognized carrier hid a foreground/background transition. */
+  inferredOccludedEdge?: boolean;
+  /** Carrier regions containing estimated edges, in input-image pixels. */
+  estimatedEdgeRegions?: Ring[];
   /** Simplified and smoothed, in the coordinate space of the input image. */
   outline: Outline;
   /**

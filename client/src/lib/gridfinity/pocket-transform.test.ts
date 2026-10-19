@@ -4,6 +4,7 @@ import { parseCutoutPlacement, resolvePlacedPocketDepth, transformPointPlacement
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
+import { resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { pickPocketAtTop, pocketQuaternion, pocketTransformPatch, pocketTransformWires, surfaceAnchoredPocket, pocketTransformChanged, pocketVerticalDepthMm } from "./pocket-transform";
 
 const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6, lip: "none", fill: "solid" });
@@ -15,7 +16,7 @@ const origin = new Vector3(5, -4, 42);
 const identity = new Quaternion();
 
 it("enables insertion on a first 3D tilt and retains explicit choices during later transforms", () => {
-  const upright = {...pocket,tilt:undefined,elevationMm:7};
+  const upright = {...pocket,tilt:undefined,elevationMm:undefined};
   const rotation = new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI/6);
   const first = {...upright,...pocketTransformPatch(upright,shape,spec,origin,rotation,"rotate")!};
   expect(first.insertionMode).toBe("axis");
@@ -24,6 +25,16 @@ it("enables insertion on a first 3D tilt and retains explicit choices during lat
     expect({...selected,...pocketTransformPatch(selected,shape,spec,origin,rotation,"rotate")!}.insertionMode).toBe(insertionMode);
     expect({...selected,...pocketTransformPatch(selected,shape,spec,new Vector3(5,-4,47),identity,"translate")!}.insertionMode).toBe(insertionMode);
   }
+});
+
+it.each(["x", "y", "z"] as const)("preserves local %s insertion preference through gizmo transforms", insertionAxis => {
+  const selected = { ...pocket, insertionAxis, insertionMode: "axis" as const, elevationMm: 7 };
+  const rotation = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 6);
+  const rotated = { ...selected, ...pocketTransformPatch(selected, shape, spec, origin, rotation, "rotate")! };
+  const translated = { ...rotated, ...pocketTransformPatch(rotated, shape, spec, new Vector3(8, -2, 47), identity, "translate")! };
+  expect(rotated.insertionAxis).toBe(insertionAxis);
+  expect(translated.insertionAxis).toBe(insertionAxis);
+  expect(translated.insertionMode).toBe("axis");
 });
 
 describe("surface-anchored pocket controls", () => {
@@ -209,4 +220,15 @@ it("moving XY does not silently resize a pocket whose tilted seat needs correcti
   const patch = pocketTransformPatch(shallow, shape, spec, new Vector3(10, 0, 42), identity, "translate")!;
   expect(patch.position).toEqual({ x: 10, y: 0 });
   expect(patch.depth).toEqual(shallow.depth);
+});
+
+
+it.each([undefined, "axis", "vertical"] as const)("keeps %s clearance when a reset pocket is tilted again with the gizmo", insertionMode => {
+  const chosen = { ...pocket, elevationMm: 7, insertionMode, insertionAxis: "x" as const };
+  const reset = resetPocketPlane(chosen, shape, spec);
+  const rotation = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 6);
+  const tilted = { ...reset, ...pocketTransformPatch(reset, shape, spec, origin, rotation, "rotate")! };
+  expect(tilted.insertionMode).toBe(insertionMode);
+  expect(tilted.insertionAxis).toBe("x");
+  expect(Math.abs(tilted.tilt!.yDeg)).toBeGreaterThan(1);
 });

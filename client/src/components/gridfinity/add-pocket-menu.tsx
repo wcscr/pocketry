@@ -8,15 +8,13 @@ import { useBin } from "@/state/bin-store";
 import { usePanelState } from "@/components/layout/panel-context";
 import { useHasTouchInput, useIsMobile } from "@/hooks/use-mobile";
 import { useAddSurfaceText } from "./use-add-surface-text";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useAddFingerAccess } from "./use-add-finger-access";
 
 /** Pocket picker with optional object actions for the compact toolbar. */
-export function AddPocketMenu({ label = "Add pocket", className, onStart, testId = "button-add-pocket", includeFingerAccess = false }: {
-  label?: string; className?: string; onStart?: () => void; testId?: string; includeFingerAccess?: boolean;
+export function AddPocketMenu({ label = "Add pocket", className, onStart, testId = "button-add-pocket", includeFingerAccess = false, iconOnly = false }: {
+  label?: string; className?: string; onStart?: () => void; testId?: string; includeFingerAccess?: boolean; iconOnly?: boolean;
 }): JSX.Element {
   const { spec, dispatch } = useBin();
-  const { enabled: experimentalEnabled } = useExperimentalFeatures();
   const addSurfaceText = useAddSurfaceText(onStart);
   const { setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
@@ -31,8 +29,8 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   };
   return <><DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <AddObjectButton className={className} data-testid={testId}>
-        {label}{includeFingerAccess && <ChevronDown className="h-4 w-4" aria-hidden />}
+      <AddObjectButton className={className} data-testid={testId} title={label}>
+        <span className={iconOnly ? "sr-only" : undefined}>{label}</span>{includeFingerAccess && !iconOnly && <ChevronDown className="h-4 w-4" aria-hidden />}
       </AddObjectButton>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start">
@@ -49,9 +47,9 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
         <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" onSelect={addFingerAccess}>
           <CircleDot className="mr-2 h-4 w-4" />Finger access
         </DropdownMenuItem>
-        {experimentalEnabled && <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" disabled={spec.surfaceTexts.length >= 32} onSelect={addSurfaceText}>
+        <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" disabled={spec.surfaceTexts.length >= 32} onSelect={addSurfaceText}>
           <Type className="mr-2 h-4 w-4" />Surface text
-        </DropdownMenuItem>}
+        </DropdownMenuItem>
       </>}
     </DropdownMenuContent>
   </DropdownMenu>

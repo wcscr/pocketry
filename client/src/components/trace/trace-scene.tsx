@@ -16,6 +16,7 @@ import {
   type Point,
   type Rect,
   type RingRef,
+  type Ring,
 } from "@shared/geometry/types";
 
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
@@ -39,6 +40,7 @@ export interface TraceSceneProps {
   imageCrop?: Rect | null;
   transform: SceneTransform;
   outline: Outline;
+  estimatedEdgeRegions?: readonly Ring[];
   selection: RingRef | null;
   region: Rect | null;
   /** Keeps the crop boundary prominent only while the region tool is active. */
@@ -72,6 +74,8 @@ export interface TraceSceneProps {
   hoveredVertexIndex?: number | null;
   selectedVertexIndex?: number | null;
   compactHandles?: boolean;
+  /** Selection can highlight a contour without offering point editing. */
+  showVertices?: boolean;
   /** Handles for the interaction layer above. */
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -129,6 +133,7 @@ export function TraceScene({
   imageCrop = null,
   transform,
   outline,
+  estimatedEdgeRegions = [],
   selection,
   region,
   regionActive = false,
@@ -147,6 +152,7 @@ export function TraceScene({
   hoveredVertexIndex = null,
   selectedVertexIndex = null,
   compactHandles = false,
+  showVertices = true,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -199,16 +205,22 @@ export function TraceScene({
           alignment={imageAlignment}
         />
 
+        {estimatedEdgeRegions.map((ring, index) => <path key={`estimated-${index}`} d={ringToPath(ring)}
+          fill="none" className="pointer-events-none stroke-amber-600" strokeWidth={2} strokeDasharray="7 4"
+          vectorEffect="non-scaling-stroke" data-testid="estimated-edge-region">
+          <title>Estimated edge area: review the contour hidden by the measurement aid.</title>
+        </path>)}
+
         {/* The traced material, with holes punched out by the even-odd rule. */}
-        {fillPath && (
-          <path
-            d={fillPath}
-            fillRule="evenodd"
-            className="fill-fuchsia-500/10"
-            style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }}
-            data-testid="detected-contour-fill"
-          />
-        )}
+        {fillPath && <>
+          <defs><mask id={`${sceneId}-holes`} maskUnits="userSpaceOnUse" x={0} y={0} width={imageSize.width} height={imageSize.height}>
+            <rect width={imageSize.width} height={imageSize.height} fill="white" />
+            {outline.flatMap(part => part.holes).map((ring, index) => <path key={index} d={ringToPath(ring)} fill="black" />)}
+          </mask></defs>
+          <path d={outlineToPathData(outline.map(part => ({ ...part, holes: [] })))} fillRule="nonzero"
+            mask={`url(#${sceneId}-holes)`} className="fill-fuchsia-500/10"
+            style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }} data-testid="detected-contour-fill" />
+        </>}
 
         {/*
           A bright contour alone disappears wherever the photo contains that
@@ -254,7 +266,7 @@ export function TraceScene({
           can carry thousands of points per ring; rendering a handle for every
           one of them is unusable and janks the whole canvas.
         */}
-        {selectedRing?.map((point, index) => {
+        {showVertices && selectedRing?.map((point, index) => {
           const hovered = index === hoveredVertexIndex;
           const selected = index === selectedVertexIndex;
           return (
@@ -271,6 +283,7 @@ export function TraceScene({
               strokeWidth={1.5}
               vectorEffect="non-scaling-stroke"
               data-vertex={index}
+              style={{ visibility: "var(--contour-handle-visibility, visible)" as "visible" }}
               data-vertex-hovered={hovered || undefined}
               data-point-selected={selected || undefined}
             />

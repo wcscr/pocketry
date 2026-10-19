@@ -4,7 +4,6 @@ import type { BinHistory } from "@shared/gridfinity/history";
 import { extendLocalFont } from "@/lib/gridfinity/local-font";
 import { surfaceTextOutline } from "@/lib/gridfinity/surface-text";
 import { useBin, type BinAction } from "@/state/bin-store";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 
 // A new draft supersedes pending work even if the user selected another label
 // and returned, mounting a fresh editor before the old font conversion finished.
@@ -27,7 +26,6 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
   commitOnUnmount?: () => boolean;
 } = {}) {
   const { dispatch, history, editingEpoch } = useBin();
-  const { enabled } = useExperimentalFeatures();
   const [draft, setDraft] = useState(label.text);
   const [error, setError] = useState<string | null>(null);
   const staged = useRef<WordingDraft | null>(null);
@@ -82,7 +80,7 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
   // not change history and instead commits the outgoing editor in cleanup.
   useEffect(() => {
     cancel(); setDraft(label.text); setError(null);
-  }, [label.text, label.font, history, enabled]);
+  }, [label.text, label.font, history]);
   useEffect(() => {
     mounted.current = true;
     return () => {

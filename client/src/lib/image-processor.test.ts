@@ -9,6 +9,7 @@ import {
   MARGIN_MM_OPTIONS,
   marginToPixels,
   processImage,
+  reprocessOutline,
   outsideSilhouettes,
   withoutNewInteriorHoles,
 } from "./image-processor";
@@ -181,6 +182,34 @@ describe("processImage: margins", () => {
     const unoffset = await processImage(narrowBay, { detect: JS });
     const adjusted = await adjustOutlineMargin(unoffset.outline, 0, 5, calibration);
     expect(adjusted.every((shape) => shape.holes.length === 0)).toBe(true);
+  });
+
+  it("can refine detail after an initial margin collapses only the smallest detected hole", async () => {
+    const image = photo(220, 150, (x, y) => box(20, 20, 200, 130)(x, y)
+      && !box(46, 66, 54, 74)(x, y) && !box(100, 50, 140, 90)(x, y));
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 100 };
+    const detect = { ...JS, smoothing: 0, tolerancePx: 0, minHoleAreaFrac: 0 };
+    const unoffset = await processImage(image, { detect, includeInteriorHoles: true });
+    expect(unoffset.rawOutline[0].holes).toHaveLength(2);
+    const detected = await processImage(image, { detect, includeInteriorHoles: true, margin: 5, calibration });
+    expect(detected.outline[0].holes).toHaveLength(1);
+    expect(detected.rawOutline[0].holes).toHaveLength(1);
+    const refined = await reprocessOutline(detected.rawOutline, { detect: { smoothing: 2, tolerancePx: 1 }, margin: 5, calibration });
+    expect(refined).toHaveLength(1);
+    expect(refined[0].holes).toHaveLength(1);
+    expect(pointInOutline(refined, { x: 50, y: 70 })).toBe(true);
+    expect(pointInOutline(refined, { x: 120, y: 70 })).toBe(false);
+  });
+
+  it("keeps separately detected tools when the chosen margin makes them overlap", async () => {
+    const result = await processImage(photo(160, 130, (x, y) =>
+      box(20, 20, 70, 100)(x, y) || box(76, 40, 116, 80)(x, y)), {
+      detect: { ...JS, smoothing: 0, tolerancePx: 0 }, margin: 5,
+      calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
+    });
+    expect(result.rawOutline).toHaveLength(2);
+    expect(result.outline).toHaveLength(2);
+    expect(result.outline.every(part => part.holes.length === 0)).toBe(true);
   });
 
   it("grows the shell and shrinks the hole together", async () => {

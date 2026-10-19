@@ -29,7 +29,15 @@ export function canHandleCanvasShortcut(event: KeyboardEvent): boolean {
   // A plain button has no native Escape action. Keep Esc-to-exit available
   // after clicking a canvas tool; an open dialog/menu still wins below.
   const buttonEscape = event.key === "Escape" && control?.matches('button:not([role]), button[role="button"]');
-  if (control && !buttonEscape) return false;
+  // Command shortcuts have no native editing meaning on these controls.
+  // Keep unmodified keys and text-entry/composite widgets with their owner.
+  const command = (event.ctrlKey || event.metaKey) && !event.altKey &&
+    ["z", "y", "d", "a"].includes(event.key.toLowerCase());
+  const commandControl = command && control?.matches([
+    'button:not([role])', '[role="button"]', '[role="tab"]',
+    '[role="switch"]', '[role="checkbox"]', '[role="radio"]',
+  ].join(",")) && !target?.closest('[contenteditable]:not([contenteditable="false"])');
+  if (control && !buttonEscape && !commandControl) return false;
   const owner = target?.ownerDocument ?? document;
   return !Array.from(owner.querySelectorAll(KEYBOARD_LAYERS)).some(isOpenLayer);
 }

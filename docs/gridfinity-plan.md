@@ -240,7 +240,7 @@ so a failed write cannot leave the restored document attached to the wrong entry
 Opening another design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
-Project section places New project, Open project, and Export project in one
+Project section places New project, Import Project, and Export project in one
 compact action row without a separate backup section. Both library opens
 (Open, Enter, and double-click) and opening a project file share a confirmation
 before replacing a nonempty unnamed draft, with Keep working as the safe choice.
@@ -288,7 +288,7 @@ by validation, cutters, fit checks, auto-placement bounds, and DXF/SVG export.
 
 The Bin Layout view also supports **selected-pocket contour editing** without a
 round trip through Trace: drag vertices, click an edge to insert a point, and
-right-click a point to remove it. Each committed gesture creates an immutable
+right-click a point to remove it immediately. Each committed gesture creates an immutable
 shape revision and updates only the selected pocket, so the worker cache is
 invalidated correctly and Bin undo/redo can switch between contour revisions.
 The pocket list now explicitly prompts selection before showing these controls;
@@ -375,6 +375,24 @@ depths are independently selectable from 0.2–3.0 mm for pocket floors and
 0.2–7.35 mm for the stacking rim (0.6 mm pocket-floor and 1.25 mm rim
 defaults). The rim limit is the full
 modeled lip depth and does not extend into the bin wall when a lip is enabled.
+Each pocket's **Pocket color** properties choose **Floor only** or **Entire
+interior**. Floor-only coverage can follow the insertion axis, stay aligned with
+the bin's vertical direction, or use object X/Y/Z. With no insertion clearance,
+Follow insertion axis uses object Z. This reference changes the material split,
+not the cavity or insertion clearance. Entire interior colors a lining around
+the walls and floor below the fill surface; its thickness is measured laterally
+and axially in the object's frame. All masks replace existing material and keep
+retained holes and through openings intact. Color and thickness remain shared
+under **Materials & Colors**, while coverage and reference are independent for
+each placement, including linked copies. New pockets follow insertion; schema
+40 preserves the bin-vertical appearance of older saved projects.
+Axis-based floor masks use only the layer behind the finite object's supporting
+surface. Extra insertion-clearance walls and surfaces introduced by the remaining
+floor limit keep the bin color; **Bin vertical** colors the bin's bottom surface.
+Native extrusion bands define the lining before posing the object. A 0.01 mm
+setback from parallel faces and a 0.01 mm overlap into the cavity prevent
+coincident material sheets, without changing the cavity. Color-only edits retain
+the complete previous preview until one fully rounded replacement is ready.
 With Solid fill off, the pocket-floor color and thickness apply to the hollow
 bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
 This layer extends down from the base top without changing the floor height,
@@ -383,8 +401,8 @@ Without a lip, Materials & Colors offers **Top border** with independent color
 width (0.2–20 mm inward, default 0.95 mm) and depth settings. Wider borders extend
 into the filled top or label shelf; hollow bins color only existing wall material.
 The band follows the perimeter, including custom bins, and also supports 1u bins,
-with the requested depth clipped to existing bin material. Both accents are cut
-downward from the original surfaces, never added above them; STL warns before
+with the requested depth clipped to existing bin material. Accents replace
+existing material behind their selected surfaces; STL warns before
 dropping those color assignments. Pocket controls, Materials, and export show a
 nonblocking warning when a pocket's colored floor layer reaches the underside
 recesses. This uses the resolved depth and selected color thickness: ordinary
@@ -566,9 +584,8 @@ Other validation errors continue to block export.
 
 ## Persistence: none server-side in v1
 
-`server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
-implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
+The unused image API, in-memory storage, and database scaffold have been removed.
+The original browser-local implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
@@ -587,8 +604,9 @@ server-side queries individual rings.
 
 Separately: the fire-and-forget `POST /api/images` was removed from the client
 (2026-08-15) — nothing ever read the copies back, and silently uploading every
-trace was the wrong default. The server routes remain for a future explicit
-opt-in; `images.svgData` must not become the de facto geometry store.
+trace was the wrong default. The unused server routes were removed on 2026-10-16
+to eliminate their authorization and unbounded-storage risks. Any future server
+persistence needs an explicit opt-in and a new security design.
 
 ## Export
 
@@ -731,3 +749,25 @@ statistics remain labeled as updating, and brief builds no longer flash a
 percentage indicator. Full detail and export mesh comparisons across 14 designs
 remain identical to the baseline. See `preview-performance.md` for evidence and
 remaining complex-fillet/section latency limitations.
+
+### Flexible jig prototypes
+
+ULTIM8 flat backing attaches straight pegs directly to the existing body, removing
+root height. Preview and Layout keep the installed coordinate frame; STL and all
+3MF colour/text parts rotate together to print pocket-side down, pegs up. Corners
+only and every 2–5 holes apply in both staggered lattice directions and retain
+corner anchors. Through openings omit whole intersected shafts before sparse
+anchor selection. Sparse choices require flat backing; changing to upright roots
+restores every-hole pegs. Pocket roofs, hollow interiors, lips and raised text can
+introduce bridges, overhangs or reduced bed contact in this orientation. Warnings
+do not block export; inspect the slice and print a small fit/strength test.
+
+Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
+body height (2–294 mm). It supports rectangular flat and ULTIM8 bases; bodies below
+7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
+coordinates; grid pitches are available again only when dimensions exactly fit,
+so switching never silently snaps a design. Cell footprint editing and Gridfinity
+feet require returning to a grid. Layout, geometry, fit templates, placement,
+validation, undo and project exports share the exact dimensions. Arbitrary sizes
+stay fixed during automatic placement; Fit bin to contents resizes in millimetres.
+Schema 39 defaults older projects to their prior grid and full peg lattice.

@@ -1,16 +1,30 @@
 # Optional silhouette-pocket insertion clearance
 
 **Clear insertion path** and its direction selector appear at the top of pocket
-properties when a pocket is tilted. A first tilt enables clearance using
-**Follow pocket angle**, from either numeric properties or 3D Rotate. Further
-pose edits retain the selected direction or disabled state. Saved projects retain
-their explicit choices. Resetting to the X–Y plane hides the controls.
+properties when a pocket is tilted. A fresh pocket’s first tilt defaults to
+**Follow pocket angle**, from either numeric properties or 3D Rotate. Pockets
+with an established 3D pose retain the selected direction or disabled state,
+including after resetting to the X–Y plane and tilting again. Saved projects retain
+their explicit choices. Resetting to the X–Y plane preserves the selected axis
+and keeps active insertion controls available, including recovery from a horizontal path.
+
+After an object's first committed 3D tilt, a dialog asks how to create its
+clearance. It offers no extra clearance, vertical drop-in, or following a local
+object axis. It appears again if a later rotation makes the chosen insertion
+axis too close to horizontal to reach the top. It stays quiet during a drag or numeric preview, pure Z turns,
+undo/redo, and project loading. Dismissing it keeps the rotation and current
+settings. Applying a changed choice creates its own undo step. Linked copies
+share one choice, checked against every affected pose.
 
 The two opening directions are:
 
 - **Follow pocket angle** clears every upward translation of the original
-  object along its tilted axis, including when the object is entirely submerged.
-  It retains the seated object and extends the path through the fill surface.
+  object along its selected local axis: **X — width**, **Y — length**, or
+  **Z — thickness**. The axis rotates with the object and uses the sign that
+  points toward the bin top. The original finite object remains its seat,
+  including when it is entirely submerged. Existing designs retain Z.
+  For example, after rotating 80° around Y, choose X to insert along the
+  width at 10° from vertical instead of extending the nearly horizontal Z axis.
 - **Vertical drop-in** clears the object's complete XY projection straight up
   while retaining its actual rotated underside as the seat. A side face that
   points downward after rotation is part of that seat too. No bottom plane is
@@ -36,24 +50,38 @@ rigid pocket from fixed depth to remaining floor preserves the same length;
 editing the floor limit or switching back to fixed depth does not resize it.
 Source wires show the full original shape even when the cut is floor-limited.
 
-Project schema 35 also retains source depth for Through; version 34 introduced minimum-floor source depth and version 33 introduced
+Project schema 39 adds the optional local insertion-axis choice; older projects
+resolve an absent choice to Z without changing saved geometry. Project schema 35
+also retains source depth for Through; version 34 introduced minimum-floor source depth and version 33 introduced
 `insertionMode`. Earlier projects migrate without activating clearance or rewriting
 existing shapes. Undo/redo, creation references and Library saves retain the source
 length and floor limit. Imported-model PR #118 remains separate.
 
 ## Geometry and responsiveness
 
+Following object Z extends the common top profile along the pocket's local Z axis
+before applying its pose. The original finite solid remains the placement anchor.
+An overlapping cap extrusion preserves the original rounded and split-depth seats;
+for inverted insertion, the cap clears the lower seats it travels through. This
+avoids generating a separate sweep prism for every triangle of a detailed trace.
+Following X or Y instead sweeps the original constant-section bands along the
+selected local axis. Each split section is swept before applying its own floor
+limit, so clearance can cross the split boundary while retaining both seats.
+The thickness and finite placement anchor do not change with the insertion axis.
+
 Vertical drop-in continuously sweeps each downward-facing source triangle upward.
 The resulting lower surface is the object's underside at each XY point, preserving
 slopes, steps, concavities and holes. A 0.001 mm lateral facet overlap prevents
 coincident Float32 seams in exports. Clipping that overlap to the object's
 projection preserves the outside perimeter. Projection cleanup at 0.0001 mm
-removes numerical slivers from edge-on rounded faces. No whole-object convex hull
+removes numerical slivers from edge-on rounded faces. Sweep prisms retain their
+native precision so thin facets survive the union. No whole-object convex hull
 or whole-solid Minkowski operation is used.
 
 Floor limits apply after the sweep, independently for each split section, and
 never modify the source. Top rounding is applied at the actual fill surface.
-Floor colors follow the finished seat, including floor-limited cuts, and the
+Floor colors follow the finished seat, including floor-limited cuts. Projection
+seams are cleaned before floor-color insets can widen them into stripes, and the
 material parts are clipped to the finished bin.
 
 Through retains the original finite extrusion, pose and rounding. It allows the
@@ -86,7 +114,14 @@ actual rotated source at preview and export quality, including compound tilt,
 mirroring, holes, split seats, horizontal and inverted poses. They also check
 continuous translated-object clearance in both directions, fully submerged
 compound and inverted objects, full projections and finite disabled cavities.
-Worker regressions verify closed colored STL/3MF exports for submerged pockets.
+Photo-derived regressions cover detailed X/Y and compound rotation at preview
+and export quality, including continuous floor colors and material volumes.
+Standing outlines verify selected X/Y insertion remains compact, contains the
+translated source and produces closed color-separated exports. Axis choices
+round-trip through projects, history, creation references and linked designs. A
+near-horizontal split-depth regression verifies that extending the insertion path
+preserves the original seats. Worker regressions verify closed colored STL/3MF
+exports for submerged pockets.
 Minimum-floor regressions lower, raise and lower the same pocket while
 checking source preservation, independent split limits and save/history/reference
 round trips. Worker tests check closed, nondegenerate STL/3MF meshes and floor-color

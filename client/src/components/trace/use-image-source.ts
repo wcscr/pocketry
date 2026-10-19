@@ -1,3 +1,5 @@
+import { checkPhotoDimensions, normalizePhotoDataUrl } from "@/lib/photo-dimensions";
+import { tracePhotoError, TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Rect } from "@shared/geometry/types";
@@ -8,6 +10,7 @@ import {
   fitImageWithin,
   rotatedImageDimensions,
   type ImageQuarterTurns,
+  type ImageRasterLimit,
 } from "@/lib/geometry/image-rotation";
 
 /**
@@ -83,6 +86,8 @@ export interface DecodedImageFile {
  */
 export function decodeImageFile(file: File): Promise<DecodedImageFile> {
   return new Promise((resolve, reject) => {
+    const error = tracePhotoError(file);
+    if (error) { reject(new Error(error)); return; }
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("That file could not be read."));
     reader.onload = () => {
@@ -91,7 +96,9 @@ export function decodeImageFile(file: File): Promise<DecodedImageFile> {
         return;
       }
 
-      const imageUrl = reader.result;
+      let imageUrl: string;
+      try { imageUrl = normalizePhotoDataUrl(reader.result, TRACE_PHOTO_MAX_BYTES, file.type === ""); }
+      catch (cause) { reject(cause); return; }
       const image = new Image();
       image.onerror = () =>
         reject(new Error("That file could not be decoded as an image."));
@@ -102,6 +109,8 @@ export function decodeImageFile(file: File): Promise<DecodedImageFile> {
           reject(new Error("That image has invalid dimensions."));
           return;
         }
+        try { checkPhotoDimensions({ width, height }); }
+        catch (cause) { reject(cause); return; }
         resolve({ imageUrl, naturalSize: { width, height } });
       };
       image.src = imageUrl;
@@ -113,8 +122,8 @@ export function decodeImageFile(file: File): Promise<DecodedImageFile> {
 /** Sizes the detection frame and the factor back into working space. */
 export function detectionGeometry(
   natural: Size,
-  max: Size = IMAGE_CANVAS_MAX,
-  detectMax: Size = DETECTION_CANVAS_MAX,
+  max: ImageRasterLimit = IMAGE_CANVAS_MAX,
+  detectMax: ImageRasterLimit = DETECTION_CANVAS_MAX,
 ): { detect: Size; toWorking: { x: number; y: number } } {
   const working = fitWithin(natural, max);
   const detect = fitWithin(natural, detectMax);
@@ -138,11 +147,11 @@ export interface UseImageSourceResult {
    * The full frame at the requested cap (normally {@link DETECTION_CANVAS_MAX}),
    * or `null` until the image is ready.
    */
-  getDetectionFrame(detectMax?: Size): DetectionFrame | null;
+  getDetectionFrame(detectMax?: ImageRasterLimit): DetectionFrame | null;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
-export function fitWithin(natural: Size, max: Size): Size {
+export function fitWithin(natural: Size, max: ImageRasterLimit): Size {
   return fitImageWithin(natural, max);
 }
 
@@ -194,7 +203,7 @@ export function drawAlignedImage(context: CanvasRenderingContext2D, image: Canva
 export function useImageSource(
   url: string | null,
   fileName = "",
-  max: Size = IMAGE_CANVAS_MAX,
+  max: ImageRasterLimit = IMAGE_CANVAS_MAX,
   rotation: ImageQuarterTurns = 0,
   alignment: ImageAlignment | null = null,
 ): UseImageSourceResult {
@@ -227,7 +236,12 @@ export function useImageSource(
     image.onload = () => {
       if (cancelled) return;
 
-      const naturalSize = { width: image.width, height: image.height };
+      const naturalSize = { width: image.naturalWidth || image.width, height: image.naturalHeight || image.height };
+      try { checkPhotoDimensions(naturalSize); }
+      catch (cause) {
+        setSource({ status: "error", url, fileName, message: (cause as Error).message });
+        return;
+      }
       const size = alignment?.size ?? fitWithin(rotatedImageDimensions(naturalSize, rotation), max);
 
       const canvas = canvasRef.current ?? document.createElement("canvas");
@@ -303,7 +317,7 @@ export function useImageSource(
     [source],
   );
 
-  const getDetectionFrame = useCallback((detectMax: Size = DETECTION_CANVAS_MAX): DetectionFrame | null => {
+  const getDetectionFrame = useCallback((detectMax: ImageRasterLimit = DETECTION_CANVAS_MAX): DetectionFrame | null => {
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
 

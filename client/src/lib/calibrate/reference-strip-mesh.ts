@@ -1,5 +1,5 @@
 import type { Kernel } from "@/lib/manifold/runtime";
-import { extractMeshData } from "@/lib/mesh/mesh-data";
+import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import { REFERENCE_STRIP, referenceStripBlackCells } from "./reference-strip";
 
@@ -19,8 +19,8 @@ export function referenceStripMeshes(kernel: Kernel): ThreeMfObject[] {
   const blank = arena.track(Manifold.cube([lengthMm, widthMm, thicknessMm]));
   const white = arena.track(blank.subtract(black));
   return [
-    { name: "White carrier", mesh: extractMeshData(kernel, white), material: { name: "Opaque white", displayColor: "#FFFFFF" } },
-    { name: "Black markers", mesh: extractMeshData(kernel, black), material: { name: "Opaque black", displayColor: "#000000" } },
+    { name: "White carrier", mesh: extractPrintableMeshData(kernel, white), material: { name: "Opaque white", displayColor: "#FFFFFF" } },
+    { name: "Black markers", mesh: extractPrintableMeshData(kernel, black), material: { name: "Opaque black", displayColor: "#000000" } },
   ];
 }
 

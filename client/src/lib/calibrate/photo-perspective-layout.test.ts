@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { photoPerspectiveLayout } from "./photo-perspective-layout";
-import { perspectiveLayout, type PerspectiveQuad } from "./perspective";
+import { perspectiveLayout, RECTIFIED_IMAGE_MAX, type PerspectiveQuad } from "./perspective";
 
 const points: PerspectiveQuad = [{ x: 50, y: 80 }, { x: 260, y: 80 }, { x: 260, y: 377 }, { x: 50, y: 377 }];
 const paper = perspectiveLayout({ source: "manual", points }, "a4");
@@ -12,6 +12,17 @@ function project(h: number[], x: number, y: number) {
 }
 
 describe("full photo perspective bounds", () => {
+  it.each([[4000, 3000], [3000, 4000], [4000, 4000], [10000, 1000]])("bounds a %s × %s photo by pixel count while keeping detail and metric scale", (width, height) => {
+    const result = photoPerspectiveLayout([4, 0, -200, 0, 4, -320, 0, 0, 1], { width, height }, paper, RECTIFIED_IMAGE_MAX);
+    expect(result.layout.width * result.layout.height).toBeLessThanOrEqual(6_000_000);
+    expect(Math.max(result.layout.width, result.layout.height)).toBeLessThanOrEqual(4096);
+    expect(Math.max(result.layout.width, result.layout.height)).toBeGreaterThan(2400);
+    const a = project(result.transform, 100, 400), b = project(result.transform, 600, 400);
+    expect((b.x - a.x) / result.layout.pxPerMm).toBeCloseTo(500, 9);
+    const corner = project(result.transform, width - 1, height - 1);
+    expect(corner.x).toBeLessThan(result.layout.width);
+    expect(corner.y).toBeLessThan(result.layout.height);
+  });
   it("keeps pixels on every side of the paper and preserves physical distances when bounded", () => {
     const result = photoPerspectiveLayout([4, 0, -200, 0, 4, -320, 0, 0, 1], { width: 801, height: 601 }, paper, max);
     expect(result.layout.width).toBe(1200);

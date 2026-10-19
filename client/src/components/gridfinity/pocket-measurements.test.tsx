@@ -49,6 +49,47 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
+  it("shares numeric elevation with linked copies, keeps dimensions and XY, and undoes as one edit", () => {
+    const source = { ...store.cutouts[0], designLink: { id: "heights", tilt: false }, elevationMm: 8 };
+    const copy = { ...source, id: "copy", position: { x: 30, y: 10 }, elevationMm: 12, rotationDeg: 90 };
+    React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec, cutouts: [source, copy] }));
+    const index = store.history.index;
+    enter("Pocket elevation in millimetres", "15");
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([15, 15]);
+    expect(store.cutouts[1]).toMatchObject({ position: copy.position, rotationDeg: 90, depth: source.depth });
+    expect(store.history.index).toBe(index + 1);
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([8, 12]);
+    React.act(() => store.dispatch({ type: "REDO" }));
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([15, 15]);
+    enter("X position in millimetres", "5");
+    expect(store.cutouts[1].position).toEqual(copy.position);
+  });
+
+  it("preserves differently placed legacy copies during rotation, then shares a chosen height", () => {
+    const source = { ...store.cutouts[0], designLink: { id: "heights", tilt: false } };
+    const copy = { ...source, id: "copy", position: { x: 30, y: 10 }, tilt: { xDeg: 25, yDeg: 0 } };
+    React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec, cutouts: [source, copy] }));
+    enter("Pocket X rotation in degrees", "30");
+    expect(store.cutouts[1].elevationMm).not.toBe(store.cutouts[0].elevationMm);
+    const before = store.cutouts[1].elevationMm;
+    enter("Pocket X rotation in degrees", "35");
+    expect(store.cutouts[1].elevationMm).toBe(before);
+    enter("Pocket elevation in millimetres", "9");
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([9, 9]);
+  });
+
+  it("freezes source thickness for every linked copy before raising a to-floor pocket", () => {
+    const source = { ...store.cutouts[0], designLink: { id: "heights", tilt: false }, depth: { mode: "remaining" as const, floorThicknessMm: 7 } };
+    const copy = { ...source, id: "copy", position: { x: 30, y: 10 } };
+    React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec, cutouts: [source, copy] }));
+    const thickness = resolvePocketDepth(store.spec, source.depth).depthMm;
+    enter("Pocket elevation in millimetres", "12");
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([12, 12]);
+    expect(store.cutouts.every(c => c.depth.mode === "remaining" && c.depth.sourceDepthMm === thickness)).toBe(true);
+    enter("Pocket elevation in millimetres", "15");
+    expect(store.cutouts.every(c => c.depth.mode === "remaining" && c.depth.sourceDepthMm === thickness)).toBe(true);
+  });
   it("enables clearance on tilt and preserves direction or disabling through subsequent edits and undo", () => {
     expect(host.querySelector('[data-testid="pocket-insertion-controls"]')).toBeNull();
     enter("Pocket X rotation in degrees", "30");
@@ -70,6 +111,61 @@ describe("pocket measurements", () => {
     expect(host.querySelector('[data-testid="pocket-insertion-controls"]')).toBeNull();
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.checked).toBe(false);
+  });
+
+  it("chooses the width axis after Y rotation without changing the source pose or depth", () => {
+    enter("Pocket Y rotation in degrees", "80");
+    const before = store.cutouts[0];
+    const axis = host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion axis"]')!;
+    expect(axis.value).toBe("z");
+    React.act(() => { axis.value = "x"; axis.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(store.cutouts[0]).toEqual({ ...before, insertionAxis: "x" });
+    expect(host.textContent).toContain("10.0° from vertical");
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.cutouts[0]).toEqual(before);
+    React.act(() => store.dispatch({ type: "REDO" }));
+    expect(host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion axis"]')!.value).toBe("x");
+  });
+
+  it("retains the chosen axis through direction changes, disabling, and later pose edits", () => {
+    enter("Pocket Y rotation in degrees", "80");
+    const choose = (label: string, value: string) => React.act(() => {
+      const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+      select.value = value; select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    choose("Pocket insertion axis", "x");
+    choose("Pocket insertion direction", "vertical");
+    expect(host.querySelector('[aria-label="Pocket insertion axis"]')).toBeNull();
+    choose("Pocket insertion direction", "axis");
+    expect(host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion axis"]')!.value).toBe("x");
+    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
+    enter("Pocket Y rotation in degrees", "70");
+    enter("Pocket elevation in millimetres", "8");
+    expect(store.cutouts[0].insertionAxis).toBe("x");
+    expect(store.cutouts[0].insertionMode).toBeUndefined();
+    React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
+    expect(store.cutouts[0]).toMatchObject({ insertionAxis: "x", insertionMode: "axis" });
+  });
+
+  it("keeps an invalid axis recoverable after resetting to the X–Y plane", () => {
+    enter("Pocket Y rotation in degrees", "80");
+    const axis = host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion axis"]')!;
+    React.act(() => { axis.value = "x"; axis.dispatchEvent(new Event("change", { bubbles: true })); });
+    React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset to X–Y plane")!.click());
+    expect(store.cutouts[0]).toMatchObject({ tilt: { xDeg: 0, yDeg: 0 }, insertionAxis: "x", insertionMode: "axis" });
+    expect(host.querySelector('[data-testid="pocket-insertion-controls"]')).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain("horizontal");
+    const resetAxis = host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion axis"]')!;
+    React.act(() => { resetAxis.value = "z"; resetAxis.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(store.cutouts[0].tilt).toEqual({ xDeg: 0, yDeg: 0 });
+  });
+
+  it("names the retained-material axis control for hole objects", () => {
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: "pocket", patch: { role: "hole" } }));
+    enter("Hole Y rotation in degrees", "80");
+    expect(host.querySelector('[aria-label="Kept volume extension axis"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Pocket insertion axis"]')).toBeNull();
   });
 
   it("keeps minimum-floor mode and source dimensions during tilt, lowering, raising, and undo", () => {
@@ -132,7 +228,7 @@ describe("pocket measurements", () => {
     expect(store.cutouts[0].tilt).toEqual({ xDeg: 15, yDeg: 0 });
     React.act(() => store.dispatch({ type: "REDO" }));
     expect(host.textContent).toContain("Depth: 12.0 mm");
-    expect(host.textContent).toContain("Along pocket axis");
+    expect(host.textContent).toContain("Thickness (object Z)");
     React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Reset to X–Y plane")!.click());
     expect(store.cutouts[0].tilt).toEqual({xDeg:0,yDeg:0});
     React.act(() => store.dispatch({ type: "UNDO" }));

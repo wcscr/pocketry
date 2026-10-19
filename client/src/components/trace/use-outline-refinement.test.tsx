@@ -71,6 +71,33 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("refines a manually started contour even when detection found nothing", async () => {
+    const refiner = vi.fn<OutlineRefiner>(async outline => outline.map(shape => ({ ...shape })));
+    const mounted = mountHook(refiner);
+    try {
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" });
+        mounted.store().dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+        mounted.store().dispatch({ type: "SET_MARGIN", margin: 0 });
+        mounted.store().dispatch({ type: "ADD_CONTOUR" });
+      });
+      const added = mounted.store().outline;
+      expect(mounted.store().rawOutline).toEqual([]);
+      expect(refiner).not.toHaveBeenCalled();
+      const history = mounted.store().history;
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+      });
+      expect(mounted.store().outline).toBe(added);
+      expect(mounted.store().history).toBe(history);
+      await React.act(async () => { mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 2 }); });
+      expect(refiner.mock.calls[0][0]).toBe(added);
+      await React.act(async () => { mounted.store().dispatch({ type: "UNDO" }); });
+      expect(mounted.store().outline).toBe(added);
+      await React.act(async () => { mounted.store().dispatch({ type: "UNDO" }); });
+      expect(mounted.store().outline).toEqual([]);
+    } finally { mounted.unmount(); }
+  });
   it("recovers an edited contour and its margin exactly, then refines subsequent scale changes", async () => {
     const refiner = vi.fn<OutlineRefiner>(async (outline) => outline);
     const offsetter = vi.fn<OutlineOffsetter>(async (outline) => outline);
@@ -290,4 +317,93 @@ describe("useOutlineRefinement", () => {
     ]);
     mounted.unmount();
   });
+});
+
+function seedRefinableTrace(mounted: ReturnType<typeof mountHook>, margin = 0): Outline {
+  const edited = [{ ...OUTLINE[0], outer: [...OUTLINE[0].outer, { x: -2, y: 5 }] }];
+  React.act(() => {
+    mounted.store().dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,AA==", fileName: "tool" });
+    mounted.store().dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+    mounted.store().dispatch({ type: "SET_MARGIN", margin });
+    mounted.store().dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+    mounted.store().dispatch({ type: "DETECTED", imageUrl: "data:image/png;base64,AA==", region: null,
+      outline: OUTLINE, rawOutline: OUTLINE, svg: "" });
+    mounted.store().dispatch({ type: "OUTLINE_COMMITTED", outline: edited, label: "Edit contour" });
+  });
+  return edited;
+}
+
+it("rolls rapid failed detail/smoothing attempts back to committed controls without retry or history", async () => {
+  const pending: { resolve: (outline: Outline) => void; reject: (error: Error) => void }[] = [];
+  const refiner = vi.fn<OutlineRefiner>(() => new Promise((resolve, reject) => pending.push({ resolve, reject })));
+  const mounted = mountHook(refiner);
+  try {
+    const edited = seedRefinableTrace(mounted);
+    const history = mounted.store().history;
+    await React.act(async () => mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 2 }));
+    await React.act(async () => mounted.store().dispatch({ type: "SET_SMOOTHING", smoothing: 3 }));
+    await React.act(async () => pending[0].reject(new Error("superseded")));
+    expect(mounted.store().tolerancePx).toBe(2);
+    expect(mounted.store().smoothing).toBe(3);
+    await React.act(async () => pending[1].reject(new Error("would remove a hole")));
+    expect(mounted.store().outline).toBe(edited);
+    expect(mounted.store().tolerancePx).toBe(1.2);
+    expect(mounted.store().smoothing).toBe(1);
+    expect(mounted.store().history).toBe(history);
+    expect(refiner).toHaveBeenCalledTimes(2);
+    // A later valid change can still be applied and gets exactly one undo step.
+    await React.act(async () => mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 1.5 }));
+    await React.act(async () => pending[2].resolve(edited.map(part => ({ ...part }))));
+    expect(mounted.store().tolerancePx).toBe(1.5);
+    expect(mounted.store().history.stack).toHaveLength(history.stack.length + 1);
+  } finally { mounted.unmount(); }
+});
+
+it("rejects rapid failed scale changes using the last applied calibration and keeps margin truthful", async () => {
+  const reject: ((error: Error) => void)[] = [];
+  const offsetter = vi.fn<OutlineOffsetter>(() => new Promise((_resolve, fail) => reject.push(fail)));
+  const refiner = vi.fn<OutlineRefiner>(async outline => outline);
+  const mounted = mountHook(refiner, offsetter);
+  try {
+    const edited = seedRefinableTrace(mounted, 2);
+    const previous = mounted.store().calibration;
+    const history = mounted.store().history;
+    await React.act(async () => mounted.store().dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: 100 }));
+    await React.act(async () => mounted.store().dispatch({ type: "SET_RULER_LENGTH", rulerLengthMm: 200 }));
+    expect(offsetter.mock.calls.map(call => call[1])).toEqual([-2, -3]);
+    await React.act(async () => reject[0](new Error("superseded")));
+    expect(mounted.store().calibration?.lengthMm).toBe(200);
+    await React.act(async () => reject[1](new Error("would split a pocket")));
+    expect(mounted.store().calibration).toBe(previous);
+    expect(mounted.store().calibrationSource).toBe("manual");
+    expect(mounted.store().rulerLengthMm).toBe(50);
+    expect(mounted.store().rulerLengthInput).toBe("50");
+    expect(mounted.store().margin).toBe(2);
+    expect(mounted.store().outline).toBe(edited);
+    expect(mounted.store().history).toBe(history);
+    expect(offsetter).toHaveBeenCalledTimes(2);
+  } finally { mounted.unmount(); }
+});
+
+it.each(["new edit", "undo", "new source"] as const)("does not roll back newer state after a stale failure followed by %s", async change => {
+  let reject!: (error: Error) => void;
+  const refiner = vi.fn<OutlineRefiner>(() => new Promise((_resolve, fail) => { reject = fail; }));
+  const mounted = mountHook(refiner);
+  try {
+    seedRefinableTrace(mounted);
+    await React.act(async () => mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 2 }));
+    React.act(() => {
+      if (change === "new edit") mounted.store().dispatch({ type: "OUTLINE_COMMITTED", outline: [{ ...OUTLINE[0], outer: [...OUTLINE[0].outer, { x: -5, y: 5 }] }] });
+      else if (change === "undo") mounted.store().dispatch({ type: "UNDO" });
+      else mounted.store().dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,AQ==", fileName: "new" });
+    });
+    const latest = mounted.store();
+    await React.act(async () => reject(new Error("old failure")));
+    expect(mounted.store().outline).toBe(latest.outline);
+    expect(mounted.store().tolerancePx).toBe(latest.tolerancePx);
+    expect(mounted.store().calibration).toBe(latest.calibration);
+    expect(mounted.store().history).toBe(latest.history);
+    expect(mounted.store().imageUrl).toBe(latest.imageUrl);
+    expect(refiner).toHaveBeenCalledTimes(1);
+  } finally { mounted.unmount(); }
 });

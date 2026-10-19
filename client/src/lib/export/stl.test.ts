@@ -2,7 +2,9 @@ import { ringBounds } from "@shared/geometry/rings";
 import type { Outline, Point } from "@shared/geometry/types";
 import { describe, expect, it } from "vitest";
 
-import { cShapeRing, polygonArea, rectRing } from "@/lib/geometry/fixtures";
+import { cShapeRing, hookedToolRing, polygonArea, rectRing } from "@/lib/geometry/fixtures";
+import syringe from "@/lib/geometry/fixtures/syringe-contour.json";
+import { symmetrizeShape } from "@/lib/geometry/symmetry";
 import { buildOutline, outlineArea } from "@/lib/geometry/outline";
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold } from "@/lib/manifold/runtime";
@@ -166,6 +168,32 @@ function annulus(): Outline {
 
 const uncalibrated: ExportScale = { mmPerPx: null, imageHeight: 200 };
 const calibrated: ExportScale = { mmPerPx: 0.5, imageHeight: 200 };
+
+describe("mirrored concave contour export", () => {
+  it.each(["left", "right"] as const)("exports the reported syringe's %s side as a closed solid at calibrated size", async side => {
+    const result = symmetrizeShape(syringe.shape, syringe.axis, side);
+    expect(result.error).toBeUndefined();
+    const outline = [result.shape!];
+    const scale = { mmPerPx: 0.2, imageHeight: 1000 };
+    const { facets } = parseSTL(await generateSTL(outline, { heightMm: 3, scale }));
+    expect(topology(facets)).toMatchObject({ watertight: true, genus: 0 });
+    expectClose(signedVolume(facets), outlineArea(outline) * scale.mmPerPx ** 2 * 3);
+    expect(minZ(facets)).toBe(0);
+    expect(maxZ(facets)).toBe(3);
+  });
+
+  it("keeps a mirrored grip recess empty in the serialized STL", async () => {
+    const result = symmetrizeShape({ outer: hookedToolRing(), holes: [] },
+      { start: { x: 0, y: 0 }, end: { x: 0, y: 100 } }, "right");
+    expect(result.error).toBeUndefined();
+    const { facets } = parseSTL(await generateSTL([result.shape!], { heightMm: 2, scale: calibrated }));
+    expect(topology(facets)).toMatchObject({ watertight: true, genus: 0 });
+    for (const sign of [-1, 1]) {
+      expect(coverage(baseFacets(facets), { x: sign * 15.3 * .5, y: (200 - 80.7) * .5 })).toBe(0);
+      expect(coverage(baseFacets(facets), { x: sign * 25.3 * .5, y: (200 - 80.7) * .5 })).toBe(1);
+    }
+  });
+});
 
 describe("writeBinarySTL — file structure", () => {
   it("is exactly 84 + 50·T bytes with a matching count field", async () => {

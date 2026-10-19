@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { localFontSourceSchema, type LocalFont } from "./local-font";
-import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc, type ProjectDoc } from "./project";
+import { parseProjectDoc, projectDocSchema, PROJECT_SCHEMA_VERSION, serializeProjectDoc, type ProjectDoc } from "./project";
 import { surfaceTextSchema } from "./surface-text";
 import { parseBinSpec } from "./types";
 import { parseCutoutPlacement } from "./cutout";
@@ -60,5 +60,109 @@ describe("project font-source references", () => {
     expect(localFontSourceSchema.safeParse({ ...source, byteLength: 21 * 1024 * 1024 }).success).toBe(false);
     expect(localFontSourceSchema.safeParse({ ...source, data: source.data + "!" }).success).toBe(false);
     expect(localFontSourceSchema.safeParse({ ...source, extra: true }).success).toBe(false);
+  });
+
+  it("validates repeated large font references and inline history without serializing expanded bytes", () => {
+    const data = "D".repeat(17_000_000);
+    const original = document();
+    const label = surfaceTextSchema.parse({ id: "label", text: "A", position: { x: 0, y: 0 },
+      font: { ...font, source: { data, byteLength: 12_750_000 } } });
+    original.spec.surfaceTexts = Array.from({ length: 32 }, (_, index) => ({ ...label, id: String(index) }));
+    original.history = { index: 0, stack: [{ label: "Text", doc: {
+      spec: original.spec, cutouts: original.cutouts, fingerHoles: original.fingerHoles,
+    } }] };
+    const compact = serializeProjectDoc(original);
+    // A pre-fix regression fails safely instead of allocating a >544 MB string.
+    const native = JSON.stringify;
+    let materialSerializations = 0;
+    const stringify = vi.spyOn(JSON, "stringify").mockImplementation((value, replacer, space) => {
+      if (value?.spec?.surfaceTexts?.length) { materialSerializations++; throw new Error("Expanded serialization"); }
+      return native(value, replacer, space);
+    });
+    try {
+      for (const input of [compact, original]) {
+        const result = parseProjectDoc(input);
+        expect(result?.spec.surfaceTexts).toHaveLength(32);
+        expect(result?.spec.surfaceTexts[0].font).toMatchObject({ source: { byteLength: 12_750_000 } });
+      }
+      expect(projectDocSchema.safeParse(original).success).toBe(true);
+      const changed = { ...original, spec: { ...original.spec, surfaceTexts: [
+        { ...original.spec.surfaceTexts[0], font: { ...font, source: { data: data.slice(0, -1) + "E", byteLength: 12_750_000 } } },
+        ...original.spec.surfaceTexts.slice(1),
+      ] } };
+      expect(parseProjectDoc(changed)).toBeNull();
+      expect(materialSerializations).toBe(0);
+    } finally { stringify.mockRestore(); }
+  });
+
+  it("checks each alternating large source once per project parse and still checks changed metadata", () => {
+    const original = document();
+    const data = ["F".repeat(17_000_000), "G".repeat(17_000_000)];
+    const labels = data.map((value, index) => surfaceTextSchema.parse({ id: String(index), text: "A",
+      position: { x: 0, y: 0 }, font: { ...font, source: { data: value, byteLength: 12_750_000 } } }));
+    original.spec.surfaceTexts = labels;
+    original.history = { index: 0, stack: Array.from({ length: 50 }, () => ({ label: "Text", doc: {
+      spec: original.spec, cutouts: original.cutouts, fingerHoles: original.fingerHoles,
+    } })) };
+    const compact = serializeProjectDoc(original);
+    const originalTest = RegExp.prototype.test;
+    let scans = 0;
+    const spy = vi.spyOn(RegExp.prototype, "test").mockImplementation(function (this: RegExp, value: string) {
+      if (value.length === 17_000_000) scans++;
+      return originalTest.call(this, value);
+    });
+    try {
+      const parsed = parseProjectDoc(compact)!;
+      expect(parsed.history?.stack).toHaveLength(50);
+      expect(scans).toBeLessThanOrEqual(2);
+      scans = 0;
+      expect(parseBinSpec({ ...parsed.spec, heightUnits: 7 }).heightUnits).toBe(7);
+      expect(scans).toBeLessThanOrEqual(2);
+      const invalid = { ...original, spec: { ...original.spec, surfaceTexts: [{ ...labels[0],
+        font: { ...font, source: { data: data[0], byteLength: 0 } },
+      }] } };
+      expect(parseProjectDoc(invalid)).toBeNull();
+    } finally { spy.mockRestore(); }
+  });
+
+  it("bounds editing work when a bin uses more sources than the retained cache holds", () => {
+    const data = Array.from({ length: 9 }, (_, index) => String.fromCharCode(65 + index).repeat(1024));
+    const labels = Array.from({ length: 32 }, (_, index) => ({ id: String(index), text: "A", position: { x: 0, y: 0 },
+      font: { ...font, source: { data: data[index % data.length], byteLength: 768 } },
+    }));
+    const native = RegExp.prototype.test;
+    let scans = 0;
+    const spy = vi.spyOn(RegExp.prototype, "test").mockImplementation(function (this: RegExp, value: string) {
+      if (value.length === 1024) scans++;
+      return native.call(this, value);
+    });
+    try {
+      expect(parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 7, surfaceTexts: labels }).surfaceTexts).toHaveLength(32);
+      expect(scans).toBeLessThanOrEqual(9);
+    } finally { spy.mockRestore(); }
+  });
+
+  it("unused source-table entries cannot evict checks needed by repeated labels", () => {
+    const original = document();
+    const values = Array.from({ length: 9 }, (_, index) => String.fromCharCode(74 + index).repeat(1024));
+    original.spec.surfaceTexts = Array.from({ length: 32 }, (_, index) => surfaceTextSchema.parse({
+      id: String(index), text: "A", position: { x: 0, y: 0 },
+      font: { ...font, source: { data: values[index % 9], byteLength: 768 } },
+    }));
+    original.history = undefined;
+    const compact = serializeProjectDoc(original);
+    compact.fontSources = { ...Object.fromEntries(Array.from({ length: 20_001 }, (_, index) => [
+      `font-${index + 100}`, { data: index.toString(36).padStart(8, "A"), byteLength: 6 },
+    ])), ...compact.fontSources as object };
+    const native = RegExp.prototype.test;
+    let scans = 0;
+    const spy = vi.spyOn(RegExp.prototype, "test").mockImplementation(function (this: RegExp, value: string) {
+      if (value.length === 1024) scans++;
+      return native.call(this, value);
+    });
+    try {
+      expect(parseProjectDoc(compact)?.spec.surfaceTexts).toHaveLength(32);
+      expect(scans).toBeLessThanOrEqual(9);
+    } finally { spy.mockRestore(); }
   });
 });
