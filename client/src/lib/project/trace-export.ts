@@ -7,10 +7,14 @@ import { autoPlaceFresh } from "@/lib/gridfinity/autoplace";
 import { traceObjects } from "@/lib/gridfinity/trace-objects";
 import { normalizeTracedShapeWithPlacement } from "@/lib/gridfinity/traced-shape";
 
-/** Reopens the exported contour at its calibrated size using the existing Bin editor. */
+/** Reopens editable pockets and holes at their calibrated size and photo-relative positions. */
 export function projectFromTrace(outline: Outline, scale: ExportScale, name: string, marginMm: number): ProjectDoc {
-  const entries = traceObjects(outline, false).map((part, index) => {
-    const traced = normalizeTracedShapeWithPlacement(part.outline, scale, part.role ? `Hole ${index}` : name);
+  if (outline.length === 0) throw new Error("Trace an outline before exporting an editable Pocketry project.");
+  let pocketNumber = 0, holeNumber = 0;
+  const entries = traceObjects(outline).map(part => {
+    const objectName = part.role === "hole" ? `Hole ${++holeNumber}`
+      : ++pocketNumber === 1 ? name : `${name} (${pocketNumber})`;
+    const traced = normalizeTracedShapeWithPlacement(part.outline, scale, objectName);
     if (!traced) throw new Error("Set the scale before exporting an editable Pocketry project.");
     return { ...traced, role: part.role, shape: { ...traced.shape, traceMarginMm: marginMm } };
   });

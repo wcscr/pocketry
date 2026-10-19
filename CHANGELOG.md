@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove the Trace grouping checkbox. Adding to Bin and exporting an editable project always preserve each pocket and hole as a separate object at its photo-relative position, including nested and overlapping pockets.
+
 - Choose floor-only or entire-interior coloring per pocket, with an independent bin or object-axis reference. New pockets follow their insertion axis; saved projects retain existing coloring.
 - Prevent microscopic mesh seams from creating exaggerated folds in the shading of tilted pocket floors, without changing printable geometry.
 - Keep object-axis floor coloring off parallel faces and remaining-floor clipping surfaces; remove coincident color sheets that flicker while orbiting. Color-only edits now replace the complete preview once, preserving rounded edges throughout the update.

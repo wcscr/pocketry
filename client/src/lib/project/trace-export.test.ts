@@ -31,6 +31,27 @@ describe("editable project from a Trace export", () => {
     expect(outline).toEqual(original);
   });
 
+  it("round trips nested and overlapping pockets as separate editable objects with the photo layout", () => {
+    const nested = { outer: [{ x: 40, y: 20 }, { x: 60, y: 20 }, { x: 60, y: 40 }, { x: 40, y: 40 }], holes: [] };
+    const overlapping = { outer: outline[0].outer.map(p => ({ x: p.x + 40, y: p.y + 20 })), holes: [] };
+    const traced = [outline[0], nested, overlapping];
+    const original = structuredClone(traced);
+    const project = projectFromTrace(traced, { mmPerPx: 0.5, imageHeight: 100 }, "Tool", 0.75);
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(project)))!;
+    expect(restored.shapes.map(shape => shape.name)).toEqual(["Tool", "Tool (2)", "Tool (3)", "Hole 1"]);
+    expect(restored.shapes.every(shape => shape.outlineMm.length === 1 && shape.outlineMm[0].holes.length === 0)).toBe(true);
+    const [outer, inner, overlap, hole] = restored.shapes.map(shape => restored.cutouts.find(cutout => cutout.shapeId === shape.id)!);
+    expect([outer.role, inner.role, overlap.role, hole.role]).toEqual([undefined, undefined, undefined, "hole"]);
+    expect({ x: inner.position.x - outer.position.x, y: inner.position.y - outer.position.y }).toEqual({ x: 5, y: 0 });
+    expect({ x: overlap.position.x - outer.position.x, y: overlap.position.y - outer.position.y }).toEqual({ x: 20, y: -10 });
+    expect({ x: hole.position.x - outer.position.x, y: hole.position.y - outer.position.y }).toEqual({ x: -7.5, y: 2.5 });
+    expect(traced).toEqual(original);
+  });
+
+  it("rejects an empty trace instead of exporting an empty project", () => {
+    expect(() => projectFromTrace([], { mmPerPx: 0.5, imageHeight: 100 }, "Tool", 0)).toThrow("Trace an outline");
+  });
+
   it("rejects an uncalibrated outline instead of inventing a physical scale", () => {
     expect(() => projectFromTrace(outline, { mmPerPx: null, imageHeight: 100 }, "Tool", 0))
       .toThrow("Set the scale");

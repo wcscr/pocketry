@@ -581,7 +581,7 @@ describe("Trace detection workflow", () => {
     },
   );
 
-  it("keeps the grouping choice when closing mobile controls and adding from the action bar", async () => {
+  it("preserves separate photo-relative pockets when adding from the mobile action bar", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
     let trace!: ReturnType<typeof useTrace>, panel!: ReturnType<typeof usePanelState>, library!: ReturnType<typeof useShapeLibrary>;
@@ -590,16 +590,21 @@ describe("Trace detection workflow", () => {
       <Probe /><SeedExportOutline format="svg" /><TraceWorkspacePage />
     </TraceProvider></ShapeLibraryProvider></PanelProvider></Router>));
     React.act(() => {
-      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline, ...exportOutline] });
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline, {
+        outer: exportOutline[0].outer.map(p => ({ x: p.x + 24, y: p.y + 12 })), holes: [],
+      }] });
       panel.setPanelOpen(true);
     });
-    React.act(() => host.querySelector<HTMLInputElement>('[data-testid="controls-handoff"] input[type="checkbox"]')!.click());
+    expect(host.querySelector('[data-testid="controls-handoff"] input[type="checkbox"]')).toBeNull();
     React.act(() => panel.setPanelOpen(false));
-    expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
-    expect(host.textContent).toContain("One combined pocket");
+    expect(host.textContent).not.toContain("Keep these outlines together");
     React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Add to bin")!.click());
-    expect(library.shapes).toHaveLength(1);
-    expect(library.shapes[0].outlineMm).toHaveLength(2);
+    expect(library.shapes).toHaveLength(2);
+    expect(library.shapes.every(shape => shape.outlineMm.length === 1)).toBe(true);
+    const [first, second] = library.shapes.map(shape => library.pendingPlacements[shape.id]);
+    expect(second.batchId).toBe(first.batchId);
+    expect(second.center.x - first.center.x).toBe(12);
+    expect(second.center.y - first.center.y).toBe(-6);
   });
 
   afterEach(() => {

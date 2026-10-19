@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { useLocation } from "wouter";
 import { exportScale } from "@/lib/export/scale";
 import { traceObjects } from "@/lib/gridfinity/trace-objects";
@@ -13,7 +13,6 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
   const destination = useProjectActivity();
   const library = useShapeLibrary();
   const [, navigate] = useLocation();
-  const [separateTools, setSeparateTools] = useState(true);
   const adding = useRef(false);
   const scale = exportScale(trace.calibration, trace.imageSize.height);
   const destinationReady = !destination || (destination.status !== "loading" && destination.status !== "error");
@@ -23,7 +22,7 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     if (!ready || adding.current) return;
     const names = new Set(library.shapes.map(shape => shape.name));
     let number = 1;
-    const parts = traceObjects(trace.outline, separateTools);
+    const parts = traceObjects(trace.outline);
     let holeNumber = 1;
     const shapes = parts.map(part => {
       while (names.has(`Tool ${number}`)) number++;
@@ -45,13 +44,13 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     onCanvasInteraction?.();
     navigate("/bin");
   };
-  return { ready, addToBin, separateTools, setSeparateTools, objectCount: trace.outline.length,
+  return { ready, addToBin,
     destinationName: destination?.name ?? "Untitled project", destinationStatus: destination?.status };
 }
 
 export type TraceHandoff = ReturnType<typeof useTraceHandoff>;
 
-/** A short destination reminder; grouping is available without a blocking form. */
+/** Explain the destination and the photo-relative placement without extra choices. */
 export function TraceHandoffOptions({ handoff }: { handoff: TraceHandoff }) {
   return <div className="space-y-1 text-xs text-muted-foreground">
     <p className="truncate" title={handoff.destinationName}>
@@ -59,15 +58,7 @@ export function TraceHandoffOptions({ handoff }: { handoff: TraceHandoff }) {
         : handoff.destinationStatus === "error" ? "Open Bin to resolve the project storage problem."
         : <>Adding to: {handoff.destinationName}</>}
     </p>
-    <p>Holes stay separate and editable in Bin.</p>
-    {handoff.objectCount > 1 && <details>
-      <summary className="cursor-pointer py-1">{handoff.separateTools ? `${handoff.objectCount} separate pockets` : "One combined pocket"}</summary>
-      <p>Positions from the photo are preserved, including overlaps.</p>
-      <label className="flex min-h-9 items-center gap-2">
-        <input type="checkbox" checked={!handoff.separateTools}
-          onChange={event => handoff.setSeparateTools(!event.target.checked)} />
-        Keep these outlines together
-      </label>
-    </details>}
+    <p>Pockets and holes stay separate and editable in Bin.</p>
+    <p>Positions from the photo are preserved, including overlaps.</p>
   </div>;
 }
