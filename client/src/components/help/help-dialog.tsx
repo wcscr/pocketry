@@ -172,7 +172,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             available by default.
           </p>
           <p>
-            Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. The regular controls remain available.
+            Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. In contour editing mode, right-click a point to remove it immediately. The regular controls remain available.
           </p>
           <p>
             <strong>Optional tools:</strong> ULTIM8 jig pegs, adjustable empty-bin walls, and linked

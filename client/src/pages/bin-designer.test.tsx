@@ -2717,9 +2717,18 @@ describe("BinDesignerPage", () => {
       expect(handles()).toHaveLength(3);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(handles()).toHaveLength(4);
-      React.act(() => handles()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-      expect(handles()).toHaveLength(4);
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Remove contour node")!.click());
+      const rightClick = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
+      React.act(() => handles()[0].dispatchEvent(rightClick));
+      expect(rightClick.defaultPrevented).toBe(true);
+      expect(document.querySelector('[role="menu"]')).toBeNull();
+      expect(handles()).toHaveLength(3);
+      expect(remove()).toBeUndefined();
+      // A triangle and empty canvas consume right-clicks without another edit.
+      React.act(() => handles()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })));
+      const emptyClick = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 1000, clientY: 1000 });
+      React.act(() => svg.dispatchEvent(emptyClick));
+      expect(emptyClick.defaultPrevented).toBe(true);
+      expect(document.querySelector('[role="menu"]')).toBeNull();
       expect(handles()).toHaveLength(3);
       pointer(handles()[0], 'pointerdown', coords(handles()[0])); pointer(svg, 'pointerup', coords(handles()[0]));
       expect(remove()!.disabled).toBe(true);
@@ -6617,8 +6626,7 @@ describe("BinDesignerPage", () => {
           new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
         );
     });
-    expect(container.querySelectorAll('[data-testid="contour-vertex-handle"]')).toHaveLength(4);
-    React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Remove contour node")!.click());
+    expect(document.querySelector('[role="menu"]')).toBeNull();
     expect(
       container.querySelectorAll('[data-testid="contour-vertex-handle"]'),
     ).toHaveLength(3);

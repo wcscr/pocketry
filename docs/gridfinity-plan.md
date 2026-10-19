@@ -288,7 +288,7 @@ by validation, cutters, fit checks, auto-placement bounds, and DXF/SVG export.
 
 The Bin Layout view also supports **selected-pocket contour editing** without a
 round trip through Trace: drag vertices, click an edge to insert a point, and
-right-click a point and choose Remove contour node. Each committed gesture creates an immutable
+right-click a point to remove it immediately. Each committed gesture creates an immutable
 shape revision and updates only the selected pocket, so the worker cache is
 invalidated correctly and Bin undo/redo can switch between contour revisions.
 The pocket list now explicitly prompts selection before showing these controls;

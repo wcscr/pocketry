@@ -163,8 +163,8 @@ Retained-material holes are inner contours owned by their pocket, including
 holes created by Trace's Pocket/Hole workflow. Their menu opens the parent
 properties or removes the hole through an immutable contour revision. Trace
 contours have Properties, Edit contour and applicable removal commands.
-Right-clicking a contour node offers explicit removal rather than deleting it
-immediately. Name fields keep the browser's native editing menu.
+In contour editing mode, right-clicking a point removes it immediately, with
+undo/redo support and a minimum of three points per contour. Name fields keep the browser's native editing menu.
 
 ## Linked designs
 
