@@ -761,13 +761,24 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
     if (usesNativeEditingMenu(event.target)) return;
     if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
+    if (mode === "edit" || mode === "remove") {
+      event.preventDefault();
+      if (processing) return;
+      const image = toImage(event.clientX, event.clientY);
+      const vertex = image && nearestVertex(outline, image, pickRadius, selection);
+      const ring = vertex && getRing(outline, vertex.ref);
+      if (!vertex || !ring || ring.length <= 3) return;
+      desktopPoint.clear();
+      dispatch({ type: "OUTLINE_COMMITTED", outline: setRing(outline, vertex.ref,
+        ring.filter((_, index) => index !== vertex.index)), label: "Remove contour node" });
+      return;
+    }
     const image = toImage(event.clientX, event.clientY);
     if (!image) return;
-    const vertex = mode === "edit" ? nearestVertex(outline, image, pickRadius, selection) : null;
     const contained = [...iterateRings(outline)].reverse().find(({ ring }) => pointInRing(ring, image));
     const edge = nearestEdge(outline, image, pickRadius);
-    const ref = vertex?.ref ?? contained?.ref ?? edge?.ref;
-    if (ref && openContourMenu?.(ref, contextMenuPoint(event), vertex?.index)) event.preventDefault();
+    const ref = contained?.ref ?? edge?.ref;
+    if (ref && openContourMenu?.(ref, contextMenuPoint(event))) event.preventDefault();
   };
 
   useCanvasShortcuts({
@@ -1015,7 +1026,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
                     ? "Click to start a new measurement"
                     : "Click the second measurement point"
                 : selection && (mode === "edit" || mode === "remove")
-                  ? "Drag points to move · Click an edge to add · Right-click for actions · Esc cancels"
+                  ? "Drag points to move · Click an edge to add · Right-click a point to remove · Esc cancels"
                   : mode === "pan"
                     ? "Click a contour to select · Empty space clears selection · Shift-drag pans"
                     : "Shift-drag pans · Ctrl-scroll zooms"}

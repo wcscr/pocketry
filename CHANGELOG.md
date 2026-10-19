@@ -19,7 +19,7 @@
 
 - Undo and redo restore colors changed by jig setup. Arbitrary sizes show their fixed dimensions clearly, explain arrangement overflow, and display readable millimetre values without rounding saved geometry.
 
-- Right-click pockets, finger access, surface text, and traced contours for applicable object actions. Menus preserve multi-selection, keep linking optional, and make contour-node removal explicit. Rename dialogs and history distinguish retained-material holes from pockets.
+- Right-click pockets, finger access, surface text, and traced contours for applicable object actions. Menus preserve multi-selection and keep linking optional. In Trace and Bin contour editing, right-click a point to remove it immediately, with undo/redo support. Rename dialogs and history distinguish retained-material holes from pockets.
 
 - Fix linking insertion paths to ordinary pockets so projects reopen correctly. Keep optional linking controls collapsed, show shared-edit scope for existing links, and allow Link management from one linked copy.
 

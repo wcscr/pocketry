@@ -1,5 +1,3 @@
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { PointerContextMenu } from "@/components/ui/pointer-context-menu";
 import { pickBinContextTarget } from "@/lib/gridfinity/context-target";
 import { useBinObjectContextMenu, type BinContextTarget } from "./object-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
@@ -265,7 +263,6 @@ export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor,
 
 function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
   const openObjectMenu = useBinObjectContextMenu();
-  const [nodeMenu, setNodeMenu] = useState<{ point: { x: number; y: number }; handle: NonNullable<ReturnType<typeof contourHandle>>; shapeId: string } | null>(null);
   const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -1369,11 +1366,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       if (target && openObjectMenu?.(target, contextMenuPoint(event))) event.preventDefault();
       return;
     }
-    if (editorMode !== "contour" || !selected) return;
-    const handle = contourHandle(event.target as Element);
-    if (!handle || handle.cutoutId !== selected.cutout.id) return;
+    if (editorMode !== "contour") return;
     event.preventDefault();
-    setNodeMenu({ point: contextMenuPoint(event), handle, shapeId: selected.shape.id });
+    const handle = contourHandle(event.target as Element);
+    if (handle) removeContourVertex(handle);
   };
 
   // Keyboard: nudge, rotate (visually clockwise = model +deg on the flipped
@@ -1718,9 +1714,6 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   return (
     <>
-      <PointerContextMenu point={editorMode === "contour" && selected?.cutout.id === nodeMenu?.handle.cutoutId && selected?.shape.id === nodeMenu?.shapeId ? nodeMenu?.point ?? null : null} title="Contour node" onClose={() => setNodeMenu(null)}>
-        <DropdownMenuItem disabled={!selected || (contourRing(selected.shape.outlineMm, nodeMenu?.handle.ref ?? { shapeIndex: 0, ringIndex: -1 })?.length ?? 0) <= 3} onSelect={() => { if (nodeMenu) removeContourVertex(nodeMenu.handle); setNodeMenu(null); }}>Remove contour node</DropdownMenuItem>
-      </PointerContextMenu>
       <svg
         ref={svgRef}
         className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
@@ -2250,7 +2243,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           ? `Choose ${inspector ? "Add" : "Add pocket"} to draw a shape`
           : editorMode === "split" ? `${selected?.cutout.role === "hole" ? "Split hole" : "Split pocket"} · draw a straight line between two outer edge points` : editorMode === "contour"
           ? selectedCutoutId
-            ? "Contour edit · drag points · click near an edge to add · right-click for actions · Esc finishes"
+            ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"
             : "Contour edit · tap an object to select it"
           : selectedFingerHoleId
             ? isMobile ? "Drag the finger access to move. Drag its white handle to resize." : "Finger access · drag moves · white handle resizes · arrows nudge · Del removes"

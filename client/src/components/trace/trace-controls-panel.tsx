@@ -897,7 +897,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Choose Add contour to start another trace with a four-point square, or Edit Contour to adjust an existing trace. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
+                Choose Add contour to start another trace with a four-point square, or Edit Contour to adjust an existing trace. Drag a point to move it; click an edge to add one; right-click a point to remove it. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>
