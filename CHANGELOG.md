@@ -6,6 +6,8 @@
 - Prevent microscopic mesh seams from creating exaggerated folds in the shading of tilted pocket floors, without changing printable geometry.
 - Keep object-axis floor coloring off parallel faces and remaining-floor clipping surfaces; remove coincident color sheets that flicker while orbiting. Color-only edits now replace the complete preview once, preserving rounded edges throughout the update.
 - Allow tilted pockets to protrude above the bin. Vertical insertion validation now checks for collisions with actual bin material instead of requiring an opening under the entire object.
+- Confirm fixed depth or to-floor depth alongside insertion clearance after the first 3D tilt, and again if the chosen insertion axis becomes invalid. Split sections retain separate depth choices.
+- Keep steep traced walls and rounded-edge risers out of object-axis floor coloring, including objects rotated exactly 90°. Pocket color settings now show an expand/collapse chevron.
 
 - Undo and redo restore colors changed by jig setup. Arbitrary sizes show their fixed dimensions clearly, explain arrangement overflow, and display readable millimetre values without rounding saved geometry.
 

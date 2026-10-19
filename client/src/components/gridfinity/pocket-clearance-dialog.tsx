@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { pocketName, type CutoutPlacement } from "@shared/gridfinity/cutout";
+import { defaultPocketFloorThicknessMm, pocketName, resolvePlacedPocketDepth, type CutoutPlacement, type DepthSpec } from "@shared/gridfinity/cutout";
+import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
+import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { expandLinkedObjectEdits, type EditableObject } from "@/lib/gridfinity/object-arrangement";
@@ -9,10 +11,20 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
-type ClearanceChoice = { mode: "none" | "axis" | "vertical"; axis: "x" | "y" | "z" };
+type DepthChoice = { mode: DepthSpec["mode"]; fixed: string; floor: string };
+type ClearanceChoice = { mode: "none" | "axis" | "vertical"; axis: "x" | "y" | "z"; depths: DepthChoice[] };
 type Prompt = NonNullable<BinStore["pendingPocketClearance"]>;
 interface ClearanceGroup { key: string; representative: CutoutPlacement; members: CutoutPlacement[] }
+
+function chosenDepth(choice: DepthChoice): DepthSpec | null {
+  if (choice.mode === "through") return { mode: "through" };
+  const text = choice.mode === "mm" ? choice.fixed : choice.floor;
+  const value = Number(text.trim().replace(",", "."));
+  if (!text.trim() || !Number.isFinite(value) || (choice.mode === "mm" ? value <= 0 : value < 0)) return null;
+  return choice.mode === "mm" ? { mode: "mm", value } : { mode: "remaining", floorThicknessMm: value };
+}
 
 /** One prompt for a committed rotation, even when several linked copies move. */
 export function PocketClearanceDialog(): JSX.Element | null {
@@ -51,6 +63,13 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
   }
   const defaults = Object.fromEntries(groups.map(group => [group.key, {
     mode: group.representative.insertionMode ?? "none", axis: group.representative.insertionAxis ?? "z",
+    depths: (group.representative.split?.depths ?? [group.representative.depth]).map((depth, index) => {
+      const cutout = group.representative, shape = shapeMap.get(cutout.shapeId);
+      const regions = shape && cutout.split ? resolvePocketSplit(shape.outlineMm, cutout.split.boundary).regions : null;
+      const resolved = shape && resolvePlacedPocketDepth(bin.spec, depth, { outlineMm: regions?.[index] ?? shape.outlineMm }, cutout);
+      return { mode: depth.mode, fixed: String(depth.mode === "mm" ? depth.value : Math.max(.1, resolved?.axialDepthMm ?? 1)),
+        floor: String(depth.mode === "remaining" ? depth.floorThicknessMm : defaultPocketFloorThicknessMm(bin.spec)) };
+    }),
   }])) as Record<string, ClearanceChoice>;
   // A later committed rotation can replace a still-open prompt without an
   // intermediate unmount. Never carry its draft choices to the new checkpoint.
@@ -71,8 +90,20 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
   const edits = missing.length ? null : expandLinkedObjectEdits(objects, bin.spec, {
     cutouts: groups.map(group => {
       const original = group.representative, choice = choices[group.key];
-      const base = choice.mode === "none" ? original : rigidPocket(original, shapeMap.get(original.shapeId)!, bin.spec);
+      const shape = shapeMap.get(original.shapeId)!;
+      let base = choice.mode === "none" ? original : rigidPocket(original, shape, bin.spec);
+      choice.depths.forEach((draftDepth, index) => {
+        const depth = chosenDepth(draftDepth), previous = base.split?.depths[index] ?? base.depth;
+        // Confirmation must preserve the finite source and exact values. Only
+        // changed depth choices use the same conversion as pocket properties.
+        if (depth && (depth.mode !== previous.mode
+          || depth.mode === "mm" && previous.mode === "mm" && depth.value !== previous.value
+          || depth.mode === "remaining" && previous.mode === "remaining" && depth.floorThicknessMm !== previous.floorThicknessMm)) {
+          base = { ...base, ...pocketDepthChangePatch(bin.spec, shape, base, depth, index as 0 | 1) };
+        }
+      });
       return { ...base, insertionMode: choice.mode === "none" ? undefined : choice.mode,
+        ...(base.depthPending ? { depthPending: undefined } : {}),
         insertionAxis: choice.axis === (original.insertionAxis ?? "z") ? original.insertionAxis : choice.axis };
     }), fingerHoles: [],
   });
@@ -82,6 +113,7 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
     const error = cutout && pocketInsertionError(cutout);
     return error ? [{ id: member.id, message: `${name(member)}: ${error}` }] : [];
   });
+  const invalidDepth = Object.values(choices).some(choice => choice.depths.some(depth => !chosenDepth(depth)));
   const dismiss = () => bin.dispatch({ type: "DISMISS_POCKET_CLEARANCE", checkpoint: prompt.checkpoint });
   return <Dialog open onOpenChange={open => { if (!open) dismiss(); }}>
     <DialogContent className="sm:max-w-lg" data-testid="pocket-clearance-dialog"
@@ -93,8 +125,8 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
         if (focusTarget.current?.isConnected) { event.preventDefault(); focusTarget.current.focus({ preventScroll: true }); }
       }}>
       <DialogHeader>
-        <DialogTitle>Choose clearance after rotation</DialogTitle>
-        <DialogDescription>Your rotation is applied. Choose how the object reaches the bin top. You can change these settings later in its properties.</DialogDescription>
+        <DialogTitle>Confirm depth and clearance</DialogTitle>
+        <DialogDescription>Your rotation is applied. Confirm the depth and how the object reaches the bin top. You can change these settings later in its properties.</DialogDescription>
       </DialogHeader>
       <div className="min-w-0 space-y-3">
         {groups.map(group => {
@@ -107,9 +139,41 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
             <legend className="max-w-full px-1 text-sm font-medium [overflow-wrap:anywhere]">{name(group.representative)}</legend>
             {group.members.length > 1 && <p className="text-xs text-muted-foreground">Applies to {group.members.length} linked copies.</p>}
             {locked && <div className="text-xs">
-              <p className="text-muted-foreground">Shared clearance settings require experimental tools. Placement stays independent.</p>
+              <p className="text-muted-foreground">Shared depth and clearance settings require experimental tools. Placement stays independent.</p>
               <Button variant="link" className="h-auto whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
             </div>}
+            {choice.depths.map((depth, index) => {
+              const section = choice.depths.length > 1 ? `Section ${index === 0 ? "A" : "B"} ` : "";
+              const update = (patch: Partial<DepthChoice>) => change(group.key, {
+                depths: choice.depths.map((previous, i) => i === index ? { ...previous, ...patch } : previous),
+              });
+              const valid = !!chosenDepth(depth);
+              return <div key={index} className="space-y-2 border-b pb-3">
+                <Label className="block space-y-1 text-xs">
+                  <span>{section}{hole ? "Kept depth" : "Depth"}</span>
+                  <select className="h-9 min-w-0 w-full rounded-md border bg-background px-2"
+                    aria-label={`${section}Depth mode for ${name(group.representative)}`} disabled={locked}
+                    value={depth.mode} onChange={event => update({ mode: event.target.value as DepthSpec["mode"] })}>
+                    <option value="mm">{hole ? "Fixed kept depth" : "Fixed depth"}</option>
+                    <option value="remaining">{hole ? "Set bottom height" : "To bin floor — keep floor thickness"}</option>
+                    <option value="through">{hole ? "Keep original depth" : "Through — no floor limit"}</option>
+                  </select>
+                </Label>
+                {depth.mode !== "through" && <Label className="flex items-center justify-between gap-2 text-xs">
+                  <span>{depth.mode === "mm" ? "Fixed depth (mm)" : hole ? "Bottom height (mm)" : "Remaining floor thickness (mm)"}</span>
+                  <Input className="h-9 w-24" inputMode="decimal" disabled={locked} aria-invalid={!valid}
+                    aria-label={`${section}${depth.mode === "mm" ? "Fixed depth" : "Floor thickness"} for ${name(group.representative)}`}
+                    value={depth.mode === "mm" ? depth.fixed : depth.floor}
+                    onChange={event => update(depth.mode === "mm" ? { fixed: event.target.value } : { floor: event.target.value })} />
+                </Label>}
+                <p className="text-xs text-muted-foreground">{depth.mode === "mm"
+                  ? "Fixed depth follows the object's thickness axis when tilted."
+                  : depth.mode === "remaining" ? hole ? "Limits the kept volume above this height without changing the original object."
+                    : "Keeps a horizontal floor below the cut without changing the original object."
+                  : "Keeps the original object dimensions and removes the floor limit."}</p>
+                {!valid && <p role="alert" className="text-xs text-destructive">{depth.mode === "mm" ? "Enter a depth greater than 0 mm." : "Enter a floor thickness of 0 mm or more."}</p>}
+              </div>;
+            })}
             <Label className="block space-y-1 text-xs">
               <span>{hole ? "Kept-volume extension" : "Clearance style"}</span>
               <select className="h-9 min-w-0 w-full rounded-md border bg-background px-2" aria-label={`${hole ? "Extension" : "Clearance"} style for ${name(group.representative)}`}
@@ -134,15 +198,15 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
           </fieldset>;
         })}
         {!edits && <p role="alert" className="text-sm text-destructive">{missing.length
-          ? `The source outline is unavailable for ${missing.map(name).join(", ")}. Keep the current settings and restore the outline before changing clearance.`
-          : "Cannot apply clearance to every linked copy. Keep the current settings and edit the copies individually."}</p>}
+          ? `The source outline is unavailable for ${missing.map(name).join(", ")}. Keep the current settings and restore the outline before changing depth or clearance.`
+          : "Cannot apply these settings to every linked copy. Keep the current settings and edit the copies individually."}</p>}
       </div>
       {bin.editError && <p role="alert" className="text-sm text-destructive">{bin.editError}</p>}
       <DialogFooter>
         <Button variant="outline" onClick={dismiss}>Keep current settings</Button>
-        <Button disabled={!edits || !groups.length || invalid.length > 0} onClick={() => {
-          if (edits && !invalid.length) bin.dispatch({ type: "APPLY_POCKET_CLEARANCE", checkpoint: prompt.checkpoint, edits });
-        }}>Apply clearance</Button>
+        <Button disabled={!edits || !groups.length || invalid.length > 0 || invalidDepth} onClick={() => {
+          if (edits && !invalid.length && !invalidDepth) bin.dispatch({ type: "APPLY_POCKET_CLEARANCE", checkpoint: prompt.checkpoint, edits });
+        }}>Apply settings</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>;

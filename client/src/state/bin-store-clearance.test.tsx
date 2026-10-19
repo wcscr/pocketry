@@ -125,7 +125,7 @@ it("collects linked and independent rotated objects once and applies choices thr
   expect(ui.bin().cutouts.slice(0, 2).map(c => c.insertionMode)).toEqual(["vertical", "vertical"]);
   expect(ui.bin().pendingPocketClearance).toBeNull();
   expect(ui.bin().history.index).toBe(pending.checkpoint.index + 1);
-  expect(ui.bin().history.stack.at(-1)?.label).toBe("Choose pocket clearance");
+  expect(ui.bin().history.stack.at(-1)?.label).toBe("Confirm pocket depth and clearance");
   ui.dispatch({ type: "UNDO" }); expect(getCommittedBinDoc(ui.bin())).toEqual(before); expect(ui.bin().pendingPocketClearance).toBeNull();
   ui.dispatch({ type: "REDO" }); expect(ui.bin().pendingPocketClearance).toBeNull();
   expect(JSON.stringify(ui.bin().history)).not.toContain("clearancePromptedIds");

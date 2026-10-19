@@ -438,7 +438,7 @@ export function binReducer(state: BinState, action: BinAction): BinState {
     // A response belongs only to this committed rotation, never to a live field
     // preview or a document changed while the dialog was open.
     if (state.fieldEdit || state.pendingHistoryLabel) return state;
-    const next = binReducer(state, { type: "UPDATE_OBJECTS", edits: action.edits, historyLabel: "Choose pocket clearance" });
+    const next = binReducer(state, { type: "UPDATE_OBJECTS", edits: action.edits, historyLabel: "Confirm pocket depth and clearance" });
     return next.editError ? next : { ...next, pendingPocketClearance: null };
   }
   if (action.fieldEditToken && (state.fieldEdit?.token !== action.fieldEditToken || state.fieldEdit.checkpoint !== state.history)) return state;

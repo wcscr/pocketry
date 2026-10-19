@@ -4,6 +4,7 @@ import { useBin } from "@/state/bin-store";
 import { Label } from "@/components/ui/label";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 
 /** Placement-specific appearance: linked geometry may have different color
  * references when copies are oriented differently. Changes are undoable. */
@@ -22,8 +23,11 @@ export function PocketColorControls({ cutout, enabled, onEnable }: {
   const referenceDescription = reference === "insertion" && !cutout.insertionMode
     ? "No insertion clearance: follows object Z."
     : followsVertical ? "Fixed to the bin’s vertical direction." : "The object axis moves with its rotation.";
-  return <details className="border-t py-2 text-xs" data-testid="pocket-color-controls">
-    <summary className="cursor-pointer py-1 font-medium">Pocket color</summary>
+  return <details className="group/color border-t py-2 text-xs" data-testid="pocket-color-controls">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-1 font-medium [&::-webkit-details-marker]:hidden">
+      Pocket color
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/color:rotate-180" aria-hidden="true" />
+    </summary>
     <div className="space-y-2 pt-2">
       {!enabled && <div className="space-y-1"><p className="text-muted-foreground">Pocket coloring is off for this bin. Your coverage settings are saved.</p>
         <Button size="sm" variant="outline" onClick={onEnable}>Enable pocket coloring</Button></div>}
@@ -34,7 +38,7 @@ export function PocketColorControls({ cutout, enabled, onEnable }: {
         </select>
       </Label>
       {coverage === "floor" ? <>
-        <Label className="block space-y-1 text-xs"><span className="flex items-center gap-1">Floor reference <HelpHint label="floor color reference">Colors the object's supporting surface opposite this direction, including curved or stepped bottoms. Extra insertion-clearance walls keep the bin color. With an object-axis reference, surfaces created by the remaining-floor limit also keep the bin color. Choose Bin vertical to color the bin's bottom surface. This changes color only; insertion clearance and pocket dimensions stay the same.</HelpHint></span>
+        <Label className="block space-y-1 text-xs"><span className="flex items-center gap-1">Floor reference <HelpHint label="floor color reference">Colors the object's supporting surface opposite this direction, including curved or stepped bottoms. For object X/Y references, faces must be within 45° of perpendicular to that axis; steep walls keep the bin color. Extra insertion-clearance walls keep the bin color. With an object-axis reference, surfaces created by the remaining-floor limit also keep the bin color. Choose Bin vertical to color the bin's bottom surface. This changes color only; insertion clearance and pocket dimensions stay the same.</HelpHint></span>
           <select className="h-9 w-full rounded border bg-background px-2" aria-label="Pocket floor color reference" value={reference}
             onChange={event => update({ colorFloorAxis: event.target.value as NonNullable<CutoutPlacement["colorFloorAxis"]> })}>
             <option value="insertion">Follow insertion axis</option><option value="vertical">Bin vertical</option>

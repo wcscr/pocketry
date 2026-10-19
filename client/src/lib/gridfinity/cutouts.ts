@@ -773,7 +773,7 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
   const sourceIsClipped = depthSpecs.some(depth => depth.mode === "remaining"
     && depth.floorThicknessMm > (cutout.elevationMm ?? 0));
   const source = padding > 0 && options.colorAxis
-    ? floorColorMask(kernel, expanded, anchor, options.colorAxis, colorSign * padding, sourceIsClipped) : expanded;
+    ? floorColorMask(kernel, expanded, anchor, options.colorAxis, colorSign * padding, sourceIsClipped, finiteBands!) : expanded;
   const pose = { rotation: pocketRotation(cutout), position: cutout.position, elevationMm: cutout.elevationMm ?? 0 };
   // Sweep the complete source before clipping; a submerged cap must still open
   // through the surface, while an object wholly above the bin leaves no cut.
