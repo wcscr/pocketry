@@ -464,6 +464,12 @@ export function BinViewport({
               color={showPocketFloorColor ? pocketFloorColor : binColor}
               roughness={0.55}
               metalness={0.02}
+              // Native material interfaces can differ by less than one depth
+              // buffer unit after Float32 extraction. Prefer the lining at
+              // that shared boundary without moving vertices or export faces.
+              polygonOffset
+              polygonOffsetFactor={0}
+              polygonOffsetUnits={-1}
             />
           </mesh>
         ) : null}
