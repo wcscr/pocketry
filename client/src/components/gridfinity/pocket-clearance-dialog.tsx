@@ -88,7 +88,6 @@ function ClearanceChoices({ bin, prompt, shapes, returnFocus }: {
     return shape ? [{ kind: "pocket" as const, cutout, shape }] : [];
   });
   const edits = missing.length ? null : expandLinkedObjectEdits(objects, bin.spec, {
-    linkedElevation: "preserve",
     cutouts: groups.map(group => {
       const original = group.representative, choice = choices[group.key];
       const shape = shapeMap.get(original.shapeId)!;

@@ -12,10 +12,10 @@ const f = fingerHoleSchema.parse({ id: "f", kind: "oblong-deep-scoop", center: {
 const g = { ...f, id: "g", center: { x: 15, y: 0 }, rotationDeg: 90 };
 
 describe("explicit linked designs", () => {
-  it("shares an edited elevation and thickness while preserving XY, heading and independent copies", () => {
+  it("shares edited thickness while keeping elevation, XY and orientation independent", () => {
     const placed = { ...before, cutouts: [{ ...a, elevationMm: 5 }, { ...b, elevationMm: 9 }, independent] };
     const result = applyLinkedEdits(placed, { cutouts: [{ ...placed.cutouts[0], elevationMm: 12, depth: { mode: "mm", value: 6 } }], fingerHoles: [] })!;
-    expect(result.cutouts.slice(0, 2).map(c => [c.elevationMm, c.depth])).toEqual([[12, { mode: "mm", value: 6 }], [12, { mode: "mm", value: 6 }]]);
+    expect(result.cutouts.slice(0, 2).map(c => [c.elevationMm, c.depth])).toEqual([[12, { mode: "mm", value: 6 }], [9, { mode: "mm", value: 6 }]]);
     expect(result.cutouts[1]).toMatchObject({ position: b.position, rotationDeg: 90, mirrored: true });
     expect(result.cutouts[2]).toEqual(independent);
     expect(designLinkErrors(result)).toEqual([]);
@@ -28,8 +28,8 @@ describe("explicit linked designs", () => {
     const rotated = applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 5, tilt: { xDeg: 30, yDeg: 0 } }], fingerHoles: [] })!;
     expect(rotated.cutouts[1].elevationMm).toBeUndefined();
   });
-  it("rejects contradictory simultaneous height edits atomically", () => {
-    expect(applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 12 }, { ...b, elevationMm: 14 }], fingerHoles: [] })).toBeNull();
+  it("allows independent simultaneous height edits", () => {
+    expect(applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 12 }, { ...b, elevationMm: 14 }], fingerHoles: [] })!.cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([12, 14]);
     const matching = applyLinkedEdits(before, { cutouts: [{ ...a, elevationMm: 12 }, { ...b, elevationMm: 12 }], fingerHoles: [] })!;
     expect(matching.cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([12, 12]);
   });
@@ -56,15 +56,15 @@ describe("explicit linked designs", () => {
     const removed = applyLinkedEdits(result, { cutouts: [{ ...result.cutouts[1], split: undefined }], fingerHoles: [] })!;
     expect(removed.cutouts.slice(0, 2).every(c => c.split === undefined)).toBe(true);
   });
-  it("keeps tilt independent unless the entire group's tilt option is enabled", () => {
+  it("keeps tilt independent even for legacy tilt links", () => {
     const tilt = { xDeg: 10, yDeg: 25 };
     const result = applyLinkedEdits(before, { cutouts: [{ ...a, tilt, rotationDeg: 35 }], fingerHoles: [] })!;
     expect(result.cutouts[1].tilt).toBeUndefined(); expect(result.cutouts[1].rotationDeg).toBe(90);
     const linked = { ...before, cutouts: [a, b].map(c => ({ ...c, designLink: { id: "g", tilt: true } })) };
     const tilted = applyLinkedEdits(linked, { cutouts: [{ ...linked.cutouts[0], tilt }], fingerHoles: [] })!;
-    expect(tilted.cutouts[1].tilt).toEqual(tilt); expect(tilted.cutouts[1].rotationDeg).toBe(90);
+    expect(tilted.cutouts[1].tilt).toBeUndefined(); expect(tilted.cutouts[1].rotationDeg).toBe(90);
   });
-  it("keeps profile rotation independent unless linked rotation is enabled", () => {
+  it("keeps profile rotation independent even for legacy tilt links", () => {
     const profileBottom={edge:"bottom" as const,widthMm:8,elevationMm:12};
     const source={...before,cutouts:[a,b].map(c=>({...c,profileBottom}))};
     const profileRotation={xDeg:135,yDeg:92};
@@ -72,7 +72,7 @@ describe("explicit linked designs", () => {
     expect(independent.cutouts[1].profileRotation).toBeUndefined();
     const linked={...source,cutouts:source.cutouts.map(c=>({...c,designLink:{id:"g",tilt:true}}))};
     const rotated=applyLinkedEdits(linked,{cutouts:[{...linked.cutouts[0],profileRotation}],fingerHoles:[]})!;
-    expect(rotated.cutouts[1].profileRotation).toEqual(profileRotation);
+    expect(rotated.cutouts[1].profileRotation).toBeUndefined();
     expect(rotated.cutouts[1].position).toEqual(b.position);
     expect(rotated.cutouts[1].rotationDeg).toBe(b.rotationDeg);
     expect(designLinkErrors(rotated)).toEqual([]);

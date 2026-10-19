@@ -49,24 +49,24 @@ function enter(label: string, value: string) {
 }
 
 describe("pocket measurements", () => {
-  it("shares numeric elevation with linked copies, keeps dimensions and XY, and undoes as one edit", () => {
+  it("edits numeric elevation independently, keeps dimensions and XY, and undoes as one edit", () => {
     const source = { ...store.cutouts[0], designLink: { id: "heights", tilt: false }, elevationMm: 8 };
     const copy = { ...source, id: "copy", position: { x: 30, y: 10 }, elevationMm: 12, rotationDeg: 90 };
     React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec, cutouts: [source, copy] }));
     const index = store.history.index;
     enter("Pocket elevation in millimetres", "15");
-    expect(store.cutouts.map(c => c.elevationMm)).toEqual([15, 15]);
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([15, 12]);
     expect(store.cutouts[1]).toMatchObject({ position: copy.position, rotationDeg: 90, depth: source.depth });
     expect(store.history.index).toBe(index + 1);
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts.map(c => c.elevationMm)).toEqual([8, 12]);
     React.act(() => store.dispatch({ type: "REDO" }));
-    expect(store.cutouts.map(c => c.elevationMm)).toEqual([15, 15]);
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([15, 12]);
     enter("X position in millimetres", "5");
     expect(store.cutouts[1].position).toEqual(copy.position);
   });
 
-  it("preserves differently placed legacy copies during rotation, then shares a chosen height", () => {
+  it("preserves differently placed legacy copies during rotation, then edits only the chosen height", () => {
     const source = { ...store.cutouts[0], designLink: { id: "heights", tilt: false } };
     const copy = { ...source, id: "copy", position: { x: 30, y: 10 }, tilt: { xDeg: 25, yDeg: 0 } };
     React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec, cutouts: [source, copy] }));
@@ -76,19 +76,21 @@ describe("pocket measurements", () => {
     enter("Pocket X rotation in degrees", "35");
     expect(store.cutouts[1].elevationMm).toBe(before);
     enter("Pocket elevation in millimetres", "9");
-    expect(store.cutouts.map(c => c.elevationMm)).toEqual([9, 9]);
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([9, before]);
   });
 
-  it("freezes source thickness for every linked copy before raising a to-floor pocket", () => {
+  it("freezes only the moved source before raising a linked to-floor pocket", () => {
     const source = { ...store.cutouts[0], designLink: { id: "heights", tilt: false }, depth: { mode: "remaining" as const, floorThicknessMm: 7 } };
     const copy = { ...source, id: "copy", position: { x: 30, y: 10 } };
     React.act(() => store.dispatch({ type: "HYDRATE", spec: store.spec, cutouts: [source, copy] }));
     const thickness = resolvePocketDepth(store.spec, source.depth).depthMm;
     enter("Pocket elevation in millimetres", "12");
-    expect(store.cutouts.map(c => c.elevationMm)).toEqual([12, 12]);
-    expect(store.cutouts.every(c => c.depth.mode === "remaining" && c.depth.sourceDepthMm === thickness)).toBe(true);
+    expect(store.cutouts.map(c => c.elevationMm)).toEqual([12, undefined]);
+    expect(store.cutouts[0].depth).toEqual({ ...source.depth, sourceDepthMm: thickness });
+    expect(store.cutouts[1]).toEqual(copy);
     enter("Pocket elevation in millimetres", "15");
-    expect(store.cutouts.every(c => c.depth.mode === "remaining" && c.depth.sourceDepthMm === thickness)).toBe(true);
+    expect(store.cutouts[0].depth).toEqual({ ...source.depth, sourceDepthMm: thickness });
+    expect(store.cutouts[1]).toEqual(copy);
   });
   it("enables clearance on tilt and preserves direction or disabling through subsequent edits and undo", () => {
     expect(host.querySelector('[data-testid="pocket-insertion-controls"]')).toBeNull();

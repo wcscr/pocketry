@@ -1,3 +1,4 @@
+import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useBinObjectContextMenu } from "./object-context-menu";
@@ -745,6 +746,13 @@ export function BinControlsPanel({
           </div>
   );
 
+  const groupAction = (ref: GroupRef, action: "duplicate" | "remove") => {
+    const members = expandGroupSelection({ cutouts, fingerHoles }, [ref]);
+    dispatch({ type: "SET_SELECTION", selection: members });
+    if (action === "remove") dispatch({ type: "REMOVE_SELECTION" });
+    else dispatch({ type: "DUPLICATE_SELECTION", ids: members.map(source => ({ source, id: crypto.randomUUID() })),
+      labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) });
+  };
   const retainedHoleCount = cutouts.filter(c => c.role === "hole").length;
   const pocketCount = cutouts.length - retainedHoleCount;
   const pocketList = cutouts.length > 0 && (
@@ -788,17 +796,18 @@ export function BinControlsPanel({
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
                       {cutout.role === "hole" && <span className="text-[10px] text-muted-foreground">Hole</span>}
                       {cutout.depthPending && <span className="text-[10px] text-muted-foreground">Depth needed</span>}
-                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                      {cutout.placementGroup && <span className="text-[10px] text-muted-foreground">Grouped</span>}
+                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked geometry" />}
                     </button>
                     )}
                     <ObjectActions name={name}>
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={startRenaming}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID(), labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={cutout.placementGroup ? `Duplicate group containing ${name}` : `Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => cutout.placementGroup ? groupAction({ kind: "pocket", id: cutout.id }, "duplicate") : dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID(), labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) })}>
                       <Copy className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={cutout.placementGroup ? `Remove group containing ${name}` : `Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => cutout.placementGroup ? groupAction({ kind: "pocket", id: cutout.id }, "remove") : dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                     </ObjectActions>
@@ -836,7 +845,8 @@ export function BinControlsPanel({
                           onDoubleClick={startRenaming}
                           onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
-                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                          {hole.placementGroup && <span className="text-[10px] text-muted-foreground">Grouped</span>}
+                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked geometry" />}
                         </button>
                       )}
                       <ObjectActions name={name}>
@@ -848,7 +858,7 @@ export function BinControlsPanel({
                       </button>
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         title={`Remove ${name}`}
-                        aria-label={`Remove ${name}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
+                        aria-label={hole.placementGroup ? `Remove group containing ${name}` : `Remove ${name}`} onClick={() => hole.placementGroup ? groupAction({ kind: "finger", id: hole.id }, "remove") : dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                       </ObjectActions>
@@ -1391,7 +1401,7 @@ export function BinControlsPanel({
                       <span className="text-xs text-muted-foreground">°</span>
                     </div>
                 )}
-                <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
+                {!selectedFingerHole.placementGroup && <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />}
                   </div>
                 </details>
                 {(inspector || !selectedFingerHole.designLink) && <AdvancedLinks linked={!!selectedFingerHole.designLink}><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
@@ -1955,7 +1965,7 @@ export function BinControlsPanel({
           {pocketList}
           <div className="grid grid-cols-2 gap-1">
             <AddPocketMenu className="min-w-0 gap-1 px-1.5" />
-            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
+            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0 || cutouts.some(c => c.placementGroup)} title={cutouts.some(c => c.placementGroup) ? "Ungroup objects before auto-arranging" : undefined} data-testid="button-auto-arrange">
               <LayoutGrid className="h-4 w-4" />Auto-arrange
             </Button>
           </div>

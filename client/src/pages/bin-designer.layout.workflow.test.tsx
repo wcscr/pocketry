@@ -613,7 +613,7 @@ it("preserves restored linked designs and standard selection while opted out", a
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="experimental-design-notice"]')).not.toBeNull();
     openSettingsSection(container, "tool-cutouts"); selectPocket(container, cutouts[0].id);
-    expect(container.querySelector('[aria-label="Linked design"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Linked geometry"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="pocket-rotation-controls"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="Include Target"]')).not.toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${cutouts[1].id}"]`)!
@@ -624,7 +624,7 @@ it("preserves restored linked designs and standard selection while opted out", a
     expect(container.querySelector('[data-testid="pocket-3d-controls"]')).toBeNull();
 
     React.act(() => experimentalSettings.setEnabled(true));
-    expect(container.querySelector('[aria-label="Linked design"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Linked geometry"]')).not.toBeNull();
     expect(container.querySelectorAll('input[type="checkbox"]:checked')).toHaveLength(2);
     React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Target 0 in selection"]')!.click());
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Object controls"]')!.click());
@@ -634,7 +634,7 @@ it("preserves restored linked designs and standard selection while opted out", a
 
     React.act(() => experimentalSettings.setEnabled(false));
     expect(container.querySelector('[data-experimental-editor="true"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="Linked design"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Linked geometry"]')).not.toBeNull();
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]).toEqual(before);
     expect(container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.disabled).toBe(true);
     openSettingsSection(container, "project");
@@ -995,10 +995,10 @@ it.each([
     const disclosure = container.querySelector<HTMLDetailsElement>('[data-testid="linked-copies-disclosure"]');
     if (experimental) {
       expect(disclosure).not.toBeNull(); expect(disclosure!.open).toBe(false);
-      expect(disclosure!.querySelector('[aria-label="Linked design"]')).not.toBeNull();
+      expect(disclosure!.querySelector('[aria-label="Linked geometry"]')).not.toBeNull();
     } else {
       expect(disclosure).toBeNull();
-      expect(container.querySelector('[aria-label="Linked design"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Linked geometry"]')).toBeNull();
       expect(container.querySelector('[aria-label="Link and unlink selected objects"]')).toBeNull();
     }
     expect(container.querySelector('[data-testid="pocket-depth-summary"]')).not.toBeNull();

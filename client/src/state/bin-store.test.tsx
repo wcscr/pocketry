@@ -1025,12 +1025,12 @@ describe("linked design transactions", () => {
     ], gridX: 3, gridY: 3 }));
     return test;
   }
-  it("shares thickness and elevation in one history step and preserves independent copies", () => {
+  it("shares thickness and retains independent elevation in one history step and preserves independent copies", () => {
     const { store, act } = setup();
     act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
     const original = getCommittedBinDoc(store()), index = store().history.index;
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 12, depth: { mode: "mm", value: 8 } }, transient: true }));
-    expect(store().cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([12, 12]);
+    expect(store().cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([12, undefined]);
     expect(store().history.index).toBe(index);
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 12, depth: { mode: "mm", value: 8 } } }));
     expect(store().history.index).toBe(index + 1);
@@ -1042,7 +1042,7 @@ describe("linked design transactions", () => {
     act(() => store().dispatch({ type: "REDO" })); expect(getCommittedBinDoc(store())).toEqual(changed);
     act(() => store().dispatch({ type: "UNLINK_DESIGNS", kind: "pocket", ids: ["c1"] }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { elevationMm: 18 } }));
-    expect(store().cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([18, 12]);
+    expect(store().cutouts.slice(0, 2).map(c => c.elevationMm)).toEqual([18, undefined]);
   });
   it("links existing pockets from the chosen source, with one reversible step", () => {
     const { store, act } = setup(), old = getCommittedBinDoc(store()), index = store().history.index;
@@ -1075,7 +1075,7 @@ describe("linked design transactions", () => {
     const linked = getCommittedBinDoc(store());
     expect(linked.cutouts[1]).toMatchObject({ shapeId: source.shapeId, insertionMode: "axis", elevationMm: floor,
       position: target.position, rotationDeg: target.rotationDeg, depth: source.depth,
-      tilt: tilt ? source.tilt : target.tilt });
+      tilt: target.tilt });
     const project = { schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [shape, targetShape], ...linked, history: store().history };
     const reopened = parseProjectDoc(JSON.parse(JSON.stringify(project)));
     expect(reopened).not.toBeNull();
@@ -1119,19 +1119,19 @@ describe("linked design transactions", () => {
     expect(store().cutouts.find(c => c.id === "linked")).toEqual({ ...linked, designLink: undefined });
     act(() => store().dispatch({ type: "UNDO" })); expect(store().cutouts.find(c => c.id === "linked")).toEqual(linked);
   });
-  it("supports opt-in tilt while names, Z heading and XY placement stay local", () => {
+  it("ignores legacy tilt-link commands and keeps every orientation local", () => {
     const { store, act } = setup();
     act(() => store().dispatch({ type: "LINK_DESIGNS", kind: "pocket", ids: ["c1", "c2"], sourceId: "c1", linkId: "g", tilt: false }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 10, yDeg: 20 }, profileRotation: { xDeg: 135, yDeg: 90 }, name: "A", rotationDeg: 45 } }));
     expect(store().cutouts[1].tilt).toBeUndefined();
     expect(store().cutouts[1].profileRotation).toBeUndefined();
     act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: true }));
-    expect(store().cutouts[1].tilt).toEqual({ xDeg: 10, yDeg: 20 });
-    expect(store().cutouts[1].profileRotation).toEqual({ xDeg: 135, yDeg: 90 });
+    expect(store().cutouts[1].tilt).toBeUndefined();
+    expect(store().cutouts[1].profileRotation).toBeUndefined();
     expect(store().cutouts[1]).toMatchObject({ name: "Second", rotationDeg: 90 });
     act(() => store().dispatch({ type: "SET_LINKED_TILT", id: "c1", enabled: false }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "c1", patch: { tilt: { xDeg: 0, yDeg: 0 } } }));
-    expect(store().cutouts[1].tilt).toEqual({ xDeg: 10, yDeg: 20 });
+    expect(store().cutouts[1].tilt).toBeUndefined();
   });
   it("keeps linked thumb designs identical through size, bottom and bin-height edits", () => {
     const { store, act } = setup();

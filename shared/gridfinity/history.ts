@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { cutoutPlacementSchema, fingerHoleSchema } from "./cutout";
 import { designLinkErrors } from "./design-links";
+import { objectGroupErrors } from "./object-groups";
 import { binSpecSchema } from "./types";
 import { binMaterialsSchema } from "./materials";
 
@@ -15,6 +16,7 @@ export const binDocSchema = z.object({
   fingerHoles: z.array(fingerHoleSchema),
 }).strict().superRefine((doc, ctx) => {
   for (const message of designLinkErrors(doc)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  for (const message of objectGroupErrors(doc)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
 });
 
 export const binHistoryEntrySchema = z.object({

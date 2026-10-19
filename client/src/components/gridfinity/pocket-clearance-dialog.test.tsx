@@ -292,6 +292,8 @@ it("keeps split-section depth choices separate and propagates them to linked cop
   choose("Section A Depth mode for First tool", "remaining");
   enter("Section A Floor thickness for First tool", "8");
   choose("Insertion axis for First tool", "x");
+  expect(button("Apply settings").disabled).toBe(true); // The unrotated linked copy cannot insert along X.
+  choose("Clearance style for First tool", "vertical");
   const before = store.cutouts;
   React.act(() => button("Apply settings").click());
   expect(dialog()).toBeNull();

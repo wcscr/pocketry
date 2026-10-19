@@ -36,6 +36,7 @@ export function PocketMeasurements({ cutout, shape, children }: {
   cutout: CutoutPlacement; shape: TracedShape;
   children?: ReactNode;
 }): JSX.Element {
+  if (cutout.placementGroup) return <p className="text-xs text-muted-foreground">Use the group Move and Rotate tools to keep the objects together.</p>;
   return <div className="space-y-2">
     <details className="group/precision border-t pt-1 text-xs" data-testid="pocket-position-settings">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
@@ -53,13 +54,13 @@ export function PocketMeasurements({ cutout, shape, children }: {
 function usePocketRigidUpdate(shape: TracedShape) {
   const { spec, cutouts, dispatch } = useBin();
   const { shapes } = useShapeLibrary();
-  return (patch: CutoutPlacement, transient: boolean, historyLabel: string, shareElevation = false) => {
+  return (patch: CutoutPlacement, transient: boolean, historyLabel: string, placementOnly = false) => {
     const objects = cutouts.flatMap(c => {
       const source = shapes.find(s => s.id === c.shapeId) ?? (c.shapeId === shape.id ? shape : undefined);
       return source ? [{ kind: "pocket" as const, cutout: c, shape: source }] : [];
     });
     const edits = expandLinkedObjectEdits(objects, spec, { cutouts: [patch], fingerHoles: [],
-      ...(shareElevation ? {} : { linkedElevation: "preserve" }) });
+      placementOnly });
     if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, transient, historyLabel });
   };
 }
@@ -119,7 +120,7 @@ function PocketMeasurementFields({ cutout, shape, children }: {
   const updateTilt = (axis: "xDeg" | "yDeg", value: number, transient: boolean) => {
     const next = { ...rigidPocket(cutout, shape, spec),
       tilt: { xDeg: cutout.tilt?.xDeg ?? 0, yDeg: cutout.tilt?.yDeg ?? 0, [axis]: value } };
-    updateRigid({ ...next, insertionMode: defaultPocketInsertion(cutout, next) }, transient, "Rotate tool pocket");
+    updateRigid({ ...next, insertionMode: cutout.designLink ? cutout.insertionMode : defaultPocketInsertion(cutout, next) }, transient, "Rotate tool pocket", true);
   };
   const bounds = outlineBounds(pocketOccupiedOutline(shape, cutout, spec))!;
   const neighbor = cutouts.find((item) => item.id === neighborId && item.id !== cutout.id);
@@ -147,7 +148,7 @@ function PocketMeasurementFields({ cutout, shape, children }: {
             <span>°</span>
           </Label>)}</div>
           <Button size="sm" variant="outline" disabled={!hasPocketTilt(cutout)}
-            onClick={() => updateRigid(resetPocketPlane(cutout, shape, spec), false, "Reset pocket to X–Y plane")}>
+            onClick={() => updateRigid(resetPocketPlane(cutout, shape, spec), false, "Reset pocket to X–Y plane", true)}>
             Reset to X–Y plane
           </Button>
           <Label className="flex items-center gap-2 text-xs">Elevation
@@ -157,7 +158,7 @@ function PocketMeasurementFields({ cutout, shape, children }: {
               onValueCommit={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, false, "Raise or lower pocket", true)} />
             <span>mm</span>
           </Label>
-          <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the object’s dimensions.{cutout.designLink ? " Elevation edits also update every linked copy." : ""}</p>
+          <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the object’s dimensions.{cutout.designLink ? " Linked copies keep their own elevation." : ""}</p>
         </div>
         <PositionInputs position={cutout.position} onChange={updatePosition} />
 
@@ -206,6 +207,7 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
   const inspectionSection = (axis: BuildBinSection["axis"]): BuildBinSection => ({
     axis, offsetMm: axis === "x" ? (bounds.minX + bounds.maxX) / 2 : (bounds.minY + bounds.maxY) / 2,
   });
+  if (cutout.placementGroup) return <p className="text-xs text-muted-foreground">Use the group Move and Rotate tools to keep the objects together.</p>;
   return <div className="space-y-2">
     <details key={cutout.id} open className="group/depth text-xs" data-testid="pocket-depth-summary">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">

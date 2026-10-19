@@ -6,7 +6,7 @@ import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { TransformOrigins } from "@shared/gridfinity/transform-origins";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { pocketQuaternion, surfaceAnchoredPocket, type PocketTransformMode } from "./pocket-transform";
-import { applyObjectEdits, objectEditsChanged, expandLinkedObjectEdits, objectPosition, transformObjects, type EditableObject, type ObjectEdits, type RotationPivot } from "./object-arrangement";
+import { objectGroup, objectPosition, transformObjects, type EditableObject, type ObjectEdits, type RotationPivot } from "./object-arrangement";
 
 const RAD = Math.PI / 180;
 export type AxisValues = [number, number, number];
@@ -27,6 +27,12 @@ function axialDepth(o: EditableObject, spec: BinSpec): number | null {
 /** Read actual, including live-preview, offsets from the persisted creation pose. */
 export function objectTransformOffsets(object: EditableObject, spec: BinSpec, origins: TransformOrigins | undefined,
   mode: PocketTransformMode, shapes: readonly TracedShape[] = []): AxisValues {
+  const group = objectGroup(object);
+  if (group) {
+    if (mode === "translate") return [group.pivot.x - group.origin.x, group.pivot.y - group.origin.y, group.pivot.z - group.origin.z];
+    const angle = new Euler().setFromQuaternion(new Quaternion(...group.rotation), "ZYX");
+    return [angle.x / RAD, angle.y / RAD, angle.z / RAD];
+  }
   const pocket = object.kind === "pocket" ? origins?.pockets.find(p => p.cutout.id === object.cutout.id) : undefined;
   const hole = object.kind === "finger" ? origins?.fingerHoles.find(h => h.id === object.hole.id) : undefined;
   const original: EditableObject = pocket && object.kind === "pocket" ? { ...object, cutout: pocket.cutout,
@@ -72,26 +78,16 @@ export function setObjectTransformOffsets(selected: readonly EditableObject[], s
   // A shared rotation requires one common delta; different starting offsets
   // can still be restored individually without pretending they are one rigid group.
   if (mode === "rotate" && pivot === "selection") return null;
-  const result: ObjectEdits = { cutouts: [], fingerHoles: [] };
+  const result: ObjectEdits = { cutouts: [], fingerHoles: [], placementOnly: true };
+  const processed = new Set<string>();
   for (const [i, object] of selected.entries()) {
-    const edit = transformObjects([object], spec, changes[i].delta, changes[i].rotation, "individual", [object]);
+    const group = objectGroup(object);
+    if (group && processed.has(group.id)) continue;
+    if (group) processed.add(group.id);
+    const unit = group ? selected.filter(o => objectGroup(o)?.id === group.id) : [object];
+    const edit = transformObjects(unit, spec, changes[i].delta, changes[i].rotation, "individual", allObjects);
     if (!edit) return null;
     result.cutouts.push(...edit.cutouts); result.fingerHoles.push(...edit.fingerHoles);
   }
-  // Restoring every member to its own as-drawn Z is an explicit collection of
-  // targets, not one shared translation. Keep those targets when the whole
-  // link is selected; otherwise the unselected copies have no unambiguous move.
-  if (mode === "translate" && values[2] !== undefined) {
-    const links = new Set(selected.flatMap(o => o.kind === "pocket" && o.cutout.designLink ? [o.cutout.designLink.id] : []));
-    const wholeLinks = allObjects.every(o => o.kind !== "pocket" || !o.cutout.designLink || !links.has(o.cutout.designLink.id)
-      || selected.some(s => s.kind === "pocket" && s.cutout.id === o.cutout.id));
-    if (wholeLinks) result.linkedElevation = "targets";
-  } else result.linkedElevation = "preserve";
-  const expanded = expandLinkedObjectEdits(allObjects, spec, result);
-  // Propagation must not override another selected member's requested reset,
-  // including a member that was already at zero and needed no design change.
-  const requested = applyObjectEdits(selected, result).map(object => object.kind === "pocket"
-    && !hasRigidPocket(object.cutout) && expanded?.cutouts.some(c => c.id === object.cutout.id && hasRigidPocket(c))
-    ? { ...object, cutout: rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec) } : object);
-  return expanded && !objectEditsChanged(requested, expanded) ? expanded : null;
+  return result;
 }

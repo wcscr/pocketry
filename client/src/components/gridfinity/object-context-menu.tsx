@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Copy, CopyPlus, Link2, Pencil, Settings2, Trash2, Unlink } from "lucide-react";
+import { Copy, CopyPlus, Group, Ungroup, Link2, Pencil, Settings2, Trash2, Unlink } from "lucide-react";
+import { expandGroupSelection } from "@shared/gridfinity/object-groups";
 import { pocketName } from "@shared/gridfinity/cutout";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import { reviseTracedShape } from "@/lib/gridfinity/contour-edit";
 import { getRing, removeRing } from "@/lib/geometry/outline";
 import type { BinContextTarget } from "@/lib/gridfinity/context-target";
 export type { BinContextTarget } from "@/lib/gridfinity/context-target";
-import { sameObject, type ObjectRef } from "@/lib/gridfinity/object-arrangement";
+import { createPlacementGroup, selectedPlacementGroup, sameObject, type EditableObject, type ObjectRef } from "@/lib/gridfinity/object-arrangement";
 import { useBin } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -62,7 +63,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
       bin.dispatch({ type: "SELECT_SURFACE_TEXT", id: next.id }); setScope([]);
     } else {
       const ref: ObjectRef = next.kind === "hole" ? { kind: "pocket", id: next.id } : next;
-      const selected = next.kind !== "hole" && bin.selection.some(item => sameObject(item, ref)) ? bin.selection : [ref];
+      const selected = expandGroupSelection(bin, next.kind !== "hole" && bin.selection.some(item => sameObject(item, ref)) ? bin.selection : [ref]);
       if (next.kind === "hole" || !bin.selection.some(item => sameObject(item, ref))) bin.dispatch({ type: "SET_SELECTION", selection: selected });
       setScope(next.kind === "hole" ? [] : selected);
     }
@@ -108,6 +109,12 @@ export function BinObjectMenuProvider({ children, onProperties }: {
     const items = (kind === "pocket" ? bin.cutouts : bin.fingerHoles).filter(item => refs.some(ref => ref.kind === kind && ref.id === item.id));
     return items.length > 1 && (!items[0].designLink || items.some(item => item.designLink?.id !== items[0].designLink?.id));
   });
+  const groupObjects = refs.flatMap<EditableObject>(ref => {
+    if (ref.kind === "finger") { const hole = bin.fingerHoles.find(h => h.id === ref.id); return hole ? [{ kind: "finger", hole }] : []; }
+    const cutout = bin.cutouts.find(c => c.id === ref.id), shape = shapes.find(s => s.id === cutout?.shapeId);
+    return cutout && shape ? [{ kind: "pocket", cutout, shape }] : [];
+  });
+  const canGroup = refs.length > 1 && groupObjects.length === refs.length && !selectedPlacementGroup(groupObjects);
   const itemClass = "min-h-9 gap-2";
   return <ObjectMenuContext.Provider value={open}>
     {children}
@@ -115,11 +122,16 @@ export function BinObjectMenuProvider({ children, onProperties }: {
       <DropdownMenuItem className={itemClass} onSelect={properties}><Settings2 className="h-4 w-4" />{target?.kind === "hole" ? "Pocket properties" : "Properties"}</DropdownMenuItem>
       {target?.kind !== "hole" && <DropdownMenuItem className={itemClass} disabled={target?.kind === "text" && bin.spec.surfaceTexts.length >= 32} onSelect={duplicate}><Copy className="h-4 w-4" />Duplicate{refs.length > 1 ? ` ${refs.length} objects` : ""}</DropdownMenuItem>}
       {target?.kind !== "hole" && refs.length <= 1 && <DropdownMenuItem className={itemClass} onSelect={() => { setName(target ? labels.get(target.id) ?? "" : ""); setRenaming(true); }}><Pencil className="h-4 w-4" />Rename…</DropdownMenuItem>}
+      {refs.length > 1 && <>
+        <DropdownMenuSeparator />
+        {canGroup && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "GROUP_SELECTION", group: createPlacementGroup(groupObjects, bin.spec, crypto.randomUUID()) })}><Group className="h-4 w-4" />Group objects</DropdownMenuItem>}
+        {selected.some(item => item.placementGroup) && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "UNGROUP_SELECTION" })}><Ungroup className="h-4 w-4" />Ungroup</DropdownMenuItem>}
+      </>}
       {enabled && target?.kind !== "text" && target?.kind !== "hole" && (refs.length === 1 || canLink || selected.some(item => item.designLink)) && <>
         <DropdownMenuSeparator />
         {refs.length === 1 && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "DUPLICATE_LINKED", kind: refs[0].kind, id: refs[0].id, newId: crypto.randomUUID(), linkId: crypto.randomUUID(), labels })}><CopyPlus className="h-4 w-4" />Duplicate linked</DropdownMenuItem>}
-        {canLink && <DropdownMenuItem className={itemClass} onSelect={() => setLinking(true)}><Link2 className="h-4 w-4" />Link selected…</DropdownMenuItem>}
-        {selected.some(item => item.designLink) && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "UNLINK_DESIGNS", kind: "selection", ids: refs.map(ref => ref.id) })}><Unlink className="h-4 w-4" />{refs.length > 1 ? "Unlink selected" : "Unlink"}</DropdownMenuItem>}
+        {canLink && <DropdownMenuItem className={itemClass} onSelect={() => setLinking(true)}><Link2 className="h-4 w-4" />Link geometry…</DropdownMenuItem>}
+        {selected.some(item => item.designLink) && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "UNLINK_DESIGNS", kind: "selection", ids: refs.map(ref => ref.id) })}><Unlink className="h-4 w-4" />Unlink geometry</DropdownMenuItem>}
         {refs.length === 1 && selected[0]?.designLink && <DropdownMenuItem className={itemClass} onSelect={() => {
           const group = selected[0].designLink!.id;
           const members = refs[0].kind === "pocket" ? bin.cutouts : bin.fingerHoles;
@@ -130,7 +142,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
       <DropdownMenuItem className={`${itemClass} text-destructive focus:text-destructive`} disabled={target?.kind === "hole" && !!owner?.designLink && !enabled} onSelect={remove}><Trash2 className="h-4 w-4" />{target?.kind === "hole" ? "Remove hole" : refs.length > 1 ? "Remove selected" : "Remove"}</DropdownMenuItem>
     </PointerContextMenu>
     <Dialog open={linking} onOpenChange={setLinking}><DialogContent onCloseAutoFocus={restoreFocus}>
-      <DialogHeader><DialogTitle>Linked copies</DialogTitle><DialogDescription>Choose the shared design. X/Y placement stays independent; later height edits update linked copies.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Linked geometry</DialogTitle><DialogDescription>Choose the shared geometry. Position, elevation and rotation stay independent. Group objects to move them together.</DialogDescription></DialogHeader>
       <SelectionLinkControls />
       <DialogFooter><Button variant="outline" onClick={() => setLinking(false)}>Done</Button></DialogFooter>
     </DialogContent></Dialog>

@@ -9,6 +9,7 @@ import { SurfaceTextTransformControls } from "./surface-text-controls";
 import { useObjectToolbar } from "./object-toolbar-context";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { SelectionLinkControls } from "./linked-design-controls";
+import { ObjectGroupControls } from "./object-group-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import { profileFootprint, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
@@ -542,7 +543,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [dispatch]);
   useEffect(() => {
     // Undo, redo or switching selection during a gesture replaces its baseline.
-    if (dragRef.current?.kind === "selection-move") {
+    if (dragRef.current?.kind === "selection-move" && (history !== dragOrigin.current?.history
+      || selection.length !== dragRef.current.objects.length || dragRef.current.objects.some(o => !selection.some(ref => sameObject(ref, objectRef(o)))))) {
       dragRef.current = null; clickRef.current = null;
       dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
     }
@@ -1070,6 +1072,13 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
     // Independent finger access features grab before pocket bodies when they overlap.
     const hitHole = hitFingerHole(point);
+    if (hitHole?.placementGroup) {
+      const members = arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hitHole.placementGroup!.id);
+      dispatch({ type: "SET_SELECTION", selection: members.map(objectRef) });
+      dragRef.current = { kind: "selection-move", objects: members, start: point, latest: null };
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
+      event.currentTarget.setPointerCapture(event.pointerId); return;
+    }
     if (hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
       dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
       clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
@@ -1090,6 +1099,13 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     }
 
     const hit = hitCutout(point);
+    if (hit?.placementGroup) {
+      const members = arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hit.placementGroup!.id);
+      dispatch({ type: "SET_SELECTION", selection: members.map(objectRef) });
+      dragRef.current = { kind: "selection-move", objects: members, start: point, latest: null };
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
+      event.currentTarget.setPointerCapture(event.pointerId); return;
+    }
     if (hit) {
       if (selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
         dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
@@ -2222,7 +2238,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       </div>}
 
       {showObjectControls && !selectedSurfaceTextId && <ObjectTransformPanel disabled={panActive}
-        editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
+        editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, groupControls: <ObjectGroupControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
           onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),

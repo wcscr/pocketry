@@ -118,7 +118,8 @@ it("collects linked and independent rotated objects once and applies choices thr
   ui.dispatch({ type: "UPDATE_OBJECTS", edits: { cutouts: [
     { ...linked, tilt: { xDeg: 30, yDeg: 0 } }, { ...ui.bin().cutouts[2], tilt: { xDeg: 20, yDeg: 0 } }], fingerHoles: [] }, historyLabel: "Rotate selection" });
   const pending = ui.bin().pendingPocketClearance!;
-  expect(pending.cutoutIds).toEqual(["a", "b", "hole"]);
+  expect(pending.cutoutIds).toEqual(["a", "hole"]);
+  expect(ui.bin().cutouts[1].tilt).toEqual(linked.tilt);
   const before = getCommittedBinDoc(ui.bin());
   ui.dispatch({ type: "APPLY_POCKET_CLEARANCE", checkpoint: pending.checkpoint, edits: {
     cutouts: [{ ...ui.bin().cutouts[0], insertionMode: "vertical", insertionAxis: "x" }], fingerHoles: [] } });

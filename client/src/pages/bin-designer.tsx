@@ -4,6 +4,7 @@ import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
+import { ObjectGroupControls } from "@/components/gridfinity/object-group-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { ToastAction } from "@/components/ui/toast";
@@ -554,6 +555,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [cutoutReports, cutouts, layout.shapes, toast]);
 
   const handleAutoArrange = useCallback(() => {
+    if (cutouts.some(c => c.placementGroup)) return;
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result = autoArrangeLayout(
       cutouts,
@@ -1294,14 +1296,14 @@ function BinDesignerWorkspace(): JSX.Element {
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
             onRevealIssue={revealIssue}
-            onAutoArrange={cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
+            onAutoArrange={!cutouts.some(c => c.placementGroup) && cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
             fixedBinSize={fixedBinSize}
           />
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
               showPocketOutlines={!section || !hideInspectionPocketOutline}
-              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, groupControls: <ObjectGroupControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onPreviewObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel, transient: true }),

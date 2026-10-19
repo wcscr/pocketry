@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Group pockets and holes to move and rotate around one stable group center, with independent duplication, ungrouping, and saved history. Geometry links now share dimensions while each copy keeps its own position and rotation.
+
 - Prevent a flat ledge where tilted pockets exit the top surface. Keep pocket color below the rounded entry in previews and multi-color exports.
 
 - Offer Auto-arrange beside oversized-bin warnings, explaining layout changes and preserving fixed sizes; fix arranging arbitrary-sized bins with multiple retained grid cells.

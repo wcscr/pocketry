@@ -96,9 +96,6 @@ it.each(["UNDO", "REDO", "HYDRATE", "SET_EDITING_CAPABILITY"] as const)("invalid
 
 it.each([
   (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { scaleX: 2 } }),
-  (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { elevationMm: 12 } }),
-  (s: BinStore): BinAction => ({ type: "UPDATE_OBJECTS", edits: { cutouts: s.cutouts.map(c => ({ ...c, elevationMm: 12 })), fingerHoles: [], linkedElevation: "offset" }, historyLabel: "Move linked heights" }),
-  (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { tilt: { xDeg: 20, yDeg: 0 } }, transient: true }),
   (s: BinStore): BinAction => ({ type: "UPDATE_OBJECTS", edits: { cutouts: [{ ...s.cutouts[0], depth: { mode: "mm", value: 12 } }], fingerHoles: [] }, historyLabel: "Batch" }),
   (s: BinStore): BinAction => ({ type: "UPDATE_FINGER_HOLE", id: "f", patch: { diameterMm: 6 } }),
   (s: BinStore): BinAction => ({ type: "PATCH_SPEC", patch: { heightUnits: 1 } }),
@@ -114,6 +111,17 @@ it.each([
   expect(ui.bin().cutouts).toEqual(doc.cutouts); expect(ui.bin().fingerHoles).toEqual(doc.fingerHoles); expect(ui.bin().spec).toEqual(doc.spec);
   expect(ui.bin().history).toBe(history); expect(ui.bin().editError).toContain("Enable experimental tools");
   expect(ui.preferences().enabled).toBe(false);
+});
+
+it.each([
+  (s: BinStore): BinAction => ({ type: "UPDATE_CUTOUT", id: "a", patch: { elevationMm: 12 } }),
+  (s: BinStore): BinAction => ({ type: "UPDATE_OBJECTS", edits: { cutouts: [{ ...s.cutouts[0], elevationMm: 12, tilt: { xDeg: 20, yDeg: 0 } }], fingerHoles: [], placementOnly: true }, historyLabel: "Move copy" }),
+])("permits independent elevation and rotation without enabling shared geometry edits %#", command => {
+  const ui = mount(); linkedFixture(ui); const copy = ui.bin().cutouts[1];
+  ui.dispatch(command(ui.bin()));
+  expect(ui.bin().editError).toBeNull();
+  expect(ui.bin().cutouts[0].elevationMm).toBe(12);
+  expect(ui.bin().cutouts[1]).toEqual(copy);
 });
 
 it("permits placement, names, independent copies, deletion and history without enabling experiments", () => {
