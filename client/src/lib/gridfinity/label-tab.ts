@@ -6,11 +6,10 @@ import {
   binHeightMm,
   D_WALL,
   R_F2,
-  TAB_HEIGHT_MM,
-  TAB_PROFILE,
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { labelTabProfileMm } from "@shared/gridfinity/label-tab";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
 import { roundedRectPolygon } from "./profiles";
@@ -55,6 +54,8 @@ export function buildLabelTab(
 ): Manifold | null {
   const tab = spec.labelTab;
   if (!tab) return null;
+  const profileMm = labelTabProfileMm(spec);
+  if (!profileMm) return null;
 
   const { CrossSection, arena } = kernel;
   const edge = tab.edge ?? edgeForWall(spec, tab.wall);
@@ -66,7 +67,7 @@ export function buildLabelTab(
   // Profile in the (x = depth, y = height) plane, depth negated so the tab
   // grows inward (−y after mapping) from the wall face; negation also turns
   // the upstream point order CCW.
-  const profile = TAB_PROFILE.map(([depth, height]) => [-depth, height] as [number, number]);
+  const profile = profileMm.points.map(([depth, height]) => [-depth, height] as [number, number]);
   const section = arena.track(new CrossSection([profile]));
 
   const lengthMm =
@@ -85,7 +86,7 @@ export function buildLabelTab(
         ? chordMm / 2 - lengthMm
         : -lengthMm / 2;
   const local = arena.track(
-    prism.translate([startX, 0, binHeightMm(spec.heightUnits) - TAB_HEIGHT_MM]),
+    prism.translate([startX, 0, binHeightMm(spec.heightUnits) - profileMm.heightMm]),
   );
   const rotation = WALL_ROTATION_DEG[edge.side];
   const rotated =

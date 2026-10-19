@@ -25,6 +25,32 @@ beforeAll(async () => { arena = new Arena(); kernel = createKernel(await loadMan
 afterAll(() => arena.dispose());
 
 describe("tilted pockets", () => {
+  it("keeps a matching tilted pocket inside a body slanted along X", () => {
+    const slantedSpec = parseBinSpec({ ...spec, wallSlant: { axis: "x", angleDeg: 45 } });
+    const placed = { ...pocket, position: { x: 65, y: 0 } };
+    const built = buildBinWithCutouts(kernel, slantedSpec,
+      { shapesById: shapes, cutouts: [placed], fingerHoles: [] }, EXPORT_QUALITY);
+    expect(built.solid.status()).toBe("NoError");
+    expect(built.parts.base.boundingBox().max[0]).toBeCloseTo(83.75, 5);
+    expect(built.parts.wall!.boundingBox().max[0]).toBeCloseTo(118.75, 5);
+    expect(built.validationIssues.filter(issue => issue.severity === "error")).toEqual([]);
+    expect(validateLayout(slantedSpec, [placed], shapes).filter(issue => issue.severity === "error")).toEqual([]);
+    expect(built.solid.volume()).toBeLessThan(buildBinWithCutouts(kernel, slantedSpec, null, EXPORT_QUALITY).solid.volume());
+  });
+  it("blocks a tilted pocket that intersects the slanted wall", () => {
+    const slantedSpec = parseBinSpec({ ...spec, wallSlant: { axis: "x", angleDeg: 45 } });
+    const placed = { ...pocket, position: { x: 115, y: 0 } };
+    const built = buildBinWithCutouts(kernel, slantedSpec,
+      { shapesById: shapes, cutouts: [placed], fingerHoles: [] }, EXPORT_QUALITY);
+    expect(built.validationIssues.some(issue => issue.code === "tilted-pocket-wall" && issue.severity === "error")).toBe(true);
+  });
+  it("blocks a pocket entirely outside the slanted body", () => {
+    const slantedSpec = parseBinSpec({ ...spec, wallSlant: { axis: "x", angleDeg: 45 } });
+    const placed = { ...pocket, position: { x: 250, y: 0 } };
+    const built = buildBinWithCutouts(kernel, slantedSpec,
+      { shapesById: shapes, cutouts: [placed], fingerHoles: [] }, EXPORT_QUALITY);
+    expect(built.validationIssues.some(issue => issue.code === "slanted-pocket-outside" && issue.severity === "error")).toBe(true);
+  });
   it("keeps the actual tilted seat solid stationary after a fill-height edit", () => {
     const next = { ...spec, fillHeightPercent: 75 };
     const adjusted = adjustPocketsForFillHeight([pocket], spec, next).cutouts!;

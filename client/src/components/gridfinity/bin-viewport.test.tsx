@@ -56,6 +56,8 @@ function renderViewport(
   floorColorLabel: "Pocket floor" | "Bin floor" = "Pocket floor",
   textGeometries: BinViewportProps["textGeometries"] = [],
   recovery: Pick<BinViewportProps, "error" | "onPositionText" | "onRetryPreview"> = { error: null },
+  stackingRimGeometry: BufferGeometry | null = null,
+  pocketFloorGeometry: BufferGeometry | null = null,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -65,6 +67,8 @@ function renderViewport(
     root.render(
       <BinViewport
         geometry={null}
+        stackingRimGeometry={stackingRimGeometry}
+        pocketFloorGeometry={pocketFloorGeometry}
         textGeometries={textGeometries}
         textColor="#ff6600"
         pocketEditor={pocketEditor}
@@ -91,6 +95,25 @@ function renderViewport(
   });
   return container;
 }
+
+it("renders material colors ahead of their shared preview surface", () => {
+  const band = new BufferGeometry();
+  const floor = new BufferGeometry();
+  renderViewport(false, 1, true, true, [], vi.fn(), false, undefined,
+    "Pocket floor", [], { error: null }, band, floor);
+  for (const geometry of [band, floor]) {
+    const mesh = React.Children.toArray(canvasFailure.children).find(child =>
+      React.isValidElement(child) && child.type === "mesh" && child.props.geometry === geometry,
+    ) as React.ReactElement<{ children: React.ReactNode }> | undefined;
+    expect(mesh).toBeDefined();
+    const material = React.Children.only(mesh!.props.children) as React.ReactElement<{
+      polygonOffset: boolean; polygonOffsetFactor: number; polygonOffsetUnits: number;
+    }>;
+    expect(material.props).toMatchObject({
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+    });
+  }
+});
 
 it("delays transient busy UI and uses a stage label without restarting percentages", () => {
   vi.useFakeTimers();

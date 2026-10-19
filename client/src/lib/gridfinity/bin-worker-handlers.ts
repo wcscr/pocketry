@@ -202,7 +202,12 @@ export function createBinWorkerHandlers(
       );
       const materialMeshes = displayedMaterialParts
         ? {
-            body: extractPart(displayedMaterialParts.body),
+            // Preview the complete body under the color volumes. Separately
+            // triangulated CSG partitions can leave subpixel cracks at the
+            // slanted tab/border seam while orbiting. Export still receives
+            // the disjoint printable body.
+            body: extractPart(payload.exportTopology
+              ? displayedMaterialParts.body : displayedPart(binSolid)),
             ...(displayedMaterialParts.pocketFloors &&
             !displayedMaterialParts.pocketFloors.isEmpty()
               ? {

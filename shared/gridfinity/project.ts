@@ -83,9 +83,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 43 combines ULTIM8 settings with independent holes and insertion axes.
  * Version 44 adds pocket color coverage and floor axes (also saved by an earlier
  * version-40 preview branch); both optional-field variants migrate unchanged.
+ * Version 45 preserves optional one-axis slanted bin walls.
  */
 
-export const PROJECT_SCHEMA_VERSION = 44 as const;
+export const PROJECT_SCHEMA_VERSION = 45 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -366,7 +367,7 @@ function parseProjectInput(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

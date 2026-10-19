@@ -73,6 +73,13 @@ const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
 
 const CLOSED_OR_FREEMIUM_TOOLS: readonly RelatedProject[] = [
   {
+    name: "Form Fit Print",
+    description:
+      "Create Gridfinity bins, boxes, trays, and stands around uploaded 3D models with pockets designed for straight lift-out.",
+    badge: "Hosted generator",
+    url: "https://formfitprint.com/",
+  },
+  {
     name: "Perplexing Labs Gridfinity Generator",
     description:
       "A hosted interface for configuring bins, baseplates, lids, labels, and other models from several Gridfinity projects.",
@@ -301,6 +308,18 @@ export default function About(): JSX.Element {
               <p>
                 Major bundled or adapted projects include OpenCV/OpenCV.js,
                 manifold-3d, Gridfinity Rebuilt OpenSCAD, and shadcn/ui.
+              </p>
+              <p>
+                Slanted bin walls were inspired by the{" "}
+                <a
+                  href="https://github.com/cdslug/slanted-gridfinity"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  slanted-gridfinity project
+                </a>
+                .
               </p>
               <p>
                 The shipped NOTICE identifies their licenses and provenance and

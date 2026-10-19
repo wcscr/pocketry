@@ -6,9 +6,13 @@ import {
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { strFromU8, unzipSync } from "fflate";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
+import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
+import { writeThreeMf } from "@/lib/mesh/threemf";
+import { writeBinarySTL } from "@/lib/export/stl-writer";
 
 import { baseCellSolid } from "./base";
 import {
@@ -74,6 +78,30 @@ function wallRingAreaMm2(widthMm: number, lengthMm: number): number {
 }
 
 describe("buildWallRing", () => {
+  it("leans the body along one axis while leaving the Gridfinity base fixed", () => {
+    const upright = buildBin(kernel, spec({ lip: "none", fill: "solid" }), QUALITY);
+    const slanted = buildBin(kernel, spec({ lip: "none", fill: "solid",
+      wallSlant: { axis: "x", angleDeg: 45 } }), QUALITY);
+    expect(slanted.solid.status()).toBe("NoError");
+    expect(slanted.parts.base.boundingBox()).toEqual(upright.parts.base.boundingBox());
+    expect(slanted.parts.wall!.boundingBox().min[2]).toBeCloseTo(BASE_HEIGHT, 8);
+    expect(slanted.parts.wall!.boundingBox().max[0] - upright.parts.wall!.boundingBox().max[0]).toBeCloseTo(35, 6);
+    expect(slanted.parts.wall!.boundingBox().max[1]).toBeCloseTo(upright.parts.wall!.boundingBox().max[1], 8);
+    expect(slanted.parts.wall!.volume()).toBeCloseTo(upright.parts.wall!.volume(), 4);
+    expect(slanted.solid.volume()).toBeCloseTo(upright.solid.volume(), 3);
+  });
+
+  it("serializes the slanted solid to printable STL and 3MF meshes", () => {
+    const built = buildBin(kernel, spec({ lip: "none", wallSlant: { axis: "x", angleDeg: 45 } }), EXPORT_QUALITY);
+    const mesh = extractPrintableMeshData(kernel, built.solid);
+    const stl = writeBinarySTL(mesh);
+    expect(new DataView(stl).getUint32(80, true)).toBe(mesh.indices.length / 3);
+    const xml = strFromU8(unzipSync(writeThreeMf([{ name: "Slanted bin", mesh }]))["3D/3dmodel.model"]);
+    const exportedX = [...xml.matchAll(/<vertex x="([^"]+)"/g)].map((match) => Number(match[1]));
+    expect(Math.max(...exportedX)).toBeGreaterThan(built.parts.base.boundingBox().max[0] + 34);
+    expect(xml).toContain('<model unit="millimeter"');
+  });
+
   it("volume is exactly annulus area × wall height", () => {
     const ring = buildWallRing(kernel, spec(), SEGMENTS)!;
     expect(ring).not.toBeNull();

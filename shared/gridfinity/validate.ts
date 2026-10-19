@@ -44,14 +44,14 @@ import {
   gridPitchMm,
   STACKING_LIP_DEPTH,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
-  TAB_DEPTH_MM,
   TAB_HEIGHT_MM,
   TAB_WIDTH_NOMINAL_MM,
-  binFootprintMm,
 } from "./standard";
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
+import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
+import { labelTabProfileMm } from "./label-tab";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -151,6 +151,15 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
       message: "This footprint has no room for ULTIM8 pegs. Enlarge it or choose another bottom." });
   }
 
+  if (spec.wallSlant) {
+    if (spec.lip === "standard") issues.push({ code: "slanted-wall-lip", severity: "error",
+      message: "Slanted walls need a flush rim; turn off the stacking lip." });
+    if (spec.surfaceTexts.length) issues.push({ code: "slanted-wall-surface-text", severity: "error",
+      message: "Remove surface text before slanting the bin body." });
+    if (wallHeight <= 0) issues.push({ code: "slanted-wall-height", severity: "error",
+      message: "Increase bin height above 1u to slant its walls." });
+  }
+
   if (spec.lip === "standard" && wallHeight < STACKING_LIP_SUPPORT_HEIGHT_MM) {
     issues.push({
       code: "lip-support-clipped",
@@ -179,14 +188,19 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     ["x", spec.gridX],
     ["y", spec.gridY],
   ] as const) {
-    const span = axis === "x" ? binWidthMm(spec) : binLengthMm(spec);
+    const topOffset = wallSlantTopOffsetMm(spec);
+    const span = (axis === "x" ? binWidthMm(spec) : binLengthMm(spec)) + Math.abs(topOffset[axis]);
     const pitchMm = gridPitchMm(spec.gridPitch);
     if (span > FOOTPRINT_WARN_MM) {
       issues.push({
         code: "large-footprint",
         severity: "warning",
         message:
-          spec.arbitrarySizeMm ? `${span.toFixed(1)} mm along ${axis} — check it fits the print bed.` : `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm (${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
+          spec.wallSlant
+            ? `${cells} ${spec.gridPitch}-pitch cells along ${axis} span ${span.toFixed(1)} mm including the slanted body — check it fits the print bed.`
+            : spec.arbitrarySizeMm
+              ? `${span.toFixed(1)} mm along ${axis} — check it fits the print bed.`
+              : `${cells} ${spec.gridPitch}-pitch cells along ${axis} is ${span.toFixed(1)} mm (${cells} × ${pitchMm} − gap) — check it fits the print bed.`,
       });
     }
   }
@@ -207,9 +221,10 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     issues.push({
       code: "label-tab-clipped",
       severity: "warning",
-      message:
-        `A ${heightLabel} bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
-        `label tab — the tab reaches down into the base and will look truncated.`,
+      message: spec.wallSlant
+        ? `A ${spec.heightUnits}u bin has too little wall for the full label tab; its depth is reduced to stay above the base.`
+        : `A ${heightLabel} bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
+          `label tab — the tab reaches down into the base and will look truncated.`,
     });
   }
 
@@ -232,6 +247,8 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
 export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const tab = spec.labelTab;
   if (!tab) return null;
+  const profile = labelTabProfileMm(spec);
+  if (!profile) return null;
 
   const edge = tab.edge ?? edgeForWall(spec, tab.wall);
   const run = resolveBoundaryRun(spec, edge);
@@ -257,8 +274,8 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const localCorners: Point[] = [
     { x: alongStart, y: 0 },
     { x: alongEnd, y: 0 },
-    { x: alongEnd, y: -TAB_DEPTH_MM },
-    { x: alongStart, y: -TAB_DEPTH_MM },
+    { x: alongEnd, y: -profile.depthMm },
+    { x: alongStart, y: -profile.depthMm },
   ];
   const angle = edge.side === "north" ? 0 : edge.side === "east" ? -90 : edge.side === "south" ? 180 : 90;
   const radians = angle * Math.PI / 180;
@@ -266,11 +283,17 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
     x: midpoint.x + point.x * Math.cos(radians) - point.y * Math.sin(radians),
     y: midpoint.y + point.x * Math.sin(radians) + point.y * Math.cos(radians),
   }));
+  // The tab is sheared together with the wall. Its footprint sweeps between
+  // the lower edge of the tab and the rim, so warn over that full XY extent.
+  const lowerOffset = wallSlantOffsetMm(spec, binHeightMm(spec.heightUnits) - profile.heightMm);
+  const topOffset = wallSlantTopOffsetMm(spec);
+  const sweptCorners = [lowerOffset, topOffset].flatMap(offset =>
+    corners.map(point => ({ x: point.x + offset.x, y: point.y + offset.y })));
   return {
-    minX: Math.min(...corners.map((point) => point.x)),
-    maxX: Math.max(...corners.map((point) => point.x)),
-    minY: Math.min(...corners.map((point) => point.y)),
-    maxY: Math.max(...corners.map((point) => point.y)),
+    minX: Math.min(...sweptCorners.map(point => point.x)),
+    maxX: Math.max(...sweptCorners.map(point => point.x)),
+    minY: Math.min(...sweptCorners.map(point => point.y)),
+    maxY: Math.max(...sweptCorners.map(point => point.y)),
   };
 }
 
@@ -326,6 +349,11 @@ export function validateLayout(
       message: "Cutouts need material to cut into — switch the bin to solid fill.",
     });
   }
+  if (spec.wallSlant && fingerHoles.length) issues.push({
+    code: "slanted-wall-finger-access", severity: "error",
+    message: "Separate finger access is not yet supported with slanted walls.",
+    fingerHoleIds: fingerHoles.map(hole => hole.id),
+  });
 
   const placed: PlacedCutout[] = [];
   for (const cutout of cutouts) {
@@ -390,7 +418,7 @@ export function validateLayout(
 
   for (const p of placed) {
     issues.push(...validateAgainstBin(spec, p));
-    if (p.cutout.role !== "hole" && hasPocketTilt(p.cutout)) {
+    if (p.cutout.role !== "hole" && hasPocketTilt(p.cutout) && !spec.wallSlant) {
       const occupied = pocketOccupiedOutline(p.shape, p.cutout, spec);
       const allowance = pocketLayoutAllowanceMm(p.cutout);
       if (occupied.some(s => s.outer.some(point => signedDistanceToInterior(point, spec) < allowance))) {
@@ -449,12 +477,12 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
   const halfW = binWidthMm(spec) / 2;
   const halfL = binLengthMm(spec) / 2;
   const outerBoundary = spec.footprint.kind === "custom" ? footprintOuterRingMm(spec) : null;
-  const outside = outerBoundary
+  const outside = !spec.wallSlant && (outerBoundary
     ? p.rings.some((ring) => !ringInsideBoundary(ring, outerBoundary))
     : p.bounds.minX < -halfW ||
       p.bounds.maxX > halfW ||
       p.bounds.minY < -halfL ||
-      p.bounds.maxY > halfL;
+      p.bounds.maxY > halfL);
   if (outside) {
     issues.push({
       code: "out-of-bounds",
@@ -485,7 +513,7 @@ function validateAgainstBin(spec: BinSpec, p: PlacedCutout): ValidationIssue[] {
     if (d < minDistFeature) minDistFeature = d;
   }
   const outlineAllowance = pocketLayoutAllowanceMm(cutout);
-  const wallMargin = Math.min(minDistOutline - outlineAllowance, minDistFeature);
+  const wallMargin = spec.wallSlant ? Infinity : Math.min(minDistOutline - outlineAllowance, minDistFeature);
 
   if (wallMargin < 0) {
     issues.push({
