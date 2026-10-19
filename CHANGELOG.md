@@ -5,6 +5,7 @@
 - Choose floor-only or entire-interior coloring per pocket, with an independent bin or object-axis reference. New pockets follow their insertion axis; saved projects retain existing coloring.
 - Prevent microscopic mesh seams from creating exaggerated folds in the shading of tilted pocket floors, without changing printable geometry.
 - Keep object-axis floor coloring off parallel faces and remaining-floor clipping surfaces; remove coincident color sheets that flicker while orbiting. Color-only edits now replace the complete preview once, preserving rounded edges throughout the update.
+- Allow tilted pockets to protrude above the bin. Vertical insertion validation now checks for collisions with actual bin material instead of requiring an opening under the entire object.
 
 - Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.
 - Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.

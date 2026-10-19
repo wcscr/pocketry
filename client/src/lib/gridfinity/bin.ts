@@ -2,6 +2,7 @@ import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validat
 import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
 import { validateRetainedMaterial } from "./validate-retained-material";
+import { validateInsertionPaths, type PocketInsertionPath } from "./validate-insertion-paths";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
 
@@ -232,6 +233,7 @@ export function buildBinWithCutouts(
   let floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
   let validationIssues: ValidationIssue[] = [];
+  let insertionPaths: PocketInsertionPath[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
     const builtCutouts = buildCutoutCutters(
       kernel,
@@ -250,6 +252,7 @@ export function buildBinWithCutouts(
     floorInserts = builtCutouts.floorInserts;
     floorRegions = builtCutouts.floorRegions ?? floorInserts;
     reports = builtCutouts.reports;
+    insertionPaths = builtCutouts.insertionPaths ?? [];
     const allCutters = [
       ...builtCutouts.cutters,
       ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
@@ -342,6 +345,8 @@ export function buildBinWithCutouts(
   const bodySolid = solid;
   const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
   if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
+  if (layout) validationIssues.push(...validateInsertionPaths(kernel, solid, insertionPaths, layout.cutouts, layout.shapesById,
+    textParts.map(part => part.solid)));
   return { parts: base.parts, solid, bodySolid, textParts, materialParts, cutoutReports: reports, validationIssues };
 }
 

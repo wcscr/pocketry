@@ -243,13 +243,19 @@ it.each([
     .toBe(parts.reduce((sum,part)=>sum+part.mesh.indices.length/3,0));
 });
 
-it.each(["axis","vertical"] as const)("exports a floor-clipped %s pocket with closed material parts and retained source depth", async insertionMode => {
+it.each(["axis","vertical"] as const)("exports closed %s material parts after resolving any floor interference", async insertionMode => {
   const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"floor-limit")!;
   const p=parseCutoutPlacement({...cutout,elevationMm:3,tilt:{xDeg:20,yDeg:25},rotationDeg:17,
     depth:{mode:"remaining",floorThicknessMm:9,sourceDepthMm:16},insertionMode,topFilletMm:2,bottomFilletMm:1});
-  const result=(await getHandler()({spec:{gridX:3,gridY:3,heightUnits:5,fill:"solid",lip:"none"},
+  const request: BuildBinRequest = {spec:{gridX:3,gridY:3,heightUnits:5,fill:"solid",lip:"none"},
     quality:EXPORT_QUALITY,exportTopology:true,pocketFloorMaterialThicknessMm:0.6,
-    layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context())).value;
+    layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}};
+  if (insertionMode === "vertical") {
+    await expect(getHandler()(request,context())).rejects.toThrow("Bin material blocks the vertical insertion path");
+    // Keep the authored thickness; raise the object clear of its floor limit.
+    request.layout!.cutouts = [{...p,elevationMm:9}];
+  }
+  const result=(await getHandler()(request,context())).value;
   expect(result.validationIssues).toEqual([]);
   const whole=printableMeshVolume(result.mesh);
   const parts=Object.values(result.materialMeshes!);
@@ -258,12 +264,14 @@ it.each(["axis","vertical"] as const)("exports a floor-clipped %s pocket with cl
   expect(p.depth).toEqual({mode:"remaining",floorThicknessMm:9,sourceDepthMm:16});
 });
 
-it("blocks a vertical export when the tilted floor prevents a full opening", async () => {
+it("exports a rounded vertical pocket whose tilted seat reaches above the surface", async () => {
   const {shape,cutout}=createBasicPocket("rectangle",{x:-10,y:-12},{x:10,y:12},"high-seat")!;
   const p=parseCutoutPlacement({...cutout,elevationMm:12,tilt:{xDeg:20,yDeg:25},depth:{mode:"mm",value:16},insertionMode:"vertical"});
-  await expect(getHandler()({spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none"},
+  const result=(await getHandler()({spec:{gridX:3,gridY:3,heightUnits:3,fill:"solid",lip:"none"},
     quality:EXPORT_QUALITY,exportTopology:true,layout:{shapes:[shape],cutouts:[p],fingerHoles:[]}},context()))
-    .rejects.toThrow("preventing a full vertical opening");
+    .value;
+  expect(result.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  expect(nonManifoldEdgeCount(result.mesh)).toBe(0);
 });
 
 it.each(["standard", "none"] as const)("exports thick hollow walls with floor and rim colors, %s lip", async lip => {
@@ -1154,6 +1162,26 @@ it("exports a Z-translated upright pocket and rejects its floor below the bin", 
   expect(built.value.mesh.indices.length).toBeGreaterThan(0);
   expect(nonManifoldEdgeCount(built.value.mesh)).toBe(0);
   await expect(handler({ ...request, layout: { ...request.layout!, cutouts: [{ ...cutout, zOffsetMm: -20 }] } }, context())).rejects.toThrow(/deeper than the bin/);
+});
+
+it("exports a protruding tilted pocket but blocks a real vertical insertion collision", async () => {
+  const basic = createBasicPocket("rectangle", { x: -10, y: -12 }, { x: 10, y: 12 }, "protruding")!;
+  const cutout = parseCutoutPlacement({ ...basic.cutout, elevationMm: 12, tilt: { xDeg: 20, yDeg: 25 },
+    insertionMode: "vertical", depth: { mode: "mm", value: 16 }, topFilletMm: 0, bottomFilletMm: 0, cornerRoundMm: 0 });
+  const request: BuildBinRequest = { spec: { gridX: 3, gridY: 3, heightUnits: 3, fill: "solid", lip: "none" },
+    quality: EXPORT_QUALITY, exportTopology: true,
+    layout: { shapes: [basic.shape], cutouts: [cutout], fingerHoles: [] } };
+  const handler = getHandler();
+  const exported = (await handler(request, context())).value;
+  expect(exported.validationIssues?.filter(issue => issue.severity === "error")).toEqual([]);
+  expect(nonManifoldEdgeCount(exported.mesh)).toBe(0);
+  const model = strFromU8(unzipSync(writeThreeMf([{ name: "Bin", mesh: exported.mesh }]))["3D/3dmodel.model"]);
+  expect(model.match(/<triangle /g)?.length).toBe(exported.mesh.indices.length / 3);
+  const blocked = { ...request, layout: { ...request.layout!, cutouts: [{ ...cutout,
+    depth: { mode: "remaining" as const, floorThicknessMm: 14, sourceDepthMm: 16 } }] } };
+  const preview = (await handler({ ...blocked, exportTopology: false }, context())).value;
+  expect(preview.validationIssues).toContainEqual(expect.objectContaining({ code: "pocket-insertion-collision", cutoutIds: [cutout.id] }));
+  await expect(handler(blocked, context())).rejects.toThrow("Bin material blocks the vertical insertion path");
 });
 
 it("keeps editable hole roles in the worker and exports closed STL and material 3MF meshes", async () => {

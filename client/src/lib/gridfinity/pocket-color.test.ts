@@ -89,9 +89,9 @@ it.each([PREVIEW_QUALITY,EXPORT_QUALITY])("shades the reported tilted floor with
   const shapes = fixture.shapes.map(s=>tracedShapeSchema.parse(s));
   const cutouts = fixture.cutouts.map(c=>parseCutoutPlacement(c));
   const built = buildBinWithCutouts(k,parseBinSpec(fixture.spec),{shapesById:new Map(shapes.map(s=>[s.id,s])),cutouts,fingerHoles:[]},quality,{floorInsertThicknessMm:.6,rimInsertThicknessMm:1.25});
-  // This source design really exceeds its bin height. Shading repair must
-  // not hide that independently actionable geometric validation error.
-  expect(built.validationIssues.some(i=>i.code==="vertical-seat-above-surface")).toBe(true);
+  // The tilted object intentionally protrudes above the bin; that does not
+  // obstruct its insertion or require a taller bin for export.
+  expect(built.validationIssues.filter(i=>i.severity==="error")).toEqual([]);
   const mesh = extractMeshData(k,built.materialParts!.pocketFloors!,{normals:true});
   const theta = cutouts[0].tilt!.xDeg*Math.PI/180, n = [0,-Math.sin(theta),Math.cos(theta)], p = mesh.positions;
   const planes = new Map<number,{area:number;offsets:number[];ids:number[]}>();

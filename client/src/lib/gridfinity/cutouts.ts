@@ -8,6 +8,7 @@ import { pocketInsertionAxis, pocketInsertionError } from "@shared/gridfinity/po
 import { rotateObjectVector } from "@shared/gridfinity/object-pose";
 import { buildObjectCavity } from "./object-cavity";
 import { directionalInsertionCutter } from "./insertion-sweep";
+import type { PocketInsertionPath } from "./validate-insertion-paths";
 import { clipExtrusionBands, planarInsertionCutter } from "./planar-insertion-sweep";
 
 import {
@@ -140,6 +141,8 @@ export interface CutoutCutters {
   cutterGroups?: { id: string; cutters: Manifold[] }[];
   /** Original retained volumes, for checking the connectivity of the finished bin. */
   retainedGroups?: { id: string; volumes: Manifold[] }[];
+  /** Continuous vertical insertion paths before floor limits or retained masks. */
+  insertionPaths?: PocketInsertionPath[];
 }
 
 export interface CutoutBuildOptions {
@@ -806,13 +809,24 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     }
     cutter = buildObjectCavity(kernel, insertionSource, pose, Infinity, anchor);
   }
-  const validationIssues: ValidationIssue[] = [];
+  const insertionVolumes: Manifold[] = [];
+  const excludedFromInsertion: Manifold[] = [];
   const clearAndLimit = (posed: Manifold, depth: DepthSpec): Manifold => {
     let result = posed;
     if (cutout.insertionMode === "vertical") {
       if (!result.isEmpty()) {
         const ceiling = Math.max(realTop, result.boundingBox().max[2], Number.isFinite(top) ? top : realTop) + 1;
         result = directionalInsertionCutter(kernel, result, ceiling, pocketInsertionAxis(cutout));
+        // Keep the already-built path for collision validation against the
+        // finished bin. Geometry above the bin intersects no material.
+        if (!padding) {
+          insertionVolumes.push(result);
+          // The sweep's Float32 facets can sit slightly below a floor
+          // they merely touch. Avoid constructing degenerate contact slivers.
+          if (depth.mode === "remaining" && depth.floorThicknessMm > result.boundingBox().min[2] + 0.0001) {
+            excludedFromInsertion.push(arena.track(result.trimByPlane([0,0,-1], -depth.floorThicknessMm)));
+          }
+        }
       }
     }
     // Apply the floor constraint to the generated cavity, never the source.
@@ -859,13 +873,6 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
       cutter = arena.track(cutter.add(arena.track(flare.translate([0, 0, realTop - radius]))));
     }
   }
-  if (cutter && projectedSource && !cutter.isEmpty() && cutter.boundingBox().min[2] < realTop) {
-    const mouth = arena.track(cutter.slice(realTop-1e-7));
-    if (arena.track(projectedSource.subtract(mouth)).area() > 0.01) {
-      validationIssues.push({code:"vertical-seat-above-surface",severity:"error",cutoutIds:[cutout.id],
-        message:`“${pocketName(cutout,shape)}”: The tilted floor reaches the bin surface, preventing a full vertical opening. Increase the bin height, lower the pocket, or reduce its tilt.`});
-    }
-  }
   const floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   const distance = Math.min(options.floorInsertThicknessMm ?? 0, Math.max(0, seatedCutter?.boundingBox().min[2] ?? pose.elevationMm));
   if (cutter && seatedCutter && distance > 0 && (cutout.insertionMode || depthSpecs.some(d => d.mode !== "mm"))) {
@@ -894,7 +901,9 @@ export function buildRigidPocket(kernel: Kernel, shape: TracedShape, cutout: Cut
     if (region) floorRegions.push(region);
   }
   return { cutters: cutter ? [cutter] : [], floorInserts, floorRegions,
-    validationIssues, reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
+    validationIssues: [], insertionPaths: insertionVolumes.length
+      ? [{ id: cutout.id, volumes: insertionVolumes, excluded: excludedFromInsertion }] : [],
+    reports: [{ id: cutout.id, emptied: source.isEmpty() }] };
 }
 
 /** Build holes as independent volumes, then protect them from every pocket cutter.
@@ -947,6 +956,9 @@ export function buildCutoutCutters(kernel: Kernel, shapesById: ReadonlyMap<strin
   return { cutters: pockets.flatMap(g => g.built.cutters), floorInserts: pockets.flatMap(g => g.built.floorInserts),
     floorRegions: pockets.flatMap(g => g.built.floorRegions), reports: groups.flatMap(g => g.built.reports),
     validationIssues: groups.flatMap(g => g.built.validationIssues ?? []),
+    insertionPaths: pockets.flatMap(g => (g.built.insertionPaths ?? []).map(path => ({ ...path,
+      excluded: [...path.excluded, ...(mask ? path.volumes.map(volume => kernel.arena.track(volume.intersect(mask))) : [])],
+    }))),
     cutterGroups: pockets.map(g => ({ id: g.id, cutters: g.built.cutters })),
     retainedGroups: groups.filter(g => g.role === "hole").map(g => ({ id: g.id, volumes: g.built.cutters })) };
 }
