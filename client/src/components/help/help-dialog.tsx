@@ -63,12 +63,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               to correct points. <strong>Margin</strong> adds optional clearance.
               In <strong>Detected Contours</strong>, choose <strong>Pocket</strong> to cut
               material or <strong>Hole</strong> to keep material inside a pocket.
-              When the outline looks right, choose <strong>Add to bin</strong>{" "}
+              When the outline looks right, choose <strong>Add to Bin</strong>{" "}
               to place it immediately. Objects traced together keep their relative positions, including overlaps.
               Holes remain separate objects in Bin: select one to move, resize, edit its contour, or remove it.
               New pockets default to <strong>To bin floor</strong>.{" "}
               Adjust the depth in Bin as needed before printable export.
-              To trace another photo, return to <strong>Trace</strong> and choose <strong>Start over</strong>; pockets already added to Bin stay in the project.
+              Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. <strong>Start Over</strong> clears the trace after confirmation; pockets already added to Bin stay in the project.
             </p>
           </li>
           <li className="pl-1">
@@ -158,7 +158,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <strong>On a phone:</strong> switch between Trace, Bin, and Library
             using the workspace menu at the top. In Bin, use <strong>Workflow</strong>{" "}
             to find a section, <strong>Adjust</strong> for quick changes, or
-            <strong> All properties</strong> for the full editor. Move and Rotate
+            <strong> All properties</strong> for the full editor. Use <strong>Back to Canvas</strong> at the top to return. Move and Rotate
             keep the canvas clear; <strong>Adjust</strong> opens their exact values
             below or beside it. <strong>Done</strong> hides those values while
             keeping the tool active. Redo, navigation, and history are under
@@ -170,7 +170,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             available by default.
           </p>
           <p>
-            <strong>Optional tools:</strong> adjustable empty-bin walls and linked
+            Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. The regular controls remain available.
+          </p>
+          <p>
+            <strong>Optional tools:</strong> ULTIM8 jig pegs, adjustable empty-bin walls, and linked
             designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.
             Opening a project keeps your preference; existing experimental

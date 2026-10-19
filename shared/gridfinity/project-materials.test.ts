@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_BIN_MATERIALS } from "./materials";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc } from "./project";
 import { parseBinSpec } from "./types";
+import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 
 const design = {
   schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -19,6 +20,37 @@ describe("saved project materials", () => {
       spec: design.spec, cutouts: [], fingerHoles: [],
     } }] } };
     expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(doc))))).toEqual(doc);
+  });
+
+  it.each([36, 39, 41, 42])("preserves colors and ULTIM8 sizing/history from version %i", version => {
+    const spec = parseBinSpec({ ...design.spec,
+      arbitrarySizeMm: version === 39 ? { width: 167.5, length: 31 } : null,
+      pegBottom: version === 39 ? { ...DEFAULT_PEG_BOTTOM, underside: "flat", density: "corners" } : null,
+    });
+    const doc = { ...design, spec, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#123456" },
+      history: { index: 0, stack: [{ label: "Opened", doc: { spec, cutouts: [], fingerHoles: [] } }] },
+    };
+    const legacy = { ...doc, schemaVersion: version };
+    const before = JSON.stringify(legacy);
+    const opened = parseProjectDoc(legacy);
+    expect(opened).toEqual(doc);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(opened!))))).toEqual(doc);
+    expect(JSON.stringify(legacy)).toBe(before);
+  });
+
+  it("round-trips compound appearance history and validates its undo and redo values", () => {
+    const before = { ...DEFAULT_BIN_MATERIALS, stackingRimColor: "#123456" };
+    const after = { ...before, colorStackingRim: false };
+    const doc = { ...design, materials: after, history: { index: 1, stack: [
+      { label: "Opened", doc: { spec: design.spec, cutouts: [], fingerHoles: [] } },
+      { label: "Jig preset", doc: { spec: design.spec, cutouts: [], fingerHoles: [] }, materialChange: { before, after } },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(doc))))).toEqual(doc);
+    for (const side of ["before", "after"] as const) {
+      const invalid = structuredClone(doc);
+      invalid.history.stack[1].materialChange![side].stackingRimColor = "red";
+      expect(parseProjectDoc(invalid)).toBeNull();
+    }
   });
 
   it.each([1, 7, 16, 25, 31, 35])("opens version %i without colors or mutation", version => {

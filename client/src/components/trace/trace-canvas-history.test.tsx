@@ -1048,7 +1048,9 @@ describe("desktop point focus", () => {
       pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
       const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
       React.act(() => svg.dispatchEvent(menu));
-      expect(menu.defaultPrevented).toBe(false);
+      expect(menu.defaultPrevented).toBe(true);
+      expect(document.querySelector('[role="menu"]')?.textContent).toContain("Properties");
+      React.act(() => document.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       pointer("pointerdown", 200, 200); pointer("pointerup", 200, 200);
       expect(trace!.selection).toBeNull();
       pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
@@ -1106,6 +1108,8 @@ describe("desktop point focus", () => {
       expect(trace!.outline[0].outer).toHaveLength(6);
       expect(remove()).toBeDefined();
       React.act(() => svg.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 10 })));
+      expect(trace!.outline[0].outer).toHaveLength(6);
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Remove contour node")!.click());
       expect(trace!.outline[0].outer).toHaveLength(5);
       pointer('pointerdown', 10, 10); pointer('pointermove', 25, 25); pointer('pointerup', 25, 25);
       expect(trace!.outline[0].outer[0]).toEqual({ x: 25, y: 25 });

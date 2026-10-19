@@ -1,3 +1,5 @@
+import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { Circle, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -7,9 +9,8 @@ import { OUTER_RING, type RingRef } from "@shared/geometry/types";
 
 import { HelpHint } from "@/components/ui/help-hint";
 import { Button } from "@/components/ui/button";
-import { iterateRings, removeRing, sameRingRef } from "@/lib/geometry/outline";
-import { traceRingKey } from "@/lib/geometry/ring-key";
-import { getRing } from "@/lib/geometry/outline";
+import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
+import { removeTraceRing, traceRingKey } from "@/lib/geometry/ring-key";
 import { changeContourRole } from "@/lib/geometry/contour-role";
 import { withKernel } from "@/lib/manifold/runtime";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,12 @@ import { useTrace } from "@/state/trace-store";
  * it doubles as the readout that tells the user a hole was actually found.
  */
 export function RingList(): JSX.Element {
+  const menu = useContourContextMenu();
+  return menu ? <RingListContent /> : <ContourMenuProvider><RingListContent /></ContourMenuProvider>;
+}
+
+function RingListContent(): JSX.Element {
+  const openMenu = useContourContextMenu();
   const { outline, selection, calibration, region, processing, sourceRevision, dispatch } = useTrace();
   const [changingRole, setChangingRole] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
@@ -92,8 +99,7 @@ export function RingList(): JSX.Element {
   const remove = (ref: RingRef) => {
     dispatch({
       type: "OUTLINE_COMMITTED",
-      outline: ref.ringIndex === OUTER_RING ? removeRing(outline, ref) : outline.map(part => ({ ...part,
-        holes: part.holes.filter(hole => traceRingKey(hole) !== traceRingKey(getRing(outline, ref)!)) })),
+      outline: removeTraceRing(outline, ref),
       label: ref.ringIndex === OUTER_RING ? "Remove tool shape" : "Remove interior hole",
     });
     dispatch({ type: "SELECT_RING", selection: null });
@@ -129,7 +135,7 @@ export function RingList(): JSX.Element {
         const canDelete = isOuter ? shellCount > 1 : true;
 
         return (
-          <li key={`${ref.shapeIndex}:${ref.ringIndex}`}>
+          <li key={`${ref.shapeIndex}:${ref.ringIndex}`} onContextMenu={event => { if (!usesNativeEditingMenu(event.target) && openMenu?.(ref, contextMenuPoint(event))) event.preventDefault(); }}>
             <div
               className={cn(
                 "flex items-center gap-2 rounded px-2 py-1 text-xs",

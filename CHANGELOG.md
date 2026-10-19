@@ -7,10 +7,25 @@
 - Keep object-axis floor coloring off parallel faces and remaining-floor clipping surfaces; remove coincident color sheets that flicker while orbiting. Color-only edits now replace the complete preview once, preserving rounded edges throughout the update.
 - Allow tilted pockets to protrude above the bin. Vertical insertion validation now checks for collisions with actual bin material instead of requiring an opening under the entire object.
 
+- Undo and redo restore colors changed by jig setup. Arbitrary sizes show their fixed dimensions clearly, explain arrangement overflow, and display readable millimetre values without rounding saved geometry.
+
+- Right-click pockets, finger access, surface text, and traced contours for applicable object actions. Menus preserve multi-selection, keep linking optional, and make contour-node removal explicit. Rename dialogs and history distinguish retained-material holes from pockets.
+
+- Fix linking insertion paths to ordinary pockets so projects reopen correctly. Keep optional linking controls collapsed, show shared-edit scope for existing links, and allow Link management from one linked copy.
+
+- Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
+- ULTIM8 mode exports a 1:1 jig layout SVG with the bin outline, actual pocket openings, finger access, and retained peg locations for alignment to a calibrated mat template.
+
+- Trace workflow puts Add to Bin and Export Tool Outline together in step 6, with SVG/DXF/STL choices in the download dialog and a separate Start Over step. Compact and mobile panels have a prominent Back to Canvas button.
+
+- Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and ULTIM8 pegs; the grid selector marks Arbitrary as non-Gridfinity. Bin size shows dimensions above grid options.
+- Added Experimental ULTIM8 jig peg bottoms with adjustable fit, sloped/bridged roots, and flat backing (the default, exported pegs up). Flat backing defaults to corner-only pegs and supports denser spacing; through openings omit overlapping pegs.
+- Grouped peg settings with floating help hints. Switching to ULTIM8 offers to remove the stacking lip, set Solid fill to 100%, switch rectangular bins to Arbitrary sizing, and use one color. The setup dialog offers body thickness, prefilled from the current height, with depth-conflict checks.
+- Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
+- Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
 - Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.
 - Fix distorted tilted cutouts and striped floor colors for complex traces, and speed up full-detail exports along the pocket axis.
 
-- Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
 - Preserve the relative positions of outlines sent from Trace to Bin, including overlaps. Choose Pocket or Hole to cut or keep material; holes remain independent, editable objects in Bin and saved projects.
 - Preserve separate pockets and shared holes through Trace margin/detail edits; list each shared hole once. Match hole selection to the visible drawing order and clarify hole offset, kept depth, and linked-copy behavior.
 - Block printable export of floating caps or detached material created by hole objects; hole depths no longer change finger-access defaults.

@@ -1,6 +1,7 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
-import { DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
+import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
@@ -59,7 +60,7 @@ import {
   exportFilePart,
   prepareProjectExport,
 } from "@/lib/project/export";
-import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
+import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import {
@@ -183,10 +184,10 @@ function BinDesignerWorkspace(): JSX.Element {
   const [exporting, setExporting] = useState(false);
   const [section, setSection] = useState<BuildBinSection | null>(null);
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
-  const [materials, setMaterials] = useState<BinMaterials>(DEFAULT_BIN_MATERIALS);
+  const { materials } = bin;
   const { binColor, pocketFloorColor, stackingRimColor, colorPocketFloors,
     colorStackingRim, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
-  const patchMaterials = (patch: Partial<BinMaterials>) => setMaterials(current => ({ ...current, ...patch }));
+  const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
@@ -197,6 +198,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
+  const fixedBinSize = keepBinSize || !!spec.arbitrarySizeMm;
   const [restoredDestination, setRestoredDestination] = useState<string | null>(null);
 
   // One validation result drives both the canvas feedback and export gates,
@@ -274,10 +276,10 @@ function BinDesignerWorkspace(): JSX.Element {
       if (doc) {
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
-        setMaterials(doc.materials ?? DEFAULT_BIN_MATERIALS);
         library.mergeShapes(doc.shapes);
         dispatch({
           type: "HYDRATE",
+          materials: doc.materials,
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
@@ -386,7 +388,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
-      cutouts.length === 0 && !keepBinSize
+      cutouts.length === 0 && !fixedBinSize
         ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch, library.pendingPlacements)
         : autoPlaceIncremental(newShapes, {
             spec,
@@ -395,13 +397,13 @@ function BinDesignerWorkspace(): JSX.Element {
             gridX: spec.gridX,
             gridY: spec.gridY,
             existing: cutouts,
-            keepBinSize,
+            keepBinSize: fixedBinSize,
             shapesById,
             placements: library.pendingPlacements,
           });
 
-    const gridX = keepBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
-    const gridY = keepBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
+    const gridX = fixedBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
+    const gridY = fixedBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
     dispatch({
       type: "ADD_PLACED",
       cutouts: result.cutouts.map(cutout => {
@@ -418,7 +420,7 @@ function BinDesignerWorkspace(): JSX.Element {
       gridY,
       // Automatic placement chooses the smallest rectangular Gridfinity bin.
       // Irregular footprints require the explicit footprint editor.
-      footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
+      footprint: fixedBinSize ? spec.footprint : { kind: "rectangle" },
     });
     if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
     if (spec.fill !== "solid") {
@@ -428,7 +430,7 @@ function BinDesignerWorkspace(): JSX.Element {
       toast({
         title: "Tool does not fit",
         description:
-          keepBinSize ? "The bin size is fixed. Move the highlighted tools, reduce their size, or enlarge the bin." : "Even the largest bin cannot hold this layout — check the trace's scale.",
+          fixedBinSize ? "The bin size is fixed. Move the highlighted tools, reduce their size, or enlarge the bin." : "Even the largest bin cannot hold this layout — check the trace's scale.",
         variant: "destructive",
       });
     }
@@ -525,8 +527,9 @@ function BinDesignerWorkspace(): JSX.Element {
       widthMm: builtDimensions.widthMm,
       lengthMm: builtDimensions.lengthMm,
       heightMm: builtDimensions.totalHeightMm,
+      bottomZMm: -pegBottomExtensionMm(builtSpec ?? committedSpec),
     };
-  }, [builtDimensions]);
+  }, [builtDimensions, builtSpec, committedSpec]);
 
   // Surface collapsed cutouts once per occurrence, not once per rebuild.
   const emptiedSeenRef = useRef<Set<string>>(new Set());
@@ -554,8 +557,8 @@ function BinDesignerWorkspace(): JSX.Element {
       spec.lip,
       spec.gridPitch,
       fingerHoles,
-      undefined,
-      keepBinSize ? spec : undefined,
+      spec,
+      fixedBinSize ? spec : undefined,
     );
     if (!result) return;
     dispatch({
@@ -565,29 +568,34 @@ function BinDesignerWorkspace(): JSX.Element {
       gridY: result.gridY,
       // Rearranging tools must not silently convert the bin into an irregular
       // footprint. That remains an explicit Layout editing operation.
-      footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
+      footprint: fixedBinSize ? spec.footprint : { kind: "rectangle" },
       historyLabel: "Auto-arrange tool pockets",
     });
     if (result.overflow) {
       toast({
         title: "Does not fit",
-        description: keepBinSize ? "The bin size is fixed. Adjust the highlighted pockets or increase the bin size." : "Even the largest bin cannot hold this arrangement.",
+        description: fixedBinSize ? "The bin size is fixed. Adjust the highlighted pockets or increase the bin size." : "Even the largest bin cannot hold this arrangement.",
         variant: "destructive",
       });
     }
-  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, keepBinSize, spec]);
+  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, fixedBinSize, spec]);
 
   const handleExportLayout = useCallback(
     async (format: "dxf" | "svg", includeProject: boolean) => {
-      const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
-      const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
-      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
-      const model = format === "dxf"
-        ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
-        : new Blob([await generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
-      downloadModelWithProject(model, format, project, includeProject);
+      try {
+        const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
+        const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
+        const jig = format === "svg" && Boolean(spec.pegBottom);
+        const project = prepareProjectExport(exportProjectDoc, currentProjectName, jig ? "ultim8-jig-layout" : "layout");
+        const model = format === "dxf"
+          ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+          : new Blob([await (jig ? generateUltim8JigSVG : generateLayoutSVG)(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+        downloadModelWithProject(model, format, project, includeProject);
+      } catch (error) {
+        toast({ title: "Layout export failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      }
     },
-    [exportProjectDoc, currentProjectName],
+    [exportProjectDoc, currentProjectName, toast],
   );
 
   const handleExportProject = useCallback(() => {
@@ -669,11 +677,11 @@ function BinDesignerWorkspace(): JSX.Element {
         setSaveError(null);
         setDraftName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
-        setMaterials(doc.materials ?? DEFAULT_BIN_MATERIALS);
         library.replaceShapes(doc.shapes, true);
         setRestoredDestination(projectDestinationKey(doc, opened.library.activeProjectId));
         dispatch({
           type: "HYDRATE",
+          materials: doc.materials,
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
@@ -720,11 +728,11 @@ function BinDesignerWorkspace(): JSX.Element {
       setSaveError(null);
       setDraftName(null);
       setKeepBinSize(false);
-      setMaterials(DEFAULT_BIN_MATERIALS);
       library.replaceShapes([], true);
       setRestoredDestination(projectDestinationKey(doc, saved.activeProjectId));
       dispatch({
         type: "HYDRATE",
+        materials: doc.materials,
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
@@ -833,11 +841,11 @@ function BinDesignerWorkspace(): JSX.Element {
       setSaveError(null);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
-      setMaterials(opened.doc.materials ?? DEFAULT_BIN_MATERIALS);
       library.replaceShapes(opened.doc.shapes, true);
       setRestoredDestination(projectDestinationKey(opened.doc, opened.library.activeProjectId));
       dispatch({
         type: "HYDRATE",
+        materials: opened.doc.materials,
         spec: opened.doc.spec,
         cutouts: opened.doc.cutouts,
         fingerHoles: opened.doc.fingerHoles,
@@ -1182,6 +1190,11 @@ function BinDesignerWorkspace(): JSX.Element {
 
   return (
     <BinEditingWorkspace
+      onObjectProperties={kind => {
+        if (!inspectorPrototype || isMobile) setSettingsSectionRequest({ id: (kind === "pocket" || kind === "hole") ? "bin-settings-pockets" : kind === "finger" ? "bin-settings-finger-holes" : "bin-settings-text" });
+        setPanelOpen(true);
+        setPocketEditorRequest(request => request + 1);
+      }}
       enabled={inspectorPrototype}
       inspectorRequest={pocketEditorRequest}
       controlsRequest={settingsSectionRequest}

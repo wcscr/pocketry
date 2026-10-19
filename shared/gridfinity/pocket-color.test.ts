@@ -42,6 +42,23 @@ it("migrates version 39 without changing color coverage or geometry", () => {
     expect(c.colorCoverage).toBeUndefined(); expect(c.colorFloorAxis).toBeUndefined();
   }
 });
+it.each([
+  { version: 40, colored: true, jig: false },
+  { version: 43, colored: false, jig: true },
+  { version: PROJECT_SCHEMA_VERSION, colored: true, jig: true },
+])("preserves colors and jig settings from project version $version", ({version,colored,jig}) => {
+  const cutout = colored ? {...p,colorCoverage:"interior" as const,colorFloorAxis:"y" as const} : p;
+  const original = project(cutout);
+  const savedSpec = parseBinSpec({...spec,...(jig ? {pegBottom:{diameterMm:4.8,lengthMm:4}} : {})});
+  original.spec = savedSpec;
+  original.history.stack[0].doc.spec = savedSpec;
+  original.transformOrigins.pockets[0].spec = savedSpec;
+  const stored = {...original,schemaVersion:version}, before = JSON.stringify(stored);
+  const opened = parseProjectDoc(stored)!;
+  expect(opened).toEqual(original);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(opened))))).toEqual(opened);
+  expect(JSON.stringify(stored)).toBe(before);
+});
 it.each([{colorCoverage:"all"},{colorFloorAxis:"world-x"}])("rejects invalid color data in every snapshot: %j", bad => {
   const doc = project();
   expect(parseProjectDoc({...doc,cutouts:[{...p,...bad}]})).toBeNull();

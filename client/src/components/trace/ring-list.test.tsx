@@ -82,6 +82,25 @@ it("distinguishes a missing region, active detection, and an empty result", () =
   expect(host.textContent).toContain("Set a detection region around the tool");
 });
 
+it("offers retained-hole actions without changing geometry until a command is chosen, with undo", () => {
+  const outer = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+  const hole = [{ x: 30, y: 30 }, { x: 30, y: 60 }, { x: 60, y: 60 }, { x: 60, y: 30 }];
+  React.act(() => {
+    trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "frame" });
+    trace.dispatch({ type: "DETECTED", outline: [{ outer, holes: [hole] }], rawOutline: [{ outer, holes: [hole] }], svg: "", imageUrl: "photo", region: null });
+  });
+  const outline = trace.outline, history = trace.history;
+  React.act(() => host.querySelectorAll('li')[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 30, clientY: 30 })));
+  expect(trace.outline).toBe(outline); expect(trace.history).toBe(history);
+  const menu = document.querySelector('[role="menu"]')!;
+  expect(menu.textContent).toContain('Hole 1 of shape 1');
+  expect(menu.textContent).toContain('Edit contour');
+  expect(menu.textContent).not.toContain('Link');
+  React.act(() => [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === 'Remove hole')!.click());
+  expect(trace.outline[0].holes).toHaveLength(0);
+  React.act(() => trace.undo()); expect(trace.outline).toEqual(outline);
+});
+
 it("shows a shared hole once and selects/deletes all references as one object", () => {
   const hole = square(30, 20).reverse();
   const outline: Outline = [
@@ -105,4 +124,19 @@ it("shows a shared hole once and selects/deletes all references as one object", 
   React.act(() => trace.undo());
   expect(host.querySelectorAll("li")).toHaveLength(3);
   expect(trace.outline.every(part => part.holes.length === 1)).toBe(true);
+});
+
+it("removes a shared hole from every pocket through its context menu, with undo and redo", () => {
+  const hole = square(30, 20).reverse();
+  const outline: Outline = [{ outer: square(0, 100), holes: [hole] },
+    { outer: square(20, 100), holes: [[...hole.slice(1), hole[0]]] }];
+  React.act(() => {
+    trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "test" });
+    trace.dispatch({ type: "DETECTED", outline, rawOutline: outline, svg: "", imageUrl: "photo", region: null });
+  });
+  React.act(() => host.querySelectorAll('li')[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 30, clientY: 30 })));
+  React.act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === 'Remove hole')!.click());
+  expect(trace.outline.every(part => part.holes.length === 0)).toBe(true);
+  React.act(() => trace.undo()); expect(trace.outline).toEqual(outline);
+  React.act(() => trace.redo()); expect(trace.outline.every(part => part.holes.length === 0)).toBe(true);
 });

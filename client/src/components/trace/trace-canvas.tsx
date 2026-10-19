@@ -1,3 +1,6 @@
+import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
+import { pointInRing } from "@shared/geometry/rings";
 import {
   Crop,
   Ellipsis,
@@ -47,7 +50,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
-import { getRing, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
+import { getRing, iterateRings, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
@@ -85,6 +88,8 @@ export interface TraceCanvasProps {
  * working area.
  */
 export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
+  const menu = useContourContextMenu();
+  if (!menu) return <ContourMenuProvider><TraceCanvas {...props} /></ContourMenuProvider>;
   return (
     <CanvasViewport>
       {/*
@@ -100,6 +105,7 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
 }
 
 function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: TraceCanvasProps): JSX.Element {
+  const openContourMenu = useContourContextMenu();
   const store = useTrace();
   const isMobile = useIsMobile();
   const sceneId = useId();
@@ -752,28 +758,15 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
-    // Select and the other tools keep the browser's context menu.
-    if (mode !== "edit") return;
-    if (mode === "edit") event.preventDefault();
-
+    if (usesNativeEditingMenu(event.target)) return;
+    if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
     const image = toImage(event.clientX, event.clientY);
     if (!image) return;
-
-    const vertex = nearestVertex(outline, image, pickRadius, selection);
-    if (!vertex) return;
-    event.preventDefault();
-
-    const ring = getRing(outline, vertex.ref);
-    // A ring needs three points to enclose anything.
-    if (!ring || ring.length <= 3) return;
-
-    const next = ring.filter((_, i) => i !== vertex.index);
-    desktopPoint.clear();
-    dispatch({
-      type: "OUTLINE_COMMITTED",
-      outline: setRing(outline, vertex.ref, next),
-      label: "Remove contour node",
-    });
+    const vertex = mode === "edit" ? nearestVertex(outline, image, pickRadius, selection) : null;
+    const contained = [...iterateRings(outline)].reverse().find(({ ring }) => pointInRing(ring, image));
+    const edge = nearestEdge(outline, image, pickRadius);
+    const ref = vertex?.ref ?? contained?.ref ?? edge?.ref;
+    if (ref && openContourMenu?.(ref, contextMenuPoint(event), vertex?.index)) event.preventDefault();
   };
 
   useCanvasShortcuts({
@@ -1021,7 +1014,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
                     ? "Click to start a new measurement"
                     : "Click the second measurement point"
                 : selection && (mode === "edit" || mode === "remove")
-                  ? "Drag points to move · Click an edge to add · Right-click removes · Esc cancels"
+                  ? "Drag points to move · Click an edge to add · Right-click for actions · Esc cancels"
                   : mode === "pan"
                     ? "Click a contour to select · Empty space clears selection · Shift-drag pans"
                     : "Shift-drag pans · Ctrl-scroll zooms"}

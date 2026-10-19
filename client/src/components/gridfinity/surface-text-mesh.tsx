@@ -3,9 +3,10 @@ import { DoubleSide, type BufferGeometry } from "three";
 import { surfaceTextName, type SurfaceText } from "@shared/gridfinity/surface-text";
 
 /** The whole label bounds select it, including counters and spaces between letters. */
-export function SurfaceTextMesh({ label, geometry, color, selected, onSelect }: {
+export function SurfaceTextMesh({ label, geometry, color, selected, onSelect, onContextMenu }: {
   label: SurfaceText; geometry: BufferGeometry; color: string; selected: boolean;
   onSelect?: (id: string) => void;
+  onContextMenu?: (id: string, point: { x: number; y: number }) => void;
 }): JSX.Element {
   if (!geometry.boundingBox) geometry.computeBoundingBox();
   const bounds = geometry.boundingBox;
@@ -14,7 +15,11 @@ export function SurfaceTextMesh({ label, geometry, color, selected, onSelect }: 
     event.stopPropagation();
     onSelect(label.id);
   };
-  return <group name={`Text: ${surfaceTextName(label)}`} onClick={select}>
+  return <group name={`Text: ${surfaceTextName(label)}`} onClick={select} onContextMenu={event => {
+    if (!onContextMenu || event.delta > 4) return;
+    event.stopPropagation(); event.nativeEvent.preventDefault();
+    onContextMenu(label.id, { x: event.clientX, y: event.clientY });
+  }}>
     <mesh geometry={geometry}>
       <meshStandardMaterial flatShading={!geometry.hasAttribute("normal")} color={color} roughness={0.55} metalness={0.02}
         emissive={selected ? "#0891b2" : "#000000"} emissiveIntensity={selected ? 0.35 : 0} />

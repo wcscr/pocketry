@@ -120,3 +120,32 @@ it.each(cases)("conserves geometry and material ownership for $family, variant=$
     arena.dispose();
   }
 }, 30_000);
+
+it("preserves native geometry and material ownership after pegs-up print orientation", async () => {
+  const arena = new Arena(), kernel = createKernel(wasm, arena), shape = shapeFor("rectangle");
+  const spec = parseBinSpec({ gridX: 4, gridY: 3, gridPitch: "quarter", arbitrarySizeMm: { width: 43.7, length: 31.4 },
+    heightUnits: 8.5 / 7, fill: "solid", lip: "none", pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
+  const cutout = parseCutoutPlacement({ id: "peg-floor", shapeId: shape.id, position: { x: 0, y: 0 },
+    depth: { mode: "mm", value: 4 }, cornerRoundMm: 1.5, topFilletMm: 1, bottomFilletMm: 0.6 });
+  const options = { floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 0.6, borderWidthMm: 1.2 };
+  try {
+    const native = buildBinWithCutouts(kernel, spec, { shapesById: new Map([[shape.id, shape]]), cutouts: [cutout], fingerHoles: [] }, EXPORT_QUALITY, options);
+    const orient = (part: typeof native.solid) => arena.track(arena.track(part.rotate([180, 0, 0])).translate([0, 0, native.solid.boundingBox().max[2]]));
+    const reference = extractMeshData(kernel, orient(native.solid));
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as unknown as BuildHandler;
+    const result = (await handler({ spec, quality: EXPORT_QUALITY, exportTopology: true,
+      layout: { shapes: [shape], cutouts: [cutout], fingerHoles: [] }, pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6, borderWidthMm: 1.2 },
+      { signal: new AbortController().signal, progress: () => {} })).value;
+    expectPrintableTopology(result.mesh, "pegs-up aggregate");
+    expectSameGeometry(reference, result.mesh, "pegs-up native geometry");
+    const parts = readSerializedParts(result);
+    expect(parts.pocketFloors).toBeDefined();expect(parts.stackingRim).toBeDefined();
+    for(const [name, mesh] of Object.entries(parts)) {
+      expectPrintableTopology(mesh, name);
+      const part = native.materialParts![name as "body" | "pocketFloors" | "stackingRim"]!;
+      expectSameGeometry(extractMeshData(kernel, orient(part)), mesh, `pegs-up ${name} ownership`, 0.001, 0.01);
+    }
+    expectPartitionOccupancy(reference, Object.values(parts));
+    expect(Math.abs(Object.values(parts).reduce((sum, part) => sum + signedMeshVolume(part), 0) - native.solid.volume())).toBeLessThan(0.05);
+  } finally { arena.dispose(); }
+}, 30_000);

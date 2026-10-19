@@ -83,13 +83,21 @@ afterEach(() => {
 });
 
 describe("trace workflow and properties", () => {
-  it.each([true, false])("offers a guarded Start over in the persistent workflow footer (workflow=%s)", async enabled => {
+  it.each([true, false])("offers a guarded Start Over as the final workflow action (workflow=%s)", async enabled => {
     await act(() => root.render(<TooltipProvider><ShapeLibraryProvider><TraceProvider><Harness enabled={enabled} /></TraceProvider></ShapeLibraryProvider></TooltipProvider>));
     expect(button("button-start-over").disabled).toBe(true);
     await finishTrace();
     expect(button("button-start-over").closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
     expect(button("button-start-over").closest('#trace-settings-source, #objects-panel')).toBeNull();
     expect(button("button-start-over").disabled).toBe(false);
+    expect(button("button-start-over").textContent).toBe("Start Over");
+    expect(button("button-start-over").getAttribute("data-property-tone")).toBe("rose");
+    expect(button("button-start-over").closest('[class*="shrink-0 border-t"]')).toBeNull();
+    if (enabled) {
+      const workflow = host.querySelector('[aria-label="Photo tracing workflow"]')!;
+      expect(workflow.children).toHaveLength(7);
+      expect(workflow.lastElementChild).toBe(button("button-start-over"));
+    }
     const before = { imageUrl: trace.imageUrl, outline: trace.outline, calibration: trace.calibration, region: trace.region, history: trace.history };
     const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === text)!;
     await act(() => button("button-start-over").click());
@@ -106,6 +114,22 @@ describe("trace workflow and properties", () => {
     expect(trace.history.stack).toHaveLength(1);
     expect(button("button-start-over").disabled).toBe(true);
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it("keeps output actions in step 6 and guards them while replacing the scale", async () => {
+    expect(button("button-add-to-bin").disabled).toBe(true);
+    expect(button("button-export-outline").disabled).toBe(true);
+    await finishTrace();
+    const actions = host.querySelector('[aria-label="6. Add or Export"]')!;
+    expect(actions.contains(button("button-add-to-bin"))).toBe(true);
+    expect(actions.contains(button("button-export-outline"))).toBe(true);
+    expect(button("button-add-to-bin").disabled).toBe(false);
+    expect(button("button-export-outline").disabled).toBe(false);
+    await act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(button("button-add-to-bin").disabled).toBe(true);
+    expect(button("button-export-outline").disabled).toBe(true);
+    await act(() => trace.dispatch({ type: "CANCEL_MANUAL_CALIBRATION" }));
+    expect(button("button-export-outline").disabled).toBe(false);
   });
 
   it("keeps simple steps left and one copy of the selected form right", async () => {
@@ -183,9 +207,12 @@ describe("trace workflow and properties", () => {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
       window.dispatchEvent(new Event("resize"));
     });
-    await act(() => button("trace-workflow-export-outline").click());
-    expect(host.querySelector("#objects-panel #format")).not.toBeNull();
-    await act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.includes("Save SVG"))!.click());
+    await act(() => button("button-export-outline").click());
+    const actions = host.querySelector('[aria-label="6. Add or Export"]')!;
+    expect(actions.querySelector('[data-testid="button-add-to-bin"]')?.textContent).toBe("Add to Bin");
+    expect(actions.querySelector('[data-testid="button-export-outline"]')?.textContent).toBe("Export Tool Outline");
+    expect(host.querySelectorAll('[data-testid="button-export-outline"]')).toHaveLength(1);
+    expect(host.querySelector("#objects-panel #format")).toBeNull();
     expect(exportTrace).toHaveBeenCalledOnce();
     expect(trace.outline).toBe(before);
     expect(canvasMounts).toBe(1);
@@ -313,7 +340,7 @@ describe("trace workflow and properties", () => {
     await act(() => trace.dispatch({ type: "SET_MARGIN", margin }));
     const completion = () => button("trace-workflow-margin").getAttribute("aria-label");
     expect(completion()).toBe("5. Margin");
-    await act(() => button("trace-workflow-export-outline").click());
+    await act(() => button("button-export-outline").click());
     expect(completion()).toBe("5. Margin");
     await act(() => button("trace-workflow-margin").click());
     expect(completion()).toBe("5. Margin (complete)");
@@ -334,8 +361,8 @@ describe("trace workflow and properties", () => {
     await finishTrace();
     await act(() => host.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(true);
-    await act(() => button("trace-workflow-export-outline").click());
+    await act(() => button("trace-workflow-margin").click());
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(false);
-    expect(host.querySelector("#objects-panel #format")).not.toBeNull();
+    expect(host.querySelector("#objects-panel #margin")).not.toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { ensureOrientation } from "@shared/geometry/rings";
+import { getRing, removeRing } from "./outline";
 import type { Outline, Ring, RingRef } from "@shared/geometry/types";
 
 /** A canonical cyclic ring key, independent of winding and starting vertex. */
@@ -36,4 +37,13 @@ export function mapTraceRings(outline: Outline, transform: (ring: Ring, role: "p
       return transformed;
     }),
   }));
+}
+
+/** A shared hole is one contour even when multiple pockets retain references. */
+export function removeTraceRing(outline: Outline, ref: RingRef): Outline {
+  if (ref.ringIndex < 0) return removeRing(outline, ref);
+  const ring = getRing(outline, ref);
+  if (!ring) return outline;
+  const key = traceRingKey(ring);
+  return outline.map(part => ({ ...part, holes: part.holes.filter(hole => traceRingKey(hole) !== key) }));
 }

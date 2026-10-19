@@ -1,3 +1,9 @@
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { PointerContextMenu } from "@/components/ui/pointer-context-menu";
+import { pickBinContextTarget } from "@/lib/gridfinity/context-target";
+import { useBinObjectContextMenu, type BinContextTarget } from "./object-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionToolButtons } from "./selection-tool-buttons";
 import { SurfaceTextLayer } from "./surface-text-layer";
@@ -48,7 +54,6 @@ import {
   type TracedShape,
 } from "@shared/gridfinity/cutout";
 import {
-  binFootprintMm,
   gridPitchMm,
 } from "@shared/gridfinity/standard";
 import { maxGridCells } from "@shared/gridfinity/types";
@@ -259,6 +264,8 @@ export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor,
 }
 
 function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+  const openObjectMenu = useBinObjectContextMenu();
+  const [nodeMenu, setNodeMenu] = useState<{ point: { x: number; y: number }; handle: NonNullable<ReturnType<typeof contourHandle>>; shapeId: string } | null>(null);
   const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -296,8 +303,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   const [modeRequest, setModeRequest] = useState(0);
   const [objectPivot, setObjectPivot] = useState<RotationPivot>("individual");
   const [objectSnap, setObjectSnap] = useState(false);
-  const widthMm = binFootprintMm(spec.gridX, spec.gridPitch);
-  const lengthMm = binFootprintMm(spec.gridY, spec.gridPitch);
+  const widthMm = binWidthMm(spec);
+  const lengthMm = binLengthMm(spec);
   const footprintEditorPaddingMm = editorMode === "footprint" ? pitchMm : 0;
 
   const containerSize = useCanvasViewportSize();
@@ -676,6 +683,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   /** Snap targets: bin centre, cell centres, cell boundaries. */
   const snapTargets = (cells: number): number[] => {
+    if (spec.arbitrarySizeMm) return [0];
     const targets = [0];
     for (let i = 0; i < cells; i++) {
       targets.push((i - (cells - 1) / 2) * pitchMm);
@@ -1348,11 +1356,24 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (usesNativeEditingMenu(event.target)) return;
+    if (editorMode === "placement" && !rulerActive && !panActive) {
+      const element = event.target as Element;
+      const text = element.closest("[data-surface-text-id]")?.getAttribute("data-surface-text-id");
+      const finger = element.closest("[data-feature-id]")?.getAttribute("data-feature-id");
+      const pocket = element.closest("[data-cutout-id]")?.getAttribute("data-cutout-id");
+      const point = toBin(event.clientX, event.clientY);
+      const hit = point ? pickBinContextTarget(arrangementObjects, point, profileOutlines) : null;
+      const target: BinContextTarget | null = text ? { kind: "text", id: text } : finger ? { kind: "finger", id: finger }
+        : hit ?? (pocket ? { kind: "pocket", id: pocket } : null);
+      if (target && openObjectMenu?.(target, contextMenuPoint(event))) event.preventDefault();
+      return;
+    }
     if (editorMode !== "contour" || !selected) return;
     const handle = contourHandle(event.target as Element);
     if (!handle || handle.cutoutId !== selected.cutout.id) return;
     event.preventDefault();
-    removeContourVertex(handle);
+    setNodeMenu({ point: contextMenuPoint(event), handle, shapeId: selected.shape.id });
   };
 
   // Keyboard: nudge, rotate (visually clockwise = model +deg on the flipped
@@ -1556,6 +1577,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   const gridLines = useMemo(() => {
     const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    if (spec.arbitrarySizeMm) return lines;
     for (let i = 0; i < spec.gridX - 1; i++) {
       const xBin = (i - (spec.gridX - 1) / 2) * pitchMm + pitchMm / 2;
       const x = xBin + widthMm / 2;
@@ -1567,7 +1589,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       lines.push({ x1: 0, y1: y, x2: widthMm, y2: y });
     }
     return lines;
-  }, [spec.gridX, spec.gridY, pitchMm, widthMm, lengthMm]);
+  }, [spec.gridX, spec.gridY, spec.arbitrarySizeMm, pitchMm, widthMm, lengthMm]);
 
   const outerFootprint = useMemo(() => footprintOuterRingMm(spec), [spec]);
   const interiorFootprint = useMemo(() => footprintInteriorRingMm(spec), [spec]);
@@ -1696,6 +1718,9 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
   return (
     <>
+      <PointerContextMenu point={editorMode === "contour" && selected?.cutout.id === nodeMenu?.handle.cutoutId && selected?.shape.id === nodeMenu?.shapeId ? nodeMenu?.point ?? null : null} title="Contour node" onClose={() => setNodeMenu(null)}>
+        <DropdownMenuItem disabled={!selected || (contourRing(selected.shape.outlineMm, nodeMenu?.handle.ref ?? { shapeIndex: 0, ringIndex: -1 })?.length ?? 0) <= 3} onSelect={() => { if (nodeMenu) removeContourVertex(nodeMenu.handle); setNodeMenu(null); }}>Remove contour node</DropdownMenuItem>
+      </PointerContextMenu>
       <svg
         ref={svgRef}
         className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
@@ -2225,7 +2250,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           ? `Choose ${inspector ? "Add" : "Add pocket"} to draw a shape`
           : editorMode === "split" ? `${selected?.cutout.role === "hole" ? "Split hole" : "Split pocket"} · draw a straight line between two outer edge points` : editorMode === "contour"
           ? selectedCutoutId
-            ? "Contour edit · drag points · click near an edge to add · right-click a point to remove · Esc finishes"
+            ? "Contour edit · drag points · click near an edge to add · right-click for actions · Esc finishes"
             : "Contour edit · tap an object to select it"
           : selectedFingerHoleId
             ? isMobile ? "Drag the finger access to move. Drag its white handle to resize." : "Finger access · drag moves · white handle resizes · arrows nudge · Del removes"

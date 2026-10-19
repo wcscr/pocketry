@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  Box,
   CheckCircle2,
   Crop,
   Download,
@@ -21,7 +20,6 @@ import {
 } from "@shared/geometry/scale";
 
 import {
-  PanelFooter,
   revealPanelSection,
   PanelSection,
   PanelSettingsIndex,
@@ -37,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LabelledSlider } from "./labelled-slider";
 import { TraceDetectionControls } from "./trace-detection-controls";
 import {
   Tooltip,
@@ -65,7 +62,7 @@ import { cn } from "@/lib/utils";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
 import { useShapeLibrary } from "@/state/shape-library";
-import { hasPendingManualCalibration, useTrace, type ExportFormat } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 
 import { CalibrationDownloads } from "./calibration-downloads";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
@@ -147,8 +144,6 @@ export function TraceControlsPanel({
     region,
     sensitivity,
     margin,
-    exportFormat,
-    extrusionHeight,
     processing,
   } = store;
   const { toast } = useToast();
@@ -489,7 +484,7 @@ export function TraceControlsPanel({
         testIdPrefix="trace"
         items={traceSettingsSections}
       />}
-      <TracePanelSections key={sectionEpoch}>
+      <TracePanelSections key={sectionEpoch} onStartOver={() => setRestartRevision(sourceRevision)}>
         <PanelSection
           key={hasImage ? "source-ready" : "source-empty"}
           id="trace-settings-source"
@@ -947,54 +942,34 @@ export function TraceControlsPanel({
 
         <PanelSection
           id="trace-settings-output"
-          title="Export Outline"
+          title="Add or Export"
           icon={Download}
           tone="emerald"
-          summary={exportFormat.toUpperCase()}
-          defaultOpen={false}
+          defaultOpen
           className="scroll-mt-16"
-          disabled={!hasOutline || reviewingScale}
         >
-          <div className="space-y-2">
-            <Label htmlFor="format" className="text-xs">
-              Export format
-            </Label>
-            <Select
-              value={exportFormat}
-              onValueChange={(value) =>
-                dispatch({
-                  type: "SET_EXPORT_FORMAT",
-                  exportFormat: value as ExportFormat,
-                })
-              }
-            >
-              <SelectTrigger id="format" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="svg">{scale.mmPerPx ? "SVG — vector outline" : "SVG — image pixels (unscaled)"}</SelectItem>
-                <SelectItem value="dxf" disabled={!scale.mmPerPx}>DXF — CAD / CAM</SelectItem>
-                <SelectItem value="stl" disabled={!scale.mmPerPx}>STL — 3D print</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-2 [&_button]:h-full [&_button]:min-h-12 [&_button]:whitespace-normal [&_button]:px-2 [&_button]:leading-tight">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block w-full">
+                  <Button className="w-full" onClick={handoff.addToBin} disabled={!handoff.ready} data-testid="button-add-to-bin">
+                    Add to Bin
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {(!hasOutline || !scale.mmPerPx) && <TooltipContent>
+                {hasOutline ? "Set a scale first — pockets need real-world millimetres." : "Trace an image first."}
+              </TooltipContent>}
+            </Tooltip>
+            <Button variant="outline" className="w-full" onClick={onExport}
+              disabled={!hasOutline || reviewingScale || processing} data-testid="button-export-outline">
+              Export Tool Outline
+            </Button>
           </div>
-
-          {/* Inline rather than hidden behind a popover: it changes the
-              exported part, so it should be visible when STL is chosen. */}
-          {exportFormat === "stl" && (
-            <LabelledSlider
-              id="extrusion"
-              label="Extrusion height"
-              value={extrusionHeight}
-              min={0.5}
-              max={50}
-              step={0.5}
-              format={(v) => `${v} mm`}
-              onChange={(v) =>
-                dispatch({ type: "SET_EXTRUSION_HEIGHT", extrusionHeight: v })
-              }
-            />
-          )}
+          <TraceHandoffOptions handoff={handoff} />
+          {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="w-full" onClick={() => navigate("/bin")}>
+            Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
+          </Button>}
         </PanelSection>
       </TracePanelSections>
 
@@ -1043,56 +1018,6 @@ export function TraceControlsPanel({
           setRestartRevision(null);
           onStartOver();
         }} />
-
-      <PanelFooter>
-        <div className="mb-2"><TraceHandoffOptions handoff={handoff} /></div>
-        {shapeLibrary.pendingIds.length > 0 && <Button variant="secondary" className="mb-2 w-full" onClick={() => navigate("/bin")}>
-          Arrange {shapeLibrary.pendingIds.length} queued tool{shapeLibrary.pendingIds.length === 1 ? "" : "s"}
-        </Button>}
-        <div className="grid grid-cols-2 gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:px-2 [&_button]:leading-tight">
-          {/* The trace → bin handoff. Disabled without a calibration: an
-              uncalibrated outline has no physical size, and letting it into
-              the bin is the design doc's most expensive footgun. The tooltip
-              rides a wrapper span because disabled buttons emit no events. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="block w-full">
-                <Button
-                  className="w-full"
-                  onClick={handoff.addToBin}
-                  disabled={!handoff.ready}
-                  data-testid="button-add-to-bin"
-                >
-                  <Box className="h-4 w-4" />
-                  Add to bin
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {(!hasOutline || !scale.mmPerPx) && (
-              <TooltipContent>
-                {hasOutline
-                  ? "Set a scale first — pockets need real-world millimetres."
-                  : "Trace an image first."}
-              </TooltipContent>
-            )}
-          </Tooltip>
-
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={onExport}
-            disabled={!hasOutline || reviewingScale || (!scale.mmPerPx && exportFormat !== "svg")}
-          >
-            <Download className="h-4 w-4" />
-            Save {exportFormat.toUpperCase()}{!scale.mmPerPx && exportFormat === "svg" ? " (pixels)" : ""}
-          </Button>
-        </div>
-        {hasOutline && !scale.mmPerPx && <p className="mt-2 text-xs text-muted-foreground">Set scale for STL or DXF. Choose SVG in Export Outline to save image pixels without a physical size.</p>}
-        <Button variant="ghost" size="sm" className="mt-2 w-full" disabled={!hasImage}
-          onClick={() => setRestartRevision(sourceRevision)} data-testid="button-start-over">
-          <RotateCcw className="h-4 w-4" />Start over
-        </Button>
-      </PanelFooter>
     </div>
   );
 }
