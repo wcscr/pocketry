@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prevent a flat ledge where tilted pockets exit the top surface. Keep pocket color below the rounded entry in previews and multi-color exports.
+
 - Offer Auto-arrange beside oversized-bin warnings, explaining layout changes and preserving fixed sizes; fix arranging arbitrary-sized bins with multiple retained grid cells.
 
 - Simplify App settings with a bulleted experimental-feature list and shorter explanations.

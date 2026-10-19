@@ -1,6 +1,7 @@
-import { arena, k, pocket, make, sample } from "./pocket-color.test-support";
+import { arena, k, spec, shape, pocket, make, sample } from "./pocket-color.test-support";
 import { expect, it } from "vitest";
-
+import { resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { buildBinWithCutouts, PREVIEW_QUALITY, EXPORT_QUALITY } from "./bin";
 import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { expectPrintableTopology } from "@/lib/mesh/mesh-contract.test-helpers";
 
@@ -60,4 +61,37 @@ it("keeps retained holes and through openings intact with interior lining", () =
   expect(sample(after.materialParts!.pocketFloors!,10.3,0,12)).toBeCloseTo(.001,6);
   expect(sample(after.materialParts!.pocketFloors!,0,0,12)).toBe(0);
   expect(sample(after.solid,5,0,1)).toBe(0);
+});
+
+it.each([
+  { name: "vertical floor", color: { colorFloorAxis: "insertion" as const } },
+  { name: "object floor", color: { colorFloorAxis: "z" as const } },
+  { name: "entire interior", color: { colorCoverage: "interior" as const } },
+])("keeps the rounded tilted entry bin-colored with $name coverage", ({color}) => {
+  const p = {...pocket, ...color, elevationMm:31, tilt:{xDeg:30,yDeg:0}, topFilletMm:1};
+  const top = resolvePocketDepth(spec,p.depth).infillTopZ;
+  for (const quality of [PREVIEW_QUALITY,EXPORT_QUALITY]) {
+    const layout = {shapesById:new Map([[shape.id,shape]]),cutouts:[p],fingerHoles:[]};
+    const built = buildBinWithCutouts(k,spec,layout,quality,{floorInsertThicknessMm:.6});
+    const plain = buildBinWithCutouts(k,spec,layout,quality);
+    const parts = built.materialParts!, colorPart = parts.pocketFloors!;
+    expect(colorPart.volume()).toBeGreaterThan(1);
+    expect(colorPart.boundingBox().max[2]).toBeCloseTo(top-1,5);
+    expect(arena.track(plain.solid.subtract(built.solid)).volume()).toBeLessThan(1e-6);
+    expect(arena.track(built.solid.subtract(plain.solid)).volume()).toBeLessThan(1e-6);
+    const joined = arena.track(parts.body.add(colorPart));
+    expect(arena.track(built.solid.subtract(joined)).volume()).toBeLessThan(.001);
+    expect(arena.track(joined.subtract(built.solid)).volume()).toBeLessThan(.001);
+    expect(arena.track(parts.body.intersect(colorPart)).volume()).toBeLessThan(.001);
+    for (const solid of [parts.body,colorPart]) expectPrintableTopology(extractPrintableMeshData(k,solid));
+  }
+});
+it.each([false,true])("starts interior color below clamped shallow rounding with a rigid pose=%s", rigid => {
+  // The 2 mm request is limited to half the 1 mm pocket depth.
+  const top = resolvePocketDepth(spec,pocket.depth).infillTopZ;
+  const p = {...pocket,elevationMm:rigid ? top-1 : undefined,
+    insertionMode:rigid ? pocket.insertionMode : undefined,depth:{mode:"mm" as const,value:1},
+    topFilletMm:2,colorCoverage:"interior" as const};
+  const built = make([p]);
+  expect(built.materialParts!.pocketFloors!.boundingBox().max[2]).toBeCloseTo(top-.5,5);
 });

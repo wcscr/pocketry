@@ -143,7 +143,9 @@ export function bottomFilletCutter(
 /**
  * Builds the outward flare that rounds a pocket wall into its top surface.
  * The returned cutter spans z=0..radiusMm; callers place its top at the
- * pocket's surface and union it with the ordinary pocket cutter.
+ * pocket's surface and union it with the ordinary pocket cutter. A moving
+ * section is sampled at each band's lower height so tilted cavities retain
+ * their actual boundary instead of projecting the surface opening downward.
  *
  * Each printed layer samples the circle at its top, so the surface reaches
  * the full requested radius while the approximation can over-cut by no more
@@ -151,7 +153,7 @@ export function bottomFilletCutter(
  */
 export function topEdgeFilletCutter(
   kernel: Kernel,
-  section: CrossSection,
+  section: CrossSection | ((heightMm: number) => CrossSection),
   options: FilletOptions,
 ): Manifold {
   const { Manifold, arena } = kernel;
@@ -180,9 +182,10 @@ export function topEdgeFilletCutter(
     const sliceHeight = top - bottom;
     const overlap = sliceHeight / 2;
     const outset = radiusMm * (1 - Math.cos(endAngle));
+    const boundary = typeof section === "function" ? section(bottom) : section;
     const expanded = arena.track(
       arena
-        .track(section.offset(outset, "Round", 2, circularSegments))
+        .track(boundary.offset(outset, "Round", 2, circularSegments))
         .simplify(CLEANUP_EPSILON),
     );
     if (expanded.isEmpty()) continue;
