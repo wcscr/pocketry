@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
-import { initialTraceState, type TraceState } from "@/state/trace-store";
+import { initialTraceState, traceReducer, type TraceState } from "@/state/trace-store";
 import { TraceHandoffOptions, useTraceHandoff } from "./trace-handoff";
 
 const mocks = vi.hoisted(() => ({ addShape: vi.fn(), navigate: vi.fn(), destination: null as import("@/state/project-activity").ProjectActivity | null }));
@@ -34,6 +34,18 @@ it("adds immediately with a readable unique name and depth to the bin floor", ()
   expect(mocks.addShape).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "Tool 2", sourceMmPerPx: 0.5 }), { mode: "to-floor" }, undefined);
   expect(mocks.navigate).toHaveBeenCalledWith("/bin");
   expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("hands off an added square as a separate pocket with its calibrated position", () => {
+  trace = traceReducer({ ...trace, imageUrl: "photo", imageSize: { width: 800, height: 600 } }, { type: "ADD_CONTOUR" });
+  render(); add();
+  const [original, added] = mocks.addShape.mock.calls;
+  expect(mocks.addShape).toHaveBeenCalledTimes(2);
+  expect(added[0].outlineMm[0].outer).toHaveLength(4);
+  expect(added[0].bboxMm).toEqual({ minX: -37.5, minY: -37.5, maxX: 37.5, maxY: 37.5 });
+  expect(added[3].batchId).toBe(original[3].batchId);
+  expect(added[3].center.x - original[3].center.x).toBe(185);
+  expect(added[3].center.y - original[3].center.y).toBe(-140);
 });
 
 it.each(["saved", "loading", "error"] as const)("shows the destination and respects its %s state", status => {

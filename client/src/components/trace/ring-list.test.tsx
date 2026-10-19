@@ -77,7 +77,7 @@ it("distinguishes a missing region, active detection, and an empty result", () =
   });
   expect(host.querySelector('[role="status"]')?.textContent).toBe("Looking for the tool’s outline…");
   React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: false }));
-  expect(host.querySelector('[role="status"]')?.textContent).toBe("No outline found. Increase Sensitivity or redraw the region around the whole tool.");
+  expect(host.querySelector('[role="status"]')?.textContent).toBe("No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
   React.act(() => trace.dispatch({ type: "SET_REGION", region: null }));
   expect(host.textContent).toContain("Set a detection region around the tool");
 });

@@ -1,4 +1,5 @@
 import { mmPerPixel } from "@shared/geometry/scale";
+import { doubleSignedArea } from "@shared/geometry/rings";
 import type { Outline } from "@shared/geometry/types";
 import { describe, expect, it } from "vitest";
 
@@ -32,6 +33,73 @@ const detected = (
   rawOutline: outline,
   svg: "<svg/>",
   region: null,
+});
+
+describe("manually added contours", () => {
+  const photo = () => run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" },
+    { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } },
+    { type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } },
+    { type: "SET_REGION", region: { x: 100, y: 200, width: 400, height: 200 } });
+
+  it("appends a selected square without changing existing contours, holes, or calibration", () => {
+    const outline = [{ ...ringA[0], holes: [ringB[0].outer] }, ...ringC];
+    const before = run(photo(), { type: "OUTLINE_COMMITTED", outline },
+      { type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: 0 } });
+    const added = run(before, { type: "ADD_CONTOUR" });
+    const square = added.outline[2];
+    expect(square).toEqual({ outer: [
+      { x: 275, y: 275 }, { x: 325, y: 275 }, { x: 325, y: 325 }, { x: 275, y: 325 },
+    ], holes: [] });
+    expect(doubleSignedArea(square.outer)).toBeGreaterThan(0);
+    expect(added.outline.slice(0, 2)).toEqual(outline);
+    expect(added.outline[0]).toBe(before.outline[0]);
+    expect(added.calibration).toBe(before.calibration);
+    expect(added.region).toBe(before.region);
+    expect(added.imageUrl).toBe(before.imageUrl);
+    expect(added.rawOutline).toBe(before.rawOutline);
+    expect(added.margin).toBe(before.margin);
+    expect(added.mode).toBe("edit");
+    expect(added.selection).toEqual({ shapeIndex: 2, ringIndex: -1 });
+    expect(added.history.index).toBe(before.history.index + 1);
+    expect(added.history.stack.at(-1)).toMatchObject({
+      label: "Add contour", hasManualEdits: true, refinementBase: added.outline,
+    });
+    expect(run(added, { type: "UNDO" }).outline).toEqual(before.outline);
+    expect(run(added, { type: "UNDO" }, { type: "REDO" }).outline).toEqual(added.outline);
+    const another = run(added, { type: "ADD_CONTOUR" });
+    expect(another.outline).toHaveLength(4);
+    expect(another.selection).toEqual({ shapeIndex: 3, ringIndex: -1 });
+    expect(run(added, { type: "UNDO" }, { type: "ADD_CONTOUR" }).history.stack).toHaveLength(added.history.stack.length);
+  });
+
+  it("starts after empty detection and keeps manual work undoable after redetection", () => {
+    const before = run(photo(), { ...detected([]), imageUrl: "photo" });
+    const added = run(before, { type: "ADD_CONTOUR" });
+    expect(added.outline[0].outer).toHaveLength(4);
+    expect(run(added, { type: "UNDO" }).outline).toEqual([]);
+    const redetected = run(added, { ...detected(ringA), imageUrl: "photo" });
+    expect(run(redetected, { type: "UNDO" }).outline).toEqual(added.outline);
+    expect(run(added, { ...detected(ringA), imageUrl: "photo", expectedOutline: before.outline })).toBe(added);
+  });
+
+  it("places the square within the visible corrected photo when the region lies outside it", () => {
+    const before: TraceState = { ...photo(), region: { x: 0, y: 0, width: 20, height: 20 },
+      perspectiveCorrection: { source: "template", paper: "a4",
+        paperBounds: { x: 300, y: 200, width: 200, height: 300 }, showFullPhoto: false } };
+    expect(run(before, { type: "ADD_CONTOUR" }).outline[0].outer).toEqual([
+      { x: 375, y: 325 }, { x: 425, y: 325 }, { x: 425, y: 375 }, { x: 375, y: 375 },
+    ]);
+  });
+
+  it("does not create geometry while the source or scale is unavailable or processing", () => {
+    for (const state of [initialTraceState, { ...photo(), imageSize: { width: 0, height: 0 } },
+      { ...photo(), processing: true }, { ...photo(), pendingAutoCalibration: photo().calibration },
+      { ...photo(), mode: "calibrate" as const }, { ...photo(), mode: "perspective" as const },
+      { ...photo(), draftCalibration: { startX: 1, startY: 2 } }]) {
+      expect(run(state, { type: "ADD_CONTOUR" })).toBe(state);
+    }
+  });
 });
 
 describe("aid calibration requiring perspective correction", () => {

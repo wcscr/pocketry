@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { Outline, Point, RingRef } from "@shared/geometry/types";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
-import { getRing, setRing } from "@/lib/geometry/outline";
+import { getRing, sameRingRef, setRing } from "@/lib/geometry/outline";
 import type { ViewportPointerHandlers } from "./use-viewport-transform";
 
 type SelectedPoint = { ref: RingRef; index: number; point: Point };
@@ -15,6 +15,8 @@ type Gesture = {
 export function useMobileContourEditor(options: {
   enabled: boolean;
   outline: Outline;
+  /** Break coincident hit ties in favour of the actively selected contour. */
+  preferredRing?: RingRef | null;
   /** Clear point selection when the source photo or selected pocket changes. */
   selectionKey?: string | number | null;
   toLocal: (point: Point) => Point | null;
@@ -60,8 +62,9 @@ export function useMobileContourEditor(options: {
     if (!selectedPoint || gesture.current) return;
     const current = getRing(options.outline, selectedPoint.ref)?.[selectedPoint.index];
     // Undo and re-detection must not leave Delete aimed at an unrelated point.
-    if (!current || current.x !== selectedPoint.point.x || current.y !== selectedPoint.point.y) setSelectedPoint(null);
-  }, [options.outline, selectedPoint]);
+    if (!current || current.x !== selectedPoint.point.x || current.y !== selectedPoint.point.y ||
+        (options.preferredRing && !sameRingRef(options.preferredRing, selectedPoint.ref))) setSelectedPoint(null);
+  }, [options.outline, options.preferredRing, selectedPoint]);
 
   const down = (event: PointerEvent<SVGSVGElement>): boolean => {
     if (!options.enabled || event.button !== 0 || event.shiftKey) return false;
@@ -77,8 +80,14 @@ export function useMobileContourEditor(options: {
     const displayed = options.outline.map(shape => ({
       outer: shape.outer.map(project), holes: shape.holes.map(ring => ring.map(project)),
     }));
-    const vertex = nearestVertex(displayed, screen, 18);
-    const edge = nearestEdge(displayed, screen, 14);
+    let vertex = nearestVertex(displayed, screen, 18);
+    let edge = nearestEdge(displayed, screen, 14);
+    if (options.preferredRing) {
+      const preferredVertex = nearestVertex(displayed, screen, 18, options.preferredRing);
+      const preferredEdge = nearestEdge(displayed, screen, 14, options.preferredRing);
+      if (preferredVertex && (!vertex || preferredVertex.distance <= vertex.distance)) vertex = preferredVertex;
+      if (preferredEdge && (!edge || preferredEdge.distance <= edge.distance)) edge = preferredEdge;
+    }
     const hit = vertex ?? edge;
     if (hit && local) {
       const ring = getRing(options.outline, hit.ref)!;

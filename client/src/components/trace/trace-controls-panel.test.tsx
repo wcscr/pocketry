@@ -226,6 +226,30 @@ async function click(testId: string): Promise<void> {
   });
 }
 
+it("adds a square from the Outline controls after empty detection and guards processing", async () => {
+  await click("load-source");
+  await click("detect-auto-scale");
+  React.act(() => trace.dispatch({ type: "ACCEPT_AUTO_CALIBRATION" }));
+  await click("commit-region");
+  const add = () => host.querySelector<HTMLButtonElement>('[data-testid="button-add-contour"]')!;
+  expect(add().disabled).toBe(false);
+  await click("button-add-contour");
+  expect(trace.outline).toHaveLength(1);
+  expect(trace.outline[0].outer).toHaveLength(4);
+  expect(trace.selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+  expect(trace.mode).toBe("edit");
+  expect(reprocess).not.toHaveBeenCalled();
+  const original = trace.outline[0];
+  await click("button-add-contour");
+  expect(trace.outline).toHaveLength(2);
+  expect(trace.outline[0]).toBe(original);
+  expect(trace.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+  React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: true }));
+  expect(add().disabled).toBe(true);
+  await click("button-add-contour");
+  expect(trace.outline).toHaveLength(2);
+});
+
 async function changeNumber(id: string, value: string): Promise<void> {
   await React.act(async () => {
     const input = host.querySelector<HTMLInputElement>(`#${id}`);
@@ -760,7 +784,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
-    expect(host.textContent).toContain("No outline found. Increase Sensitivity or redraw the region around the whole tool.");
+    expect(host.textContent).toContain("No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();

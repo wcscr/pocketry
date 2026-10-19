@@ -10,6 +10,7 @@ import {
   ScanLine,
   Settings2,
   Spline,
+  SquarePlus,
   Expand,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -878,6 +879,12 @@ export function TraceControlsPanel({
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
           <TraceDetectionControls onReprocess={onReprocess} />
+          <Button variant="outline" size="sm" className="w-full"
+            disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
+            onClick={() => { dispatch({ type: "ADD_CONTOUR" }); onCanvasInteraction(); }}
+            data-testid="button-add-contour">
+            <SquarePlus className="h-4 w-4" />Add contour
+          </Button>
           <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
             size="sm" className="w-full" disabled={!hasOutline || processing}
             aria-pressed={store.mode === "edit" || store.mode === "remove"}
@@ -888,9 +895,9 @@ export function TraceControlsPanel({
 
           <div className="space-y-1.5" data-testid="detection-contours">
             <div className="flex items-center gap-1">
-              <p className="text-xs font-semibold">Detected Contours</p>
+              <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Choose Edit Contour. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
+                Choose Add contour to start another trace with a four-point square, or Edit Contour to adjust an existing trace. Drag a point to move it; click an edge to add one. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>

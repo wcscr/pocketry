@@ -382,14 +382,14 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
       return true;
     }
 
+    const edge = nearestEdge(outline, image, pickRadius, selection);
     const other = nearestEdge(outline, image, pickRadius * 4);
-    if (other && !sameRingRef(other.ref, selection)) {
+    if (other && !sameRingRef(other.ref, selection) && (!edge || other.distance < edge.distance)) {
       desktopPoint.clear();
       dispatch({ type: "SELECT_RING", selection: other.ref });
       return true;
     }
 
-    const edge = nearestEdge(outline, image, pickRadius, selection);
     if (!edge) {
       desktopPoint.clear();
       dispatch({ type: "SELECT_RING", selection: null });
@@ -417,6 +417,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   };
   const mobileEditor = useMobileContourEditor({
     enabled: mobileEditing, outline,
+    preferredRing: selection,
     selectionKey: store.sourceRevision,
     toLocal: point => toImage(point.x, point.y),
     getScreenProjection: () => {
