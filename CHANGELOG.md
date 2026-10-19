@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Show the no-cutouts export warning only when Solid fill is enabled, with the actual fill height. Hollow bins can export without the misleading solid-bin warning.
 - Remove the Trace grouping checkbox. Adding to Bin and exporting an editable project always preserve each pocket and hole as a separate object at its photo-relative position, including nested and overlapping pockets.
 
 - Choose floor-only or entire-interior coloring per pocket, with an independent bin or object-axis reference. New pockets follow their insertion axis; saved projects retain existing coloring.

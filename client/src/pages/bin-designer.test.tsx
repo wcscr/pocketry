@@ -6711,6 +6711,39 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("warns about missing cutouts only when solid fill is enabled: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", fillHeightPercent: 37.5 }),
+    });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      const warning = () => container.querySelector('[data-testid="export-no-cutouts-warning"]');
+      expect(warning()).toBeNull();
+      if (layout === "standard") {
+        expect(container.querySelector("#bin-settings-export [data-panel-section-trigger]")?.textContent).toContain("Ready");
+      }
+      for (const format of ["3mf", "stl"]) {
+        expect(container.querySelector<HTMLButtonElement>(`[data-testid="button-export-${format}"]`)!.disabled).toBe(false);
+      }
+      openSettingsSection(container, "construction");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Solid fill"]')!.click());
+      openSettingsSection(container, "export");
+      expect(warning()?.textContent).toContain("Solid fill is enabled at 37.5% height");
+      expect(warning()?.textContent).not.toContain("The final model is a solid bin");
+      clickBinHistory(container, "undo");
+      expect(warning()).toBeNull();
+      clickBinHistory(container, "redo");
+      expect(warning()?.textContent).toContain("Solid fill is enabled at 37.5% height");
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
   it("shows build stats and enabled export buttons, viewport stubbed in", () => {
     const { container, unmount } = renderPage();
     openSettingsSection(container, "export");
@@ -6728,7 +6761,7 @@ describe("BinDesignerPage", () => {
     expect(
       container.querySelector('[data-testid="export-no-cutouts-warning"]')
         ?.textContent,
-    ).toContain("solid bin");
+    ).toContain("Solid fill is enabled at 100% height");
     expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
 
     const export3mf = container.querySelector(
