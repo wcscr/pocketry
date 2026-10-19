@@ -142,7 +142,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
       <div ref={settingsRef} hidden={!showingSection && hasSelection} data-testid="inspector-bin-settings" />
       <div hidden={showingSection || !hasSelection || !selectedText && inspector?.tool !== "properties"}>
-      {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Movement stays independent.</p>}
+      {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design and height edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. X/Y movement stays independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
         {([pockets, fingers]).filter(items => items.length).map(items => {
           const holes = items.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;

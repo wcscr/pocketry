@@ -104,6 +104,17 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               More toolbar actions appear under <strong>Tools</strong> when space
               is limited.
             </p>
+            <p className="mt-1 text-muted-foreground">
+              Under a selected pocket’s <strong>Pocket color</strong>, choose
+              <strong> Floor only</strong> or <strong>Entire interior</strong>.
+              The floor reference can follow insertion, stay vertical, or follow
+              an object axis as it rotates. These choices change color without
+              changing fit. Object-axis references keep extra clearance walls
+              and surfaces created by the remaining-floor limit in the bin color.
+              Choose <strong>Bin vertical</strong> to color the bin's bottom surface.
+              Set the color and thickness in
+              <strong> Materials &amp; Colors</strong>.
+            </p>
           </li>
           <li className="pl-1">
             <h3 className="font-semibold">Check dimensions and fit</h3>

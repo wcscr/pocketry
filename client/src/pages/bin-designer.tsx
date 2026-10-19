@@ -9,7 +9,8 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { ToastAction } from "@/components/ui/toast";
 import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { defaultPocketFloorThicknessMm, pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
@@ -954,7 +955,7 @@ function BinDesignerWorkspace(): JSX.Element {
           multicolor &&
           colorPocketFloors &&
           (exportProjectDoc.spec.fill === "none" ||
-            exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through")));
+            exportProjectDoc.cutouts.some(hasColorablePocketSurfaces));
         const includeStackingRim =
           multicolor && colorStackingRim;
         const result = await buildOnce(EXPORT_QUALITY, {
@@ -989,7 +990,7 @@ function BinDesignerWorkspace(): JSX.Element {
             },
           ];
           if (includePocketFloors && result.materialMeshes?.pocketFloors) {
-            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : "Pocket floors";
+            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : exportProjectDoc.cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
             objects.push({
               name: `Gridfinity bin ${label} ${floorName.toLowerCase()}`,
               mesh: result.materialMeshes.pocketFloors,
@@ -1318,7 +1319,7 @@ function BinDesignerWorkspace(): JSX.Element {
               hasStackingRim={hasStackingRim}
               binColor={binColor}
               pocketFloorColor={pocketFloorColor}
-              floorColorLabel={(builtSpec ?? committedSpec).fill === "none" ? "Bin floor" : "Pocket floor"}
+              floorColorLabel={(builtSpec ?? committedSpec).fill === "none" ? "Bin floor" : cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interior" : "Pocket floor"}
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
               showStackingRimColor={colorStackingRim}

@@ -149,7 +149,7 @@ export function useBinGeometry(
   const sequenceRef = useRef(0);
   const displayedSequenceRef = useRef(0);
   const displayedRequestKeyRef = useRef<string | null>(null);
-  const previousKeysRef = useRef<{ model: string; unrounded: string } | null>(null);
+  const previousKeysRef = useRef<{ model: string; unrounded: string; cavity: string } | null>(null);
   const detailedCostsRef = useRef(new Map<string, number>());
   const geometryRef = useRef<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
@@ -255,15 +255,23 @@ export function useBinGeometry(
     const epoch = inputRef.current.epoch;
     const unroundedKey = JSON.stringify({ ...modelInputs,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, topFilletMm: 0, bottomFilletMm: 0 })) ?? [] });
+    const cavityKey = JSON.stringify({ ...modelInputs,
+      pocketFloorThicknessMm: undefined, stackingRimThicknessMm: undefined, borderWidthMm: undefined,
+      cutouts: previewLayout?.cutouts.map(c => ({ ...c, colorCoverage: undefined, colorFloorAxis: undefined })) ?? [] });
     const previous = previousKeysRef.current;
     const sectionOnly = previous?.model === modelKey;
+    const materialOnly = previous?.cavity === cavityKey && previous.model !== modelKey;
     const roundingOnly = previous?.unrounded === unroundedKey && previous.model !== modelKey;
-    previousKeysRef.current = { model: modelKey, unrounded: unroundedKey };
+    previousKeysRef.current = { model: modelKey, unrounded: unroundedKey, cavity: cavityKey };
     // Cost is reused for positional edits, but not across changed dimensions,
     // depth/rounding settings, materials, quality, or shape identities.
     const costKey = JSON.stringify({ ...modelInputs,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, position: undefined, rotationDeg: undefined })) ?? [] });
-    const needsRefinement = !sectionOnly && needsProgressivePreview(
+    // A color-only edit does not need an unrounded cavity preview. Keep the
+    // complete previous partition visible, then replace every material once.
+    // Building/publishing a draft here repaints the same faces twice and also
+    // makes unchanged edges jump between sharp and rounded geometry.
+    const needsRefinement = !sectionOnly && !materialOnly && needsProgressivePreview(
       previewSpec, previewLayout, quality, detailedCostsRef.current.get(costKey),
     );
     setBuilding(true);

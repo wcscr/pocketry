@@ -130,7 +130,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
       <DropdownMenuItem className={`${itemClass} text-destructive focus:text-destructive`} disabled={target?.kind === "hole" && !!owner?.designLink && !enabled} onSelect={remove}><Trash2 className="h-4 w-4" />{target?.kind === "hole" ? "Remove hole" : refs.length > 1 ? "Remove selected" : "Remove"}</DropdownMenuItem>
     </PointerContextMenu>
     <Dialog open={linking} onOpenChange={setLinking}><DialogContent onCloseAutoFocus={restoreFocus}>
-      <DialogHeader><DialogTitle>Linked copies</DialogTitle><DialogDescription>Choose the shared design. Placement stays independent.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Linked copies</DialogTitle><DialogDescription>Choose the shared design. X/Y placement stays independent; later height edits update linked copies.</DialogDescription></DialogHeader>
       <SelectionLinkControls />
       <DialogFooter><Button variant="outline" onClick={() => setLinking(false)}>Done</Button></DialogFooter>
     </DialogContent></Dialog>

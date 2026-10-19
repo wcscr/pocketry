@@ -4742,6 +4742,42 @@ describe("BinDesignerPage", () => {
     }
   });
 
+  it.each([
+    { colorCoverage: "interior" as const },
+    { colorFloorAxis: "x" as const },
+  ])("exports selected wall coloring on a through pocket: %j", async color => {
+    const shape = rectangularShape("tool", "Through tool");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id,
+        position: { x: 0, y: 0 }, depth: { mode: "through" }, ...color })],
+      materials: { ...DEFAULT_BIN_MATERIALS, colorStackingRim: false },
+    });
+    const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+    binGeometryMock.hasPocketFloor = true;
+    binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, pocketFloors: mesh } });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+      const exportButton = document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!;
+      expect(exportButton.disabled).toBe(false);
+      await React.act(async () => exportButton.click());
+      expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), expect.objectContaining({
+        pocketFloorMaterialThicknessMm: DEFAULT_BIN_MATERIALS.pocketFloorThicknessMm,
+      }));
+      expect(downloadBlob).toHaveBeenCalledOnce();
+      const blob = vi.mocked(downloadBlob).mock.calls[0][0];
+      const buffer = await new Promise<ArrayBuffer>(resolve => {
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(blob);
+      });
+      const xml = strFromU8(unzipSync(new Uint8Array(buffer))["3D/3dmodel.model"]);
+      expect(xml).toContain("pocket " + ("colorCoverage" in color ? "interiors" : "floors"));
+      expect(xml.match(/<mesh>/g)).toHaveLength(2);
+    } finally { unmount(); }
+  });
+
   it("exports restored material colors and depths in the 3MF and attached project backup", async () => {
     const materials = { ...DEFAULT_BIN_MATERIALS, binColor: "#123456",
       pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
@@ -4778,7 +4814,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it("shows compact color swatches and configurable downward material depths", () => {
+  it("shows compact color swatches and configurable material thickness", () => {
     binGeometryMock.hasPocketFloor = true;
     const { container, unmount } = renderPage();
     React.act(() => {
@@ -4826,7 +4862,7 @@ describe("BinDesignerPage", () => {
     expect(container.textContent).not.toContain("never adds height to the bin");
     const thicknessHelp = container.querySelector<HTMLButtonElement>('[data-testid="view-color-row-floor"] [aria-label="About color thickness"]')!;
     React.act(() => thicknessHelp.click());
-    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("never adds height to the bin");
+    expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("never changes pocket dimensions");
     React.act(() => thicknessHelp.click());
 
     React.act(() => {
@@ -4998,7 +5034,7 @@ describe("BinDesignerPage", () => {
 
       openSettingsSection(container, "export");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
-      expect(document.body.textContent).toContain("Separate bin floor (1.2 mm down) for slicer assignment.");
+      expect(document.body.textContent).toContain("Separate bin floor (1.2 mm thick) for slicer assignment.");
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
       expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), {
         pocketFloorMaterialThicknessMm: 1.2, stackingRimMaterialThicknessMm: undefined, borderWidthMm: undefined,
@@ -6494,7 +6530,7 @@ describe("BinDesignerPage", () => {
     expect(multicolorExport).not.toBeNull();
     expect(multicolorExport.disabled).toBe(false);
     expect(document.body.textContent).toContain(
-      "Separate pocket floors (0.6 mm down) and rim top (1.25 mm down) for slicer assignment.",
+      "Separate pocket floors (0.6 mm thick) and rim top (1.25 mm down) for slicer assignment.",
     );
     const exportDialog = document.querySelector('[role="dialog"]') as HTMLElement;
     React.act(() => {

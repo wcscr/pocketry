@@ -53,12 +53,13 @@ export function PocketMeasurements({ cutout, shape, children }: {
 function usePocketRigidUpdate(shape: TracedShape) {
   const { spec, cutouts, dispatch } = useBin();
   const { shapes } = useShapeLibrary();
-  return (patch: CutoutPlacement, transient: boolean, historyLabel: string) => {
+  return (patch: CutoutPlacement, transient: boolean, historyLabel: string, shareElevation = false) => {
     const objects = cutouts.flatMap(c => {
       const source = shapes.find(s => s.id === c.shapeId) ?? (c.shapeId === shape.id ? shape : undefined);
       return source ? [{ kind: "pocket" as const, cutout: c, shape: source }] : [];
     });
-    const edits = expandLinkedObjectEdits(objects, spec, { cutouts: [patch], fingerHoles: [] });
+    const edits = expandLinkedObjectEdits(objects, spec, { cutouts: [patch], fingerHoles: [],
+      ...(shareElevation ? {} : { linkedElevation: "preserve" }) });
     if (edits) dispatch({ type: "UPDATE_OBJECTS", edits, transient, historyLabel });
   };
 }
@@ -152,11 +153,11 @@ function PocketMeasurementFields({ cutout, shape, children }: {
           <Label className="flex items-center gap-2 text-xs">Elevation
             <DraftNumberInput className="h-8 min-w-0" aria-label={cutout.role === "hole" ? "Hole elevation in millimetres" : "Pocket elevation in millimetres"} min={0} max={300} step={0.5} displayPrecision={2}
               value={rigidPocket(cutout, shape, spec).elevationMm ?? 0}
-              onValueChange={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, true, "Raise or lower pocket")}
-              onValueCommit={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, false, "Raise or lower pocket")} />
+              onValueChange={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, true, "Raise or lower pocket", true)}
+              onValueCommit={elevationMm => updateRigid({ ...rigidPocket(cutout, shape, spec), elevationMm }, false, "Raise or lower pocket", true)} />
             <span>mm</span>
           </Label>
-          <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the object’s dimensions.</p>
+          <p className="text-muted-foreground">Elevation is the lowest point above the bin underside. Raising or lowering keeps the object’s dimensions.{cutout.designLink ? " Elevation edits also update every linked copy." : ""}</p>
         </div>
         <PositionInputs position={cutout.position} onChange={updatePosition} />
 

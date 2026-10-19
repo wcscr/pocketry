@@ -632,4 +632,32 @@ describe("bin preview worker lifecycle", () => {
     expect(detailWorker().calls).toHaveLength(1); expect(state!.statsAreStale).toBe(false);
   });
 
+  it.each(["coverage", "axis", "thickness"])("replaces the complete material partition once for a %s edit", async edit => {
+    const withMaterials = (id: number): BuildBinResult => ({ ...resultFor(id), materialMeshes: {
+      body: resultFor(id).mesh, pocketFloors: resultFor(id + 1).mesh, stackingRim: resultFor(id + 2).mesh,
+    } });
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const slow = withMaterials(20); slow.stats.buildMs = 400;
+    await reply(() => detailWorker().finish(0, slow));
+    const previous = [state!.geometry, state!.pocketFloorGeometry, state!.stackingRimGeometry];
+    const disposals = previous.map(mesh => vi.spyOn(mesh!, "dispose"));
+    const colored = { ...roundedLayout, cutouts: roundedLayout.cutouts.map(c => ({ ...c,
+      ...(edit === "coverage" ? { colorCoverage: "interior" as const } : {}),
+      ...(edit === "axis" ? { colorFloorAxis: "y" as const } : {}),
+    })) };
+    await renderArgs([spec(3), PREVIEW_QUALITY, colored, undefined,
+      edit === "thickness" ? { pocketFloorThicknessMm: 1 } : undefined]);
+    await tick();
+    expect((worker().calls[1].payload as BuildBinRequest).previewDraft).toBeUndefined();
+    expect([state!.geometry, state!.pocketFloorGeometry, state!.stackingRimGeometry]).toEqual(previous);
+    disposals.forEach(dispose => expect(dispose).not.toHaveBeenCalled());
+    await reply(() => worker().finish(1, withMaterials(30))); await tick(500);
+    expect(detailWorker().calls).toHaveLength(1);
+    expect(state!.previewIsDraft).toBe(false);
+    expect(state!.building).toBe(false);
+    expect([state!.geometry, state!.pocketFloorGeometry, state!.stackingRimGeometry]
+      .map(mesh => mesh!.getAttribute("position").getX(0))).toEqual([30, 31, 32]);
+    disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+  });
+
 });

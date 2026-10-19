@@ -598,6 +598,9 @@ const cutoutPlacementInputSchema = z
     insertionMode: z.enum(["axis", "vertical"]).optional(),
     /** Local object axis for axial insertion; absent retains the original Z axis. */
     insertionAxis: z.enum(["x", "y", "z"]).optional(),
+    /** Missing coverage and axis preserve legacy bin-vertical floor coloring. */
+    colorCoverage: z.enum(["floor", "interior"]).optional(),
+    colorFloorAxis: z.enum(["insertion", "vertical", "x", "y", "z"]).optional(),
     /** CCW-positive in the y-up bin frame. */
     rotationDeg: z.number().finite().default(0),
     /** X/Y orientation in the authored frame; Z heading remains rotationDeg. */

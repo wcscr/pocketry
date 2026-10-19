@@ -7,6 +7,7 @@ import { recordTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { applyObjectEdits, transformObjects, type EditableObject } from "./object-arrangement";
 import { objectTransformOffsets, setObjectTransformOffsets } from "./object-transform-offsets";
 import { pocketQuaternion } from "./pocket-transform";
+import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 
 const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 10, lip: "none" });
 const basic = createBasicPocket("rectangle", { x: -3, y: -5 }, { x: 3, y: 5 }, "slot")!;
@@ -68,6 +69,33 @@ it("restores linked placements independently without changing their shared depth
   const reset = setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b])!;
   expect(reset).not.toBeNull();
   expect(reset.cutouts.every(c => JSON.stringify(c.depth) === JSON.stringify(a.cutout.depth))).toBe(true);
+});
+
+it("rejects contradictory individual Z resets when a linked copy is unselected", () => {
+  const a = { ...original, cutout: { ...original.cutout, designLink: { id: "copies", tilt: false } } };
+  const b = { ...a, cutout: { ...a.cutout, id: "copy", position: { x: 20, y: 0 } } };
+  const c = { ...a, cutout: { ...a.cutout, id: "unselected", position: { x: 40, y: 0 } } };
+  const refs = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec,
+    cutouts: [a.cutout, { ...b.cutout, depth: { mode: "mm", value: 20 } }, c.cutout], fingerHoles: [] }]);
+  expect(setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b, c])).toBeNull();
+});
+
+it("freezes the active legacy source and its floor when that copy already has zero Z offset", () => {
+  const a = { ...original, cutout: { ...original.cutout, rotationDeg: 0, tilt: { xDeg: 25, yDeg: 0 },
+    depth: { mode: "remaining" as const, floorThicknessMm: 7 }, designLink: { id: "copies", tilt: false } } };
+  const b = { ...a, cutout: { ...a.cutout, id: "copy", position: { x: 20, y: 0 }, tilt: { xDeg: 0, yDeg: 0 } } };
+  const refs = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec,
+    cutouts: [{ ...a.cutout, depth: { mode: "remaining", floorThicknessMm: 10 } }, b.cutout], fingerHoles: [] }]);
+  const expectedDepth = rigidPocket(b.cutout, b.shape, spec).depth;
+  const reset = setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b])!;
+  expect(reset).not.toBeNull();
+  expect(reset.cutouts.map(c => c.elevationMm)).toEqual([10, 7]);
+  expect(reset.cutouts.map(c => c.depth)).toEqual([expectedDepth, expectedDepth]);
+  expect(expectedDepth).toHaveProperty("sourceDepthMm");
+  const current = applyObjectEdits([a, b], reset);
+  const moved = transformObjects(current, { ...spec, heightUnits: 12 }, new Vector3(0, 0, 2))!;
+  expect(moved.cutouts.map(c => c.elevationMm)).toEqual([12, 9]);
+  expect(moved.cutouts.map(c => c.depth)).toEqual([expectedDepth, expectedDepth]);
 });
 
 it("rejects finite numeric input that overflows the persisted coordinates", () => {

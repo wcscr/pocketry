@@ -3,6 +3,7 @@ import { hasSmoothBase, ultim8PegCenters } from "./peg-bottom";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
 import { hasRigidPocket } from "./rigid-pocket";
 import { pocketInsertionError } from "./pocket-insertion";
+import { pocketColorAxis } from "./pocket-color";
 import {
   distanceToSegment,
   ringBounds,
@@ -88,8 +89,8 @@ export interface ValidationResult {
  * full-pitch screw bores can reach BASE_HEIGHT. Actual exposure
  * also depends on where the pocket overlaps those features, so this is a
  * warning, not a claim that every affected pocket has an exposed color face.
- * Pass zero when floor coloring is disabled. Like the builder, the colored
- * volume extends down from the resolved floor and stops at z = 0.
+ * Pass zero when coloring is disabled. Use the selected direction's vertical
+ * reach; an interior lining can also reach recesses beside a through opening.
  */
 export function validatePocketFloorMaterials(
   spec: BinSpec,
@@ -106,19 +107,27 @@ export function validatePocketFloorMaterials(
   for (const cutout of cutouts) {
     if (cutout.depthPending || cutout.role === "hole") continue;
     const shape = shapesById.get(cutout.shapeId);
+    const axis = pocketColorAxis(cutout);
+    const interior = cutout.colorCoverage === "interior";
+    const hasWallColor = interior || Math.hypot(axis.x, axis.y) > 1e-6;
+    const objectUp = pocketColorAxis({ ...cutout, colorFloorAxis: "z" }).z;
+    const verticalReach = floorColorThicknessMm * (interior
+      ? Math.sqrt(Math.max(0, 1 - objectUp * objectUp)) + objectUp
+      : axis.z);
     for (const depth of pocketDepths(cutout)) {
       const { floorZ, depthMm } = shape ? resolvePlacedPocketDepth(spec, depth, shape, cutout) : resolvePocketDepth(spec, depth);
-      // Invalid and through pockets have no printable floor-color volume.
-      if (!shape || floorZ === null || floorZ <= 0 || depthMm === null || depthMm <= 0) continue;
-      const thicknessMm = Math.min(floorColorThicknessMm, floorZ);
-      if (floorZ - thicknessMm > undersideHeightMm + 1e-6) continue;
+      const lowestSurface = depth.mode === "through" && hasWallColor ? 0 : floorZ;
+      if (!shape || lowestSurface === null || lowestSurface < 0 ||
+          (lowestSurface === 0 && !hasWallColor) ||
+          (depth.mode !== "through" && (depthMm === null || depthMm <= 0))) continue;
+      if (lowestSurface - verticalReach > undersideHeightMm + 1e-6) continue;
       issues.push({
         code: "floor-color-on-underside",
         severity: "warning",
         cutoutIds: [cutout.id],
         message:
-          `“${pocketName(cutout, shape)}”: Floor color may show on the underside. ` +
-          `The ${thicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
+          `“${pocketName(cutout, shape)}”: ${hasWallColor ? "Pocket" : "Floor"} color may show on the underside. ` +
+          `The ${floorColorThicknessMm.toFixed(2)} mm color layer reaches ${recess}. ` +
           `Reduce pocket depth, increase the remaining floor, or use a thinner color layer.`,
       });
       break;
