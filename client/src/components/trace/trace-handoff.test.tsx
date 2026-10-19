@@ -46,14 +46,24 @@ it.each(["saved", "loading", "error"] as const)("shows the destination and respe
   } else expect(mocks.addShape).not.toHaveBeenCalled();
 });
 
-it.each([false, true])("keeps grouping optional: combined %s", combined => {
-  trace = { ...trace, outline: [trace.outline[0], trace.outline[0]] };
-  render();
-  if (combined) React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
-  add();
-  expect(mocks.addShape).toHaveBeenCalledTimes(combined ? 1 : 2);
-  expect(mocks.addShape.mock.calls.map(call => call[0].name)).toEqual(combined ? ["Tool 2"] : ["Tool 2", "Tool 3"]);
-  expect(mocks.addShape.mock.calls.every(call => call[1].mode === "to-floor")).toBe(true);
+it("keeps nested pockets separate instead of combining the inner contour into a hole", () => {
+  const nested = { outer: [{ x: 20, y: 12 }, { x: 30, y: 12 }, { x: 30, y: 18 }, { x: 20, y: 18 }], holes: [] };
+  trace = { ...trace, outline: [trace.outline[0], nested] };
+  render(); add();
+  expect(host.querySelector('input[type="checkbox"]')).toBeNull();
+  expect(host.textContent).toContain("Positions from the photo are preserved, including overlaps.");
+  const [outer, inner] = mocks.addShape.mock.calls;
+  expect(mocks.addShape).toHaveBeenCalledTimes(2);
+  expect([outer[0].name, inner[0].name]).toEqual(["Tool 2", "Tool 3"]);
+  for (const call of [outer, inner]) {
+    expect(call[0].outlineMm).toHaveLength(1);
+    expect(call[0].outlineMm[0].holes).toEqual([]);
+    expect(call[1]).toEqual({ mode: "to-floor" });
+    expect(call[3].role).toBeUndefined();
+  }
+  expect(inner[3].batchId).toBe(outer[3].batchId);
+  expect(inner[3].center.x - outer[3].center.x).toBe(-2.5);
+  expect(inner[3].center.y - outer[3].center.y).toBe(2.5);
 });
 
 it("queues photo-relative centres in millimetres with one Y flip for separate pockets", () => {
@@ -74,14 +84,14 @@ it.each(["scale", "processing", "empty", "uncalibrated"])("retains the %s handof
   expect(mocks.addShape).not.toHaveBeenCalled();
 });
 
-it.each([false, true])("keeps holes as independent objects with their photo position, combined=%s", combined => {
+it("keeps shared holes as independent objects with their photo position", () => {
   const hole = [{ x: 25, y: 15 }, { x: 35, y: 15 }, { x: 35, y: 25 }, { x: 25, y: 25 }];
   trace = { ...trace, outline: [{ ...trace.outline[0], holes: [hole] }, { ...trace.outline[0], holes: [...[hole.map(p => ({ ...p }))].map(r => r.reverse())] }] };
   render();
-  if (combined) React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   add();
   const calls = mocks.addShape.mock.calls;
-  expect(calls).toHaveLength(combined ? 2 : 3);
+  expect(calls).toHaveLength(3);
+  expect(calls.every(call => call[0].outlineMm.length === 1)).toBe(true);
   const retained = calls.filter(call => call[3]?.role === "hole");
   expect(retained).toHaveLength(1);
   expect(retained[0][0].name).toBe("Hole 1");

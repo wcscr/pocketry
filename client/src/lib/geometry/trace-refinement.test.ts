@@ -19,7 +19,7 @@ it("keeps a crossing hole removable after margin, undo/redo, draft recovery and 
   const pockets = [rect(0, 0, 100, 80), rect(80, 20, 40, 20)];
   const holed = await withKernel(kernel => changeContourRole(kernel, pockets, { shapeIndex: 1, ringIndex: -1 }, "hole"));
   const adjusted = await adjustOutlineMargin(holed, 0, 1, calibration);
-  expect(traceObjects(adjusted, true).map(object => object.role ?? "pocket")).toEqual(["pocket", "hole"]);
+  expect(traceObjects(adjusted).map(object => object.role ?? "pocket")).toEqual(["pocket", "hole"]);
   expect(Math.max(...adjusted[0].holes[0].map(p => p.x))).toBeCloseTo(119);
   expect(Math.max(...adjusted[0].outer.map(p => p.x))).toBeCloseTo(101);
   await withKernel(kernel => {
@@ -53,7 +53,7 @@ it("preserves overlapping pockets and a single shared hole through margin and re
     await adjustOutlineMargin(holed, 0, 1, calibration),
     await reprocessOutline(holed, { detect: { smoothing: 2, tolerancePx: 1 }, margin: 1, calibration }),
   ]) {
-    expect(traceObjects(adjusted, true).map(object => object.role ?? "pocket")).toEqual(["pocket", "pocket", "hole"]);
+    expect(traceObjects(adjusted).map(object => object.role ?? "pocket")).toEqual(["pocket", "pocket", "hole"]);
     expect(adjusted[0].holes[0]).toBe(adjusted[1].holes[0]);
     expect(signedArea(adjusted[0].outer)).toBeGreaterThan(0);
     expect(signedArea(adjusted[0].holes[0])).toBeLessThan(0);
