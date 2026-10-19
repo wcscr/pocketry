@@ -4,31 +4,36 @@ import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth, type Dep
 import type { BinSpec } from "@shared/gridfinity/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useBin } from "@/state/bin-store";
+import { useBin, type PendingPocketDepthDraft } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useTrace } from "@/state/trace-store";
 import { usePanelState } from "@/components/layout/panel-context";
 import { useMobileWorkspaceActions } from "@/components/layout/mobile-workspace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-/** One depth decision, shared by the canvas prompt and ordinary pocket properties. */
-export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: {
+const EMPTY_DRAFT: PendingPocketDepthDraft = { value: "", mode: "mm", all: false };
+
+/** Resolve a saved pocket without committing draft input to geometry/history. */
+export function PocketDepthQuestion({ spec, name, count = 1, draft, onDraftChange, onSave, onLater, onEditBinHeight }: {
   spec: BinSpec;
   name: string;
   count?: number;
+  draft: PendingPocketDepthDraft;
+  onDraftChange: (draft: PendingPocketDepthDraft) => void;
   onSave: (depth: DepthSpec, all: boolean) => void;
   onLater?: () => void;
+  onEditBinHeight?: () => void;
 }) {
   const guidanceId = useId();
-  const [value, setValue] = useState("");
-  const [mode, setMode] = useState<"mm" | "remaining" | "through">("mm");
-  const [all, setAll] = useState(false);
+  const { value, mode, all } = draft;
   const depth = Number(value.trim().replace(",", "."));
   const floor = defaultPocketFloorThicknessMm(spec);
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
   const maximum = Math.min(120, Math.floor((top - floor) * 10) / 10);
   const valid = mode === "through" || (mode === "remaining" ? maximum > 0
     : value.trim() !== "" && Number.isFinite(depth) && depth >= 1 && depth <= maximum);
+  const needsHeight = mode !== "through" && (maximum < 1
+    || mode === "mm" && Number.isFinite(depth) && depth > maximum && depth <= 120);
   const chosen: DepthSpec = mode === "mm" ? { mode, value: depth }
     : mode === "remaining" ? { mode, floorThicknessMm: floor } : { mode };
   const fraction = mode === "through" ? 1 : mode === "remaining" ? Math.max(0, maximum / top)
@@ -43,31 +48,34 @@ export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: 
         <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Pocket depth (mm)</span>
           <Input aria-label="Pocket depth (mm)" inputMode="decimal" className="h-11 w-24" value={value} placeholder="Depth" disabled={mode !== "mm"} aria-invalid={mode === "mm" && value !== "" && !valid}
-            aria-describedby={guidanceId} onChange={event => setValue(event.target.value)} />
+            aria-describedby={guidanceId} onChange={event => onDraftChange({ ...draft, value: event.target.value })} />
           <span>mm</span>
         </label>
         <p id={guidanceId} className="mt-1 text-xs text-muted-foreground" aria-live="polite">
           {mode === "through" ? "Cuts through the bottom. The surface underneath must support the tool."
             : mode === "remaining" && maximum > 0 ? `Keeps a ${floor} mm floor above the bin underside.`
             : maximum < 1 ? "Increase the bin height to leave room for a pocket."
-            : value !== "" && !valid ? `Enter a depth from 1 to ${maximum} mm, or increase the bin height.`
-            : "Measure below the bin surface."}
+            : value !== "" && !valid ? `Enter a depth from 1 to ${maximum} mm${needsHeight ? ", or increase the bin height" : ""}.`
+            : "A 12 mm-thick tool in an 8 mm-deep pocket sticks out 4 mm above the bin surface."}
         </p>
+        {needsHeight && onEditBinHeight && <Button type="button" variant="outline" size="sm" className="mt-1 min-h-10" onClick={onEditBinHeight}>Edit bin height</Button>}
       </div>
-      <svg viewBox="0 0 100 60" className="h-14 w-24 shrink-0 text-primary [@media(max-height:500px)_and_(min-width:560px)]:hidden" role="img" aria-label="Side view of pocket depth">
-        <path d={`M5 5 H25 V${5 + 48 * Math.min(1, Math.max(0, fraction))} H75 V5 H95 V55 H5 Z`}
-          fill="currentColor" opacity="0.2" stroke="currentColor" />
-        <path d={`M50 5 V${5 + 48 * Math.min(1, Math.max(0, fraction))}`} stroke="currentColor" strokeWidth="2" strokeDasharray={!valid ? "3 2" : undefined} />
+      <svg viewBox="0 0 100 60" className="h-14 w-24 shrink-0 text-primary [@media(max-height:500px)_and_(min-width:560px)]:hidden" role="img" aria-label={mode === "through" ? "Side view of a through pocket with no bottom" : "Side view of pocket depth"}>
+        <g fill="currentColor" opacity="0.2" stroke="currentColor" data-testid="pocket-depth-material">
+          {mode === "through" ? <><rect x="5" y="5" width="20" height="50" /><rect x="75" y="5" width="20" height="50" /></>
+            : <path d={`M5 5 H25 V${5 + 48 * Math.min(1, Math.max(0, fraction))} H75 V5 H95 V55 H5 Z`} />}
+        </g>
+        <path d={`M50 5 V${mode === "through" ? 55 : 5 + 48 * Math.min(1, Math.max(0, fraction))}`} stroke="currentColor" strokeWidth="2" strokeDasharray={!valid ? "3 2" : undefined} />
         <path d="M25 5 H75" stroke="currentColor" strokeDasharray="2 2" />
       </svg>
     </div>
       <div className="grid grid-cols-3 gap-1" role="group" aria-label="Pocket depth options">
         {([ ["mm", "Fixed depth"], ["remaining", "To bin floor"], ["through", "Through — no bottom"] ] as const).map(([choice, label]) =>
           <Button key={choice} type="button" size="sm" className="h-auto min-h-11 whitespace-normal px-2 py-1 text-xs leading-tight" variant={mode === choice ? "secondary" : "outline"}
-            aria-pressed={mode === choice} onClick={() => setMode(choice)}>{label}</Button>)}
+            aria-pressed={mode === choice} onClick={() => onDraftChange({ ...draft, mode: choice })}>{label}</Button>)}
       </div>
     {count > 1 && <label className="flex min-h-8 items-center gap-2 text-xs">
-      <input type="checkbox" checked={all} onChange={event => setAll(event.target.checked)} />
+      <input type="checkbox" checked={all} onChange={event => onDraftChange({ ...draft, all: event.target.checked })} />
       Use this depth for all {count} pockets
     </label>}
     <div className="flex items-center gap-2">
@@ -78,8 +86,8 @@ export function PocketDepthQuestion({ spec, name, count = 1, onSave, onLater }: 
 }
 
 /** Non-modal: keep the selected outline and the rest of the bin available. */
-export function PendingPocketDepthPrompt({ request, fallback }: { request: number; fallback?: ReactNode }) {
-  const { spec, cutouts, selectedCutoutId, dispatch } = useBin();
+export function PendingPocketDepthPrompt({ request, fallback, onEditBinHeight }: { request: number; fallback?: ReactNode; onEditBinHeight?: () => void }) {
+  const { spec, cutouts, selectedCutoutId, pendingDepthDrafts, dispatch } = useBin();
   const { shapes } = useShapeLibrary();
   const { dispatch: dispatchTrace } = useTrace();
   const { setPanelOpen } = usePanelState();
@@ -118,6 +126,12 @@ export function PendingPocketDepthPrompt({ request, fallback }: { request: numbe
         <Button variant="outline" size="sm" onClick={() => setDismissed(new Set())}>Set depth</Button>
         <Button variant="ghost" size="sm" onClick={traceAnotherPhoto}>Trace another photo</Button>
       </div> : <PocketDepthQuestion key={selected.id} spec={spec} name={name} count={pending.length}
+        draft={pendingDepthDrafts[selected.id] ?? EMPTY_DRAFT}
+        onDraftChange={draft => dispatch({ type: "SET_PENDING_DEPTH_DRAFT", id: selected.id, draft })}
+        onEditBinHeight={onEditBinHeight ? () => {
+          setDismissed(previous => new Set([...previous, selected.id]));
+          onEditBinHeight();
+        } : undefined}
         onLater={() => { setDismissed(new Set(pending.map(cutout => cutout.id))); setFinished(true); }}
         onSave={(depth, all) => {
           // Linked copies receive the same depth in the reducer. Skip those

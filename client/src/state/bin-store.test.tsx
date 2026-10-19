@@ -55,6 +55,30 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("keeps pending-depth drafts outside history and clears them on resolution or project replacement", () => {
+    const { store, act } = mountBin();
+    const pending = { ...CUTOUT, depthPending: true as const };
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [pending, { ...pending, id: "second" }] }));
+    const history = store().history;
+    const draft = { value: "50", mode: "through" as const, all: true };
+    act(() => store().dispatch({ type: "SET_PENDING_DEPTH_DRAFT", id: pending.id, draft }));
+    act(() => store().dispatch({ type: "SET_PENDING_DEPTH_DRAFT", id: "second", draft: { ...draft, value: "8", mode: "mm" } }));
+    expect(store().history).toBe(history);
+    expect(getCommittedBinDoc(store())).not.toHaveProperty("pendingDepthDrafts");
+    act(() => store().dispatch({ type: "SELECT_CUTOUT", id: "second" }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 9 } }));
+    expect(store().pendingDepthDrafts[pending.id]).toEqual(draft);
+    act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: pending.id, patch: { depthPending: undefined, depth: { mode: "mm", value: 8 } } }));
+    expect(store().pendingDepthDrafts[pending.id]).toBeUndefined();
+    expect(store().pendingDepthDrafts.second.value).toBe("8");
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().cutouts[0].depthPending).toBe(true);
+    expect(store().pendingDepthDrafts[pending.id]).toBeUndefined();
+    act(() => store().dispatch({ type: "HYDRATE", spec: store().spec, cutouts: [pending] }));
+    expect(store().pendingDepthDrafts).toEqual({});
+    act(() => store().dispatch({ type: "SET_PENDING_DEPTH_DRAFT", id: "missing", draft }));
+    expect(store().pendingDepthDrafts).toEqual({});
+  });
   it("undoes compound material changes across history jumps, reloads and redo branches", () => {
     const { store, act } = mountBin();
     const original = { ...DEFAULT_BIN_MATERIALS, pocketFloorColor: "#123456", stackingRimColor: "#abcdef" };

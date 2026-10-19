@@ -820,6 +820,88 @@ describe("BinDesignerPage", () => {
     } finally { reopened.unmount(); }
   });
 
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("preserves pending-depth drafts through dismissal and direct bin-height recovery: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shapes = [rectangularShape("first", "Tool 1"), rectangularShape("second", "Tool 2")];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: { ...EMPTY_PROJECT.spec, heightUnits: 6, fill: "solid" }, shapes,
+      cutouts: shapes.map((shape, index) => parseCutoutPlacement({ id: shape.id, shapeId: shape.id, position: { x: index * 15, y: 0 }, depthPending: true })),
+    });
+    const { container, unmount } = renderPage({ mobile });
+    const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent === label)!;
+    const input = () => container.querySelector<HTMLInputElement>('[aria-label="Pocket depth (mm)"]')!;
+    const enter = (field: HTMLInputElement, value: string) => React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![2]!;
+    try {
+      await flushHydration();
+      React.act(() => button("Set depth").click());
+      enter(input(), "50");
+      expect(button("Done").disabled).toBe(true);
+      React.act(() => button("Through — no bottom").click());
+      React.act(() => button("Set later").click());
+      React.act(() => button("Set depth").click());
+      expect(input().value).toBe("50");
+      expect(button("Through — no bottom").getAttribute("aria-pressed")).toBe("true");
+      React.act(() => button("Fixed depth").click());
+      React.act(() => button("Edit bin height").click());
+      await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+      const height = container.querySelector<HTMLInputElement>('#bin-height-units')!;
+      expect(height.closest('[hidden], [inert]')).toBeNull();
+      expect(document.activeElement).toBe(height);
+      expect(current().cutouts.every(c => c.depthPending)).toBe(true);
+      expect(container.querySelector('[data-testid="pending-pocket-depth"]')?.textContent).toContain("Tool 1");
+      enter(height, "9");
+      React.act(() => height.blur());
+      if (mobile) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-back-to-canvas"]')!.click());
+      React.act(() => button("Set depth").click());
+      expect(input().value).toBe("50");
+      expect(button("Fixed depth").getAttribute("aria-pressed")).toBe("true");
+      expect(button("Done").disabled).toBe(false);
+      expect(current().cutouts.every(c => c.depthPending)).toBe(true);
+      React.act(() => button("Done").click());
+      expect(current().cutouts[0]).toMatchObject({ depth: { mode: "mm", value: 50 } });
+      expect(current().cutouts[0].depthPending).toBeUndefined();
+      expect(current().cutouts[1].depthPending).toBe(true);
+      openSettingsSection(container, "export");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("restores each pending pocket's own draft after changing selection", async () => {
+    const shapes = [rectangularShape("first", "Tool 1"), rectangularShape("second", "Tool 2")];
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes,
+      cutouts: shapes.map((shape, index) => parseCutoutPlacement({ id: shape.id, shapeId: shape.id, position: { x: index * 15, y: 0 }, depthPending: true })),
+    });
+    const { container, unmount } = renderPage();
+    const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent === label)!;
+    const input = () => container.querySelector<HTMLInputElement>('[aria-label="Pocket depth (mm)"]')!;
+    const enter = (value: string) => React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), value);
+      input().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const select = (id: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-${id}"]`)!.click());
+    try {
+      await flushHydration();
+      React.act(() => button("Set depth").click());
+      enter("50");
+      React.act(() => button("Through — no bottom").click());
+      select("second"); enter("8");
+      select("first");
+      expect(input().value).toBe("50");
+      expect(button("Through — no bottom").getAttribute("aria-pressed")).toBe("true");
+      select("second");
+      expect(input().value).toBe("8");
+      expect(button("Fixed depth").getAttribute("aria-pressed")).toBe("true");
+    } finally { unmount(); }
+  });
+
   it("asks about saved unresolved pockets one at a time", async () => {
     const shapes = [rectangularShape("first", "Tool 1"), rectangularShape("second", "Tool 2")];
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes,

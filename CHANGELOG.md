@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve unresolved pocket-depth drafts while switching pockets or reopening the prompt, and link depth-limit warnings directly to bin height controls. Explain tool exposure and show Through pockets with an open bottom.
+
 - Add another Trace contour as an editable four-point square without changing zoom or pan, with point insertion, undo/redo, and saved-project recovery.
 - Show the no-cutouts export warning only when Solid fill is enabled, with the actual fill height. Hollow bins can export without the misleading solid-bin warning.
 - Remove the Trace grouping checkbox. Adding to Bin and exporting an editable project always preserve each pocket and hole as a separate object at its photo-relative position, including nested and overlapping pockets.
