@@ -215,7 +215,7 @@ export function PocketDepthSummary({ cutout, shape, section, inspect, children }
       {children}
       <div className="rounded border bg-muted/30 p-2">
         <p className="text-muted-foreground">{cutout.role === "hole" ? "Kept depth" : rigid ? "Depth" : cutout.profileBottom ? "Deepest cut" : hasPocketTilt(cutout) ? "Vertical depth" : "Cut depth"}: {displayedDepth === null ? "through" : `${displayedDepth.toFixed(1)} mm`} · {cutout.role === "hole" ? "Bottom" : cutout.profileBottom || rigid ? "Lowest point" : "Floor"}: {(pocket.floorZ ?? 0).toFixed(1)} mm</p>
-        <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total bin: {total.toFixed(1)} mm</p>
+        <p className="text-muted-foreground">Infill top: {pocket.infillTopZ.toFixed(1)} mm · Total {spec.pegBottom ? "fixture body" : "bin"}: {total.toFixed(1)} mm</p>
         {hasPocketTilt(cutout) && <p className="mt-1 text-muted-foreground">Thickness (object Z): {pocket.axialDepthMm === null ? "through" : `${pocket.axialDepthMm.toFixed(1)} mm`} · Object Z tilt: {(Math.acos(pocketAxis(cutout).z) * 180 / Math.PI).toFixed(1)}°</p>}
         {cutout.profileBottom && !hasProfileRotation(cutout) && <ProfileSectionPreview cutout={cutout} shape={shape} top={pocket.infillTopZ} />}
         {hasProfileRotation(cutout) && <p className="mt-1 text-muted-foreground">Rotated profile · Inspect in 3D to see the supporting contour.</p>}

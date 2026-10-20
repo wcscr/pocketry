@@ -16,5 +16,8 @@ it("keeps GitHub feedback available in Help after the welcome has been dismissed
     const github = dialog.querySelector('a[href="https://github.com/wcscr/pocketry/issues/new"]');
     expect(github?.getAttribute("target")).toBe("_blank");
     expect(github?.getAttribute("rel")).toContain("noopener");
+    expect(dialog.querySelector('a[href="/bin#ultim8-fixtures"]')?.textContent).toBe("ULTIM8-compatible fixtures");
+    expect(dialog.querySelector('#ultim8-fixtures a[href="/ultim8"]')).not.toBeNull();
+    expect(dialog.querySelector('#ultim8-fixtures')?.textContent).toContain("not affiliated with or endorsed");
   } finally { React.act(() => root.unmount()); }
 });

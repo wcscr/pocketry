@@ -3,10 +3,11 @@ import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 import { D_WALL } from "@shared/gridfinity/standard";
 
-/** Include undo/redo designs so their tools are available when restored too. */
+/** Include undo/redo designs so their tools are available when restored too.
+ * Peg fixtures have public Beta controls and do not require Experimental. */
 export function projectUsesExperimentalFeatures(project: ProjectDoc): boolean {
   return [project, ...(project.history?.stack.map(entry => entry.doc) ?? [])].some(doc =>
-    doc.spec.wallSlant !== null || doc.spec.pegBottom != null ||
+    doc.spec.wallSlant !== null ||
     doc.spec.wallThicknessMm !== D_WALL ||
     doc.cutouts.some(cutout => cutout.designLink || (!hasRigidPocket(cutout) && (hasPocketTilt(cutout) || (cutout.zOffsetMm ?? 0) !== 0))) ||
     doc.fingerHoles.some(hole => hole.designLink),

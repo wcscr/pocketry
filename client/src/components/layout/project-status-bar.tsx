@@ -27,7 +27,7 @@ export function ProjectStatusBar() {
     <div className="flex min-h-12 items-center gap-2">
     <button type="button" className="min-h-11 min-w-0 flex-1 rounded px-1 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Manage project: ${name}`} aria-haspopup="dialog" onClick={openLibrary}>
-      <span className="block truncate text-xs font-medium" title={name}>Bin project: {name}</span>
+      <span className="block truncate text-xs font-medium" title={name}>Project: {name}</span>
       <span role="status" className={`block text-xs ${activity.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{projectActivityLabel(activity)}</span>
       {recoveries.length > 0 && <span className="block text-xs text-destructive">{recoveries.length === 1 ? `Unsaved work: ${recoveries[0].name}` : `${recoveries.length} unsaved versions available`}</span>}
     </button>

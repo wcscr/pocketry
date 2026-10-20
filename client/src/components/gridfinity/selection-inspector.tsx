@@ -1,7 +1,7 @@
 import { BinObjectMenuProvider, type BinContextTarget } from "./object-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PropertySurface } from "@/components/layout/property-surface";
-import { BIN_OBJECT_SECTIONS, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
+import { BIN_OBJECT_SECTIONS, binWorkflowSections } from "./bin-workflow";
 import { Copy, Trash2 } from "lucide-react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
 import { Button } from "@/components/ui/button";
@@ -115,12 +115,12 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const pockets = chosen.filter(o => o.kind === "pocket");
   const fingers = chosen.filter(o => o.kind === "finger");
   const single = chosen.length === 1 ? chosen[0] : null;
-  const section = inspector ? BIN_WORKFLOW_SECTIONS.find(item => item.id === inspector.activeSection) : null;
+  const section = inspector ? binWorkflowSections(!!bin.spec.pegBottom).find(item => item.id === inspector.activeSection) : null;
   const showingSection = !!section;
   const hasSelection = chosen.length > 0 || !!selectedText;
   const tone = section?.tone ?? (selectedText ? "cyan" : pockets.length && !fingers.length ? "violet" : fingers.length && !pockets.length ? "cyan" : chosen.length ? "slate" : "blue");
   const title = section?.title ?? (selectedText ? surfaceTextName(selectedText) : single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
-    : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : "Bin");
+    : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : bin.spec.pegBottom ? "Fixture" : "Bin");
   const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked designs" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;

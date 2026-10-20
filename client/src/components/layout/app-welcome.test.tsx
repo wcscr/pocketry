@@ -18,6 +18,16 @@ let values: Map<string, string>;
 let storage: { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn> };
 let resizeListeners: Set<() => void>;
 const KEY = "pocketry:welcome:1.1.1";
+
+it("lets the fixture entry supply its own welcome across replacement and Trace", async () => {
+  await navigate("/ultim8");
+  expect(dialog()).toBeNull();
+  expect(values.get(KEY)).toBe("dismissed");
+  await navigate("/bin");
+  expect(dialog()).toBeNull();
+  await navigate("/");
+  expect(dialog()).toBeNull();
+});
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]:not([aria-hidden="true"])');
 const render = async () => React.act(async () => root.render(<Panels><PanelProbe /><Provider><Welcome /><SettingsDialog /></Provider></Panels>));
 const resize = async (width: number) => React.act(async () => {

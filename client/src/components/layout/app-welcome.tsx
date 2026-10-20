@@ -41,9 +41,12 @@ export function AppWelcome(): JSX.Element {
   }, []);
 
   useEffect(() => {
+    // The explicit fixture entry supplies its own first step, including after
+    // replacing /ultim8 with /bin. Do not interrupt it with a second welcome.
+    if (location.replace(/\/$/, "") === "/ultim8") dismiss();
     if (open) hasOpened.current = true;
     else if (hasOpened.current && !dismissed) dismiss();
-  }, [open, dismissed, dismiss]);
+  }, [open, dismissed, dismiss, location]);
 
   const start = (path: "/" | "/bin") => {
     dismiss();

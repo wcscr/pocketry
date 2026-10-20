@@ -6,6 +6,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
+import { useEffect } from "react";
+import { Link } from "wouter";
 
 export interface HelpDialogProps {
   open: boolean;
@@ -14,6 +16,11 @@ export interface HelpDialogProps {
 
 /** The essential steps for making a first bin in the default editor. */
 export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element {
+  useEffect(() => {
+    if (!open || window.location.hash !== "#ultim8-fixtures") return;
+    const frame = requestAnimationFrame(() => document.getElementById("ultim8-fixtures")?.scrollIntoView({ block: "start" }));
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] max-w-2xl overflow-y-auto">
@@ -21,6 +28,14 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
           <DialogTitle>How to use Pocketry</DialogTitle>
           <DialogDescription>From a tool photo to your first bin.</DialogDescription>
         </DialogHeader>
+
+        <section id="ultim8-fixtures" className="scroll-mt-3 space-y-2 rounded-md border p-3 text-sm" aria-labelledby="ultim8-help-title">
+          <h3 id="ultim8-help-title" className="font-semibold"><a href="/bin#ultim8-fixtures">ULTIM8-compatible fixtures</a> <span className="text-xs font-normal">Beta</span></h3>
+          <p>Start at <Link href="/ultim8" className="underline" onClick={() => onOpenChange(false)}>/ultim8</Link> for a fixture with locating pegs for the eufyMake E1 mat. Your current project is kept or saved through the New Project prompt.</p>
+          <p>Add an object with Trace or Add pocket, set body thickness in millimetres, then export STL/3MF and the 1:1 alignment SVG with peg locations. Trace’s <strong>Add to Bin</strong> returns to the same fixture.</p>
+          <p className="text-muted-foreground">Flat backing exports pegs up. Align the SVG’s peg circles to your calibrated mat template; the SVG does not set a printer bed position. Check the slice and print a small fit test first.</p>
+          <p className="text-xs text-muted-foreground">Pocketry is an independent tool, not affiliated with or endorsed by Wham Bam Systems. ULTIM8 is a Wham Bam Systems trademark.</p>
+        </section>
 
         <p className="text-sm leading-relaxed text-muted-foreground">
           On desktop, the default <strong>Workflow + properties</strong> layout
@@ -175,9 +190,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. In contour editing mode, right-click a point to remove it immediately. The regular controls remain available.
           </p>
           <p>
-            <strong>Optional tools:</strong> ULTIM8 jig pegs, adjustable empty-bin walls, and linked
+            <strong>Optional tools:</strong> adjustable empty-bin walls and linked
             designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.
+            Converting a regular project to ULTIM8-compatible pegs also requires
+            Experimental; fixtures opened through /ultim8 or from a saved project do not.
             Opening a project keeps your preference; existing experimental
             geometry stays visible and exportable.
           </p>

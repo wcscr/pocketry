@@ -12,3 +12,13 @@ export const BIN_WORKFLOW_SECTIONS = [
   { id: "bin-settings-fit", label: "Check fit", title: "Check fit", tone: "indigo", description: null },
   { id: "bin-settings-export", label: "Export", title: "Export", tone: "emerald", description: "Download a printable bin or a layout for fabrication." },
 ] as const;
+
+/** Keep section identities shared while describing the active project profile. */
+export function binWorkflowSections(isJig: boolean): Array<Omit<typeof BIN_WORKFLOW_SECTIONS[number], "title" | "description"> & { title: string; description: string | null }> {
+  return BIN_WORKFLOW_SECTIONS.map(section => !isJig ? section : section.id === "bin-settings-size"
+    ? { ...section, title: "Fixture size", description: "Set dimensions and body thickness in millimetres." }
+    : section.id === "bin-settings-construction"
+      ? { ...section, description: "Configure the backing, fill, and locating pegs for the mat." }
+      : section.id === "bin-settings-export"
+        ? { ...section, description: "Download the fixture and its 1:1 alignment SVG." } : section);
+}

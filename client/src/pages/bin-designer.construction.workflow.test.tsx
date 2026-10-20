@@ -398,11 +398,11 @@ describe("BinDesignerPage", () => {
       expect(current().heightUnits).toBe(original.heightUnits);
       expect(current().footprint).toEqual(original.footprint);
       openSettingsSection(container, "size");
-      expect(container.querySelector('[aria-label="Grid pitch"]')!.textContent).toBe(footprint === "rectangle" ? "Arbitrary · no Gridfinity" : "Full · 42 mm");
+      expect(container.querySelector('[aria-label="Grid pitch"]')).toBeNull();
       if (footprint === "rectangle") {
-        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin width in millimetres"]')!.value).toBe("83.5");
-        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin length in millimetres"]')!.value).toBe("83.5");
-        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin height in millimetres"]')!.value).toBe("42");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture width in millimetres"]')!.value).toBe("83.5");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture length in millimetres"]')!.value).toBe("83.5");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture body thickness in millimetres"]')!.value).toBe("42");
       }
       for (const region of ["bin", "floor", "rim", "text"]) expect(viewport().getAttribute(`data-${region}-color`)).toBe(materials.binColor);
       expect(viewport().getAttribute("data-pocket-floor-color")).toBe("off");
@@ -506,7 +506,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("keeps restored ULTIM8 pegs visible without opting into editing in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits restored ULTIM8 pegs without enabling other experimental tools in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", heightUnits: 8.5 / 7,
       arbitrarySizeMm: { width: 159.4, length: 75 }, pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
@@ -518,23 +518,19 @@ describe("BinDesignerPage", () => {
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
       expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
-      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).toBeNull();
+      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("ULTIM8 jig pegs");
-      expect(container.querySelector('[aria-label="Peg underside"]')).toBeNull();
-      expect(container.querySelector('[aria-label="Peg density"]')).toBeNull();
-      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).toBeNull();
-      const notice = container.querySelector('[data-testid="experimental-design-notice"]')!;
-      expect(notice.textContent).toContain("ULTIM8 jig pegs");
-      React.act(() => notice.querySelector<HTMLButtonElement>('button')!.click());
-      expect(experimentalSettings.enabled).toBe(true);
-      expect(container.querySelector('[aria-label="Peg density"]')).not.toBeNull();
+      for (const label of ["Peg underside", "Peg density", "Peg diameter in millimetres"]) expect(container.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Slanted walls (prototype)"]')).toBeNull();
+      expect(experimentalSettings.enabled).toBe(false);
       const diameter = container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => { diameter.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(diameter,"4.6");diameter.dispatchEvent(new Event("input", { bubbles: true })); });
       React.act(() => diameter.blur());
       React.act(() => experimentalSettings.setEnabled(false));
       expect(current().pegBottom).toEqual({ ...spec.pegBottom!, diameterMm: 4.6 });
       expect(current().arbitrarySizeMm).toEqual(spec.arbitrarySizeMm);expect(current().heightUnits).toBe(spec.heightUnits);
-      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).not.toBeNull();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
     } finally { unmount(); }
@@ -560,8 +556,8 @@ describe("BinDesignerPage", () => {
       expect(magnet()).toBeNull();
       expect(container.textContent).not.toContain("For Wham Bam ULTIM8 mats");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About bottom"]')!.click());
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("For Wham Bam ULTIM8 mats on eufyMake E1");
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the bin");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("ULTIM8-compatible pegs for the eufyMake E1 mat");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the fixture");
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: "corners" });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
@@ -680,16 +676,13 @@ describe("BinDesignerPage", () => {
     };
     try {
       openSettingsSection(container, "size");
-      choose('[data-testid="select-grid-pitch"]', "Arbitrary · no Gridfinity");
-      expect(container.querySelector('[data-testid="select-grid-pitch"]')!.textContent).toBe("Arbitrary · no Gridfinity");
+      expect(container.querySelector('[data-testid="select-grid-pitch"]')).toBeNull();
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
-      expect(current().arbitrarySizeMm).toEqual({ width: 167.5, length: 31 });
-      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About grid pitch"]')!.click());
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("do not support Gridfinity feet");
-      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-      enter("Bin width in millimetres", "171.2"); enter("Bin length in millimetres", "29.7"); enter("Bin height in millimetres", "7.3");
+      expect(current().arbitrarySizeMm).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture width in millimetres"]')!.value).toBe("167.5");
+      enter("Fixture width in millimetres", "171.2"); enter("Fixture length in millimetres", "29.7"); enter("Fixture body thickness in millimetres", "7.3");
       expect(current().arbitrarySizeMm).toEqual({ width: 171.2, length: 29.7 }); expect(current().heightUnits * 7).toBeCloseTo(7.3);
-      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-footprint"]')!.disabled).toBe(true);
+      expect(container.querySelector('[data-testid="button-edit-footprint"]')).toBeNull();
       openSettingsSection(container, "construction");
       expect(container.textContent).not.toContain("exports pocket-side down");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About underside"]')!.click());
@@ -880,16 +873,16 @@ it.each(["controls", "workflow"] as const)("exports a jig SVG and matching optio
   try {
     await flushHydration();
     openSettingsSection(container, "export");
-    expect(container.textContent).toContain("ULTIM8 jig layout");
+    expect(container.textContent).toContain("1:1 alignment SVG with peg locations");
     expect(container.textContent).not.toContain("Export shadow-board layout (top view)");
     const button = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-svg"]')!;
-    expect(button.textContent).toBe("Save jig SVG");
+    expect(button.textContent).toBe("Save alignment SVG");
     expect(button.disabled).toBe(false);
     expect(container.querySelector('[data-testid="button-layout-dxf"]')).not.toBeNull();
     for (const includeProject of [false, true]) {
       vi.mocked(downloadBlob).mockClear();
       React.act(() => button.click());
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save ULTIM8 jig layout SVG?");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save ULTIM8-compatible alignment SVG?");
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("does not set a bed position");
       expect(downloadBlob).not.toHaveBeenCalled();
       if (includeProject) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
@@ -917,7 +910,7 @@ it("offers the jig reference for a peg-only bin and preserves ordinary empty-bin
       await flushHydration();
       openSettingsSection(container, "export");
       expect(container.querySelector('[data-testid="button-layout-svg"]') !== null).toBe(jig);
-      expect(container.textContent?.includes("ULTIM8 jig layout")).toBe(jig);
+      expect(container.textContent?.includes("1:1 alignment SVG with peg locations")).toBe(jig);
     } finally { unmount(); }
   }
 });

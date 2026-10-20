@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Route, Switch } from "wouter";
 
 import { HelpDialog } from "@/components/help/help-dialog";
@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import About from "@/pages/about";
 import NotFound from "@/pages/not-found";
+import BinDesignerPage from "@/pages/bin-designer";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider } from "@/state/trace-store";
 import { ProjectActivityProvider } from "@/state/project-activity";
@@ -26,10 +27,12 @@ import { queryClient } from "./lib/queryClient";
  * here, so adding a workspace (the Gridfinity bin designer, next) costs one
  * entry in `components/layout/workspaces.ts`.
  */
-function Router() {
+export function Router(): JSX.Element {
   return (
     <Switch>
-      {WORKSPACES.map(({ path, component: Workspace }) => (
+      {/* One route keeps the designer mounted while entry replaces the URL. */}
+      <Route path={/^\/(?:bin|ultim8)\/?$/}><BinDesignerPage /></Route>
+      {WORKSPACES.filter(workspace => workspace.path !== "/bin").map(({ path, component: Workspace }) => (
         // Rendered as a child rather than passed as `component`, because
         // wouter's `component` prop requires the RouteComponentProps signature
         // and these workspaces take no route params.
@@ -47,7 +50,13 @@ function Router() {
 
 function Shell() {
   const { panelOpen, setPanelOpen, traceRestart } = usePanelState();
-  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(() => window.location.hash === "#ultim8-fixtures");
+  useEffect(() => {
+    /** Help links open the relevant section without starting a new project. */
+    const openLinkedHelp = (): void => { if (window.location.hash === "#ultim8-fixtures") setHelpOpen(true); };
+    window.addEventListener("hashchange", openLinkedHelp);
+    return () => window.removeEventListener("hashchange", openLinkedHelp);
+  }, []);
 
   return (
     <>
