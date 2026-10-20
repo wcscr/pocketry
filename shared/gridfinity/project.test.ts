@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseProjectDoc, serializeProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
-import { parseBinSpec } from "./types";
+import { MAX_HEIGHT_UNITS, parseBinSpec } from "./types";
 import { rigidPocket } from "./rigid-pocket";
 import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 import { DEFAULT_BIN_MATERIALS } from "./materials";
@@ -47,6 +47,25 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([12, 42, 50.5, 51, MAX_HEIGHT_UNITS])("round-trips a %sU bin and its saved history", heightUnits => {
+    const parsed = parseProjectDoc({
+      ...VALID, cutouts: [], spec: { ...VALID.spec, heightUnits },
+      history: { index: 1, stack: [
+        { label: "Before", doc: { spec: VALID.spec, cutouts: [], fingerHoles: [] } },
+        { label: "Change bin height", doc: { spec: { ...VALID.spec, heightUnits }, cutouts: [], fingerHoles: [] } },
+      ] },
+    });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.spec.heightUnits).toBe(heightUnits);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed!))))).toEqual(parsed);
+  });
+
+  it("rejects heights above the design ceiling and preserves half-unit grid increments", () => {
+    for (const heightUnits of [MAX_HEIGHT_UNITS + 0.5, 50.25]) {
+      expect(parseProjectDoc({ ...VALID, spec: { ...VALID.spec, heightUnits } })).toBeNull();
+    }
+  });
+
   it.each([37, 38, 39, 40, 44, 45, 46])("migrates v%s projects and saves a slanted wall through history", schemaVersion => {
     const old = { ...VALID, schemaVersion };
     const migrated = parseProjectDoc(old)!;

@@ -23,7 +23,8 @@ import { D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitc
 
 /** Maximum span per axis in standard 42 mm cells, independent of grid pitch. */
 export const MAX_GRID = 16;
-export const MAX_HEIGHT_UNITS = 42;
+/** Design ceiling: 420 mm before the lip, allowing large-format printer heights. */
+export const MAX_HEIGHT_UNITS = 60;
 /** Stay below the horizontal-wall singularity at 90 degrees. */
 export const MAX_WALL_SLANT_ANGLE_DEG = 89;
 

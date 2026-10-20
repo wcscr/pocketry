@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement } from "@shared/gridfinity/cutout";
-import { parseBinSpec } from "@shared/gridfinity/types";
+import { MAX_HEIGHT_UNITS, parseBinSpec } from "@shared/gridfinity/types";
 import { generateUltim8JigSVG } from "@/lib/export/layout";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { downloadBlob } from "@/lib/download";
@@ -436,7 +436,7 @@ describe("BinDesignerPage", () => {
     try {
       openUltim8Setup(container);
       expect(document.querySelector<HTMLInputElement>('[aria-label="Jig body thickness in millimetres"]')!.value).toBe("21");
-      for (const value of ["", "1.9", "295"]) {
+      for (const value of ["", "1.9", "421"]) {
         enterJigThickness(value);
         expect(jigDialogButton("Use jig settings").disabled).toBe(true);
         expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain("body thickness");
@@ -689,6 +689,11 @@ describe("BinDesignerPage", () => {
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       enter("Bin width in millimetres", "171.2"); enter("Bin length in millimetres", "29.7"); enter("Bin height in millimetres", "7.3");
       expect(current().arbitrarySizeMm).toEqual({ width: 171.2, length: 29.7 }); expect(current().heightUnits * 7).toBeCloseTo(7.3);
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Bin height in millimetres"]')!.max).toBe("420");
+      enter("Bin height in millimetres", "420");
+      expect(current().heightUnits).toBe(MAX_HEIGHT_UNITS);
+      clickBinHistory(container, "undo");
+      expect(current().heightUnits * 7).toBeCloseTo(7.3);
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-footprint"]')!.disabled).toBe(true);
       openSettingsSection(container, "construction");
       expect(container.textContent).not.toContain("exports pocket-side down");
@@ -783,6 +788,45 @@ describe("BinDesignerPage", () => {
       expect(size.textContent).toContain("Outer size 125.5 × 220.0 × 42.1 mm");
     } finally {
       unmount();
+    }
+  });
+
+  it.each(["standard", "workflow"])("edits restored tall bins up to the shared height limit in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 50.5 }),
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "size");
+      const input = container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!;
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Height in 0.5u increments"]')!;
+      const height = () => vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits;
+      expect(input.value).toBe("50.5");
+      expect(input.max).toBe(String(MAX_HEIGHT_UNITS));
+      expect(slider.getAttribute("aria-valuenow")).toBe("50.5");
+      expect(slider.getAttribute("aria-valuemax")).toBe(String(MAX_HEIGHT_UNITS));
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+      expect(height()).toBe(51);
+      clickBinHistory(container, "undo");
+      expect(height()).toBe(50.5);
+      clickBinHistory(container, "redo");
+      expect(height()).toBe(51);
+      React.act(() => input.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, String(MAX_HEIGHT_UNITS));
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(height()).toBe(MAX_HEIGHT_UNITS);
+      expect(container.querySelector("#bin-settings-size")!.textContent).toContain("423.6 mm");
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+      expect(height()).toBe(MAX_HEIGHT_UNITS);
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
     }
   });
 

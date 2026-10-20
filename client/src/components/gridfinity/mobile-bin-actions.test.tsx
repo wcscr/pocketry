@@ -3,9 +3,41 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { MAX_HEIGHT_UNITS } from "@shared/gridfinity/types";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { MobileBinActions } from "./mobile-bin-actions";
+
+it("edits tall bins up to the shared height limit with undo and redo", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  let store!: BinStore;
+  function Probe() {
+    store = useBin();
+    return <MobileBinActions open onOpenChange={() => {}} onMore={() => {}} onExport={() => {}} />;
+  }
+  try {
+    React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
+    React.act(() => store.dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 50.5 } }));
+    const slider = host.querySelector<HTMLElement>('#quick-bin-height [role="slider"]')!;
+    expect(slider.getAttribute("aria-valuenow")).toBe("50.5");
+    expect(slider.getAttribute("aria-valuemax")).toBe(String(MAX_HEIGHT_UNITS));
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(store.spec.heightUnits).toBe(51);
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.spec.heightUnits).toBe(50.5);
+    React.act(() => store.dispatch({ type: "REDO" }));
+    expect(store.spec.heightUnits).toBe(51);
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+    expect(store.spec.heightUnits).toBe(MAX_HEIGHT_UNITS);
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(store.spec.heightUnits).toBe(MAX_HEIGHT_UNITS);
+  } finally {
+    React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals();
+  }
+});
 
 it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket and section", property => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

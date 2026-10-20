@@ -175,8 +175,6 @@ import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, binReducer, useBin, type BinState } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
-/** Slider ceiling for height; the schema allows more, the UI keeps it sane. */
-const MAX_HEIGHT_UNITS_UI = 12;
 /** Slider ceiling: at most eight full cells, within the schema hard cap. */
 const maxGridUi = (pitch: GridPitch): number =>
   Math.min(maxGridCells(pitch), 8 * GRID_PITCH_DIVISOR[pitch]);
@@ -1535,7 +1533,7 @@ export function BinControlsPanel({
           {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Height" htmlFor="arbitrary-height" hint="Body height, excluding the stacking lip and peg length. Pocket floors stay measured from the flat backing." />
             <div className="flex items-center gap-1.5">
-              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={spec.heightUnits * HEIGHT_UNIT_MM} displayPrecision={2} min={2} max={294} step={0.1}
+              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={spec.heightUnits * HEIGHT_UNIT_MM} displayPrecision={2} min={2} max={MAX_HEIGHT_UNITS * HEIGHT_UNIT_MM} step={0.1}
                 onValueChange={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) }, true)}
                 onValueCommit={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) })} />
               <span className="text-xs text-muted-foreground">mm</span>
@@ -1551,12 +1549,12 @@ export function BinControlsPanel({
                 }
                 onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
                 min={1}
-                max={MAX_HEIGHT_UNITS_UI}
+                max={MAX_HEIGHT_UNITS}
                 step={0.5}
                 aria-label="Height in 0.5u increments"
               />
               <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                <DraftNumberInput id="bin-height-units" className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
+                <DraftNumberInput id="bin-height-units" className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
               </span>
             </div>
           </div>}

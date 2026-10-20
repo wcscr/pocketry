@@ -765,7 +765,7 @@ introduce bridges, overhangs or reduced bed contact in this orientation. Warning
 do not block export; inspect the slice and print a small fit/strength test.
 
 Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
-body height (2–294 mm). It supports rectangular flat and ULTIM8 bases; bodies below
+body height (2–420 mm). It supports rectangular flat and ULTIM8 bases; bodies below
 7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
 coordinates; grid pitches are available again only when dimensions exactly fit,
 so switching never silently snaps a design. Cell footprint editing and Gridfinity
