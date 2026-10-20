@@ -41,7 +41,7 @@ export interface WallSpec {
   heightUnits: number;
   fill?: "none" | "solid";
   lip?: "standard" | "none";
-  wallThicknessMm?: number;
+  wallThicknessMm?: number | null;
 }
 
 /**

@@ -76,8 +76,8 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
-    /** Main hollow-wall thickness; retained while solid fill is enabled. */
-    wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_WALL),
+    /** Null follows bin height; a number fixes hollow-wall thickness, retained while solid. */
+    wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).nullable().default(null),
     /** Prototype: tilt one or both opposing walls above the fixed base along one axis. */
     wallSlant: z.object({
       axis: z.enum(["x", "y"]),

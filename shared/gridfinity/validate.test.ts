@@ -26,7 +26,7 @@ describe("binSpecSchema", () => {
     // Solid by default: this tool's bins exist to have pockets cut into them.
     expect(parsed.fill).toBe("solid");
     expect(parsed.fillHeightPercent).toBe(100);
-    expect(parsed.wallThicknessMm).toBe(0.95);
+    expect(parsed.wallThicknessMm).toBeNull();
     expect(parsed.gridPitch).toBe("full");
   });
 
@@ -40,7 +40,8 @@ describe("binSpecSchema", () => {
     for (const wallThicknessMm of [0.95, 1.2, 2, 3]) {
       expect(spec({ fill: "none", wallThicknessMm }).wallThicknessMm).toBe(wallThicknessMm);
     }
-    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2", null]) {
+    expect(spec({ wallThicknessMm: null }).wallThicknessMm).toBeNull();
+    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2"]) {
       expect(() => spec({ wallThicknessMm: wallThicknessMm as number })).toThrow();
     }
   });

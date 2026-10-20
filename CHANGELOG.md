@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Allow bins up to 60U (420 mm before the stacking lip), with matching desktop, mobile, and millimetre height controls.
+- New hollow bins follow Gridfinity Extended wall defaults: 0.95 mm below 8U, 1.2 mm from 8U to below 16U, and 1.6 mm at 16U and above. Saved bins and explicit thickness choices retain their walls.
 
 - Prevent a flat ledge where tilted pockets exit the top surface. Keep pocket color below the rounded entry in previews and multi-color exports.
 

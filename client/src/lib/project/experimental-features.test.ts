@@ -18,6 +18,14 @@ it("does not enable experimental tools for ordinary positions, heading or zero t
   ] })).toBe(false);
 });
 
+it.each([7.5, 8, 15.5, 16, 60])("keeps automatic %sU wall thickness available without experimental tools", heightUnits => {
+  const spec = parseBinSpec({ ...ordinary.spec, fill: "none", heightUnits, wallThicknessMm: null });
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(false);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 0, stack: [
+    { label: "Tall bin", doc: { spec, cutouts: [], fingerHoles: [] } },
+  ] } })).toBe(false);
+});
+
 it("treats surface text as standard in the current design and in saved undo/redo history", () => {
   const label = surfaceTextSchema.parse({ id: "label", text: "METRIC", position: { x: 0, y: 0 } });
   const spec = { ...ordinary.spec, surfaceTexts: [label] };

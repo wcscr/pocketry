@@ -82,11 +82,11 @@ describe("parseProjectDoc", () => {
       spec: { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 } } })!;
     expect(doc.spec.wallSlant).toEqual({ axis: "x", angleDeg: 20 });
   });
-  it("migrates v31 wall thickness through the design, history, and transform references", () => {
+  it.each([31, 47])("migrates v%s wall thickness through the design, history, and transform references", schemaVersion => {
     const { wallThicknessMm: _removed, ...spec } = VALID.spec;
     const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
-    const doc = { spec: { ...spec, fill: "none" }, cutouts, fingerHoles: [] };
-    const legacy = { ...VALID, ...doc, schemaVersion: 31,
+    const doc = { spec: { ...spec, fill: "none", heightUnits: 20 }, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion,
       history: { stack: [{ doc, label: "Opened" }], index: 0 },
       transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
     const original = JSON.stringify(legacy);
@@ -102,6 +102,23 @@ describe("parseProjectDoc", () => {
       { doc: { ...migrated.history!.stack[0].doc, spec: thick }, label: "Change wall thickness" },
     ] } };
     expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
+  it.each([null, 0.95, 1.2, 1.6, 2.4])("round-trips automatic or fixed %s mm walls through history and transform origins", wallThicknessMm => {
+    const source = parseProjectDoc(VALID)!;
+    const spec = parseBinSpec({ ...source.spec, fill: "none", heightUnits: 20, wallThicknessMm });
+    const doc = { spec, cutouts: source.cutouts, fingerHoles: [] };
+    const saved = { ...source, ...doc,
+      history: { index: 1, stack: [
+        { label: "Before", doc: { ...doc, spec: { ...spec, heightUnits: 7.5 } } },
+        { label: "Change bin height", doc },
+      ] },
+      transformOrigins: { pockets: [{ spec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))));
+    expect(restored).toEqual(saved);
+    if (wallThicknessMm !== null) {
+      expect(parseProjectDoc({ ...saved, schemaVersion: 47 })).toEqual(saved);
+    }
   });
   it("migrates released v25 fill-depth references and settings without changing history", () => {
     const original = parseProjectDoc(VALID)!;

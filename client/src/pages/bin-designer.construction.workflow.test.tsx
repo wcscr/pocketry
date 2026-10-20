@@ -19,6 +19,7 @@ import { parseProjectDoc } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement } from "@shared/gridfinity/cutout";
 import { MAX_HEIGHT_UNITS, parseBinSpec } from "@shared/gridfinity/types";
+import { binWallThicknessMm } from "@shared/gridfinity/standard";
 import { generateUltim8JigSVG } from "@/lib/export/layout";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { downloadBlob } from "@/lib/download";
@@ -270,6 +271,57 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("wall thickness");
       React.act(() => experimentalSettings.setEnabled(true));
       expect(field()!.value).toBe("2.4");
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each(["standard", "workflow"])("uses height-based walls and restores automatic thickness after an override in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ experimental: false });
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const enter = (label: string, value: string) => {
+      const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      React.act(() => input.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => input.blur());
+    };
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      React.act(() => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!.click());
+      for (const [height, thickness] of [["8", 1.2], ["15.5", 1.2], ["16", 1.6]] as const) {
+        openSettingsSection(container, "size");
+        enter("Bin height in units", height);
+        expect(current().wallThicknessMm).toBeNull();
+        expect(binWallThicknessMm(current())).toBe(thickness);
+        expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
+      }
+      openSettingsSection(container, "construction");
+      expect(container.querySelector('[aria-label="Wall thickness in millimetres"]')).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(true));
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.value).toBe("1.6");
+      expect(container.textContent).toContain("Follows bin height");
+      enter("Wall thickness in millimetres", "0.95");
+      openSettingsSection(container, "size");
+      enter("Bin height in units", "20");
+      expect(binWallThicknessMm(current())).toBe(0.95);
+      openSettingsSection(container, "construction");
+      const reset = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use height default")!;
+      React.act(() => reset.click());
+      expect(current().wallThicknessMm).toBeNull();
+      expect(binWallThicknessMm(current())).toBe(1.6);
+      clickBinHistory(container, "undo");
+      expect(current().wallThicknessMm).toBe(0.95);
+      clickBinHistory(container, "redo");
+      expect(current().wallThicknessMm).toBeNull();
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
     } finally {
       unmount();
       window.history.replaceState(null, "", originalUrl);
