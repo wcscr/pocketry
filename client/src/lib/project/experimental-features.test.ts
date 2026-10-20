@@ -37,13 +37,13 @@ it("treats surface text as standard in the current design and in saved undo/redo
   expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, textColor: "#ff8800" } })).toBe(false);
 });
 
-it.each(["none", "solid"] as const)("detects retained custom wall thickness with %s fill, including history", fill => {
+it.each(["none", "solid"] as const)("treats custom wall thickness as standard with %s fill, including history", fill => {
   const spec = { ...ordinary.spec, fill, wallThicknessMm: 2.4 };
-  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
     { label: "Thicker walls", doc: { spec, cutouts: [], fingerHoles: [] } },
     { label: "Default walls", doc: { spec: ordinary.spec, cutouts: [], fingerHoles: [] } },
-  ] } })).toBe(true);
+  ] } })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, fill } })).toBe(false);
 });
 

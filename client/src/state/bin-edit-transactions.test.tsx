@@ -48,13 +48,11 @@ it("follows height with experimental tools off, while explicit walls remain fixe
     expect(binWallThicknessMm(ui.bin().spec)).toBe(thickness);
   }
   ui.dispatch({ type: "PATCH_SPEC", patch: { wallThicknessMm: 2.4 } });
-  expect(ui.bin().spec.wallThicknessMm).toBeNull();
-  ui.enable(true);
+  expect(ui.bin().spec.wallThicknessMm).toBe(2.4);
+  expect(ui.bin().editError).toBeNull();
   ui.dispatch({ type: "PATCH_SPEC", patch: { wallThicknessMm: 1.2 } });
-  ui.enable(false);
   ui.dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 20 } });
   expect(binWallThicknessMm(ui.bin().spec)).toBe(1.2);
-  ui.enable(true);
   ui.dispatch({ type: "PATCH_SPEC", patch: { wallThicknessMm: null } });
   expect(binWallThicknessMm(ui.bin().spec)).toBe(1.6);
   ui.dispatch({ type: "UNDO" });

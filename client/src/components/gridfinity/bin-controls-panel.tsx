@@ -1427,11 +1427,10 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallSlant !== null || spec.pegBottom || (spec.wallThicknessMm !== null && spec.wallThicknessMm !== D_WALL) || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallSlant !== null || spec.pegBottom || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
           spec.wallSlant !== null && "slanted walls",
           spec.pegBottom && "ULTIM8 jig pegs",
-          spec.wallThicknessMm !== null && spec.wallThicknessMm !== D_WALL && "wall thickness",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
@@ -1588,7 +1587,7 @@ export function BinControlsPanel({
             </HelpHint>
           </div>
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid restores feet only if Arbitrary applied the flat bottom automatically. Explicit bottom choices stay selected. Sizes must fit the grid's pitch and height increments." className="shrink-0" />
             <Select
               value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
               onValueChange={(value) => {
@@ -1739,7 +1738,7 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
-          {experimentalEnabled && spec.fill === "none" && (
+          {spec.fill === "none" && (
             <div className="space-y-1.5">
               <MmSlider
                 label="Wall thickness"
@@ -1747,12 +1746,15 @@ export function BinControlsPanel({
                 min={D_WALL}
                 max={MAX_HOLLOW_WALL_THICKNESS_MM}
                 step={0.05}
-                hint={`Height default: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Entering a thickness keeps it fixed when height changes. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
+                hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Editing the thickness keeps your value fixed when height changes. Use recommended restores automatic thickness. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
                 onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
               />
-              {spec.wallThicknessMm === null
-                ? <p className="text-[11px] text-muted-foreground">Follows bin height</p>
-                : <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use height default</Button>}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
+                  ? "Recommended · follows bin height"
+                  : `Custom · recommended: ${defaultBinWallThicknessMm(spec.heightUnits)} mm`}</p>
+                {spec.wallThicknessMm !== null && <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use recommended</Button>}
+              </div>
             </div>
           )}
           {spec.fill === "solid" && (
@@ -1816,7 +1818,7 @@ export function BinControlsPanel({
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
               <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">For Wham Bam ULTIM8 mats on eufyMake E1. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>}</>} />
-              <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
+              <Select value={spec.pegBottom ? "ultim8" : spec.autoFlatBottom ? "automatic-flat" : spec.flatBottom ? "flat" : "gridfinity"}
                 onValueChange={(bottom) => {
                   if (bottom === "ultim8") {
                     if (experimentalEnabled) {
@@ -1830,6 +1832,7 @@ export function BinControlsPanel({
                 <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="gridfinity" disabled={!!spec.arbitrarySizeMm}>Gridfinity feet</SelectItem>
+                  {spec.autoFlatBottom && <SelectItem value="automatic-flat" disabled>Flat bottom (automatic)</SelectItem>}
                   <SelectItem value="flat">Flat bottom</SelectItem>
                   {(experimentalEnabled || spec.pegBottom) && <SelectItem value="ultim8" disabled={!experimentalEnabled}>ULTIM8 jig pegs</SelectItem>}
                 </SelectContent>
