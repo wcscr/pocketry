@@ -29,6 +29,13 @@ describe("ULTIM8 fixture defaults", () => {
     expect(defaults.patch.pegBottom).not.toBe(DEFAULT_PEG_BOTTOM);
   });
 
+  it("clears an automatic flat bottom when converting to a peg fixture", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, flatBottom: true, autoFlatBottom: true, arbitrarySizeMm: { width: 100, length: 60 } });
+    const next = parseBinSpec({ ...spec, ...ultim8Defaults(spec, 5, "#123456").patch });
+    expect(next).toMatchObject({ flatBottom: false, autoFlatBottom: false, pegBottom: DEFAULT_PEG_BOTTOM, arbitrarySizeMm: spec.arbitrarySizeMm });
+    expect(spec.autoFlatBottom).toBe(true);
+  });
+
   it("retains explicit dimensions and custom footprints", () => {
     const arbitrary = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, flatBottom: true, arbitrarySizeMm: { width: 159.4, length: 75 } });
     expect(ultim8Defaults(arbitrary, 10, "#123456").patch.arbitrarySizeMm).toEqual(arbitrary.arbitrarySizeMm);

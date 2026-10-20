@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { parseCutoutPlacement, fingerHoleSchema } from "@shared/gridfinity/cutout";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { binWallThicknessMm } from "@shared/gridfinity/standard";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
 import { ExperimentalFeaturesProvider, useExperimentalFeatures } from "./experimental-features";
@@ -36,6 +37,33 @@ function mount() {
   cleanup.push(() => { React.act(() => root.unmount()); host.remove(); });
   return { bin: () => bin, preferences: () => preferences, edits: () => edits!, dispatch, enable, fill, key, input, host };
 }
+
+it("follows height with experimental tools off, while explicit walls remain fixed through undo and reset", () => {
+  const ui = mount();
+  ui.dispatch({ type: "PATCH_SPEC", patch: { fill: "none", heightUnits: 7.5 } });
+  expect(ui.bin().spec.wallThicknessMm).toBeNull();
+  for (const [heightUnits, thickness] of [[8, 1.2], [15.5, 1.2], [16, 1.6], [7.5, 0.95]]) {
+    ui.dispatch({ type: "PATCH_SPEC", patch: { heightUnits } });
+    expect(ui.bin().editError).toBeNull();
+    expect(binWallThicknessMm(ui.bin().spec)).toBe(thickness);
+  }
+  ui.dispatch({ type: "PATCH_SPEC", patch: { wallThicknessMm: 2.4 } });
+  expect(ui.bin().spec.wallThicknessMm).toBe(2.4);
+  expect(ui.bin().editError).toBeNull();
+  ui.dispatch({ type: "PATCH_SPEC", patch: { wallThicknessMm: 1.2 } });
+  ui.dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 20 } });
+  expect(binWallThicknessMm(ui.bin().spec)).toBe(1.2);
+  ui.dispatch({ type: "PATCH_SPEC", patch: { wallThicknessMm: null } });
+  expect(binWallThicknessMm(ui.bin().spec)).toBe(1.6);
+  ui.dispatch({ type: "UNDO" });
+  expect(binWallThicknessMm(ui.bin().spec)).toBe(1.2);
+  ui.dispatch({ type: "REDO" });
+  expect(ui.bin().spec.wallThicknessMm).toBeNull();
+  ui.dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });
+  expect(binWallThicknessMm(ui.bin().spec)).toBe(0.95);
+  ui.dispatch({ type: "PATCH_SPEC", patch: { fill: "none" } });
+  expect(binWallThicknessMm(ui.bin().spec)).toBe(1.6);
+});
 const pocket = parseCutoutPlacement({ id: "a", shapeId: "shape", position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 }, designLink: { id: "shared", tilt: true } });
 function linkedFixture(ui: ReturnType<typeof mount>) {
   ui.dispatch({ type: "HYDRATE", spec: ui.bin().spec, cutouts: [pocket, { ...pocket, id: "b", position: { x: 20, y: 0 } }],

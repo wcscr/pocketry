@@ -15,6 +15,7 @@ import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
+import { binWallThicknessMm, defaultBinWallThicknessMm } from "@shared/gridfinity/standard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
@@ -204,6 +205,26 @@ function BinDesignerWorkspace(): JSX.Element {
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
+  const previousWallSpec = useRef<typeof committedSpec | null>(null);
+  useEffect(() => {
+    if (!bin.hydrated || projectBusy) { previousWallSpec.current = null; return; }
+    const previous = previousWallSpec.current;
+    previousWallSpec.current = committedSpec;
+    const recommended = defaultBinWallThicknessMm(committedSpec.heightUnits);
+    const thickness = binWallThicknessMm(committedSpec);
+    // Warn once per committed wall edit or newly entered height band, never
+    // during a numeric draft/slider drag or when initially restoring a project.
+    if (previous && committedSpec.fill === "none" && thickness < recommended
+        && (previous.wallThicknessMm !== committedSpec.wallThicknessMm
+          || previous.fill !== committedSpec.fill
+          || defaultBinWallThicknessMm(previous.heightUnits) !== recommended)) {
+      toast({
+        title: "Wall thickness below recommendation",
+        description: `${thickness} mm is below the recommended ${recommended} mm for this ${committedSpec.heightUnits}U bin. Thin walls may flex or warp. Your chosen thickness has been kept.`,
+        duration: 8000,
+      });
+    }
+  }, [committedSpec, bin.hydrated, projectBusy, toast]);
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);

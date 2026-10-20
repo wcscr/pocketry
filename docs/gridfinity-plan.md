@@ -30,20 +30,49 @@ problem or identify another generator's lip geometry.
 
 ## Current behavior and implementation status
 
-**Construction → Wall thickness** appears when **Enable experimental features**
-is on in Settings and **Solid fill** is off. The
-0.95–3.00 mm setting defaults to Rebuilt's 0.95 mm wall and grows the main walls
-inward, reducing cavity space while preserving outside dimensions and base
+Returning from **Arbitrary** sizes to a Gridfinity pitch restores Gridfinity feet
+only when Arbitrary applied the flat bottom automatically. Explicit **Flat bottom**
+and **ULTIM8 jig pegs** choices stay selected, whether chosen before or during
+Arbitrary sizing. The Bottom menu labels an automatically applied base as
+**Flat bottom (automatic)**; choosing **Flat bottom** makes it an explicit preference.
+Dimensions must fit the selected pitch exactly. Schema v50 saves this distinction
+through reopening and undo/redo. Older saved flat bottoms retain their base because
+their original selection intent is unknown.
+
+**Construction → Wall thickness** is a standard control, visible when
+**Solid fill** is off. The
+0.95–3.00 mm setting grows the main walls inward, reducing cavity space while preserving outside dimensions and base
 geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
 top, preserving the original mating region. Without a lip, the thicker wall
 reaches the top. A 1u bin has no straight wall above the base to thicken.
 The setting applies to rectangular and custom footprints, including flat bottoms;
 preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
 the preference but uses the original solid-bin geometry, including at partial
-fill heights. Schema v32 defaults older designs and undo history to 0.95 mm.
-Turning experimental features off hides the control without changing the saved
-thickness or geometry. Loading a project with a custom thickness, including in
-undo/redo history, enables experimental features with the usual notification.
+fill heights.
+
+Bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.ostat.com/gridfinity_basic_cup):
+
+| Bin height | Hollow-wall thickness |
+| --- | --- |
+| Below 8U | 0.95 mm |
+| 8U to below 16U (including 15.5U) | 1.2 mm |
+| 16U and above | 1.6 mm |
+
+The displayed thickness updates automatically with height. Edit the slider or
+number directly to keep a custom value across height changes; **Use recommended**
+restores automatic sizing. A warning pops up after committing a value below the
+height recommendation, or increasing height into a band that makes a custom wall
+too thin. The chosen value remains applied. Drafts and slider drags do not warn
+until committed. Custom values, including 0.95 mm, survive saving, reopening, and
+undo/redo. Neither automatic nor custom wall thickness requires Experimental.
+
+Automatic mode is stored as a null wall preference. Schema v49 corrects older
+projects whose default 0.95 mm had been preserved as a fixed value, including
+v48 drafts, undo/redo history, and transform references. Legacy missing or
+0.95 mm preferences become automatic; other custom values stay fixed. Older
+0.95 mm values cannot distinguish an explicit choice from the original default,
+so those also adopt automatic mode. These are design defaults; physical tall-bin
+print quality and stiffness remain unqualified.
 
 The help button beside **Outer size** explains height units and the inherited
 rounded lip. With the lip off, it explains the flush height instead. The detailed
@@ -765,7 +794,7 @@ introduce bridges, overhangs or reduced bed contact in this orientation. Warning
 do not block export; inspect the slice and print a small fit/strength test.
 
 Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
-body height (2–294 mm). It supports rectangular flat and ULTIM8 bases; bodies below
+body height (2–420 mm). It supports rectangular flat and ULTIM8 bases; bodies below
 7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
 coordinates; grid pitches are available again only when dimensions exactly fit,
 so switching never silently snaps a design. Cell footprint editing and Gridfinity

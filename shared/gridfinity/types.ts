@@ -23,7 +23,8 @@ import { D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitc
 
 /** Maximum span per axis in standard 42 mm cells, independent of grid pitch. */
 export const MAX_GRID = 16;
-export const MAX_HEIGHT_UNITS = 42;
+/** Design ceiling: 420 mm before the lip, allowing large-format printer heights. */
+export const MAX_HEIGHT_UNITS = 60;
 /** Stay below the horizontal-wall singularity at 90 degrees. */
 export const MAX_WALL_SLANT_ANGLE_DEG = 89;
 
@@ -75,8 +76,8 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
-    /** Main hollow-wall thickness; retained while solid fill is enabled. */
-    wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_WALL),
+    /** Null follows bin height; a number fixes hollow-wall thickness, retained while solid. */
+    wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).nullable().default(null),
     /** Prototype: tilt one or both opposing walls above the fixed base along one axis. */
     wallSlant: z.object({
       axis: z.enum(["x", "y"]),
@@ -90,6 +91,8 @@ export const binSpecSchema = z
     adjustFixedPocketDepths: z.boolean().default(true),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
+    /** Arbitrary sizing applied this flat bottom; an explicit bottom choice clears it. */
+    autoFlatBottom: z.boolean().default(false),
     /** Integral Wham Bam Systems ULTIM8-compatible pegs with upright roots/web or a flat backing printed pegs up. */
     pegBottom: z.object({
       diameterMm: z.number().min(4).max(5).default(4.8),
@@ -149,6 +152,10 @@ export const binSpecSchema = z
     if (spec.flatBottom && spec.pegBottom) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom"],
         message: "Choose either a flat bottom or a Wham Bam Systems ULTIM8-compatible peg bottom." });
+    }
+    if (spec.autoFlatBottom && (!spec.arbitrarySizeMm || !spec.flatBottom || spec.pegBottom)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["autoFlatBottom"],
+        message: "Automatic flat bottoms require arbitrary sizing and a flat bottom without pegs." });
     }
     const maximum = maxGridCells(spec.gridPitch);
     for (const axis of ["gridX", "gridY"] as const) {

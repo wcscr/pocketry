@@ -4,6 +4,10 @@
 
 - Added `/ultim8` to start 100 × 60 × 5 mm Wham Bam Systems ULTIM8-compatible fixtures safely, with jig controls, a Trace starting point, and alignment exports available without enabling Experimental.
 
+- Allow bins up to 60U (420 mm before the stacking lip), with matching desktop, mobile, and millimetre height controls.
+- Hollow bins follow Gridfinity Extended wall defaults: 0.95 mm below 8U, 1.2 mm from 8U to below 16U, and 1.6 mm at 16U and above. Legacy 0.95 mm defaults now follow height too. Edit thickness directly to keep a custom value, with a warning below the recommendation. Wall controls no longer require Experimental.
+- Restore Gridfinity feet after Arbitrary sizing only when the flat bottom was applied automatically; preserve explicit Flat bottom and Wham Bam Systems ULTIM8-compatible choices, including across saving and undo/redo.
+
 - Prevent a flat ledge where tilted pockets exit the top surface. Keep pocket color below the rounded entry in previews and multi-color exports.
 
 - Offer Auto-arrange beside oversized-bin warnings, explaining layout changes and preserving fixed sizes; fix arranging arbitrary-sized bins with multiple retained grid cells.

@@ -12,6 +12,7 @@ import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
+import { arbitrarySizePatch, gridSizeFromArbitrary } from "@shared/gridfinity/bin-size";
 
 import {
   BinProvider,
@@ -918,6 +919,26 @@ it("uses a deeper default floor for flat bins and restores it with undo and base
 });
 
 describe("restored project history", () => {
+  it.each(["flat", "ultim8"] as const)("retains an explicit %s bottom selected during arbitrary sizing across undo and reload", bottom => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: arbitrarySizePatch(store().spec)! }));
+    expect(store().spec.autoFlatBottom).toBe(true);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: bottom === "flat"
+      ? { flatBottom: true } : { flatBottom: false, pegBottom: DEFAULT_PEG_BOTTOM } }));
+    expect(store().spec.autoFlatBottom).toBe(false);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.autoFlatBottom).toBe(true);
+    act(() => store().dispatch({ type: "REDO" }));
+    const saved = parseProjectDoc(JSON.parse(JSON.stringify({
+      schemaVersion: PROJECT_SCHEMA_VERSION, shapes: [], spec: store().spec,
+      cutouts: [], fingerHoles: [], history: store().history,
+    })))!;
+    act(() => store().dispatch({ type: "HYDRATE", spec: saved.spec, cutouts: saved.cutouts, history: saved.history }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: gridSizeFromArbitrary(store().spec, "full")! }));
+    expect(store().spec.flatBottom).toBe(bottom === "flat");
+    expect(store().spec.pegBottom).toEqual(bottom === "ultim8" ? DEFAULT_PEG_BOTTOM : null);
+    expect(store().spec.autoFlatBottom).toBe(false);
+  });
   it("restores the saved cursor, keeps new edits local, and preserves the retention limit", () => {
     const { store, act } = mountBin();
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 3 } }));

@@ -19,8 +19,8 @@
   100 × 60 × 5 mm; converting an existing project retains its dimensions. Custom legacy footprints keep
   their exact shape; opening a saved project never reapplies defaults.
 - Peg controls are available whenever pegs exist; creation from a regular Bottom
-  selector remains Experimental-only. Show a small Beta label. Wall slant, custom
-  wall thickness, design links, and all other experimental gates remain unchanged.
+  selector remains Experimental-only. Show a small Beta label. Wall slant, design links, and all other remaining experimental gates stay
+  unchanged. Wall thickness is public following main’s tall-bin updates.
 - `projectUsesExperimentalFeatures` currently has no production callers; only its
   unit tests and the experimental-provider test use it. Exclude pegs in current
   and historical snapshots because they no longer require opt-in tools. Keep

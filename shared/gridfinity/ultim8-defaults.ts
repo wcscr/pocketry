@@ -19,7 +19,7 @@ export function ultim8Defaults(spec: BinSpec, bodyThicknessMm: number, bodyColor
 } {
   return {
     patch: {
-      flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
+      flatBottom: false, autoFlatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
       arbitrarySizeMm: spec.footprint.kind === "rectangle" && footprintSizeMm ? { ...footprintSizeMm }
         : arbitrarySizePatch(spec)?.arbitrarySizeMm ?? spec.arbitrarySizeMm,
       heightUnits: bodyThicknessMm / HEIGHT_UNIT_MM,

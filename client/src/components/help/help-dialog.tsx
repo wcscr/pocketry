@@ -190,7 +190,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. In contour editing mode, right-click a point to remove it immediately. The regular controls remain available.
           </p>
           <p>
-            <strong>Optional tools:</strong> adjustable empty-bin walls and linked
+            <strong>Optional tools:</strong> slanted walls and linked
             designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.
             Converting a regular project to Wham Bam Systems ULTIM8-compatible pegs also requires
