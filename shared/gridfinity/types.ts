@@ -93,7 +93,7 @@ export const binSpecSchema = z
     flatBottom: z.boolean().default(false),
     /** Arbitrary sizing applied this flat bottom; an explicit bottom choice clears it. */
     autoFlatBottom: z.boolean().default(false),
-    /** Integral ULTIM8 pegs with upright roots/web or a flat backing printed pegs up. */
+    /** Integral Wham Bam Systems ULTIM8-compatible pegs with upright roots/web or a flat backing printed pegs up. */
     pegBottom: z.object({
       diameterMm: z.number().min(4).max(5).default(4.8),
       lengthMm: z.number().min(2).max(5).default(4),
@@ -141,7 +141,7 @@ export const binSpecSchema = z
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["heightUnits"], message: "Gridfinity heights use 0.5u increments." });
     }
     if (spec.arbitrarySizeMm && (!(spec.flatBottom || spec.pegBottom) || spec.footprint.kind !== "rectangle")) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["arbitrarySizeMm"], message: "Arbitrary sizes require a rectangular footprint and a flat bottom or ULTIM8 pegs." });
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["arbitrarySizeMm"], message: "Arbitrary sizes require a rectangular footprint and a flat bottom or Wham Bam Systems ULTIM8-compatible pegs." });
     }
     if (spec.pegBottom && spec.pegBottom.underside !== "flat" && spec.pegBottom.density !== 1) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom", "density"], message: "Sparse pegs require the flat backing, printed with pegs up." });
@@ -151,7 +151,7 @@ export const binSpecSchema = z
     }
     if (spec.flatBottom && spec.pegBottom) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom"],
-        message: "Choose either a flat bottom or an ULTIM8 peg bottom." });
+        message: "Choose either a flat bottom or a Wham Bam Systems ULTIM8-compatible peg bottom." });
     }
     if (spec.autoFlatBottom && (!spec.arbitrarySizeMm || !spec.flatBottom || spec.pegBottom)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["autoFlatBottom"],

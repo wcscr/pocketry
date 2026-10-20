@@ -79,11 +79,11 @@ it.each([0, 2])("detects linked thumb access only in undo/redo history at index 
   } })).toBe(true);
 });
 
-it.each([0, 1, 2])("detects ULTIM8 pegs in saved undo/redo history at index %s", index => {
+it.each([0, 1, 2])("does not require Experimental for ULTIM8 pegs in current or historical snapshots at index %s", index => {
   const plain = { spec: ordinary.spec, cutouts: ordinary.cutouts, fingerHoles: [] };
   const pegged = { ...plain, spec: parseBinSpec({ ...ordinary.spec, pegBottom: { underside: "flat", density: "corners" } }) };
-  expect(projectUsesExperimentalFeatures({ ...ordinary, ...pegged })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, ...pegged })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index, stack: [
     { label: "Before", doc: plain }, { label: "Add pegs", doc: pegged }, { label: "Remove pegs", doc: plain },
-  ] } })).toBe(true);
+  ] } })).toBe(false);
 });

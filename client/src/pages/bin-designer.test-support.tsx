@@ -370,7 +370,7 @@ function openUltim8Setup(container: HTMLElement): void {
   openSettingsSection(container, "construction");
   React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!
     .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-  React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "ULTIM8 jig pegs")!.click());
+  React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
 }
 
 function enterJigThickness(value: string): void {

@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+- Fix Wham Bam Systems ULTIM8-compatible peg density around through openings: denser settings retain existing peg positions and fill gaps instead of skipping surviving edge rows.
+
+- Added `/ultim8` to start 100 × 60 × 5 mm Wham Bam Systems ULTIM8-compatible fixtures safely, with jig controls, a Trace starting point, and alignment exports available without enabling Experimental.
+
 - Allow bins up to 60U (420 mm before the stacking lip), with matching desktop, mobile, and millimetre height controls.
 - Hollow bins follow Gridfinity Extended wall defaults: 0.95 mm below 8U, 1.2 mm from 8U to below 16U, and 1.6 mm at 16U and above. Legacy 0.95 mm defaults now follow height too. Edit thickness directly to keep a custom value, with a warning below the recommendation. Wall controls no longer require Experimental.
-- Restore Gridfinity feet after Arbitrary sizing only when the flat bottom was applied automatically; preserve explicit Flat bottom and ULTIM8 choices, including across saving and undo/redo.
+- Restore Gridfinity feet after Arbitrary sizing only when the flat bottom was applied automatically; preserve explicit Flat bottom and Wham Bam Systems ULTIM8-compatible choices, including across saving and undo/redo.
 
 - Prevent a flat ledge where tilted pockets exit the top surface. Keep pocket color below the rounded entry in previews and multi-color exports.
 
@@ -36,13 +40,13 @@
 - Fix linking insertion paths to ordinary pockets so projects reopen correctly. Keep optional linking controls collapsed, show shared-edit scope for existing links, and allow Link management from one linked copy.
 
 - Default new pockets without a chosen depth to the bin floor so they appear immediately in the 3D preview.
-- ULTIM8 mode exports a 1:1 jig layout SVG with the bin outline, actual pocket openings, finger access, and retained peg locations for alignment to a calibrated mat template.
+- Wham Bam Systems ULTIM8-compatible mode exports a 1:1 jig layout SVG with the bin outline, actual pocket openings, finger access, and retained peg locations for alignment to a calibrated mat template.
 
 - Trace workflow puts Add to Bin and Export Tool Outline together in step 6, with SVG/DXF/STL choices in the download dialog and a separate Start Over step. Compact and mobile panels have a prominent Back to Canvas button.
 
-- Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and ULTIM8 pegs; the grid selector marks Arbitrary as non-Gridfinity. Bin size shows dimensions above grid options.
-- Added Experimental ULTIM8 jig peg bottoms with adjustable fit, sloped/bridged roots, and flat backing (the default, exported pegs up). Flat backing defaults to corner-only pegs and supports denser spacing; through openings omit overlapping pegs.
-- Grouped peg settings with floating help hints. Switching to ULTIM8 offers to remove the stacking lip, set Solid fill to 100%, switch rectangular bins to Arbitrary sizing, and use one color. The setup dialog offers body thickness, prefilled from the current height, with depth-conflict checks.
+- Added arbitrary rectangular bin sizes in millimetres, including height, for flat bottoms and Wham Bam Systems ULTIM8-compatible pegs; the grid selector marks Arbitrary as non-Gridfinity. Bin size shows dimensions above grid options.
+- Added Experimental Wham Bam Systems ULTIM8-compatible jig peg bottoms with adjustable fit, sloped/bridged roots, and flat backing (the default, exported pegs up). Flat backing defaults to corner-only pegs and supports denser spacing; through openings omit overlapping pegs.
+- Grouped peg settings with floating help hints. Switching to Wham Bam Systems ULTIM8-compatible pegs offers to remove the stacking lip, set Solid fill to 100%, switch rectangular bins to Arbitrary sizing, and use one color. The setup dialog offers body thickness, prefilled from the current height, with depth-conflict checks.
 - Surface pockets set to Through open the full bin bottom, including peg roots, when overlapping finger access.
 - Failed 3D updates clear obsolete bin meshes so they cannot appear beside the current pocket outline as misplaced duplicates.
 - Choose object X, Y, or Z for pocket insertion clearance. The first 3D tilt prompts for clearance style and axis, with another prompt if a later rotation makes that axis invalid.

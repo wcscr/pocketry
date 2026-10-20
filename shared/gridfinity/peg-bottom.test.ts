@@ -81,8 +81,12 @@ it.each(["corners", 1, 2, 3, 4, 5] as const)("selects sparse %s pegs from fittin
     expect(selected.length).toBeLessThan(full.length);
     const anchors = selectUltim8PegCenters(bin({ ...spec, pegBottom: { ...spec.pegBottom!, density: "corners" } }), full);
     for (const point of selected.filter(p => !anchors.includes(p))) {
-      const row = point.y / 5, column = (point.x - Math.abs(row % 2) * 5) / 10;
-      expect(Math.abs(row % density)).toBe(0); expect(Math.abs(column % density)).toBe(0);
+      for (const other of selected.filter(p => p !== point)) {
+        expect(Math.max(Math.abs(point.x - other.x) / 10, Math.abs(point.y - other.y) / 5)).toBeGreaterThanOrEqual(density);
+      }
+    }
+    for (const point of full) {
+      expect(Math.min(...selected.map(peg => Math.max(Math.abs(point.x - peg.x) / 10, Math.abs(point.y - peg.y) / 5)))).toBeLessThan(density);
     }
   }
   const omitted = selected[0];
@@ -90,4 +94,43 @@ it.each(["corners", 1, 2, 3, 4, 5] as const)("selects sparse %s pegs from fittin
   const replacement = selectUltim8PegCenters(spec, available);
   expect(replacement).not.toContain(omitted);
   if (density === "corners") expect(replacement).toHaveLength(4);
+});
+
+it("adds edge pegs when increasing density around a large through opening", () => {
+  const spec = bin({ arbitrarySizeMm: { width: 100, length: 100 } });
+  const available = ultim8PegCenters(spec).filter(point => Math.abs(point.x) > 42.4 || Math.abs(point.y) > 42.4);
+  const selections = [5, 4, 3, 2, 1].map(density => selectUltim8PegCenters(
+    bin({ ...spec, pegBottom: { ...spec.pegBottom!, density } }), available));
+  expect(selections.map(pegs => pegs.length)).toEqual([6, 12, 12, 26, 36]);
+  for (let i = 1; i < selections.length; i++) {
+    for (const point of selections[i - 1]) expect(selections[i]).toContain(point);
+  }
+  expect(selections[3].filter(point => point.y === 45).length).toBeGreaterThan(2);
+  expect(selections[3].filter(point => point.y === -45).length).toBeGreaterThan(2);
+});
+
+it.each([
+  { arbitrarySizeMm: { width: 100, length: 60 } },
+  { arbitrarySizeMm: { width: 10, length: 30 } },
+  { arbitrarySizeMm: { width: 171.2, length: 29.7 } },
+  { footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] } },
+])("keeps nested, deterministic density selections on %j", patch => {
+  const spec = bin(patch);
+  const full = ultim8PegCenters(spec);
+  for (const available of [full, full.filter(point => Math.abs(point.x) > 10),
+    full.filter(point => Math.abs((point.y / 5) % 2) === 1), full.slice(0, 1), []]) {
+    const before = structuredClone(available);
+    let previous = selectUltim8PegCenters(spec, available);
+    for (const density of [5, 4, 3, 2, 1] as const) {
+      const currentSpec = bin({ ...spec, pegBottom: { ...spec.pegBottom!, density } });
+      const selected = selectUltim8PegCenters(currentSpec, available);
+      expect(selected).toEqual(selectUltim8PegCenters(currentSpec, available));
+      for (const point of previous) expect(selected).toContain(point);
+      for (const point of selected) expect(available).toContain(point);
+      expect(new Set(selected).size).toBe(selected.length);
+      previous = selected;
+    }
+    expect(previous).toEqual(available);
+    expect(available).toEqual(before);
+  }
 });
