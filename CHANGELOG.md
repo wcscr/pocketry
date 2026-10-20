@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `/ultim8` to start ULTIM8-compatible fixtures safely, with jig controls, a Trace starting point, and alignment exports available without enabling Experimental.
+
 - Prevent a flat ledge where tilted pockets exit the top surface. Keep pocket color below the rounded entry in previews and multi-color exports.
 
 - Offer Auto-arrange beside oversized-bin warnings, explaining layout changes and preserving fixed sizes; fix arranging arbitrary-sized bins with multiple retained grid cells.

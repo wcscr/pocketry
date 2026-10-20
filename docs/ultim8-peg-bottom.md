@@ -1,6 +1,25 @@
-# ULTIM8 jig peg bottoms
+# ULTIM8-compatible fixture peg bottoms
 
-Enable **Experimental features** in App settings, then in Bin → Construction →
+Visit [pocketry.xyz/ultim8](https://pocketry.xyz/ultim8) to start a ready-to-edit
+fixture (Beta). An open fixture is kept exactly as saved. For other projects,
+the existing New Project flow saves named work and asks whether to save, discard,
+or keep an unnamed draft. The URL then becomes `/bin`; this is the same designer.
+The fixture profile follows `spec.pegBottom` wherever the project is opened.
+
+Add an object from a photo using the empty-state Trace action, or use Add pocket
+for a basic shape. Set the body thickness in millimetres, then export STL/3MF and
+**Save alignment SVG**. Trace’s **Add to Bin** returns into the same fixture.
+New fixtures use the initial project’s 42 mm body thickness, which can be reduced
+in Fixture size; pegs add their own length below the body. No saved project is
+converted automatically. [Fixture Help](https://pocketry.xyz/bin#ultim8-fixtures)
+is directly linkable.
+
+Fixture controls show dimensions in millimetres and hide Gridfinity pitch, cell
+spans, stacking lip, base fasteners, and label-tab shelves. Legacy custom footprint
+editing is collapsed under Legacy shape settings. Saved geometry and material
+choices remain intact; changing Bottom leaves the fixture profile.
+
+To convert a regular project, enable **Experimental features** in App settings, then in Bin → Construction →
 Bottom, choose **ULTIM8 jig pegs**. The confirmation offers to remove the stacking
 lip, set Solid fill to 100%, and match floors, rim, and text to the bin body color.
 Rectangular bins also switch Grid pitch to Arbitrary, keeping their body dimensions.
@@ -14,8 +33,10 @@ the design as it is. Opening an existing jig does not show this prompt.
 This replaces
 Gridfinity feet and hides their magnet/screw controls while retaining those
 preferences for switching back. Peg settings travel with projects and undo history.
-Turning Experimental off hides the peg controls while keeping existing designs
-visible and exportable. Opening a peg project never turns Experimental on automatically.
+Peg projects show their peg controls with Experimental off. Other experimental
+tools remain gated. Pegs alone do not produce the experimental-design notice or
+count as experimental in current or historical project snapshots. Opening a peg
+project never turns Experimental on automatically.
 Upright sloped and bridged modes use every fitting mat hole. Saved
 preview projects return to the full lattice without losing their other settings.
 
@@ -104,11 +125,12 @@ prompt inspection of pocket overhangs and short-span bridge direction in the
 slicer. Hollow bins, lips, tabs and raised text also need first-layer/bridge
 inspection. A successful support-free slice does not qualify print quality.
 
-**Grid pitch → Arbitrary** sets exact outer width, length and body height in
-millimetres with flat or ULTIM8 bottoms. Switching preserves the existing size.
+Rectangular fixtures expose exact outer width, length and body thickness in
+millimetres directly. Regular flat-bottom projects offer the same sizing through
+**Grid pitch → Arbitrary**. Switching preserves the existing size.
 Arbitrary dimensions stay fixed when adding or arranging tools; the checked lock
 is read-only, with details in its help hint. Edit the millimetre fields or choose
-**Fit bin to contents** to resize. Display rounding does not change the saved
+**Fit fixture to contents** to resize. Display rounding does not change the saved
 dimensions.
 Body heights may go down to 2 mm; below 7 mm the stacking lip is off. Returning
 to a grid requires exactly matching grid dimensions and height increments.
@@ -116,8 +138,8 @@ to a grid requires exactly matching grid dimensions and height increments.
 ## Jig layout SVG
 
 With an ULTIM8 bottom selected, Export labels the existing layout SVG action
-**Save jig SVG**. Ordinary bins retain their shadow-board SVG/DXF controls.
-Existing jig projects can export this reference with Experimental editing off.
+**Save alignment SVG**. Ordinary bins retain their shadow-board SVG/DXF controls.
+Existing fixture projects can edit and export with Experimental off.
 The optional editable-project download uses the same design snapshot.
 
 The SVG is an installed top view at 1:1 millimetres, independent of the pegs-up
