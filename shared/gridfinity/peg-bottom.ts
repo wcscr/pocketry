@@ -84,8 +84,10 @@ export function ultim8PegCenters(spec: BinSpec): Point[] {
 export const PEG_DENSITIES = ["corners", 1, 2, 3, 4, 5] as const;
 
 /** Corner anchors are selected from surviving full pegs. A through opening at a
- * corner picks the next nearest fitting hole. Sparse rows and columns keep the
- * manufacturer's stagger and always retain the nearest corner anchors.
+ * corner picks the next nearest fitting hole. Numeric densities add the farthest
+ * fitting hole until gaps in both lattice directions are below the requested
+ * spacing. Every density follows the same order, so denser selections contain
+ * all sparser selections, even around through openings. The mat lattice stays exact.
  */
 export function selectUltim8PegCenters(spec: BinSpec, available: readonly Point[]): Point[] {
   const density = spec.pegBottom?.density ?? 1;
@@ -101,11 +103,29 @@ export function selectUltim8PegCenters(spec: BinSpec, available: readonly Point[
     }
     anchors.add(closest);
   }
-  return available.filter(point => {
-    if (anchors.has(point)) return true;
-    if (density === "corners") return false;
-    const row = point.y / ULTIM8_ROW_PITCH_MM;
-    const column = (point.x - Math.abs(row % 2) * ULTIM8_ROW_OFFSET_MM) / ULTIM8_COLUMN_PITCH_MM;
-    return row % density === 0 && column % density === 0;
-  });
+  if (density === "corners") return available.filter(point => anchors.has(point));
+  const selected = new Set(anchors);
+  const nearest = new Float64Array(available.length).fill(Infinity);
+  /** Update each fitting hole's gap in lattice pitches without moving any pegs. */
+  const updateDistances = (peg: Point): void => {
+    for (let i = 0; i < available.length; i++) {
+      const point = available[i];
+      const distance = Math.max(Math.abs(point.x - peg.x) / ULTIM8_COLUMN_PITCH_MM,
+        Math.abs(point.y - peg.y) / ULTIM8_ROW_PITCH_MM);
+      nearest[i] = Math.min(nearest[i], distance);
+    }
+  };
+  for (const anchor of anchors) updateDistances(anchor);
+  for (;;) {
+    let farthest = -1;
+    for (let i = 0; i < available.length; i++) {
+      // Retain lattice order for equal gaps; the chosen sequence is independent of density.
+      if (nearest[i] >= density && (farthest < 0 || nearest[i] > nearest[farthest])) farthest = i;
+    }
+    if (farthest < 0) break;
+    const peg = available[farthest];
+    selected.add(peg);
+    updateDistances(peg);
+  }
+  return available.filter(point => selected.has(point));
 }

@@ -1840,7 +1840,7 @@ export function BinControlsPanel({
                 </Select>
               </div>
               {spec.pegBottom.underside === "flat" && <div className="flex items-center gap-2">
-                <SettingLabel label="Peg density" htmlFor="select-peg-density" hint="Spacing applies in both directions. Corner pegs remain, and through pockets omit any pegs they overlap. Fewer pegs reduce material; check fit and stiffness with a test print." />
+                <SettingLabel label="Peg density" htmlFor="select-peg-density" hint="Approximate spacing in both mat directions. Denser settings keep existing pegs and fill the largest gaps between fitting holes. Corner anchors remain; through pockets omit overlapping pegs. Fewer pegs reduce material; check fit and stiffness with a test print." />
                 <Select value={String(spec.pegBottom.density)} onValueChange={value => patchSpec({ pegBottom: { ...spec.pegBottom!, density: value === "corners" ? "corners" : Number(value) as 1 | 2 | 3 | 4 | 5 } })}>
                   <SelectTrigger id="select-peg-density" className="h-8 flex-1" aria-label="Peg density"><SelectValue /></SelectTrigger>
                   <SelectContent>{PEG_DENSITIES.map(density => <SelectItem key={density} value={String(density)}>{density === "corners" ? "Corners only" : density === 1 ? "Every hole" : `Every ${density} holes`}</SelectItem>)}</SelectContent>

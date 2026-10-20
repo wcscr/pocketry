@@ -157,3 +157,48 @@ from the browser/export checks in this change.
 | Mobile entry | Mobile export |
 | --- | --- |
 | ![Mobile fixture entry](ultim8-entry-evidence/mobile-entry.png) | ![Mobile fixture export](ultim8-entry-evidence/mobile-export.png) |
+
+## Peg-density correction — 2026-10-20
+
+The reported through-opening frame exposes a phase problem: the centre-based
+Every 2 pattern can miss surviving edge rows that Every 3 happens to include.
+A 100×100 mm frame around an 80×80 mm through opening reproduces 4 versus 10 pegs.
+
+Select corner anchors first, then repeatedly add the fitting mat hole farthest
+from the existing pegs. Measure gaps in horizontal/vertical lattice pitches and
+stop at the selected spacing. Every setting follows the same deterministic order,
+so increasing density retains the sparser setting's positions. Numeric spacing
+is approximate around openings and boundaries; keep all points on the unchanged
+manufacturer lattice. Corners only, Every hole, and upright undersides stay exact.
+
+Adversarial checks: preserve all corner anchors, exclude through-overlapped
+shafts before selection, keep selection pure and stable, assert nested sets across
+all densities on rectangular/custom footprints and removed-hole patterns, and
+compare preview/export shaft slices against alignment SVG circles. Existing saved
+numeric-density fixtures may redistribute pegs; regenerate their alignment SVG
+with the fixture. No new stored fields or schema changes are needed.
+
+The selector uses one distance array and updates it per added peg. The final
+implementation's median across five local runs was 70.4 ms for all five numeric
+settings on the maximum 671.5 mm square (8,845 fitting holes), and 0.5 ms for a
+100 mm square. These are local measurements, not a performance guarantee.
+
+- Integrated current main's size/wall controls while retaining fixture dimensions,
+  public peg controls, and the existing project transaction behavior.
+- Node 22: `npm run check`, `npm test` (3,157), `npm run test:workflows` (477),
+  `npm run test:geometry -- peg-bottom.qualification tall-bin.qualification` (43),
+  `npm run build`, and `git diff --check` passed. GitHub CI remained disabled.
+- The synthetic frame reproduces the reported opening/edge interaction; it is not
+  the user's exact traced outline. At Every 2 it now has 26 pegs versus Every 3's
+  12. Every 3's positions are a subset of Every 2's. Corners/5/4/3/2/1 counts are
+  4/6/12/12/26/36, checked at preview and export quality against SVG positions.
+- Browser verification at 1440×1000 confirmed both selections. Downloaded STLs
+  have 26 and 12 separate shaft cross-section loops, respectively, matching their
+  alignment SVG circles. Both are closed with positive volume and 100×100×9 mm
+  bounds, with minimum Z=0. [Measurements and hashes](ultim8-entry-evidence/density-exports.json).
+  [Editable regression fixture](ultim8-entry-evidence/density-frame.pocketry.json).
+  Physical printing, stiffness, and mat fit remain unverified.
+
+| Every 2 holes: 26 pegs | Every 3 holes: 12 pegs |
+| --- | --- |
+| ![Every 2 frame](ultim8-entry-evidence/density-every-2.png) | ![Every 3 frame](ultim8-entry-evidence/density-every-3.png) |

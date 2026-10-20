@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix Wham Bam Systems ULTIM8-compatible peg density around through openings: denser settings retain existing peg positions and fill gaps instead of skipping surviving edge rows.
+
 - Added `/ultim8` to start 100 × 60 × 5 mm Wham Bam Systems ULTIM8-compatible fixtures safely, with jig controls, a Trace starting point, and alignment exports available without enabling Experimental.
 
 - Allow bins up to 60U (420 mm before the stacking lip), with matching desktop, mobile, and millimetre height controls.

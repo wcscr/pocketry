@@ -114,10 +114,13 @@ Choose **Flat backing · pegs up** to attach pegs directly to the flat underside
 removing all root height. STL and 3MF exports are oriented pocket-side down with
 pegs up; all colour and text parts rotate together. The installed 3D view and
 Layout retain the editable coordinates. Choose **Corners only**, **Every hole**,
-or **Every 2, 3, 4, or 5 holes**. Spacing applies to both lattice directions,
-with nearest fitting corner anchors retained. Through pockets remove whole
-intersecting shafts before selection, so corner anchors can move to the next
-available hole. Sparse pegs do not grow taller roots. Upright modes restore the
+or **Every 2, 3, 4, or 5 holes**. Numeric spacing is approximate in both mat
+directions: selection starts at the nearest fitting corner anchors and fills the
+largest gaps. Increasing density retains every peg from the sparser setting.
+Through pockets remove whole intersecting shafts before selection, so corner
+anchors can move to the next available hole. All pegs still occupy exact mat holes.
+Saved numeric-density fixtures may redistribute their pegs after this correction;
+regenerate the alignment SVG alongside the fixture. Sparse pegs do not grow taller roots. Upright modes restore the
 full lattice. Peg fit and sparse-jig stiffness need a physical test print.
 
 Blind pockets and finger access become roofs when printed this way. Warnings
