@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseProjectDoc, serializeProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
-import { parseBinSpec } from "./types";
+import { MAX_HEIGHT_UNITS, parseBinSpec } from "./types";
 import { rigidPocket } from "./rigid-pocket";
 import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 import { DEFAULT_BIN_MATERIALS } from "./materials";
@@ -47,6 +47,25 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([12, 42, 50.5, 51, MAX_HEIGHT_UNITS])("round-trips a %sU bin and its saved history", heightUnits => {
+    const parsed = parseProjectDoc({
+      ...VALID, cutouts: [], spec: { ...VALID.spec, heightUnits },
+      history: { index: 1, stack: [
+        { label: "Before", doc: { spec: VALID.spec, cutouts: [], fingerHoles: [] } },
+        { label: "Change bin height", doc: { spec: { ...VALID.spec, heightUnits }, cutouts: [], fingerHoles: [] } },
+      ] },
+    });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.spec.heightUnits).toBe(heightUnits);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed!))))).toEqual(parsed);
+  });
+
+  it("rejects heights above the design ceiling and preserves half-unit grid increments", () => {
+    for (const heightUnits of [MAX_HEIGHT_UNITS + 0.5, 50.25]) {
+      expect(parseProjectDoc({ ...VALID, spec: { ...VALID.spec, heightUnits } })).toBeNull();
+    }
+  });
+
   it.each([37, 38, 39, 40, 44, 45, 46])("migrates v%s projects and saves a slanted wall through history", schemaVersion => {
     const old = { ...VALID, schemaVersion };
     const migrated = parseProjectDoc(old)!;
@@ -63,11 +82,11 @@ describe("parseProjectDoc", () => {
       spec: { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 } } })!;
     expect(doc.spec.wallSlant).toEqual({ axis: "x", angleDeg: 20 });
   });
-  it("migrates v31 wall thickness through the design, history, and transform references", () => {
+  it.each([31, 47])("migrates v%s wall thickness through the design, history, and transform references", schemaVersion => {
     const { wallThicknessMm: _removed, ...spec } = VALID.spec;
     const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
-    const doc = { spec: { ...spec, fill: "none" }, cutouts, fingerHoles: [] };
-    const legacy = { ...VALID, ...doc, schemaVersion: 31,
+    const doc = { spec: { ...spec, fill: "none", heightUnits: 20 }, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion,
       history: { stack: [{ doc, label: "Opened" }], index: 0 },
       transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
     const original = JSON.stringify(legacy);
@@ -83,6 +102,23 @@ describe("parseProjectDoc", () => {
       { doc: { ...migrated.history!.stack[0].doc, spec: thick }, label: "Change wall thickness" },
     ] } };
     expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
+  it.each([null, 0.95, 1.2, 1.6, 2.4])("round-trips automatic or fixed %s mm walls through history and transform origins", wallThicknessMm => {
+    const source = parseProjectDoc(VALID)!;
+    const spec = parseBinSpec({ ...source.spec, fill: "none", heightUnits: 20, wallThicknessMm });
+    const doc = { spec, cutouts: source.cutouts, fingerHoles: [] };
+    const saved = { ...source, ...doc,
+      history: { index: 1, stack: [
+        { label: "Before", doc: { ...doc, spec: { ...spec, heightUnits: 7.5 } } },
+        { label: "Change bin height", doc },
+      ] },
+      transformOrigins: { pockets: [{ spec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))));
+    expect(restored).toEqual(saved);
+    if (wallThicknessMm !== null) {
+      expect(parseProjectDoc({ ...saved, schemaVersion: 47 })).toEqual(saved);
+    }
   });
   it("migrates released v25 fill-depth references and settings without changing history", () => {
     const original = parseProjectDoc(VALID)!;

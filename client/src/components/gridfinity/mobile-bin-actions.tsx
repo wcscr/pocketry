@@ -1,6 +1,7 @@
 import { Fragment, useEffect } from "react";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
+import { MAX_HEIGHT_UNITS } from "@shared/gridfinity/types";
 import { SurfaceTextProperties, SurfaceTextTransformControls } from "./surface-text-controls";
 import { useMobileObjectTools } from "./mobile-object-tools-context";
 import { SlidersHorizontal } from "lucide-react";
@@ -83,7 +84,7 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
         </div>
         {cutout.role === "hole" && <p className="mt-2 text-xs text-muted-foreground">Positive offset keeps more material and reduces the surrounding pocket opening.</p>}
       </Fragment> : <>
-        <LabelledSlider id="quick-bin-height" label="Bin height" value={bin.spec.heightUnits} min={1} max={12} step={0.5} format={value => `${value} units`} touchTarget
+        <LabelledSlider id="quick-bin-height" label="Bin height" value={bin.spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS} step={0.5} format={value => `${value} units`} touchTarget
           onChange={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits }, transient: true })}
           onCommit={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits } })} />
       </>}

@@ -32,18 +32,34 @@ problem or identify another generator's lip geometry.
 
 **Construction → Wall thickness** appears when **Enable experimental features**
 is on in Settings and **Solid fill** is off. The
-0.95–3.00 mm setting defaults to Rebuilt's 0.95 mm wall and grows the main walls
-inward, reducing cavity space while preserving outside dimensions and base
+0.95–3.00 mm setting grows the main walls inward, reducing cavity space while preserving outside dimensions and base
 geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
 top, preserving the original mating region. Without a lip, the thicker wall
 reaches the top. A 1u bin has no straight wall above the base to thicken.
 The setting applies to rectangular and custom footprints, including flat bottoms;
 preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
 the preference but uses the original solid-bin geometry, including at partial
-fill heights. Schema v32 defaults older designs and undo history to 0.95 mm.
+fill heights.
+
+New bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.ostat.com/gridfinity_basic_cup):
+
+| Bin height | Hollow-wall thickness |
+| --- | --- |
+| Below 8U | 0.95 mm |
+| 8U to below 16U (including 15.5U) | 1.2 mm |
+| 16U and above | 1.6 mm |
+
+Automatic thickness updates with height even when Experimental is off. Entering
+a thickness fixes it across later height changes; **Use height default** restores
+automatic behavior. Schema v48 stores automatic mode as a null wall preference.
+Older saved projects retain their fixed thickness (0.95 mm when omitted),
+including undo/redo history and transform references. These are design defaults;
+physical tall-bin print quality and stiffness remain unqualified.
+
 Turning experimental features off hides the control without changing the saved
-thickness or geometry. Loading a project with a custom thickness, including in
-undo/redo history, enables experimental features with the usual notification.
+preference. Loading a project with a custom thickness preserves the user's
+Experimental setting and keeps its saved geometry; automatic walls alone do not
+mark a project experimental.
 
 The help button beside **Outer size** explains height units and the inherited
 rounded lip. With the lip off, it explains the flush height instead. The detailed
@@ -765,7 +781,7 @@ introduce bridges, overhangs or reduced bed contact in this orientation. Warning
 do not block export; inspect the slice and print a small fit/strength test.
 
 Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
-body height (2–294 mm). It supports rectangular flat and ULTIM8 bases; bodies below
+body height (2–420 mm). It supports rectangular flat and ULTIM8 bases; bodies below
 7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
 coordinates; grid pitches are available again only when dimensions exactly fit,
 so switching never silently snaps a design. Cell footprint editing and Gridfinity

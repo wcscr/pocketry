@@ -15,6 +15,12 @@ This notice inventories projects Pocketry directly depends on, bundles, or
 adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
 
+Automatic hollow-wall thickness uses the numerical height bands documented by
+Gridfinity Extended: 0.95 mm below 8U, 1.2 mm below 16U, and 1.6 mm thereafter.
+Source: https://gridfinity-extended.ostat.com/gridfinity_basic_cup
+This is an independent Pocketry implementation of those dimensional defaults;
+no Gridfinity Extended source code or model assets are incorporated.
+
 ================================================================================
 Droid Sans and Droid Sans Mono — Apache License 2.0
 ================================================================================

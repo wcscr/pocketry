@@ -87,6 +87,8 @@ import {
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import {
+  binWallThicknessMm,
+  defaultBinWallThicknessMm,
   D_WALL,
   GRID_PITCH_DIVISOR,
   HEIGHT_UNIT_MM,
@@ -175,8 +177,6 @@ import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, binReducer, useBin, type BinState } from "@/state/bin-store";
 import { useShapeLibrary } from "@/state/shape-library";
 
-/** Slider ceiling for height; the schema allows more, the UI keeps it sane. */
-const MAX_HEIGHT_UNITS_UI = 12;
 /** Slider ceiling: at most eight full cells, within the schema hard cap. */
 const maxGridUi = (pitch: GridPitch): number =>
   Math.min(maxGridCells(pitch), 8 * GRID_PITCH_DIVISOR[pitch]);
@@ -1427,11 +1427,11 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallSlant !== null || spec.pegBottom || spec.wallThicknessMm !== D_WALL || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallSlant !== null || spec.pegBottom || (spec.wallThicknessMm !== null && spec.wallThicknessMm !== D_WALL) || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
           spec.wallSlant !== null && "slanted walls",
           spec.pegBottom && "ULTIM8 jig pegs",
-          spec.wallThicknessMm !== D_WALL && "wall thickness",
+          spec.wallThicknessMm !== null && spec.wallThicknessMm !== D_WALL && "wall thickness",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
@@ -1535,7 +1535,7 @@ export function BinControlsPanel({
           {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Height" htmlFor="arbitrary-height" hint="Body height, excluding the stacking lip and peg length. Pocket floors stay measured from the flat backing." />
             <div className="flex items-center gap-1.5">
-              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={spec.heightUnits * HEIGHT_UNIT_MM} displayPrecision={2} min={2} max={294} step={0.1}
+              <DraftNumberInput id="arbitrary-height" className="h-8 w-24" aria-label="Bin height in millimetres" value={spec.heightUnits * HEIGHT_UNIT_MM} displayPrecision={2} min={2} max={MAX_HEIGHT_UNITS * HEIGHT_UNIT_MM} step={0.1}
                 onValueChange={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) }, true)}
                 onValueCommit={value => patchSpec({ heightUnits: value / HEIGHT_UNIT_MM, ...(value < 7 ? { lip: "none" } : {}) })} />
               <span className="text-xs text-muted-foreground">mm</span>
@@ -1551,12 +1551,12 @@ export function BinControlsPanel({
                 }
                 onValueCommit={([heightUnits]) => patchSpec({ heightUnits })}
                 min={1}
-                max={MAX_HEIGHT_UNITS_UI}
+                max={MAX_HEIGHT_UNITS}
                 step={0.5}
                 aria-label="Height in 0.5u increments"
               />
               <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                <DraftNumberInput id="bin-height-units" className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS_UI} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
+                <DraftNumberInput id="bin-height-units" className="h-8 w-20" aria-label="Bin height in units" value={spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS} step={0.5} normalize={(value) => Math.round(value * 2) / 2} onValueChange={(heightUnits) => patchSpec({ heightUnits }, true)} onValueCommit={(heightUnits) => patchSpec({ heightUnits })} /> units
               </span>
             </div>
           </div>}
@@ -1740,15 +1740,20 @@ export function BinControlsPanel({
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
           {experimentalEnabled && spec.fill === "none" && (
-            <MmSlider
-              label="Wall thickness"
-              value={spec.wallThicknessMm}
-              min={D_WALL}
-              max={MAX_HOLLOW_WALL_THICKNESS_MM}
-              step={0.05}
-              hint={`Default: ${D_WALL} mm. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
-              onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
-            />
+            <div className="space-y-1.5">
+              <MmSlider
+                label="Wall thickness"
+                value={binWallThicknessMm(spec)}
+                min={D_WALL}
+                max={MAX_HOLLOW_WALL_THICKNESS_MM}
+                step={0.05}
+                hint={`Height default: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Entering a thickness keeps it fixed when height changes. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
+                onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
+              />
+              {spec.wallThicknessMm === null
+                ? <p className="text-[11px] text-muted-foreground">Follows bin height</p>
+                : <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use height default</Button>}
+            </div>
           )}
           {spec.fill === "solid" && (
             <div className="space-y-2">
