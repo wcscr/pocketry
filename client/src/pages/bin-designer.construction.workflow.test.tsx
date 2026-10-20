@@ -232,7 +232,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["standard", "workflow"])("edits hollow wall overrides without experimental tools in %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits hollow walls directly without experimental tools in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ experimental: false });
@@ -241,13 +241,10 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "construction");
       const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]');
       const toggle = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!;
-      const override = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Override wall thickness"]')!;
       expect(field()).toBeNull();
       React.act(() => toggle().click());
       expect(field()!.value).toBe("0.95");
-      expect(field()!.disabled).toBe(true);
-      expect(override().getAttribute("aria-checked")).toBe("false");
-      React.act(() => override().click());
+      expect(container.querySelector('[aria-label="Override wall thickness"]')).toBeNull();
       expect(field()!.disabled).toBe(false);
       React.act(() => {
         field()!.focus();
@@ -279,7 +276,7 @@ describe("BinDesignerPage", () => {
     }
   });
 
-  it.each(["standard", "workflow"])("restores legacy defaults to automatic walls and requires an explicit override in %s layout", async layout => {
+  it.each(["standard", "workflow"])("restores legacy defaults to automatic walls until directly edited in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(parseProjectDoc({
@@ -289,7 +286,7 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage({ experimental: false });
     const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
     const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!;
-    const override = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Override wall thickness"]')!;
+    const reset = () => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use recommended")!;
     const enter = (label: string, value: string) => {
       const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
       React.act(() => input.focus());
@@ -310,28 +307,27 @@ describe("BinDesignerPage", () => {
         expect(binWallThicknessMm(current())).toBe(thickness);
         openSettingsSection(container, "construction");
         expect(field().value).toBe(String(thickness));
-        expect(field().disabled).toBe(true);
-        expect(override().getAttribute("aria-checked")).toBe("false");
+        expect(field().disabled).toBe(false);
+        expect(reset()).toBeUndefined();
         expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       }
       expect(container.textContent).toContain("Recommended · follows bin height");
-      React.act(() => override().click());
       expect(field().disabled).toBe(false);
       enter("Wall thickness in millimetres", "0.95");
       openSettingsSection(container, "size");
       enter("Bin height in units", "30");
       expect(binWallThicknessMm(current())).toBe(0.95);
       openSettingsSection(container, "construction");
-      React.act(() => override().click());
+      React.act(() => reset().click());
       expect(current().wallThicknessMm).toBeNull();
       expect(binWallThicknessMm(current())).toBe(1.6);
-      expect(field().disabled).toBe(true);
+      expect(reset()).toBeUndefined();
       clickBinHistory(container, "undo");
       expect(current().wallThicknessMm).toBe(0.95);
       expect(field().disabled).toBe(false);
       clickBinHistory(container, "redo");
       expect(current().wallThicknessMm).toBeNull();
-      expect(field().disabled).toBe(true);
+      expect(reset()).toBeUndefined();
       expect(experimentalSettings.enabled).toBe(false);
       expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
     } finally {
@@ -360,9 +356,72 @@ describe("BinDesignerPage", () => {
       expect(experimentalSettings.enabled).toBe(false);
       expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.value).toBe("2.4");
       expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.disabled).toBe(false);
-      expect(container.querySelector('[aria-label="Override wall thickness"]')!.getAttribute("aria-checked")).toBe("true");
+      expect(container.querySelector('[aria-label="Override wall thickness"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
     } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("warns after committed thin-wall edits and higher recommendation bands in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "none", heightUnits: 16, wallThicknessMm: null },
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!;
+    const warnings = () => projectToast.mock.calls.filter(([message]) => message.title === "Wall thickness below recommendation");
+    const draft = (input: HTMLInputElement, value: string) => {
+      React.act(() => input.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      expect(warnings()).toHaveLength(0);
+      draft(field(), "1.2");
+      expect(warnings()).toHaveLength(0);
+      React.act(() => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      expect(current().wallThicknessMm).toBeNull();
+      expect(warnings()).toHaveLength(0);
+      draft(field(), "1.2");
+      React.act(() => field().blur());
+      expect(current().wallThicknessMm).toBe(1.2);
+      expect(warnings()).toHaveLength(1);
+      expect(warnings()[0][0].description).toContain("recommended 1.6 mm");
+      expect(warnings()[0][0].description).toContain("16U");
+      draft(field(), "0.5");
+      React.act(() => field().blur());
+      expect(current().wallThicknessMm).toBe(1.2);
+      expect(warnings()).toHaveLength(1);
+      for (const [height, warningCount] of [["8", 1], ["16", 2], ["20", 2]] as const) {
+        openSettingsSection(container, "size");
+        const heightInput = container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!;
+        draft(heightInput, height);
+        React.act(() => heightInput.blur());
+        expect(warnings()).toHaveLength(warningCount);
+      }
+      openSettingsSection(container, "construction");
+      for (const thickness of ["2", "1.6"]) {
+        draft(field(), thickness);
+        React.act(() => field().blur());
+        expect(warnings()).toHaveLength(2);
+      }
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Wall thickness"]')!;
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+      expect(current().wallThicknessMm).toBe(1.55);
+      expect(warnings()).toHaveLength(3);
+      React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use recommended")!.click());
+      expect(current().wallThicknessMm).toBeNull();
+      expect(field().value).toBe("1.6");
+      expect(warnings()).toHaveLength(3);
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
   });
 
   it("toggles flat bottoms without resizing and restores base hole preferences", async () => {
@@ -658,6 +717,49 @@ describe("BinDesignerPage", () => {
       choose("Flat bottom");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].flatBottom).toBe(true);
     } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"] as const)("restores Gridfinity feet after arbitrary sizes with undo and redo in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ experimental: false });
+    await flushHydration();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const choosePitch = (label: string) => {
+      openSettingsSection(container, "size");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Grid pitch"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+    };
+    const expectBottom = (label: string) => {
+      openSettingsSection(container, "construction");
+      expect(container.querySelector('[aria-label="Bottom"]')!.textContent).toBe(label);
+    };
+    try {
+      const original = current();
+      expect(original.flatBottom).toBe(false);
+      for (const label of ["Full · 42 mm", "Half · 21 mm", "Quarter · 10.5 mm"]) {
+        choosePitch("Arbitrary · no Gridfinity");
+        const arbitrary = current();
+        expect(arbitrary.arbitrarySizeMm).not.toBeNull();
+        expect(arbitrary.flatBottom).toBe(true);
+        expectBottom("Flat bottom");
+        choosePitch(label);
+        const restored = current();
+        expect(restored).toMatchObject({ arbitrarySizeMm: null, flatBottom: false, pegBottom: null });
+        expect(footprintOuterRingMm(restored)).toEqual(footprintOuterRingMm(original));
+        expect(restored.heightUnits).toBe(original.heightUnits);
+        expectBottom("Gridfinity feet");
+        clickBinHistory(container, "undo");
+        expect(current()).toEqual(arbitrary);
+        expectBottom("Flat bottom");
+        clickBinHistory(container, "redo");
+        expect(current()).toEqual(restored);
+        expectBottom("Gridfinity feet");
+      }
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
   });
 
   it.each(["standard", "workflow"] as const)("shows Arbitrary sizes as fixed and explains arrange overflow in the %s layout", async layout => {

@@ -1587,7 +1587,7 @@ export function BinControlsPanel({
             </HelpHint>
           </div>
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid restores the feet unless ULTIM8 pegs are selected, and requires sizes that fit its pitch and height increments." className="shrink-0" />
             <Select
               value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
               onValueChange={(value) => {
@@ -1740,25 +1740,21 @@ export function BinControlsPanel({
           />
           {spec.fill === "none" && (
             <div className="space-y-1.5">
-              <FeatureSwitch
-                label="Override wall thickness"
-                description="Keep a fixed thickness instead of following the recommended value for bin height. Turn off to restore automatic thickness."
-                checked={spec.wallThicknessMm !== null}
-                onChange={(override) => patchSpec({ wallThicknessMm: override ? binWallThicknessMm(spec) : null })}
-              />
               <MmSlider
                 label="Wall thickness"
                 value={binWallThicknessMm(spec)}
-                disabled={spec.wallThicknessMm === null}
                 min={D_WALL}
                 max={MAX_HOLLOW_WALL_THICKNESS_MM}
                 step={0.05}
-                hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Enable Override wall thickness to set a fixed value. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
+                hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Editing the thickness keeps your value fixed when height changes. Use recommended restores automatic thickness. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
                 onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
               />
-              <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
-                ? "Recommended · follows bin height"
-                : `Fixed override · recommended: ${defaultBinWallThicknessMm(spec.heightUnits)} mm`}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
+                  ? "Recommended · follows bin height"
+                  : `Custom · recommended: ${defaultBinWallThicknessMm(spec.heightUnits)} mm`}</p>
+                {spec.wallThicknessMm !== null && <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use recommended</Button>}
+              </div>
             </div>
           )}
           {spec.fill === "solid" && (
@@ -3289,7 +3285,6 @@ function CellSlider({
 function MmSlider({
   label,
   value,
-  disabled = false,
   min,
   max,
   step,
@@ -3301,7 +3296,6 @@ function MmSlider({
 }: {
   label: string;
   value: number;
-  disabled?: boolean;
   min: number;
   max: number;
   step: number;
@@ -3321,13 +3315,12 @@ function MmSlider({
           {hint && hintAsTooltip && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
         </div>}
         <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} disabled={disabled} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
+          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
         </span>
       </div>
       <div className={cn("space-y-1.5", inline && "col-start-1 row-start-1 pt-3")}>
         <Slider
           data-mm-slider-track
-          disabled={disabled}
           centerOrigin={centered}
           value={[value]}
           onValueChange={([next]) =>

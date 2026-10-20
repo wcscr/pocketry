@@ -23,11 +23,11 @@ export function arbitrarySizePatch(spec: BinSpec): Partial<BinSpec> | null {
     flatBottom: !spec.pegBottom, magnetHoles: false, magnetCrushRibs: false, screwHoles: false };
 }
 
-/** Return to a grid only when all dimensions are exactly representable; never silently snap. */
-export function gridSizeFromArbitrary(spec: BinSpec, gridPitch: GridPitch): Pick<BinSpec, "gridX" | "gridY" | "gridPitch" | "arbitrarySizeMm"> | null {
+/** Return to an exactly representable grid, restoring feet unless ULTIM8 pegs are selected. */
+export function gridSizeFromArbitrary(spec: BinSpec, gridPitch: GridPitch): Pick<BinSpec, "gridX" | "gridY" | "gridPitch" | "arbitrarySizeMm" | "flatBottom"> | null {
   const pitch = gridPitchMm(gridPitch);
   const x = (binWidthMm(spec) + 0.5) / pitch, y = (binLengthMm(spec) + 0.5) / pitch;
   const gridX = Math.round(x), gridY = Math.round(y);
   if (Math.abs(x - gridX) > 1e-7 || Math.abs(y - gridY) > 1e-7 || Math.abs(binHeightMm(spec.heightUnits) / 3.5 - Math.round(binHeightMm(spec.heightUnits) / 3.5)) > 1e-7) return null;
-  return { gridX, gridY, gridPitch, arbitrarySizeMm: null };
+  return { gridX, gridY, gridPitch, arbitrarySizeMm: null, flatBottom: false };
 }

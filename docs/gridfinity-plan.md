@@ -30,6 +30,10 @@ problem or identify another generator's lip geometry.
 
 ## Current behavior and implementation status
 
+Returning from **Arbitrary** sizes to a Gridfinity pitch restores Gridfinity feet,
+unless ULTIM8 pegs are selected. Dimensions must fit the selected pitch exactly.
+The bottom change participates in the same undo/redo step as the pitch change.
+
 **Construction → Wall thickness** is a standard control, visible when
 **Solid fill** is off. The
 0.95–3.00 mm setting grows the main walls inward, reducing cavity space while preserving outside dimensions and base
@@ -49,11 +53,13 @@ Bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.
 | 8U to below 16U (including 15.5U) | 1.2 mm |
 | 16U and above | 1.6 mm |
 
-The displayed thickness updates automatically with height. Enable **Override wall
-thickness** to unlock the slider and number field and keep a fixed value across
-height changes. Turning the override off immediately restores the recommended
-value. Overrides, including 0.95 mm, survive saving, reopening, and undo/redo.
-Neither automatic nor custom wall thickness requires Experimental.
+The displayed thickness updates automatically with height. Edit the slider or
+number directly to keep a custom value across height changes; **Use recommended**
+restores automatic sizing. A warning pops up after committing a value below the
+height recommendation, or increasing height into a band that makes a custom wall
+too thin. The chosen value remains applied. Drafts and slider drags do not warn
+until committed. Custom values, including 0.95 mm, survive saving, reopening, and
+undo/redo. Neither automatic nor custom wall thickness requires Experimental.
 
 Automatic mode is stored as a null wall preference. Schema v49 corrects older
 projects whose default 0.95 mm had been preserved as a fixed value, including
