@@ -19,7 +19,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Trace and refine outlines from PNG or JPEG photos.
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
-- Create 3D-printable positioning fixtures for laser engraving and UV printing; [ULTIM8-compatible fixtures (Beta)](https://pocketry.xyz/ultim8) start with eufyMake E1 mat pegs and export a 1:1 alignment SVG.
+- Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8-compatible fixtures (Beta)](https://pocketry.xyz/ultim8) start with eufyMake E1 mat pegs and export a 1:1 alignment SVG.
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.

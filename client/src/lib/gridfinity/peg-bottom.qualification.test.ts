@@ -193,7 +193,7 @@ describe("support-free peg bottoms", () => {
     const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter" });
     const pocket = createBasicPocket("rectangle", { x: -9, y: -9 }, { x: 9, y: 9 }, "all")!;
     pocket.cutout.depth = { mode: "through" };
-    expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY)).toThrow(/overlap every ULTIM8 peg/);
+    expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY)).toThrow(/overlap every Wham Bam Systems ULTIM8-compatible peg/);
   });
 
   it.each(["sloped", "bridged"] as const)("rejects an unsupported corner after omitting a peg in %s mode", underside => {

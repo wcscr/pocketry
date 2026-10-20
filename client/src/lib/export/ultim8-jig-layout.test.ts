@@ -26,6 +26,7 @@ it("exports actual openings, independent finger access, and corner shafts in one
   const finger = fingerHoleSchema.parse({ id: "finger", kind: "oblong-deep-scoop", center: { x: -10, y: 0 }, diameterMm: 6, lengthMm: 12, depthMm: 3, topFilletMm: 0 });
   const svg = await generateUltim8JigSVG(spec(), [cutout], new Map([[pocket.shape.id, pocket.shape]]), [finger]);
   expect(svg).toContain('width="51mm" height="31mm" viewBox="0 0 51 31"');
+  expect(svg).toContain("<title>Wham Bam Systems ULTIM8-compatible fixture layout</title>");
   expect(svg).toContain("Installed top view");
   expect(svg).toContain("does not assign a bed position");
   const opening = paths(svg, "pocket-openings")[0];
@@ -88,7 +89,7 @@ it("keeps ordinary layout SVGs free of jig information", async () => {
 });
 
 it("rejects non-jigs and unresolved depths instead of producing guessed peg locations", async () => {
-  await expect(generateUltim8JigSVG(spec({ pegBottom: null, flatBottom: true }), [], new Map())).rejects.toThrow(/ULTIM8 jig pegs/);
+  await expect(generateUltim8JigSVG(spec({ pegBottom: null, flatBottom: true }), [], new Map())).rejects.toThrow(/Wham Bam Systems ULTIM8-compatible pegs/);
   const pocket = createBasicPocket("rectangle", { x: -5, y: -2 }, { x: 5, y: 2 }, "pending")!;
   const pending: CutoutPlacement = { ...pocket.cutout, depthPending: true };
   await expect(generateUltim8JigSVG(spec(), [pending], new Map([[pocket.shape.id, pocket.shape]]))).rejects.toThrow(/depth/i);

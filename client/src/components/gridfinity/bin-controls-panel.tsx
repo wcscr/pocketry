@@ -496,7 +496,7 @@ export function BinControlsPanel({
     if ((!experimentalEnabled && !isJig) || useJigSettings && (!jigSetup?.patch || jigSetup.error)) return;
     dispatch({ type: "PATCH_SPEC", patch: useJigSettings ? jigSetup!.patch! : {
       flatBottom: false, pegBottom: { ...DEFAULT_PEG_BOTTOM },
-    }, historyLabel: "Use ULTIM8 jig pegs", ...(useJigSettings ? { materialPatch: ultim8Defaults(spec, Number(jigThicknessDraft), binColor).materialPatch } : {}) });
+    }, historyLabel: "Use Wham Bam Systems ULTIM8-compatible pegs", ...(useJigSettings ? { materialPatch: ultim8Defaults(spec, Number(jigThicknessDraft), binColor).materialPatch } : {}) });
     setUltim8DialogOpen(false);
   };
 
@@ -1444,8 +1444,8 @@ export function BinControlsPanel({
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
       </div>}
-      {inspector ? <div className="shrink-0 border-b px-3 py-3">
-        <h2 className="text-xs font-semibold">{isJig ? <>ULTIM8-compatible fixture <span className="ml-1 rounded border px-1 text-[10px] font-normal">Beta</span></> : "Design workflow"}</h2>
+      {inspector ? <div className="shrink-0 border-b py-3 pl-3 pr-9">
+        <h2 className="text-xs font-semibold">{isJig ? <>Wham Bam Systems ULTIM8-compatible fixture <span className="ml-1 rounded border px-1 text-[10px] font-normal">Beta</span></> : "Design workflow"}</h2>
       </div> : projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
@@ -1573,7 +1573,7 @@ export function BinControlsPanel({
             </HelpHint>
           </div>
           {!isJig && <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or Wham Bam Systems ULTIM8-compatible pegs. Returning to a grid requires sizes that fit its pitch and height increments." className="shrink-0" />
             <Select
               value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
               onValueChange={(value) => {
@@ -1610,10 +1610,10 @@ export function BinControlsPanel({
               </SelectContent>
             </Select>
           </div>}
-          {spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-3">
+          {!isJig && (spec.arbitrarySizeMm ? <div className="flex items-center justify-between gap-3">
             <SettingLabel label={`Keep ${bodyNoun} size fixed`} hint={`Arbitrary sizes always keep the entered dimensions. Change the millimetre fields or use Fit ${bodyNoun} to contents to resize.`} />
             <Switch checked disabled aria-label={`Keep ${bodyNoun} size fixed`} />
-          </div> : <FeatureSwitch label={`Keep ${bodyNoun} size fixed`} description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />}
+          </div> : <FeatureSwitch label={`Keep ${bodyNoun} size fixed`} description="Adding tools keeps these dimensions. Tools that do not fit stay visible for adjustment." checked={keepBinSize} onChange={(fixed) => onKeepBinSizeChange?.(fixed)} />)}
           {showPreviewBusy && (
             <div
               className="flex items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2.5 py-1.5 text-xs font-medium text-blue-800 dark:text-blue-100"
@@ -1672,7 +1672,7 @@ export function BinControlsPanel({
           title="Construction"
           icon={Magnet}
           tone="rose"
-          summary={spec.pegBottom ? "ULTIM8 pegs" : spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
+          summary={spec.pegBottom ? "Locating pegs" : spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
           defaultOpen={false}
           className="scroll-mt-16"
         >
@@ -1798,7 +1798,7 @@ export function BinControlsPanel({
 
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
-              <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{isJig ? "Tune locating pegs below, or change Bottom to return to regular bin controls." : experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or ULTIM8-compatible locating pegs." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">ULTIM8-compatible pegs for the eufyMake E1 mat. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the fixture.</p>}</>} />
+              <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{isJig ? "Tune locating pegs below, or change Bottom to return to regular bin controls." : experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or Wham Bam Systems ULTIM8-compatible locating pegs." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">Wham Bam Systems ULTIM8-compatible pegs for the eufyMake E1 mat. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the fixture.</p>}</>} />
               <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
                 onValueChange={(bottom) => {
                   if (bottom === "ultim8") {
@@ -1810,15 +1810,15 @@ export function BinControlsPanel({
                   }
                   patchSpec({ flatBottom: bottom === "flat", pegBottom: null });
                 }}>
-                <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="select-bin-bottom" className="h-auto min-h-8 min-w-0 flex-1 text-left [&>span]:line-clamp-none" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="gridfinity" disabled={!!spec.arbitrarySizeMm}>Gridfinity feet</SelectItem>
                   <SelectItem value="flat">Flat bottom</SelectItem>
-                  {(experimentalEnabled || spec.pegBottom) && <SelectItem value="ultim8">ULTIM8 jig pegs</SelectItem>}
+                  {(experimentalEnabled || spec.pegBottom) && <SelectItem value="ultim8">Wham Bam Systems ULTIM8-compatible pegs</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
-            {spec.pegBottom && <PropertySurface tone="rose" role="group" aria-label="ULTIM8 peg settings" className="space-y-2">
+            {spec.pegBottom && <PropertySurface tone="rose" role="group" aria-label="Wham Bam Systems ULTIM8 peg settings" className="space-y-2">
               <p className="text-xs font-medium">Peg settings</p>
               <div className="flex items-center gap-2">
                 <SettingLabel label="Underside" htmlFor="select-peg-underside" hint={spec.pegBottom.underside === "flat" ? "Flat backing removes tall peg roots and exports pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : spec.pegBottom.underside === "bridged" ? "Short bridges join the flared peg collars. Print upright with pegs down and supports off. Print a small fit check before a full fixture." : "Sloped roots print upright with pegs down and supports off."} />
@@ -2338,7 +2338,7 @@ export function BinControlsPanel({
                   size="sm"
                   className="flex-1"
                   onClick={() => setPendingExport({
-                    title: spec.pegBottom ? "Save ULTIM8-compatible alignment SVG?" : "Save layout SVG?",
+                    title: spec.pegBottom ? "Save Wham Bam Systems ULTIM8-compatible alignment SVG?" : "Save layout SVG?",
                     description: spec.pegBottom
                       ? "Installed top view at 1:1 millimetres: fixture outline, pocket openings, finger access, and retained pegs. Align the blue peg circles with matching holes in your calibrated mat template. The SVG origin is the fixture’s top-left; it does not set a bed position."
                       : "Download the footprint and pocket outlines in millimetres.",
@@ -3091,12 +3091,12 @@ function ProjectControls({
               if (!unsavedDraft || newProjectName.trim()) void createNewProject(unsavedDraft ? newProjectName : undefined);
             }}>
             <AlertDialogHeader>
-              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : ultim8Entry ? "Start an ULTIM8-compatible fixture?" : "Start a new project?"}</AlertDialogTitle>
+              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : ultim8Entry ? "Start a Wham Bam Systems ULTIM8-compatible fixture?" : "Start a new project?"}</AlertDialogTitle>
               <AlertDialogDescription>
                 {unsavedDraft
-                  ? `This draft has work that is not saved in your library. Save it with a name before starting ${ultim8Entry ? "an ULTIM8-compatible fixture" : "an empty project"}, or explicitly discard it.`
+                  ? `This draft has work that is not saved in your library. Save it with a name before starting ${ultim8Entry ? "a Wham Bam Systems ULTIM8-compatible fixture" : "an empty project"}, or explicitly discard it.`
                   : activeProjectId
-                    ? `Saves the latest changes to “${currentProjectName}” in this browser’s library, then starts ${ultim8Entry ? "an ULTIM8-compatible fixture" : "an empty project"}.`
+                    ? `Saves the latest changes to “${currentProjectName}” in this browser’s library, then starts ${ultim8Entry ? "a Wham Bam Systems ULTIM8-compatible fixture" : "an empty project"}.`
                     : ultim8Entry ? "Start a fixture with locating pegs and a flat backing." : "Your current project is empty. Start again with the default bin settings."}
               </AlertDialogDescription>
             </AlertDialogHeader>

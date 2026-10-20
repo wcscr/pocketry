@@ -15,7 +15,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { type ProjectDoc } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
-import { ultim8Defaults } from "@shared/gridfinity/ultim8-defaults";
+import { DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_ULTIM8_FOOTPRINT_MM, ultim8Defaults } from "@shared/gridfinity/ultim8-defaults";
 
 vi.mock("@/pages/trace", () => ({ default: () => <TraceHandoff /> }));
 
@@ -52,12 +52,19 @@ describe("/ultim8 entry", () => {
     const { route, container } = enterFixture({ mobile });
     await flushHydration();
     expect(Persistence.startNewProject).toHaveBeenCalledOnce();
-    const defaults = ultim8Defaults(INITIAL_BIN_SPEC, 42, DEFAULT_BIN_MATERIALS.binColor);
+    const defaults = ultim8Defaults(INITIAL_BIN_SPEC, DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_BIN_MATERIALS.binColor, DEFAULT_ULTIM8_FOOTPRINT_MM);
     expect(currentSpec()).toEqual(parseBinSpec({ ...INITIAL_BIN_SPEC, ...defaults.patch }));
+    expect(currentSpec().arbitrarySizeMm).toEqual({ width: 100, length: 60 });
+    expect(currentSpec().heightUnits * 7).toBe(5);
     expect(vi.mocked(Persistence.startNewProject).mock.lastCall![0].materials).toEqual({ ...DEFAULT_BIN_MATERIALS, ...defaults.materialPatch });
     expect(route.history).toEqual(["/about", "/bin"]);
     expect(Persistence.loadProjectDoc).toHaveBeenCalledTimes(2); // StrictMode only; URL replacement does not remount.
     expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Trace an object from a photo");
+    expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Wham Bam Systems ULTIM8-compatible fixture");
+    expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Locating pegs fit Wham Bam Systems ULTIM8 mat spacing.");
+    openSettingsSection(container, "size");
+    expect(container.querySelector('[aria-label="Keep fixture size fixed"]')).toBeNull();
+    expect(container.textContent).not.toContain("Keep fixture size fixed");
     expect(experimentalSettings.enabled).toBe(false);
     // Back's destination is the preceding page, with no /ultim8 entry to loop through.
     React.act(() => route.navigate(route.history![route.history!.length - 2], { replace: true }));
@@ -159,7 +166,7 @@ describe("/ultim8 entry", () => {
     openSettingsSection(container, "size");
     expect(container.textContent).toContain("Fixture size");
     expect(container.querySelector('[aria-label="Fixture width in millimetres"]')).not.toBeNull();
-    for (const selector of ['[aria-label="Grid pitch"]', '[aria-label="Bin height in units"]', '[data-testid="button-edit-footprint"]']) expect(container.querySelector(selector)).toBeNull();
+    for (const selector of ['[aria-label="Grid pitch"]', '[aria-label="Bin height in units"]', '[data-testid="button-edit-footprint"]', '[aria-label="Keep fixture size fixed"]']) expect(container.querySelector(selector)).toBeNull();
     openSettingsSection(container, "construction");
     expect(container.querySelector('[aria-label="Peg underside"]')).not.toBeNull();
     for (const label of ["Stacking lip", "Magnet holes", "Crush ribs", "Screw holes", "Label tab", "Slanted walls (prototype)", "Wall thickness"]) expect(container.querySelector(`[aria-label="${label}"]`)).toBeNull();
@@ -202,7 +209,7 @@ describe("/ultim8 entry", () => {
     React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Flat bottom")!.click());
     React.act(() => experimentalSettings.setEnabled(true));
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Bottom"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-    React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "ULTIM8 jig pegs")!.click());
+    React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
     await clickButton("Use jig settings");
     expect(currentSpec()).toEqual(entrySpec);
   });

@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { ultim8Defaults } from "./ultim8-defaults";
+import { DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_ULTIM8_FOOTPRINT_MM, ultim8Defaults } from "./ultim8-defaults";
 import { parseBinSpec } from "./types";
 import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 
 describe("ULTIM8 fixture defaults", () => {
+  it("uses a 100 by 60 by 5 mm starter body only when requested for a new fixture", () => {
+    const spec = parseBinSpec({ gridX: 3, gridY: 2, heightUnits: 6 });
+    const patch = ultim8Defaults(spec, DEFAULT_ULTIM8_BODY_THICKNESS_MM, "#123456", DEFAULT_ULTIM8_FOOTPRINT_MM).patch;
+    expect(parseBinSpec({ ...spec, ...patch }).arbitrarySizeMm).toEqual({ width: 100, length: 60 });
+    expect(parseBinSpec({ ...spec, ...patch }).heightUnits * 7).toBe(5);
+    expect(patch.arbitrarySizeMm).not.toBe(DEFAULT_ULTIM8_FOOTPRINT_MM);
+    expect(ultim8Defaults(spec, 42, "#123456").patch.arbitrarySizeMm).toEqual({ width: 125.5, length: 83.5 });
+    expect(spec.arbitrarySizeMm).toBeNull();
+  });
+
   it("returns fresh, single-color settings without changing its inputs", () => {
     const spec = parseBinSpec({ gridX: 3, gridY: 2, heightUnits: 6, fill: "none", textColor: "#ffffff" });
     const before = structuredClone(spec);
@@ -26,5 +36,6 @@ describe("ULTIM8 fixture defaults", () => {
     const result = parseBinSpec({ ...custom, ...ultim8Defaults(custom, 14, "#123456").patch });
     expect(result.footprint).toEqual(custom.footprint);
     expect(result.arbitrarySizeMm).toBeNull();
+    expect(ultim8Defaults(custom, 14, "#123456", DEFAULT_ULTIM8_FOOTPRINT_MM).patch.arbitrarySizeMm).toBeNull();
   });
 });

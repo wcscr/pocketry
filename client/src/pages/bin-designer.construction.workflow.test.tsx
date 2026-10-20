@@ -322,7 +322,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["standard", "workflow"])("requires Experimental to create ULTIM8 pegs in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("requires Experimental to create Wham Bam Systems ULTIM8-compatible pegs in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ experimental: false });
     await flushHydration();
@@ -336,14 +336,14 @@ describe("BinDesignerPage", () => {
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].flatBottom).toBe(true);
       React.act(() => experimentalSettings.setEnabled(true));
       React.act(() => trigger().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-      React.act(() => options().find(o => o.textContent === "ULTIM8 jig pegs")!.click());
+      React.act(() => options().find(o => o.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
       enterJigThickness("8.5");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).toBeNull();
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom?.underside).toBe("flat");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(6);
-      const group = container.querySelector('[role="group"][aria-label="ULTIM8 peg settings"]')!;
+      const group = container.querySelector('[role="group"][aria-label="Wham Bam Systems ULTIM8 peg settings"]')!;
       expect(group.getAttribute("data-property-tone")).toBe("rose");
       expect(group.hasAttribute("data-property-surface")).toBe(true);
       for (const label of ["Peg underside", "Peg density", "Peg diameter in millimetres", "Peg length in millimetres"]) {
@@ -372,7 +372,7 @@ describe("BinDesignerPage", () => {
     const choosePegs = () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!
         .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "ULTIM8 jig pegs")!.click());
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
     };
     const respond = (label: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === label)!.click());
     try {
@@ -506,7 +506,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("edits restored ULTIM8 pegs without enabling other experimental tools in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits restored Wham Bam Systems ULTIM8-compatible pegs without enabling other experimental tools in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", heightUnits: 8.5 / 7,
       arbitrarySizeMm: { width: 159.4, length: 75 }, pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
@@ -518,8 +518,8 @@ describe("BinDesignerPage", () => {
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
       expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
-      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).not.toBeNull();
-      expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("ULTIM8 jig pegs");
+      expect(container.querySelector('[aria-label="Wham Bam Systems ULTIM8 peg settings"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("Wham Bam Systems ULTIM8-compatible pegs");
       for (const label of ["Peg underside", "Peg density", "Peg diameter in millimetres"]) expect(container.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
       expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       expect(container.querySelector('[aria-label="Slanted walls (prototype)"]')).toBeNull();
@@ -536,7 +536,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("edits ULTIM8 peg bottoms, restores base holes, and undoes fit edits in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits Wham Bam Systems ULTIM8-compatible peg bottoms, restores base holes, and undoes fit edits in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage();
     await flushHydration();
@@ -549,14 +549,14 @@ describe("BinDesignerPage", () => {
       };
       const magnet = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Magnet holes"]');
       React.act(() => magnet()!.click());
-      choose("ULTIM8 jig pegs");
+      choose("Wham Bam Systems ULTIM8-compatible pegs");
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].lip).toBe("standard");
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-stacking-rim-color")).toBe("on");
       expect(magnet()).toBeNull();
       expect(container.textContent).not.toContain("For Wham Bam ULTIM8 mats");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About bottom"]')!.click());
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("ULTIM8-compatible pegs for the eufyMake E1 mat");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Wham Bam Systems ULTIM8-compatible pegs for the eufyMake E1 mat");
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the fixture");
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: "corners" });
@@ -582,7 +582,7 @@ describe("BinDesignerPage", () => {
       React.act(() => undo.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("flat");
       choose("Gridfinity feet");
-      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Wham Bam Systems ULTIM8 peg settings"]')).toBeNull();
       expect(magnet()!.getAttribute("aria-checked")).toBe("true");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toBeNull();
       choose("Flat bottom");
@@ -882,7 +882,7 @@ it.each(["controls", "workflow"] as const)("exports a jig SVG and matching optio
     for (const includeProject of [false, true]) {
       vi.mocked(downloadBlob).mockClear();
       React.act(() => button.click());
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save ULTIM8-compatible alignment SVG?");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save Wham Bam Systems ULTIM8-compatible alignment SVG?");
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("does not set a bed position");
       expect(downloadBlob).not.toHaveBeenCalled();
       if (includeProject) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());

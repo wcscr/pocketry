@@ -1,4 +1,4 @@
-# ULTIM8-compatible fixture peg bottoms
+# Wham Bam Systems ULTIM8-compatible fixture peg bottoms
 
 Visit [pocketry.xyz/ultim8](https://pocketry.xyz/ultim8) to start a ready-to-edit
 fixture (Beta). An open fixture is kept exactly as saved. For other projects,
@@ -9,18 +9,18 @@ The fixture profile follows `spec.pegBottom` wherever the project is opened.
 Add an object from a photo using the empty-state Trace action, or use Add pocket
 for a basic shape. Set the body thickness in millimetres, then export STL/3MF and
 **Save alignment SVG**. Trace’s **Add to Bin** returns into the same fixture.
-New fixtures use the initial project’s 42 mm body thickness, which can be reduced
-in Fixture size; pegs add their own length below the body. No saved project is
+New fixtures start at 100 × 60 mm with a 5 mm body thickness, adjustable
+in Fixture size; the default pegs add 4 mm below the body (9 mm total). No saved project is
 converted automatically. [Fixture Help](https://pocketry.xyz/bin#ultim8-fixtures)
 is directly linkable.
 
 Fixture controls show dimensions in millimetres and hide Gridfinity pitch, cell
-spans, stacking lip, base fasteners, and label-tab shelves. Legacy custom footprint
+spans, stacking lip, base fasteners, label-tab shelves, and the size-lock toggle. Legacy custom footprint
 editing is collapsed under Legacy shape settings. Saved geometry and material
 choices remain intact; changing Bottom leaves the fixture profile.
 
 To convert a regular project, enable **Experimental features** in App settings, then in Bin → Construction →
-Bottom, choose **ULTIM8 jig pegs**. The confirmation offers to remove the stacking
+Bottom, choose **Wham Bam Systems ULTIM8-compatible pegs**. The confirmation offers to remove the stacking
 lip, set Solid fill to 100%, and match floors, rim, and text to the bin body color.
 Rectangular bins also switch Grid pitch to Arbitrary, keeping their body dimensions.
 Custom footprints retain their grid because Arbitrary sizing requires a rectangle.
@@ -40,7 +40,7 @@ project never turns Experimental on automatically.
 Upright sloped and bridged modes use every fitting mat hole. Saved
 preview projects return to the full lattice without losing their other settings.
 
-The reference is Wham Bam’s ULTIM8 mat for eufyMake E1:
+The reference is Wham Bam Systems’ ULTIM8 mat for eufyMake E1:
 https://www.whambamsystems.com/pages/ultim8-jig
 Its holes are 5 mm diameter, 10 mm apart along each row, with alternate rows
 shifted 5 mm. The mat photograph in the manufacturer’s zero-point calibration
@@ -128,8 +128,8 @@ inspection. A successful support-free slice does not qualify print quality.
 Rectangular fixtures expose exact outer width, length and body thickness in
 millimetres directly. Regular flat-bottom projects offer the same sizing through
 **Grid pitch → Arbitrary**. Switching preserves the existing size.
-Arbitrary dimensions stay fixed when adding or arranging tools; the checked lock
-is read-only, with details in its help hint. Edit the millimetre fields or choose
+Arbitrary dimensions stay fixed when adding or arranging tools; fixtures do not
+show a size-lock toggle. Edit the millimetre fields or choose
 **Fit fixture to contents** to resize. Display rounding does not change the saved
 dimensions.
 Body heights may go down to 2 mm; below 7 mm the stacking lip is off. Returning
@@ -137,7 +137,7 @@ to a grid requires exactly matching grid dimensions and height increments.
 
 ## Jig layout SVG
 
-With an ULTIM8 bottom selected, Export labels the existing layout SVG action
+With a Wham Bam Systems ULTIM8-compatible bottom selected, Export labels the existing layout SVG action
 **Save alignment SVG**. Ordinary bins retain their shadow-board SVG/DXF controls.
 Existing fixture projects can edit and export with Experimental off.
 The optional editable-project download uses the same design snapshot.
