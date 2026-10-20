@@ -557,6 +557,10 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         spec: parseBinSpec({
           ...state.spec,
           ...action.patch,
+          // Bottom edits express a user choice unless a sizing transition
+          // explicitly supplies the automatic-bottom provenance.
+          ...(("flatBottom" in action.patch || "pegBottom" in action.patch) && action.patch.autoFlatBottom === undefined
+            ? { autoFlatBottom: false } : {}),
           ...(changesGrid && state.spec.footprint.kind === "custom" && !("footprint" in action.patch)
             ? { footprint: { kind: "rectangle" as const } }
             : {}),

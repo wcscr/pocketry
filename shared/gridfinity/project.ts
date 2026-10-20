@@ -89,9 +89,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 47 supports slants up to 89 degrees and clipped support wedges.
  * Version 48 adds automatic hollow-wall thickness; older designs keep fixed walls.
  * Version 49 restores automatic walls for legacy 0.95 mm defaults.
+ * Version 50 remembers flat bottoms applied automatically by arbitrary sizing.
  */
 
-export const PROJECT_SCHEMA_VERSION = 49 as const;
+export const PROJECT_SCHEMA_VERSION = 50 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -385,14 +386,14 @@ export function parseProjectDoc(input: unknown): ProjectDoc | null {
 function parseProjectInput(input: unknown): ProjectDoc | null {
   if (!withinImportLimits(input)) return null;
   if (input && typeof input === "object" && !Array.isArray(input) && "schemaVersion" in input
-      && typeof input.schemaVersion === "number" && input.schemaVersion < PROJECT_SCHEMA_VERSION) {
+      && typeof input.schemaVersion === "number" && input.schemaVersion < 49) {
     input = migrateLegacyWallThickness(input as Record<string, unknown>);
   }
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

@@ -6,6 +6,7 @@ import { rigidPocket } from "./rigid-pocket";
 import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 import { DEFAULT_BIN_MATERIALS } from "./materials";
 import { binWallThicknessMm } from "./standard";
+import { arbitrarySizePatch, gridSizeFromArbitrary } from "./bin-size";
 import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
 
 const VALID = {
@@ -120,10 +121,37 @@ describe("parseProjectDoc", () => {
     };
     const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))));
     expect(restored).toEqual(saved);
+    expect(parseProjectDoc({ ...saved, schemaVersion: 49 })).toEqual(saved);
     if (wallThicknessMm !== 0.95) {
       expect(parseProjectDoc({ ...saved, schemaVersion: 47 })).toEqual(saved);
       expect(parseProjectDoc({ ...saved, schemaVersion: 48 })).toEqual(saved);
     }
+  });
+  it.each([true, false])("preserves automatic flat-bottom provenance=%s through saving, history and transform references", autoFlatBottom => {
+    const source = parseProjectDoc(VALID)!;
+    const spec = parseBinSpec({ ...source.spec, ...arbitrarySizePatch(source.spec), autoFlatBottom });
+    const doc = { spec, cutouts: source.cutouts, fingerHoles: [] };
+    const saved = { ...source, ...doc,
+      history: { index: 1, stack: [
+        { label: "Before", doc: { ...doc, spec: source.spec } },
+        { label: "Arbitrary", doc },
+      ] },
+      transformOrigins: { pockets: [{ spec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))))!;
+    expect(restored).toEqual(saved);
+    expect(gridSizeFromArbitrary(restored.spec, "full")?.flatBottom).toBe(!autoFlatBottom);
+    expect(gridSizeFromArbitrary(restored.history!.stack[1].doc.spec, "full")?.flatBottom).toBe(!autoFlatBottom);
+    const { autoFlatBottom: _removed, ...legacySpec } = spec;
+    const legacy = { ...saved, schemaVersion: 49, spec: legacySpec,
+      history: { index: 0, stack: [{ label: "Legacy", doc: { ...doc, spec: legacySpec } }] },
+      transformOrigins: { pockets: [{ spec: legacySpec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.spec.autoFlatBottom).toBe(false);
+    expect(migrated.history!.stack[0].doc.spec.autoFlatBottom).toBe(false);
+    expect(migrated.transformOrigins!.pockets[0].spec.autoFlatBottom).toBe(false);
+    expect(gridSizeFromArbitrary(migrated.spec, "full")?.flatBottom).toBe(true);
   });
   it("migrates released v25 fill-depth references and settings without changing history", () => {
     const original = parseProjectDoc(VALID)!;
@@ -261,7 +289,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

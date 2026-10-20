@@ -22,11 +22,33 @@ describe("arbitrary millimetre sizes", () => {
     const original = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 });
     const arbitrary = parseBinSpec({ ...original, ...arbitrarySizePatch(original) });
     expect(arbitrary.flatBottom).toBe(true);
+    expect(arbitrary.autoFlatBottom).toBe(true);
+    expect(arbitrarySizePatch(arbitrary)?.autoFlatBottom).toBe(true);
     const restored = parseBinSpec({ ...arbitrary, ...gridSizeFromArbitrary(arbitrary, gridPitch) });
-    expect(restored).toMatchObject({ gridPitch, arbitrarySizeMm: null, flatBottom: false, pegBottom: null });
+    expect(restored).toMatchObject({ gridPitch, arbitrarySizeMm: null, flatBottom: false, autoFlatBottom: false, pegBottom: null });
     expect(binWidthMm(restored)).toBe(binWidthMm(original));
     expect(binLengthMm(restored)).toBe(binLengthMm(original));
     expect(restored.heightUnits).toBe(original.heightUnits);
+  });
+  it.each(["flat", "ultim8"] as const)("preserves an explicit %s bottom through arbitrary sizing and every grid pitch", bottom => {
+    const original = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6,
+      flatBottom: bottom === "flat", pegBottom: bottom === "ultim8" ? DEFAULT_PEG_BOTTOM : null });
+    const arbitrary = parseBinSpec({ ...original, ...arbitrarySizePatch(original) });
+    expect(arbitrary.autoFlatBottom).toBe(false);
+    for (const pitch of ["full", "half", "quarter"] as const) {
+      const restored = parseBinSpec({ ...arbitrary, ...gridSizeFromArbitrary(arbitrary, pitch) });
+      expect(restored.flatBottom).toBe(original.flatBottom);
+      expect(restored.pegBottom).toEqual(original.pegBottom);
+      expect(restored.autoFlatBottom).toBe(false);
+    }
+  });
+  it("rejects automatic flat-bottom provenance outside arbitrary flat-bottom bins", () => {
+    for (const patch of [
+      { flatBottom: true },
+      { arbitrarySizeMm: { width: 83.5, length: 83.5 }, pegBottom: DEFAULT_PEG_BOTTOM },
+    ]) {
+      expect(() => parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, ...patch, autoFlatBottom: true })).toThrow(/Automatic flat bottoms/);
+    }
   });
   it("uses exact dimensions, a reversible canvas mapping and full wall spans independent of retained grid cells", () => {
     const spec = parseBinSpec({ ...standard, arbitrarySizeMm: { width: 171.2, length: 29.7 }, heightUnits: 7.3 / 7 });

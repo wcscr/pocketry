@@ -91,6 +91,8 @@ export const binSpecSchema = z
     adjustFixedPocketDepths: z.boolean().default(true),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
+    /** Arbitrary sizing applied this flat bottom; an explicit bottom choice clears it. */
+    autoFlatBottom: z.boolean().default(false),
     /** Integral ULTIM8 pegs with upright roots/web or a flat backing printed pegs up. */
     pegBottom: z.object({
       diameterMm: z.number().min(4).max(5).default(4.8),
@@ -150,6 +152,10 @@ export const binSpecSchema = z
     if (spec.flatBottom && spec.pegBottom) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["pegBottom"],
         message: "Choose either a flat bottom or an ULTIM8 peg bottom." });
+    }
+    if (spec.autoFlatBottom && (!spec.arbitrarySizeMm || !spec.flatBottom || spec.pegBottom)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["autoFlatBottom"],
+        message: "Automatic flat bottoms require arbitrary sizing and a flat bottom without pegs." });
     }
     const maximum = maxGridCells(spec.gridPitch);
     for (const axis of ["gridX", "gridY"] as const) {

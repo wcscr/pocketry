@@ -30,9 +30,14 @@ problem or identify another generator's lip geometry.
 
 ## Current behavior and implementation status
 
-Returning from **Arbitrary** sizes to a Gridfinity pitch restores Gridfinity feet,
-unless ULTIM8 pegs are selected. Dimensions must fit the selected pitch exactly.
-The bottom change participates in the same undo/redo step as the pitch change.
+Returning from **Arbitrary** sizes to a Gridfinity pitch restores Gridfinity feet
+only when Arbitrary applied the flat bottom automatically. Explicit **Flat bottom**
+and **ULTIM8 jig pegs** choices stay selected, whether chosen before or during
+Arbitrary sizing. The Bottom menu labels an automatically applied base as
+**Flat bottom (automatic)**; choosing **Flat bottom** makes it an explicit preference.
+Dimensions must fit the selected pitch exactly. Schema v50 saves this distinction
+through reopening and undo/redo. Older saved flat bottoms retain their base because
+their original selection intent is unknown.
 
 **Construction → Wall thickness** is a standard control, visible when
 **Solid fill** is off. The

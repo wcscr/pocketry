@@ -1587,7 +1587,7 @@ export function BinControlsPanel({
             </HelpHint>
           </div>
           <div className="flex items-center gap-2">
-            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid restores the feet unless ULTIM8 pegs are selected, and requires sizes that fit its pitch and height increments." className="shrink-0" />
+            <SettingLabel label="Grid pitch" hint="Grid pitches preserve the outer size. Arbitrary sizes use millimetres and do not support Gridfinity feet; choose a flat bottom or ULTIM8 pegs. Returning to a grid restores feet only if Arbitrary applied the flat bottom automatically. Explicit bottom choices stay selected. Sizes must fit the grid's pitch and height increments." className="shrink-0" />
             <Select
               value={spec.arbitrarySizeMm ? "arbitrary" : spec.gridPitch}
               onValueChange={(value) => {
@@ -1818,7 +1818,7 @@ export function BinControlsPanel({
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center gap-2">
               <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or locating pegs for the ULTIM8 jig." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">For Wham Bam ULTIM8 mats on eufyMake E1. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the bin.</p>}</>} />
-              <Select value={spec.pegBottom ? "ultim8" : spec.flatBottom ? "flat" : "gridfinity"}
+              <Select value={spec.pegBottom ? "ultim8" : spec.autoFlatBottom ? "automatic-flat" : spec.flatBottom ? "flat" : "gridfinity"}
                 onValueChange={(bottom) => {
                   if (bottom === "ultim8") {
                     if (experimentalEnabled) {
@@ -1832,6 +1832,7 @@ export function BinControlsPanel({
                 <SelectTrigger id="select-bin-bottom" className="h-8 flex-1" aria-label="Bottom" data-testid="select-bin-bottom"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="gridfinity" disabled={!!spec.arbitrarySizeMm}>Gridfinity feet</SelectItem>
+                  {spec.autoFlatBottom && <SelectItem value="automatic-flat" disabled>Flat bottom (automatic)</SelectItem>}
                   <SelectItem value="flat">Flat bottom</SelectItem>
                   {(experimentalEnabled || spec.pegBottom) && <SelectItem value="ultim8" disabled={!experimentalEnabled}>ULTIM8 jig pegs</SelectItem>}
                 </SelectContent>

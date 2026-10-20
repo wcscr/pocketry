@@ -742,7 +742,7 @@ describe("BinDesignerPage", () => {
         const arbitrary = current();
         expect(arbitrary.arbitrarySizeMm).not.toBeNull();
         expect(arbitrary.flatBottom).toBe(true);
-        expectBottom("Flat bottom");
+        expectBottom("Flat bottom (automatic)");
         choosePitch(label);
         const restored = current();
         expect(restored).toMatchObject({ arbitrarySizeMm: null, flatBottom: false, pegBottom: null });
@@ -751,10 +751,57 @@ describe("BinDesignerPage", () => {
         expectBottom("Gridfinity feet");
         clickBinHistory(container, "undo");
         expect(current()).toEqual(arbitrary);
-        expectBottom("Flat bottom");
+        expectBottom("Flat bottom (automatic)");
         clickBinHistory(container, "redo");
         expect(current()).toEqual(restored);
         expectBottom("Gridfinity feet");
+      }
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each(["standard", "workflow"] as const)("preserves explicit bottoms selected before or during arbitrary sizing in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const choose = (section: "size" | "construction", field: string, label: string) => {
+      openSettingsSection(container, section);
+      React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${field}"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+      if (label === "ULTIM8 jig pegs") React.act(() => jigDialogButton("Keep current settings").click());
+    };
+    try {
+      for (const bottom of ["Flat bottom", "ULTIM8 jig pegs"]) {
+        for (const when of ["before", "during"]) {
+          choose("construction", "Bottom", "Gridfinity feet");
+          if (when === "before") choose("construction", "Bottom", bottom);
+          choose("size", "Grid pitch", "Arbitrary · no Gridfinity");
+          if (when === "during") {
+            expect(current().autoFlatBottom).toBe(true);
+            choose("construction", "Bottom", bottom);
+            expect(current().autoFlatBottom).toBe(false);
+            clickBinHistory(container, "undo");
+            expect(current().autoFlatBottom).toBe(true);
+            clickBinHistory(container, "redo");
+          }
+          const chosen = current();
+          expect(chosen.autoFlatBottom).toBe(false);
+          for (const pitch of ["Full · 42 mm", "Half · 21 mm", "Quarter · 10.5 mm"]) {
+            choose("size", "Grid pitch", pitch);
+            expect(current().arbitrarySizeMm).toBeNull();
+            expect(current().flatBottom).toBe(chosen.flatBottom);
+            expect(current().pegBottom).toEqual(chosen.pegBottom);
+            openSettingsSection(container, "construction");
+            expect(container.querySelector('[aria-label="Bottom"]')!.textContent).toBe(bottom);
+            clickBinHistory(container, "undo");
+            expect(current()).toEqual(chosen);
+          }
+          choose("size", "Grid pitch", "Full · 42 mm");
+        }
       }
     } finally {
       unmount();
