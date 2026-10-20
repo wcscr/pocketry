@@ -42,8 +42,10 @@ for the height conventions, examples, and upstream explanation of stacking fit.
   support's outer vertex and the infill footprint to avoid coincident-face
   artifacts in OpenSCAD preview. manifold's booleans handle coincident faces
   exactly, and the fused solid is identical without the nudges.
-- **Hollow wall thickness is adjustable.** Rebuilt's `d_wall = 0.95` remains
-  the default. Pocketry can add material inward up to a 3 mm main wall, stopping
+- **Hollow wall thickness follows bin height unless overridden.** Pocketry uses
+  Gridfinity Extended's numerical defaults: 0.95 mm below 8U, 1.2 mm from 8U to
+  below 16U, and 1.6 mm at 16U and above. A standard control enables fixed overrides.
+  Pocketry can add material inward up to a 3 mm main wall, stopping
   below the lip's inner support face to preserve the mating region. Solid-fill
   bins retain the original wall geometry. Saved projects retain the hollow-wall
   preference independently of the fill mode.

@@ -88,9 +88,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 46 adds selection of one opposing wall while leaving the other vertical.
  * Version 47 supports slants up to 89 degrees and clipped support wedges.
  * Version 48 adds automatic hollow-wall thickness; older designs keep fixed walls.
+ * Version 49 restores automatic walls for legacy 0.95 mm defaults.
  */
 
-export const PROJECT_SCHEMA_VERSION = 48 as const;
+export const PROJECT_SCHEMA_VERSION = 49 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -320,11 +321,12 @@ function removePreviewPegDensity(input: Record<string, unknown>): Record<string,
   };
 }
 
-/** Older omitted wall thickness meant 0.95 mm, including saved history and origins. */
-function preserveLegacyWallThickness(input: Record<string, unknown>): Record<string, unknown> {
+/** Legacy 0.95 mm values cannot distinguish defaults from overrides. Treat them
+ * as automatic, including v48 drafts migrated from older defaults. Keep custom values. */
+function migrateLegacyWallThickness(input: Record<string, unknown>): Record<string, unknown> {
   const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
-  const spec = (value: unknown): unknown => record(value) && value.wallThicknessMm === undefined
-    ? { ...value, wallThicknessMm: D_WALL } : value;
+  const spec = (value: unknown): unknown => record(value) && (value.wallThicknessMm === undefined || value.wallThicknessMm === D_WALL)
+    ? { ...value, wallThicknessMm: null } : value;
   const history = input.history;
   const origins = input.transformOrigins;
   return { ...input, spec: spec(input.spec),
@@ -384,13 +386,13 @@ function parseProjectInput(input: unknown): ProjectDoc | null {
   if (!withinImportLimits(input)) return null;
   if (input && typeof input === "object" && !Array.isArray(input) && "schemaVersion" in input
       && typeof input.schemaVersion === "number" && input.schemaVersion < PROJECT_SCHEMA_VERSION) {
-    input = preserveLegacyWallThickness(input as Record<string, unknown>);
+    input = migrateLegacyWallThickness(input as Record<string, unknown>);
   }
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

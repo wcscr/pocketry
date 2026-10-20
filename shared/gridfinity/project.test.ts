@@ -5,6 +5,7 @@ import { MAX_HEIGHT_UNITS, parseBinSpec } from "./types";
 import { rigidPocket } from "./rigid-pocket";
 import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
 import { DEFAULT_BIN_MATERIALS } from "./materials";
+import { binWallThicknessMm } from "./standard";
 import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
 
 const VALID = {
@@ -82,19 +83,22 @@ describe("parseProjectDoc", () => {
       spec: { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 } } })!;
     expect(doc.spec.wallSlant).toEqual({ axis: "x", angleDeg: 20 });
   });
-  it.each([31, 47])("migrates v%s wall thickness through the design, history, and transform references", schemaVersion => {
+  it.each([31, 47, 48])("migrates v%s wall defaults through the design, history, and transform references", schemaVersion => {
     const { wallThicknessMm: _removed, ...spec } = VALID.spec;
     const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
-    const doc = { spec: { ...spec, fill: "none", heightUnits: 20 }, cutouts, fingerHoles: [] };
+    const legacySpec = { ...spec, fill: "none", heightUnits: 20, ...(schemaVersion >= 32 ? { wallThicknessMm: 0.95 } : {}) };
+    const doc = { spec: legacySpec, cutouts, fingerHoles: [] };
     const legacy = { ...VALID, ...doc, schemaVersion,
       history: { stack: [{ doc, label: "Opened" }], index: 0 },
-      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec: legacySpec }], fingerHoles: [] } };
     const original = JSON.stringify(legacy);
     const migrated = parseProjectDoc(legacy)!;
     expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
-    expect(migrated.spec.wallThicknessMm).toBe(0.95);
-    expect(migrated.history!.stack[0].doc.spec.wallThicknessMm).toBe(0.95);
-    expect(migrated.transformOrigins!.pockets[0].spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.spec.wallThicknessMm).toBeNull();
+    expect(migrated.history!.stack[0].doc.spec.wallThicknessMm).toBeNull();
+    expect(migrated.transformOrigins!.pockets[0].spec.wallThicknessMm).toBeNull();
+    expect(binWallThicknessMm(migrated.spec)).toBe(1.6);
+    expect(binWallThicknessMm({ ...migrated.spec, heightUnits: 8 })).toBe(1.2);
     expect(JSON.stringify(legacy)).toBe(original);
     const thick = { ...migrated.spec, wallThicknessMm: 2.4 };
     const saved = { ...migrated, spec: thick, history: { index: 1, stack: [
@@ -116,8 +120,9 @@ describe("parseProjectDoc", () => {
     };
     const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))));
     expect(restored).toEqual(saved);
-    if (wallThicknessMm !== null) {
+    if (wallThicknessMm !== 0.95) {
       expect(parseProjectDoc({ ...saved, schemaVersion: 47 })).toEqual(saved);
+      expect(parseProjectDoc({ ...saved, schemaVersion: 48 })).toEqual(saved);
     }
   });
   it("migrates released v25 fill-depth references and settings without changing history", () => {
@@ -256,7 +261,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

@@ -232,7 +232,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["standard", "workflow"])("gates hollow wall thickness with undo and retained settings in %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits hollow wall overrides without experimental tools in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ experimental: false });
@@ -241,11 +241,14 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "construction");
       const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]');
       const toggle = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!;
+      const override = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Override wall thickness"]')!;
       expect(field()).toBeNull();
       React.act(() => toggle().click());
-      expect(field()).toBeNull();
-      React.act(() => experimentalSettings.setEnabled(true));
       expect(field()!.value).toBe("0.95");
+      expect(field()!.disabled).toBe(true);
+      expect(override().getAttribute("aria-checked")).toBe("false");
+      React.act(() => override().click());
+      expect(field()!.disabled).toBe(false);
       React.act(() => {
         field()!.focus();
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), "2.4");
@@ -264,24 +267,29 @@ describe("BinDesignerPage", () => {
       expect(field()!.value).toBe("2.4");
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="About wall thickness"]')!.click());
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Thicker walls grow inward");
-      React.act(() => experimentalSettings.setEnabled(false));
-      expect(field()).toBeNull();
-      expect(container.querySelector('[aria-label="About wall thickness"]')).toBeNull();
-      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
-      expect(container.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("wall thickness");
       React.act(() => experimentalSettings.setEnabled(true));
+      React.act(() => experimentalSettings.setEnabled(false));
       expect(field()!.value).toBe("2.4");
+      expect(field()!.disabled).toBe(false);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
     } finally {
       unmount();
       window.history.replaceState(null, "", originalUrl);
     }
   });
 
-  it.each(["standard", "workflow"])("uses height-based walls and restores automatic thickness after an override in %s layout", async layout => {
+  it.each(["standard", "workflow"])("restores legacy defaults to automatic walls and requires an explicit override in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(parseProjectDoc({
+      ...EMPTY_PROJECT, schemaVersion: 48,
+      spec: { ...EMPTY_PROJECT.spec, fill: "none", wallThicknessMm: 0.95 },
+    }));
     const { container, unmount } = renderPage({ experimental: false });
     const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!;
+    const override = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Override wall thickness"]')!;
     const enter = (label: string, value: string) => {
       const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
       React.act(() => input.focus());
@@ -294,33 +302,37 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       openSettingsSection(container, "construction");
-      React.act(() => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!.click());
-      for (const [height, thickness] of [["8", 1.2], ["15.5", 1.2], ["16", 1.6]] as const) {
+      expect(current().wallThicknessMm).toBeNull();
+      for (const [height, thickness] of [["8", 1.2], ["15.5", 1.2], ["16", 1.6], ["7.5", 0.95], ["20", 1.6]] as const) {
         openSettingsSection(container, "size");
         enter("Bin height in units", height);
         expect(current().wallThicknessMm).toBeNull();
         expect(binWallThicknessMm(current())).toBe(thickness);
+        openSettingsSection(container, "construction");
+        expect(field().value).toBe(String(thickness));
+        expect(field().disabled).toBe(true);
+        expect(override().getAttribute("aria-checked")).toBe("false");
         expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       }
-      openSettingsSection(container, "construction");
-      expect(container.querySelector('[aria-label="Wall thickness in millimetres"]')).toBeNull();
-      React.act(() => experimentalSettings.setEnabled(true));
-      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.value).toBe("1.6");
-      expect(container.textContent).toContain("Follows bin height");
+      expect(container.textContent).toContain("Recommended · follows bin height");
+      React.act(() => override().click());
+      expect(field().disabled).toBe(false);
       enter("Wall thickness in millimetres", "0.95");
       openSettingsSection(container, "size");
-      enter("Bin height in units", "20");
+      enter("Bin height in units", "30");
       expect(binWallThicknessMm(current())).toBe(0.95);
       openSettingsSection(container, "construction");
-      const reset = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use height default")!;
-      React.act(() => reset.click());
+      React.act(() => override().click());
       expect(current().wallThicknessMm).toBeNull();
       expect(binWallThicknessMm(current())).toBe(1.6);
+      expect(field().disabled).toBe(true);
       clickBinHistory(container, "undo");
       expect(current().wallThicknessMm).toBe(0.95);
+      expect(field().disabled).toBe(false);
       clickBinHistory(container, "redo");
       expect(current().wallThicknessMm).toBeNull();
-      React.act(() => experimentalSettings.setEnabled(false));
+      expect(field().disabled).toBe(true);
+      expect(experimentalSettings.enabled).toBe(false);
       expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
     } finally {
       unmount();
@@ -328,7 +340,7 @@ describe("BinDesignerPage", () => {
     }
   });
 
-  it.each([false, true])("preserves opt-out for restored wall thickness, including history-only=%s", async historyOnly => {
+  it.each([false, true])("restores custom walls as standard controls, including history-only=%s", async historyOnly => {
     const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", wallThicknessMm: 2.4 });
     const doc = { spec, cutouts: [], fingerHoles: [] };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
@@ -342,11 +354,13 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       expect(experimentalSettings.enabled).toBe(false);
       expect(projectToast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
-      expect(container.querySelector('[data-testid="experimental-design-notice"]') === null).toBe(historyOnly);
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       if (historyOnly) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       openSettingsSection(container, "construction");
       expect(experimentalSettings.enabled).toBe(false);
-      expect(container.querySelector('[aria-label="Wall thickness in millimetres"]')).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.value).toBe("2.4");
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.disabled).toBe(false);
+      expect(container.querySelector('[aria-label="Override wall thickness"]')!.getAttribute("aria-checked")).toBe("true");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
     } finally { unmount(); }
   });

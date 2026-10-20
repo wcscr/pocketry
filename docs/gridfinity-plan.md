@@ -30,8 +30,8 @@ problem or identify another generator's lip geometry.
 
 ## Current behavior and implementation status
 
-**Construction → Wall thickness** appears when **Enable experimental features**
-is on in Settings and **Solid fill** is off. The
+**Construction → Wall thickness** is a standard control, visible when
+**Solid fill** is off. The
 0.95–3.00 mm setting grows the main walls inward, reducing cavity space while preserving outside dimensions and base
 geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
 top, preserving the original mating region. Without a lip, the thicker wall
@@ -41,7 +41,7 @@ preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
 the preference but uses the original solid-bin geometry, including at partial
 fill heights.
 
-New bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.ostat.com/gridfinity_basic_cup):
+Bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.ostat.com/gridfinity_basic_cup):
 
 | Bin height | Hollow-wall thickness |
 | --- | --- |
@@ -49,17 +49,19 @@ New bins follow [Gridfinity Extended's height defaults](https://gridfinity-exten
 | 8U to below 16U (including 15.5U) | 1.2 mm |
 | 16U and above | 1.6 mm |
 
-Automatic thickness updates with height even when Experimental is off. Entering
-a thickness fixes it across later height changes; **Use height default** restores
-automatic behavior. Schema v48 stores automatic mode as a null wall preference.
-Older saved projects retain their fixed thickness (0.95 mm when omitted),
-including undo/redo history and transform references. These are design defaults;
-physical tall-bin print quality and stiffness remain unqualified.
+The displayed thickness updates automatically with height. Enable **Override wall
+thickness** to unlock the slider and number field and keep a fixed value across
+height changes. Turning the override off immediately restores the recommended
+value. Overrides, including 0.95 mm, survive saving, reopening, and undo/redo.
+Neither automatic nor custom wall thickness requires Experimental.
 
-Turning experimental features off hides the control without changing the saved
-preference. Loading a project with a custom thickness preserves the user's
-Experimental setting and keeps its saved geometry; automatic walls alone do not
-mark a project experimental.
+Automatic mode is stored as a null wall preference. Schema v49 corrects older
+projects whose default 0.95 mm had been preserved as a fixed value, including
+v48 drafts, undo/redo history, and transform references. Legacy missing or
+0.95 mm preferences become automatic; other custom values stay fixed. Older
+0.95 mm values cannot distinguish an explicit choice from the original default,
+so those also adopt automatic mode. These are design defaults; physical tall-bin
+print quality and stiffness remain unqualified.
 
 The help button beside **Outer size** explains height units and the inherited
 rounded lip. With the lip off, it explains the flush height instead. The detailed

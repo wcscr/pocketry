@@ -477,9 +477,6 @@ export function binReducer(state: BinState, action: BinAction): BinState {
     return { ...state, editError: "Enable experimental tools to edit this shared design. Your change was not applied." };
   }
   let next = reduceBin(state, action);
-  if (!state.experimentalEditing && !restoring && next.spec.wallThicknessMm !== state.spec.wallThicknessMm) {
-    return { ...state, editError: "Enable experimental tools to edit wall thickness. Your change was not applied." };
-  }
   if (!state.experimentalEditing && !restoring && changesLinkedDesign(state, next,
     action.type !== "UPDATE_OBJECTS" || action.edits.linkedElevation !== "preserve")) {
     return { ...state, editError: "Enable experimental tools to change a linked design. This change affects linked copies and was not applied." };

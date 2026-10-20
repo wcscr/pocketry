@@ -1427,11 +1427,10 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallSlant !== null || spec.pegBottom || (spec.wallThicknessMm !== null && spec.wallThicknessMm !== D_WALL) || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallSlant !== null || spec.pegBottom || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
           spec.wallSlant !== null && "slanted walls",
           spec.pegBottom && "ULTIM8 jig pegs",
-          spec.wallThicknessMm !== null && spec.wallThicknessMm !== D_WALL && "wall thickness",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
@@ -1739,20 +1738,27 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
-          {experimentalEnabled && spec.fill === "none" && (
+          {spec.fill === "none" && (
             <div className="space-y-1.5">
+              <FeatureSwitch
+                label="Override wall thickness"
+                description="Keep a fixed thickness instead of following the recommended value for bin height. Turn off to restore automatic thickness."
+                checked={spec.wallThicknessMm !== null}
+                onChange={(override) => patchSpec({ wallThicknessMm: override ? binWallThicknessMm(spec) : null })}
+              />
               <MmSlider
                 label="Wall thickness"
                 value={binWallThicknessMm(spec)}
+                disabled={spec.wallThicknessMm === null}
                 min={D_WALL}
                 max={MAX_HOLLOW_WALL_THICKNESS_MM}
                 step={0.05}
-                hint={`Height default: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Entering a thickness keeps it fixed when height changes. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
+                hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Enable Override wall thickness to set a fixed value. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
                 onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
               />
-              {spec.wallThicknessMm === null
-                ? <p className="text-[11px] text-muted-foreground">Follows bin height</p>
-                : <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use height default</Button>}
+              <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
+                ? "Recommended · follows bin height"
+                : `Fixed override · recommended: ${defaultBinWallThicknessMm(spec.heightUnits)} mm`}</p>
             </div>
           )}
           {spec.fill === "solid" && (
@@ -3283,6 +3289,7 @@ function CellSlider({
 function MmSlider({
   label,
   value,
+  disabled = false,
   min,
   max,
   step,
@@ -3294,6 +3301,7 @@ function MmSlider({
 }: {
   label: string;
   value: number;
+  disabled?: boolean;
   min: number;
   max: number;
   step: number;
@@ -3313,12 +3321,13 @@ function MmSlider({
           {hint && hintAsTooltip && <HelpHint label={label.toLowerCase()}>{hint}</HelpHint>}
         </div>}
         <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
+          <DraftNumberInput className="inline-block h-8 w-16" aria-label={`${label} in millimetres`} value={value} disabled={disabled} displayPrecision={2} min={min} max={max} step={step} onValueChange={(next) => onChange(next, true)} onValueCommit={(next) => onChange(next, false)} /> mm
         </span>
       </div>
       <div className={cn("space-y-1.5", inline && "col-start-1 row-start-1 pt-3")}>
         <Slider
           data-mm-slider-track
+          disabled={disabled}
           centerOrigin={centered}
           value={[value]}
           onValueChange={([next]) =>
