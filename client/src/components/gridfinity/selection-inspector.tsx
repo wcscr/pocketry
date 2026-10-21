@@ -1,3 +1,4 @@
+import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { BinObjectMenuProvider, type BinContextTarget } from "./object-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PropertySurface } from "@/components/layout/property-surface";
@@ -115,7 +116,9 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const chosen = bin.selection.flatMap(ref => objects.filter(o => sameObject(ref, objectRef(o))));
   const pockets = chosen.filter(o => o.kind === "pocket");
   const fingers = chosen.filter(o => o.kind === "finger");
-  const single = chosen.length === 1 ? chosen[0] : null;
+  const group = groupForSelection(bin, bin.selection);
+  const single = chosen.length === 1 ? chosen[0] : group ? chosen.find(o =>
+    o.kind === "pocket" ? o.cutout.id === bin.selectedCutoutId : o.hole.id === bin.selectedFingerHoleId) : null;
   const section = inspector ? binWorkflowSections(!!bin.spec.pegBottom).find(item => item.id === inspector.activeSection) : null;
   const showingSection = !!section;
   const hasSelection = chosen.length > 0 || !!selectedText;
@@ -123,7 +126,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const title = section?.title ?? (selectedText ? surfaceTextName(selectedText) : single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
     : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : bin.spec.pegBottom ? "Fixture" : "Bin");
   const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked geometry" : "Properties";
-  const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
+  const links = new Set((single ? [single] : chosen).map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
     <header data-property-tone={tone} className="property-heading flex min-h-14 shrink-0 items-center gap-1 border-b py-2 pl-3 pr-12" data-testid="inspector-properties-header">
@@ -145,8 +148,8 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
       <div ref={settingsRef} hidden={!showingSection && hasSelection} data-testid="inspector-bin-settings" />
       <div hidden={showingSection || !hasSelection || !selectedText && inspector?.tool !== "properties"}>
       {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Geometry edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Position and rotation stay independent.</p>}
-      {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
-        <p className="text-xs text-muted-foreground">These fields edit every selected object.{chosen.some(o => o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup) && " Ungroup to edit one member independently."}</p>
+      {chosen.length > 1 && !group && <div className="space-y-4 p-3" data-testid="batch-properties">
+        <p className="text-xs text-muted-foreground">These fields edit every selected object. Select one object or group to edit its member properties.</p>
         {([pockets, fingers]).filter(items => items.length).map(items => {
           const holes = items.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;
           const noun = items[0].kind === "finger" ? `finger access${items.length === 1 ? "" : "es"}`

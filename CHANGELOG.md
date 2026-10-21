@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Preserve entered pocket depths and names when drawing or linking geometry.
+- Restore group member properties and add group rotation in the layout canvas.
+- Keep mobile notifications clear of navigation.
+
 - Experimental: group pockets and holes to move and rotate around one stable center, with independent duplication, ungrouping, and saved history. Geometry links share dimensions while each copy keeps its own position and rotation.
 - Preserve groups during footprint edits and bin fitting, keep moves within shared height limits, and keep legacy linked projects editable and saveable.
 

@@ -21,9 +21,9 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   const addFingerAccess = useAddFingerAccess(onStart);
   const hasTouch = useHasTouchInput();
   const [dimensionKind, setDimensionKind] = useState<BasicPocketShape | null>(null);
-  const draw = (kind: BasicPocketShape) => {
+  const draw = (kind: BasicPocketShape, drawDepthMm?: number) => {
     onStart?.();
-    dispatch({ type: "SET_EDITOR_MODE", editorMode: `draw-${kind}` });
+    dispatch({ type: "SET_EDITOR_MODE", editorMode: `draw-${kind}`, drawDepthMm });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     if (isMobile) setPanelOpen(false);
   };
@@ -55,6 +55,6 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   </DropdownMenu>
     {dimensionKind && <BasicPocketDialog key={dimensionKind} kind={dimensionKind}
       onClose={() => { setDimensionKind(null); if (isMobile) setPanelOpen(false); }}
-      onDraw={() => { draw(dimensionKind); setDimensionKind(null); }} />}
+      onDraw={depthMm => { draw(dimensionKind, depthMm); setDimensionKind(null); }} />}
   </>;
 }

@@ -119,7 +119,7 @@ import { AddPocketMenu } from "./add-pocket-menu";
 import { cn } from "@/lib/utils";
 import { getCommittedBinDoc, useBin } from "@/state/bin-store";
 import { Vector3, Quaternion } from "three";
-import { objectRef, sameObject, transformObjects, type EditableObject, type RotationPivot, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { objectRef, sameObject, selectionCenter, selectionBounds, transformObjects, type EditableObject, type RotationPivot, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { ObjectTransformPanel } from "./object-transform-panel";
 import type { PocketTransformMode } from "@/lib/gridfinity/pocket-transform";
 import { useShapeLibrary } from "@/state/shape-library";
@@ -498,7 +498,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   // --- interactions -------------------------------------------------------
 
   const dragRef = useRef<
-    | { kind: "selection-move"; objects: EditableObject[]; start: Point; latest: ObjectEdits | null }
+    | { kind: "selection-transform"; objects: EditableObject[]; allObjects: EditableObject[]; start: Point; center: Point; mode: PocketTransformMode; pivot: RotationPivot; latest: ObjectEdits | null }
     | { kind: "move"; id: string; grabOffset: Point }
     | { kind: "rotate"; id: string; center: Point; startPointerDeg: number; startRotationDeg: number }
     | {
@@ -534,8 +534,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   committedHistory.current = history;
   useEffect(() => {
     const cancelGroup = () => {
-      if (dragRef.current?.kind !== "selection-move") return;
-      dragRef.current = null; clickRef.current = null;
+      if (dragRef.current?.kind !== "selection-transform") return;
+      dragRef.current = null; clickRef.current = null; setIsRotating(false);
       dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history: committedHistory.current }), transient: true, historyLabel: "Cancel move" });
     };
     window.addEventListener("blur", cancelGroup);
@@ -543,9 +543,9 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [dispatch]);
   useEffect(() => {
     // Undo, redo or switching selection during a gesture replaces its baseline.
-    if (dragRef.current?.kind === "selection-move" && (history !== dragOrigin.current?.history
+    if (dragRef.current?.kind === "selection-transform" && (history !== dragOrigin.current?.history
       || selection.length !== dragRef.current.objects.length || dragRef.current.objects.some(o => !selection.some(ref => sameObject(ref, objectRef(o)))))) {
-      dragRef.current = null; clickRef.current = null;
+      dragRef.current = null; clickRef.current = null; setIsRotating(false);
       dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
     }
   }, [history, selection, dispatch, experimentalEnabled]);
@@ -582,6 +582,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     if (toolbar.tool === "translate" || toolbar.tool === "rotate") setObjectMode(toolbar.tool);
     setRulerActive(false);
   }, [toolbar?.tool]);
+  const rotateActive = (inspector ?? toolbar)?.tool === "rotate" || (!inspector && !toolbar && objectControlsOpen && objectMode === "rotate");
   useEffect(() => { if (rulerActive) setPanActive(false); }, [rulerActive]);
   const [measurementPoints, setMeasurementPoints] = useState<Point[]>([]);
   const hasPlacedCutouts = placed.length > 0;
@@ -615,8 +616,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
    * gesture lands in history as a single undo step.
    */
   const commitDrag = (drag: NonNullable<typeof dragRef.current>) => {
-    if (drag.kind === "selection-move") {
-      if (drag.latest) dispatch({ type: "UPDATE_OBJECTS", edits: drag.latest, historyLabel: "Move selected objects" });
+    if (drag.kind === "selection-transform") {
+      if (drag.latest) dispatch({ type: "UPDATE_OBJECTS", edits: drag.latest, historyLabel: drag.mode === "rotate" ? "Rotate selected objects" : "Move selected objects" });
       return;
     }
     if (
@@ -988,6 +989,19 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       return;
     }
 
+    const beginSelectionDrag = (objects: EditableObject[], mode: PocketTransformMode = rotateActive ? "rotate" : "translate") => {
+      dragRef.current = { kind: "selection-transform", objects, allObjects: arrangementObjects, start: point,
+        center: selectionCenter(objects), mode, pivot: objectPivot, latest: null };
+      clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
+      setIsRotating(mode === "rotate");
+      event.currentTarget.setPointerCapture(event.pointerId);
+    };
+    if (selectionRotationControl && (target.hasAttribute?.("data-selection-rotate-handle")
+      || event.pointerType === "touch" && Math.hypot(binToCanvas(point, spec).x - selectionRotationControl.handle.x,
+        binToCanvas(point, spec).y - selectionRotationControl.handle.y) < 28 / scale)) {
+      beginSelectionDrag(selectedObjects, "rotate"); return;
+    }
+
     // Choose the nearest target in screen space instead of overlapping SVG
     // hit rectangles. Rotation stays separated from the northern resize handle.
     let touchHandle: PocketResizeHandle | "rotate" | null = null;
@@ -1076,17 +1090,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       const members = selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id) ? selectedObjects
         : arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hitHole.placementGroup!.id);
       dispatch({ type: "SET_SELECTION", selection: members.map(objectRef) });
-      dragRef.current = { kind: "selection-move", objects: members, start: point, latest: null };
-      clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
-      event.currentTarget.setPointerCapture(event.pointerId); return;
+      beginSelectionDrag(members); return;
     }
     if (hitHole && selectedObjects.length > 1 && selection.some(ref => ref.kind === "finger" && ref.id === hitHole.id)) {
-      dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
-      clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
-      event.currentTarget.setPointerCapture(event.pointerId); return;
+      beginSelectionDrag(selectedObjects); return;
     }
     if (hitHole) {
       dispatch({ type: "SELECT_FINGER_HOLE", id: hitHole.id });
+      if (rotateActive) { beginSelectionDrag(arrangementObjects.filter(o => o.kind === "finger" && o.hole.id === hitHole.id)); return; }
       dragRef.current = {
         kind: "finger-hole-move",
         id: hitHole.id,
@@ -1104,17 +1115,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       const members = selection.some(ref => ref.kind === "pocket" && ref.id === hit.id) ? selectedObjects
         : arrangementObjects.filter(o => (o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup)?.id === hit.placementGroup!.id);
       dispatch({ type: "SET_SELECTION", selection: members.map(objectRef) });
-      dragRef.current = { kind: "selection-move", objects: members, start: point, latest: null };
-      clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
-      event.currentTarget.setPointerCapture(event.pointerId); return;
+      beginSelectionDrag(members); return;
     }
     if (hit) {
       if (selectedObjects.length > 1 && selection.some(ref => ref.kind === "pocket" && ref.id === hit.id)) {
-        dragRef.current = { kind: "selection-move", objects: selectedObjects, start: point, latest: null };
-        clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
-        event.currentTarget.setPointerCapture(event.pointerId); return;
+        beginSelectionDrag(selectedObjects); return;
       }
       selectPocketAt(hit, point);
+      if (rotateActive) { beginSelectionDrag(arrangementObjects.filter(o => o.kind === "pocket" && o.cutout.id === hit.id)); return; }
       clickRef.current = { clientX: event.clientX, clientY: event.clientY, slop: event.pointerType === "touch" ? 8 : CLICK_SLOP_PX };
       dragRef.current = {
         kind: "move",
@@ -1161,12 +1169,17 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     const point = toBin(event.clientX, event.clientY);
     if (!point) return;
 
-    if (drag.kind === "selection-move") {
+    if (drag.kind === "selection-transform") {
       if (clickRef.current) return;
-      const delta = new Vector3(point.x - drag.start.x, point.y - drag.start.y, 0);
-      if (objectSnap && !event.altKey) { delta.x = Math.round(delta.x); delta.y = Math.round(delta.y); }
-      const edits = transformObjects(drag.objects, spec, delta, undefined, "individual", arrangementObjects);
-      if (edits) { drag.latest = edits; dispatch({ type: "UPDATE_OBJECTS", edits, transient: true, historyLabel: "Move selected objects" }); }
+      const rotating = drag.mode === "rotate";
+      const delta = rotating ? new Vector3() : new Vector3(point.x - drag.start.x, point.y - drag.start.y, 0);
+      let angle = (Math.atan2(point.y - drag.center.y, point.x - drag.center.x)
+        - Math.atan2(drag.start.y - drag.center.y, drag.start.x - drag.center.x)) * 180 / Math.PI;
+      if (objectSnap && !event.altKey) { delta.x = Math.round(delta.x); delta.y = Math.round(delta.y); angle = Math.round(angle / 5) * 5; }
+      const rotation = rotating ? new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), angle * Math.PI / 180) : undefined;
+      const edits = transformObjects(drag.objects, spec, delta, rotation, drag.pivot, drag.allObjects);
+      if (edits) { drag.latest = edits; dispatch({ type: "UPDATE_OBJECTS", edits, transient: true,
+        historyLabel: rotating ? "Rotate selected objects" : "Move selected objects" }); }
       return;
     }
     if (drag.kind === "contour") {
@@ -1333,7 +1346,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       viewport.handlers.onPointerUp(event);
       return;
     }
-    if (drag.kind === "selection-move" && event.type === "pointercancel") {
+    if (drag.kind === "selection-transform" && event.type === "pointercancel") {
       dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" }); return;
     }
     if (drag.kind === "contour") {
@@ -1417,8 +1430,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         (inspector ?? toolbar)?.setTool(event.key.toLowerCase() === "w" ? "translate" : "rotate");
         setModeRequest(value => value + 1); return;
       }
-      if (event.key === "Escape" && dragRef.current?.kind === "selection-move") {
-        dragRef.current = null; clickRef.current = null;
+      if (event.key === "Escape" && dragRef.current?.kind === "selection-transform") {
+        dragRef.current = null; clickRef.current = null; setIsRotating(false);
         dispatch({ type: "UPDATE_OBJECTS", edits: getCommittedBinDoc({ history }), transient: true, historyLabel: "Cancel move" });
         event.preventDefault(); return;
       }
@@ -1620,6 +1633,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     [spec, footprintCells],
   );
   const selectableEdges = useMemo(() => boundaryEdges(spec), [spec]);
+
+  const selectionRotationControl = (() => {
+    if (editorMode !== "placement" || !rotateActive || selectedObjects.length < 2) return null;
+    const center = binToCanvas(selectionCenter(selectedObjects), spec);
+    const bounds = selectionBounds(selectedObjects);
+    const top = binToCanvas({ x: selectionCenter(selectedObjects).x, y: bounds.maxY }, spec);
+    return { center, top, handle: { x: top.x, y: top.y - (touchControls ? 48 : 28) * inv } };
+  })();
 
   const selectedControls = useMemo(() => {
     // Hidden single-object handles must not intercept touch group drags.
@@ -2057,6 +2078,18 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
               return <circle key={i} cx={c.x} cy={c.y} r={4 * inv} className="fill-background stroke-primary" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />;
             })}
           </g>}
+          {selectionRotationControl && <g data-testid="selection-rotation-control">
+            <line x1={selectionRotationControl.center.x} y1={selectionRotationControl.center.y}
+              x2={selectionRotationControl.handle.x} y2={selectionRotationControl.handle.y}
+              className="pointer-events-none stroke-primary/70" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+            <circle cx={selectionRotationControl.center.x} cy={selectionRotationControl.center.y} r={3 * inv}
+              className="pointer-events-none fill-background stroke-primary" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+            <circle cx={selectionRotationControl.handle.x} cy={selectionRotationControl.handle.y} r={(touchControls ? 22 : 10) * inv}
+              className="fill-primary stroke-background" strokeWidth={1.5} vectorEffect="non-scaling-stroke"
+              data-selection-rotate-handle="true" data-testid="selection-rotate-handle" style={{ cursor: ROTATE_CURSOR }}>
+              <title>Drag to rotate selected objects</title>
+            </circle>
+          </g>}
           {editorMode === "placement" && selection.length === 1 && selectedControls && selected && (
             <g>
               <polygon
@@ -2240,7 +2273,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
       </div>}
 
-      {showObjectControls && !selectedSurfaceTextId && <ObjectTransformPanel disabled={panActive}
+      {showObjectControls && !selectedSurfaceTextId && <ObjectTransformPanel view="2d" disabled={panActive}
         editor={{ spec, transformOrigins, originShapes: shapes, linkControls: <SelectionLinkControls />, groupControls: <ObjectGroupControls />, pockets: arrangementObjects.flatMap(o => o.kind === "pocket" ? [o] : []), fingerHoles, selectedId: selectedCutoutId, selection,
           onSelect: id => dispatch({ type: "SELECT_CUTOUT", id }), onCommit: () => {},
           onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),

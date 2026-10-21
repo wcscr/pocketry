@@ -139,3 +139,31 @@ it.each([false, true])("allows grouped depth modes without moving peers (rotated
     expect(parseProjectDoc({ schemaVersion: PROJECT_SCHEMA_VERSION, ...getCommittedBinDoc(ui.state()), shapes: [ui.shape], history: ui.state().history })).not.toBeNull();
   }
 });
+
+it("keeps fallback and authored pocket names through linking, save/load, unlink and history", () => {
+  const ui = mount();
+  const otherShape = { ...ui.shape, id: "traced", name: "Tool 1" };
+  const before = ui.state().cutouts.map((c, i) => ({ ...c, shapeId: i ? otherShape.id : ui.shape.id, name: i ? undefined : "My rectangle" }));
+  ui.send({ type: "HYDRATE", spec: ui.state().spec, cutouts: before });
+  ui.send({ type: "LINK_DESIGNS", kind: "pocket", ids: ["p0", "p1"], sourceId: "p0", linkId: "link", tilt: false, shapes: [ui.shape, otherShape] });
+  const linked = ui.state().cutouts;
+  expect(linked.map(c => c.name)).toEqual(["My rectangle", "Tool 1"]);
+  expect(linked.map(c => c.shapeId)).toEqual([ui.shape.id, ui.shape.id]);
+  ui.send({ type: "UNDO" }); expect(ui.state().cutouts).toEqual(before);
+  ui.send({ type: "REDO" }); expect(ui.state().cutouts).toEqual(linked);
+  const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+    ...getCommittedBinDoc(ui.state()), shapes: [ui.shape, otherShape], history: ui.state().history })))!;
+  expect(saved).not.toBeNull(); ui.send({ type: "HYDRATE", ...saved });
+  ui.send({ type: "UNLINK_DESIGNS", kind: "pocket", ids: ["p0", "p1"] });
+  expect(ui.state().cutouts.map(c => c.name)).toEqual(["My rectangle", "Tool 1"]);
+});
+
+it("does not leak a drawing dialog depth into later tools or a new project", () => {
+  const ui = mount();
+  const draw = () => ui.send({ type: "SET_EDITOR_MODE", editorMode: "draw-rectangle", drawDepthMm: 5 });
+  draw(); expect(ui.state().drawDepthMm).toBe(5);
+  ui.send({ type: "SET_EDITOR_MODE", editorMode: "placement" }); expect(ui.state().drawDepthMm).toBeUndefined();
+  draw(); ui.send({ type: "SET_EDITOR_MODE", editorMode: "draw-circle" }); expect(ui.state().drawDepthMm).toBeUndefined();
+  draw(); ui.send({ type: "SET_VIEW_MODE", viewMode: "3d" }); expect(ui.state().drawDepthMm).toBeUndefined();
+  draw(); ui.send({ type: "HYDRATE", spec: ui.state().spec, cutouts: [] }); expect(ui.state().drawDepthMm).toBeUndefined();
+});

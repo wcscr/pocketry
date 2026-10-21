@@ -24,7 +24,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex, type TracedShape } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, pocketName, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex, type TracedShape } from "@shared/gridfinity/cutout";
 import { BIN_HISTORY_LIMIT, type BinDoc, type BinHistory, type BinHistoryEntry } from "@shared/gridfinity/history";
 export type { BinDoc, BinHistoryEntry } from "@shared/gridfinity/history";
 
@@ -87,6 +87,8 @@ export interface BinState {
   viewMode: BinViewMode;
   /** Active interaction grammar in the 2D layout view. */
   editorMode: BinEditorMode;
+  /** Session-only depth from the dimension dialog; cleared when leaving drawing. */
+  drawDepthMm?: number;
   /** True once persistence has had its chance to restore a project. */
   hydrated: boolean;
   history: BinHistory;
@@ -202,7 +204,7 @@ export type BinAction = (
   | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[]; labels?: ReadonlyMap<string, string> }
   | { type: "UPDATE_OBJECTS"; edits: ObjectEdits; historyLabel: string; transient?: boolean }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
-  | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
+  | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode; drawDepthMm?: number }
   | { type: "SET_GRID"; gridX: number; gridY: number; historyLabel?: string }
   | { type: "UNDO" }
   | { type: "REDO" }
@@ -558,6 +560,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           ...(action.transformOrigins?.pockets.map(origin => origin.cutout) ?? []),
         ].filter(isInclinedPocket).map(c => c.id))],
         editorMode: "placement",
+        drawDepthMm: undefined,
         hydrated: true,
         pendingHistoryLabel: null,
         history: action.history ?? {
@@ -764,6 +767,8 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const doc = action.kind === "pocket"
         ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: cutouts.map(c => ids.has(c.id)
           ? { ...c, ...pocketDesign({ ...source as CutoutPlacement, designLink }), designLink,
+            // The visible fallback belongs to this placement, not its new outline.
+            ...(action.shapes?.some(shape => shape.id === c.shapeId) ? { name: pocketName(c, action.shapes.find(shape => shape.id === c.shapeId)) } : {}),
             ...((source as CutoutPlacement).profileBottom && c.profileBottom ? { profileBottom: { ...(source as CutoutPlacement).profileBottom!, elevationMm: c.profileBottom.elevationMm } } : {}) } : c) }
         : { spec: state.spec, cutouts: state.cutouts, fingerHoles: clampLinkedFingerHoles(state.fingerHoles.map(h => ids.has(h.id)
           ? { ...h, ...fingerDesign(source as FingerHole), designLink } : h), state.spec, ids) };
@@ -915,9 +920,11 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         ...state,
         viewMode: action.viewMode,
         editorMode: action.viewMode === "3d" ? "placement" : state.editorMode,
+        drawDepthMm: action.viewMode === "3d" ? undefined : state.drawDepthMm,
       };
     case "SET_EDITOR_MODE":
-      return { ...state, editorMode: action.editorMode };
+      return { ...state, editorMode: action.editorMode,
+        drawDepthMm: action.editorMode.startsWith("draw-") ? action.drawDepthMm : undefined };
     case "SET_GRID":
       return commit(
         state,
