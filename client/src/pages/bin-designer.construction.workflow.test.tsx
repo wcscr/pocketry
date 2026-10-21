@@ -1228,8 +1228,8 @@ it.each(["controls", "workflow"] as const)("exports a jig SVG and matching optio
   try {
     await flushHydration();
     openSettingsSection(container, "export");
-    expect(container.textContent).toContain("1:1 alignment SVG with peg locations");
-    expect(container.textContent).not.toContain("Export shadow-board layout (top view)");
+    expect(container.textContent).toContain("Alignment layout");
+    expect(container.textContent).not.toContain("Export layout");
     const button = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-svg"]')!;
     expect(button.textContent).toBe("Save alignment SVG");
     expect(button.disabled).toBe(false);
@@ -1265,7 +1265,7 @@ it("offers the jig reference for a peg-only bin and preserves ordinary empty-bin
       await flushHydration();
       openSettingsSection(container, "export");
       expect(container.querySelector('[data-testid="button-layout-svg"]') !== null).toBe(jig);
-      expect(container.textContent?.includes("1:1 alignment SVG with peg locations")).toBe(jig);
+      expect(container.textContent?.includes("Alignment layout")).toBe(jig);
     } finally { unmount(); }
   }
 });

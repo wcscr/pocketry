@@ -321,6 +321,8 @@ it.each([false, true])("workflow layout routes every section to matching propert
     expect(left.querySelector('#bin-settings-pockets')).not.toBeNull();
     expect(left.querySelector('#bin-settings-finger-holes')).not.toBeNull();
     expect(left.querySelectorAll('button[data-testid^="workflow-section-"]')).toHaveLength(6);
+    const header = container.querySelector('[data-testid="editor-project-header"]')!;
+    expect([...header.querySelectorAll('button')].map(button => button.textContent).filter(Boolean)).toEqual(['Check fit', 'Export']);
     expect(left.querySelector('[aria-label="Width in standard cells"]')).toBeNull();
     for (const [name, tone, selector] of [
       ['Bin size', 'blue', '[aria-label="Width in standard cells"]'],

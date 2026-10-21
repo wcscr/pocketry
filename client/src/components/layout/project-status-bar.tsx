@@ -32,7 +32,7 @@ export function ProjectStatusBar() {
       <span className="block truncate text-xs font-medium" title={name}>Project: {name}</span>
       <span role="status" className={`block text-xs ${activity.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{projectActivityLabel(activity)}</span>
     </button>}
-    {location === "/" && <Button variant="outline" size="sm" className="min-h-11 shrink-0 gap-1.5"
+    {(location === "/" || location === "/bin") && <Button variant="outline" size="sm" className="min-h-11 shrink-0 gap-1.5"
       onClick={() => { setNewProjectRequested(true); navigate("/bin"); }}>
       <FilePlus2 className="h-4 w-4" aria-hidden="true" />New project
     </Button>}

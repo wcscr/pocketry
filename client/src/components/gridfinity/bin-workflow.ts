@@ -10,7 +10,7 @@ export const BIN_WORKFLOW_SECTIONS = [
   { id: "bin-settings-text", label: "Surface text", title: "Surface text", tone: "cyan", description: "Add surface text, then select a label to edit its properties." },
   { id: "bin-settings-materials", label: "Materials & Colors", title: "Materials & Colors", tone: "amber", description: "Choose colors and material depths." },
   { id: "bin-settings-fit", label: "Check fit", title: "Check fit", tone: "indigo", description: null },
-  { id: "bin-settings-export", label: "Export", title: "Export", tone: "emerald", description: "Download a printable bin or a layout for fabrication." },
+  { id: "bin-settings-export", label: "Export", title: "Export", tone: "emerald", description: null },
 ] as const;
 
 /** Keep section identities shared while describing the active project profile. */
@@ -19,6 +19,5 @@ export function binWorkflowSections(isJig: boolean): Array<Omit<typeof BIN_WORKF
     ? { ...section, title: "Fixture size", description: "Set dimensions and body thickness in millimetres." }
     : section.id === "bin-settings-construction"
       ? { ...section, description: "Configure the backing, fill, and locating pegs for the mat." }
-      : section.id === "bin-settings-export"
-        ? { ...section, description: "Download the fixture and its 1:1 alignment SVG." } : section);
+      : section);
 }

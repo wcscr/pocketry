@@ -140,7 +140,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               Compare the Layout ruler measurements with the real tools. Check
               depths and the remaining floor in <strong>3D</strong>, or use
               <strong> Check fit → Inspect inside</strong> for a cross-section.
-              Under <strong>Prepare fit test templates</strong>, choose
+              Under <strong>Export fit check</strong>, choose
               <strong> Full surface</strong> or <strong>Tool outlines</strong>.
               We recommend a thickness of <strong>0.6–0.8 mm</strong> for fit checks.
               Choose <strong>Save surface fit test STL</strong>.
