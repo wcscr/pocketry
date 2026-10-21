@@ -1,6 +1,7 @@
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
 import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
+import { FeatureSettings } from "./feature-settings";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useBinObjectContextMenu } from "./object-context-menu";
@@ -1716,20 +1717,17 @@ export function BinControlsPanel({
             disabled={spec.wallSlant !== null || spec.heightUnits < 1}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />}
-          {experimentalEnabled && <FeatureSwitch
+          {experimentalEnabled && <FeatureSettings
             label="Slanted walls (prototype)"
             description="Tilt either opposing wall or both along X or Y, with a flat base"
             checked={spec.wallSlant !== null}
             onChange={(on) => patchSpec(on
               ? { wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" }
               : { wallSlant: null })}
-          />}
-          {experimentalEnabled && spec.wallSlant && <details className="group/slant border-l pl-3 text-xs" data-testid="wall-slant-settings">
-            <summary>
-              Slanted wall settings
-              <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/slant:rotate-180" />
-            </summary>
-            <div className="space-y-2 pt-1">
+            settingsLabel="Slanted wall settings" testId="wall-slant-settings"
+            summary={spec.wallSlant ? `${spec.wallSlant.angleDeg}° ${spec.wallSlant.axis.toUpperCase()}` : ""}
+          >
+            {spec.wallSlant && <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <SettingLabel label="Slant axis" hint="Choose the opposing pair of walls. Tilt moves along this axis; the base stays fixed." />
                 <Select value={spec.wallSlant.axis} onValueChange={(axis) => patchSpec({ wallSlant: { ...spec.wallSlant!, axis: axis === "x" ? "x" : "y" } })}>
@@ -1756,8 +1754,8 @@ export function BinControlsPanel({
                 <span className="text-xs text-muted-foreground">°</span>
               </div>
               {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: { ...spec.wallSlant, ...matchedPocketSlant }, lip: "none" })}>Match selected pocket angle</Button>}
-            </div>
-          </details>}
+            </div>}
+          </FeatureSettings>}
           <FeatureSwitch
             label="Solid fill"
             id="bin-solid-fill"
@@ -1767,18 +1765,15 @@ export function BinControlsPanel({
           />
           {spec.fill === "none" && <>
             <div className="space-y-2" data-testid="internal-compartment-controls">
-              <FeatureSwitch label="Internal compartments"
+              <FeatureSettings label="Internal compartments"
                 description="Rows run along the length (Y), columns along the width (X). Dividers follow the wall slant. Custom footprints clip the grid. Turning this off keeps your settings."
                 checked={internalCompartmentsOn}
                 onChange={enabled => patchSpec({ compartments: { ...spec.compartments, enabled,
                   ...(enabled && spec.compartments.rows === 1 && spec.compartments.columns === 1 ? { rows: 2 } : {}),
-                } })} />
-              {internalCompartmentsOn && <details className="group/compartments border-l pl-3 text-xs" data-testid="compartment-settings">
-                <summary>
-                  Compartment settings
-                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/compartments:rotate-180" />
-                </summary>
-                <div className="space-y-2 pt-1">
+                } })}
+                settingsLabel="Compartment settings" testId="compartment-settings"
+                summary={`${spec.compartments.rows} × ${spec.compartments.columns}`}>
+                <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-3">
                     {(["rows", "columns"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
                       <Label className="text-xs" htmlFor={`compartment-${axis}`}>{axis === "rows" ? "Rows" : "Columns"}</Label>
@@ -1799,7 +1794,7 @@ export function BinControlsPanel({
                     </div>
                   </div>
                 </div>
-              </details>}
+              </FeatureSettings>
             </div>
             <FeatureSwitch label="Scoop bottoms"
               description={`Curve the floor into the ${compartmentLayout(spec).scoopWall} wall for easier pickup. Slanted scoops face the obtuse angle. Works with or without internal compartments.`}
@@ -1945,42 +1940,30 @@ export function BinControlsPanel({
             </PropertySurface>}
           </div>
 
-          {!isJig && <fieldset className="min-w-0 space-y-2 rounded-md border p-3" aria-label="Label tab settings">
-            <legend className="px-1">
-              <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops." />
-            </legend>
-            <div className="flex items-center gap-2">
-              <Label className="w-28 shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
-              <Select
-                value={spec.labelTab?.width ?? "none"}
-                onValueChange={(width) =>
-                  patchSpec({
-                    labelTab:
-                      width === "none"
-                        ? null
-                        : {
-                            ...spec.labelTab,
-                            wall: spec.labelTab?.wall ?? automaticLabelWall,
-                            autoWall: spec.labelTab?.autoWall ?? !spec.labelTab,
-                            width: width as "full" | "center" | "left" | "right",
-                          },
-                  })
-                }
-              >
-                <SelectTrigger id="bin-label-tab" aria-label="Label tab" className="h-8 flex-1" data-testid="select-label-tab">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="full">Full width</SelectItem>
-                  <SelectItem value="center">Center · 42 mm</SelectItem>
-                  <SelectItem value="left">Left · 42 mm</SelectItem>
-                  <SelectItem value="right">Right · 42 mm</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {!isJig && <FeatureSettings label="Label tab"
+            description="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops."
+            checked={spec.labelTab !== null}
+            onChange={enabled => {
+              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full" } : null });
+              if (!enabled && editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+            }}
+            settingsLabel="Label tab settings" testId="label-tab-settings"
+            summary={spec.labelTab ? { full: "Full", center: "Center", left: "Left", right: "Right" }[spec.labelTab.width] : ""}>
             {spec.labelTab && (
               <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
+                  <Select value={spec.labelTab.width}
+                    onValueChange={width => patchSpec({ labelTab: { ...spec.labelTab!, width: width as "full" | "center" | "left" | "right" } })}>
+                    <SelectTrigger id="bin-label-tab" aria-label="Label tab style" className="h-8 flex-1" data-testid="select-label-tab"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full width</SelectItem>
+                      <SelectItem value="center">Center · 42 mm</SelectItem>
+                      <SelectItem value="left">Left · 42 mm</SelectItem>
+                      <SelectItem value="right">Right · 42 mm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-center gap-2">
                   <SettingLabel label="Apply to" className="w-28 shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
                   <Select value={spec.labelTab.scope ?? "outer"} disabled={spec.fill !== "none"}
@@ -2037,7 +2020,7 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-          </fieldset>}
+          </FeatureSettings>}
         </PanelSection>
 
         {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section

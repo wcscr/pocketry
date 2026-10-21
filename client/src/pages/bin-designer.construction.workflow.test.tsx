@@ -46,7 +46,7 @@ describe("BinDesignerPage", () => {
         React.act(() => input(label).blur());
       };
       const controls = () => container.querySelector('[data-testid="internal-compartment-controls"]');
-      const disclosure = () => container.querySelector<HTMLDetailsElement>('[data-testid="compartment-settings"]');
+      const disclosure = () => container.querySelector<HTMLDivElement>('[data-testid="compartment-settings"]');
       expect(controls()).toBeNull();
       expect(container.querySelector('[aria-label="Scoop bottoms"]')).toBeNull();
       toggle("Solid fill");
@@ -57,9 +57,9 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[aria-label="Internal compartments"]')!.getAttribute("aria-checked")).toBe("false");
       toggle("Scoop bottoms");
       toggle("Internal compartments");
-      expect(disclosure()!.open).toBe(false);
-      React.act(() => disclosure()!.querySelector('summary')!.click());
-      expect(disclosure()!.open).toBe(true);
+      expect(disclosure()!.hidden).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="compartment-settings-trigger"]')!.click());
+      expect(disclosure()!.hidden).toBe(false);
       expect(controls()!.querySelector('p')).toBeNull();
       enter("Sub-bin rows", "2"); enter("Sub-bin columns", "3");
       enter("Divider thickness in millimetres", "1.5"); toggle("Scoop bottoms");
@@ -67,8 +67,8 @@ describe("BinDesignerPage", () => {
       clickBinHistory(container, "undo");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].compartments.scoop).toBe(false);
       clickBinHistory(container, "redo");
-      React.act(() => disclosure()!.querySelector('summary')!.click());
-      expect(disclosure()!.open).toBe(false);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="compartment-settings-trigger"]')!.click());
+      expect(disclosure()!.hidden).toBe(true);
       toggle("Internal compartments");
       expect(disclosure()).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].compartments).toEqual({ enabled: false, rows: 2, columns: 3, dividerThicknessMm: 1.5, scoop: true });
@@ -81,8 +81,8 @@ describe("BinDesignerPage", () => {
       expect(controls()).toBeNull();
       expect(container.querySelector('[aria-label="Scoop bottoms"]')).toBeNull();
       toggle("Solid fill");
-      expect(disclosure()!.open).toBe(false);
-      React.act(() => disclosure()!.querySelector('summary')!.click());
+      expect(disclosure()!.hidden).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="compartment-settings-trigger"]')!.click());
       expect(input("Sub-bin rows").value).toBe("2");
       expect(input("Sub-bin columns").value).toBe("3");
       expect(container.querySelector('[aria-label="Scoop bottoms"]')!.getAttribute("aria-checked")).toBe("true");
@@ -117,13 +117,13 @@ describe("BinDesignerPage", () => {
         wallSlant: { axis: "y", angleDeg: 20 }, lip: "none",
       });
       expect(container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Stacking lip"]')!.disabled).toBe(true);
-      const disclosure = container.querySelector<HTMLDetailsElement>('[data-testid="wall-slant-settings"]')!;
-      expect(disclosure.open).toBe(false);
-      React.act(() => disclosure.querySelector('summary')!.click());
-      expect(disclosure.open).toBe(true);
+      const disclosure = container.querySelector<HTMLDivElement>('[data-testid="wall-slant-settings"]')!;
+      expect(disclosure.hidden).toBe(true);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="wall-slant-settings-trigger"]')!.click());
+      expect(disclosure.hidden).toBe(false);
       expect(angle()?.value).toBe("20");
-      React.act(() => disclosure.querySelector('summary')!.click());
-      expect(disclosure.open).toBe(false);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="wall-slant-settings-trigger"]')!.click());
+      expect(disclosure.hidden).toBe(true);
       expect(angle()?.value).toBe("20");
       expect(angle()?.min).toBe("-89");
       expect(angle()?.max).toBe("89");
@@ -154,7 +154,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "construction");
       expect(container.querySelector('[aria-label="Walls to tilt"]')).toBeNull();
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Slanted walls (prototype)"]')!.click());
-      React.act(() => container.querySelector('[data-testid="wall-slant-settings"] summary')!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      React.act(() => container.querySelector('[data-testid="wall-slant-settings-trigger"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
       const choose = (field: string, label: string) => {
         React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${field}"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
         React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
@@ -200,7 +200,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "tool-cutouts");
       selectPocket(container, pocket.id);
       openSettingsSection(container, "construction");
-      React.act(() => container.querySelector<HTMLElement>('[data-testid="wall-slant-settings"] summary')!.click());
+      React.act(() => container.querySelector<HTMLElement>('[data-testid="wall-slant-settings-trigger"]')!.click());
       const match = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Match selected pocket angle");
       if (expected) {
         expect(match).toBeDefined();
@@ -1294,8 +1294,14 @@ it.each(["standard", "workflow"])("retains per-sub-bin tab placement while chang
   try {
     await flushHydration(); openSettingsSection(container, "construction");
     const placement = () => container.querySelector<HTMLButtonElement>('[aria-label="Label tab placement"]')!;
-    const group = container.querySelector('fieldset[aria-label="Label tab settings"]')!;
-    expect(group.querySelector('legend')!.textContent).toBe("Label tab");
+    const group = container.querySelector<HTMLDivElement>('[data-testid="label-tab-settings"]')!;
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="label-tab-settings-trigger"]')!;
+    expect(group.hidden).toBe(true);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.getAttribute("aria-controls")).toBe(group.id);
+    React.act(() => trigger.click());
+    expect(group.hidden).toBe(false);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
     expect(group.contains(placement())).toBe(true);
     expect(group.querySelector('[aria-label="Label tab wall"]')).not.toBeNull();
     expect(placement().textContent).toBe("Each sub-bin");
@@ -1306,7 +1312,7 @@ it.each(["standard", "workflow"])("retains per-sub-bin tab placement while chang
     expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab!.scope).toBe("outer");
     clickBinHistory(container, "undo");
     expect(placement().textContent).toBe("Each sub-bin");
-    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
     const centered = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(el => el.textContent === "Center · 42 mm")!;
     React.act(() => centered.click());
     expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab).toMatchObject({ width: "center", scope: "compartments" });
@@ -1322,7 +1328,9 @@ it.each(["standard", "workflow"])("defaults tabs opposite scoops and retains man
     await flushHydration(); openSettingsSection(container, "construction");
     const choose = (field: string, label: string) => {
       React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${field}"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+      const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+      if (field === "Label tab style") expect(options.some(option => option.textContent === "None")).toBe(false);
+      React.act(() => options.find(option => option.textContent === label)!.click());
     };
     const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
     const slantToggle = () => React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Slanted walls (prototype)"]')!.click());
@@ -1335,13 +1343,25 @@ it.each(["standard", "workflow"])("defaults tabs opposite scoops and retains man
       });
       React.act(() => input.blur());
     };
+    const labelToggle = () => React.act(() => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Label tab"]')!.click());
+    const labelSettings = () => container.querySelector<HTMLDivElement>('[data-testid="label-tab-settings"]');
+    const labelTrigger = () => container.querySelector<HTMLButtonElement>('[data-testid="label-tab-settings-trigger"]');
+    expect(labelSettings()).toBeNull();
+    expect(labelTrigger()).toBeNull();
+    expect(container.querySelector('[aria-label="Label tab style"]')).toBeNull();
     expect(container.querySelector('[aria-label="Label tab placement"]')).toBeNull();
-    choose("Label tab", "Full width");
+    labelToggle();
+    expect(labelSettings()!.hidden).toBe(true);
+    const beforeDisclosure = current();
+    React.act(() => labelTrigger()!.click());
+    expect(labelSettings()!.hidden).toBe(false);
+    expect(current()).toBe(beforeDisclosure);
+    choose("Label tab style", "Full width");
     expect(current().labelTab).toMatchObject({ autoWall: true, wall: "north" });
     slantToggle();
     expect(current().labelTab).toMatchObject({ autoWall: true, wall: "south" });
     expect(container.querySelector('[aria-label="Label tab wall"]')!.textContent).toBe("Auto · Front");
-    React.act(() => container.querySelector<HTMLElement>('[data-testid="wall-slant-settings"] summary')!.click());
+    React.act(() => container.querySelector<HTMLElement>('[data-testid="wall-slant-settings-trigger"]')!.click());
     choose("Wall slant axis", "Width (X)");
     expect(current().labelTab!.wall).toBe("west");
     angle("-20");
@@ -1358,11 +1378,30 @@ it.each(["standard", "workflow"])("defaults tabs opposite scoops and retains man
     expect(current().labelTab!.wall).toBe("north");
     clickBinHistory(container, "undo");
     expect(current().labelTab).toMatchObject({ autoWall: true, wall: "east" });
-    choose("Label tab", "None");
+    React.act(() => labelTrigger()!.click());
+    expect(labelSettings()!.hidden).toBe(true);
+    labelToggle();
+    expect(current().labelTab).toBeNull();
+    expect(labelSettings()).toBeNull();
+    expect(labelTrigger()).toBeNull();
     expect(container.querySelector('[aria-label="Label tab placement"]')).toBeNull();
     expect(container.querySelector('[aria-label="Label tab wall"]')).toBeNull();
+    clickBinHistory(container, "undo");
+    expect(current().labelTab).toMatchObject({ autoWall: true, wall: "east" });
+    expect(labelSettings()!.hidden).toBe(true);
+    clickBinHistory(container, "redo");
+    expect(current().labelTab).toBeNull();
     // Adding a tab after the slant is configured uses the same acute-side default.
-    choose("Label tab", "Center · 42 mm");
+    labelToggle();
+    React.act(() => labelTrigger()!.click());
+    choose("Label tab style", "Center · 42 mm");
     expect(current().labelTab).toMatchObject({ autoWall: true, wall: "east", width: "center" });
+    const edgeButton = () => container.querySelector<HTMLButtonElement>('[data-testid="button-choose-label-edge"]')!;
+    React.act(() => edgeButton().click());
+    expect(edgeButton().textContent).toBe("Cancel edge selection");
+    labelToggle();
+    labelToggle();
+    React.act(() => labelTrigger()!.click());
+    expect(edgeButton().textContent).toBe("Choose any edge");
   } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
 });

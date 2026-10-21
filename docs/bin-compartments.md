@@ -2,8 +2,9 @@
 
 Construction shows separate Internal compartments and Scoop bottoms switches only
 when Solid fill is off, in both standard and workflow layouts, including mobile.
-Internal compartments reveals a collapsed Compartment settings disclosure for
-Rows, Columns, and Divider thickness. Guidance lives in hover/tap hints. Counts describe sub-bins:
+Enabled features use a single row with a separate switch and disclosure button.
+The compartment row shows its row/column count and opens Rows, Columns, and
+Divider thickness beneath a subtle divider. Guidance lives in hover/tap hints. Counts describe sub-bins:
 2 rows by 3 columns creates six compartments; 1 by 1 has no dividers. Rows run
 along Y and columns along X. Clear compartment widths are equal, accounting for
 wall and divider thickness. Dividers default to Rebuilt's 1.2 mm.
@@ -28,13 +29,17 @@ Schema 52 retains the settings in projects, undo history, and transform origins.
 Earlier projects default to 1 by 1 with scoops off. Preview, STL, and 3MF share
 the same geometry builder. Existing pocket/finger cuts still remove material
 from the finished bin. Label tabs can stay on the selected outer wall or repeat on each sub-bin.
-The Label tab fieldset groups Style, Apply to, and On wall. New tabs use Auto:
+The Label tab switch enables a full-width tab; its collapsed disclosure groups
+Style, Apply to, and On wall. Turning it off removes the tab and exits edge picking;
+undo restores the prior tab settings. New tabs use Auto:
 back for upright bins, or the edge above the acute angle for slanted bins
 (+X left, -X right, +Y front, -Y back), opposite the scoops. Auto follows slant
 edits; choosing a wall or boundary edge keeps that explicit placement. Saved
 projects without Auto retain their wall. These choices persist through saving
-and undo/redo. Slanted wall settings are collapsed by default, like compartment
-settings; disclosure text uses the normal foreground color. Wall thickness uses
+and undo/redo. Slanted walls, compartments, and label tabs share compact inline disclosures,
+collapsed by default and independently expandable. Their rows show short value
+summaries and normal foreground text. Switches, help, and disclosure buttons have
+separate keyboard targets; collapsed controls are hidden from focus navigation. Wall thickness uses
 a number field, with the existing recommendation and reset control.
 The width style and wall direction apply to every tab; their depth
 is capped at half the compartment to leave an opening. Custom footprints omit
