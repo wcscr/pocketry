@@ -1295,7 +1295,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard","workflow"])("shows tilted insertion controls above pocket depth in %s layout", async layout => {
+  it.each(["standard","workflow"])("groups tilted insertion controls in a collapsed section above pocket depth in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null,"",`/bin?layout=${layout}`);
     const shape = rectangularShape("tool","Tilted tool");
@@ -1306,13 +1306,18 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       selectPocket(container,pocket.id);
-      const controls = document.querySelector('[data-testid="pocket-insertion-controls"]')!;
+      const controls = document.querySelector<HTMLDetailsElement>('[data-testid="pocket-insertion-controls"]')!;
       expect(controls).not.toBeNull();
-      expect(controls.closest('details')).toBeNull();
+      expect(controls.open).toBe(false);
+      expect(controls.querySelector("summary")!.textContent).toBe("Insertion path");
+      React.act(() => controls.querySelector("summary")!.click());
+      expect(controls.open).toBe(true);
       const depth = document.querySelector('[data-testid="pocket-depth-summary"]')!;
       expect(controls.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(controls.querySelector<HTMLInputElement>('input')!.checked).toBe(true);
       expect(controls.querySelector('select')!.value).toBe("axis");
+      React.act(() => controls.querySelector("summary")!.click());
+      expect(controls.open).toBe(false);
     } finally { unmount(); window.history.replaceState(null,"",originalUrl); }
   });
 
