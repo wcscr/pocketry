@@ -289,7 +289,11 @@ describe("Trace detection workflow", () => {
     expect(host.querySelector('[data-testid="estimated-edge-notice"]')).toBeNull();
   });
 
-  it("offers the sample browser from the initial Trace screen without importing a project", async () => {
+  it.each([
+    ["Trace a Photo", false, "/"],
+    ["Design a Bin", false, "/bin"],
+    ["Open Sample Projects", true, "/bin"],
+  ])("uses %s from the initial screen (browse samples=%s)", async (label, browseSamples, destination) => {
     const route = memoryLocation({ path: "/" });
     let requested = false;
     let location = "/";
@@ -299,11 +303,12 @@ describe("Trace detection workflow", () => {
       return null;
     }
     await React.act(async () => root.render(<Router hook={route.hook}><PanelProvider><TraceProvider><SampleRequestProbe /><TracePage /></TraceProvider></PanelProvider></Router>));
-    const button = [...document.querySelectorAll("button")].find(button => button.textContent === "Open sample projects or library")!;
+    expect(document.querySelector('[aria-label="Get started"] [aria-current="page"]')?.textContent).toBe("Trace a Photo");
+    const button = [...document.querySelectorAll("button")].find(button => button.textContent === label)!;
     expect(button).toBeDefined();
     await React.act(async () => button.click());
-    expect(requested).toBe(true);
-    expect(location).toBe("/bin");
+    expect(requested).toBe(browseSamples);
+    expect(location).toBe(destination);
   });
 
   const detectionFrame = (retry = false): DetectionFrame => ({
@@ -869,15 +874,27 @@ describe("Trace detection workflow", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
-  it("keeps downloads behind one link above the empty drop zone", async () => {
+  it("keeps photo and scale tips collapsed with calibration downloads available inside", async () => {
     await React.act(async () => {
       root.render(<PanelProvider><TraceProvider><TracePage /></TraceProvider></PanelProvider>);
     });
-    expect(host.textContent).toContain("Photograph the tool on a calibration sheet or a plain, contrasting background");
+    const tips = host.querySelector<HTMLDetailsElement>("details")!;
+    expect(tips.open).toBe(false);
+    expect(tips.querySelector("summary")?.textContent).toBe("Photo & scale tips");
+    await React.act(async () => tips.querySelector("summary")!.click());
+    expect(tips.open).toBe(true);
+    expect(tips.textContent).toContain("Put your tool on a plain, contrasting background and photograph it from above.");
+    expect(host.textContent).toContain("Set the scale using:");
+    expect(host.textContent).toContain("A measurement");
+    expect(host.textContent).toContain("The corners of a sheet of paper");
+    expect(host.textContent).toContain("A calibration sheet or aid (optional)");
+    expect(host.textContent).not.toContain("You don’t need a photo");
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
     expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download optional calibration aids")).toHaveLength(1);
+    await React.act(async () => tips.querySelector("summary")!.click());
+    expect(tips.open).toBe(false);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {

@@ -290,9 +290,9 @@ describe("App", () => {
   it("shows the empty state before an image is loaded", () => {
     renderApp();
     // The dropzone belongs in the empty canvas, not in the controls panel.
-    expect(container.textContent).toContain("Trace a tool from a photo");
+    expect(container.querySelector('[aria-label="Get started"] [aria-current="page"]')?.textContent).toBe("Trace a Photo");
     expect(container.textContent).toContain(
-      "Photograph the tool on a calibration sheet or a plain, contrasting background",
+      "Put your tool on a plain, contrasting background and photograph it from above.",
     );
     expect(container.textContent).toContain("Choose a photo");
     expect(container.querySelector('[data-testid="global-project-status"]')?.textContent).toContain("Untitled project");
@@ -451,7 +451,7 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/bin");
     clickWorkspace("Trace");
     expect(window.location.pathname).toBe("/");
-    expect(container.textContent).toContain("Trace a tool from a photo");
+    expect(container.querySelector('[aria-label="Get started"] [aria-current="page"]')?.textContent).toBe("Trace a Photo");
     expect(
       container.querySelector("#trace-settings-source")?.getAttribute("data-state"),
     ).toBe("open");

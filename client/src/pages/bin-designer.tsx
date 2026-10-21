@@ -32,6 +32,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { BinEditingWorkspace } from "@/components/gridfinity/selection-inspector";
 import { Button } from "@/components/ui/button";
+import { Ultim8Link } from "@/components/ui/ultim8-link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
@@ -123,16 +124,16 @@ function BinDesignerWorkspace(): JSX.Element {
   const projectActivity = useProjectActivityActions();
   const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
   const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
-  const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested } = usePanelState();
+  const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested, newProjectRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [depthRequest, setDepthRequest] = useState(0);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
   useEffect(() => {
-    if (!libraryRequested && !sampleLibraryRequested) return;
+    if (!libraryRequested && !sampleLibraryRequested && !newProjectRequested) return;
     setSettingsSectionRequest({ id: "bin-settings-project" });
     setPanelOpen(true);
-  }, [libraryRequested, sampleLibraryRequested, setPanelOpen]);
+  }, [libraryRequested, sampleLibraryRequested, newProjectRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
     setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
@@ -1325,12 +1326,12 @@ function BinDesignerWorkspace(): JSX.Element {
       canvas={
         <div className="absolute inset-0 flex flex-col" data-testid="bin-canvas">
           {bin.hydrated && isJig && cutouts.length === 0 && <section className="z-30 shrink-0 space-y-2 border-b bg-background px-3 py-3 sm:px-4" aria-label="Start your fixture" data-testid="jig-empty-state">
-            <p className="text-sm font-medium">Wham Bam Systems ULTIM8-compatible fixture <span className="ml-1 rounded border px-1.5 py-0.5 text-[10px] font-normal">Beta</span></p>
+            <p className="text-sm font-medium">Wham Bam Systems <Ultim8Link />-compatible fixture <span className="ml-1 rounded border px-1.5 py-0.5 text-[10px] font-normal">Beta</span></p>
             <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <li>1. Add an object</li><li>2. Set body thickness</li><li>3. Export fixture + alignment SVG</li>
             </ol>
             <Button size="sm" className="h-auto min-h-11 whitespace-normal" disabled={projectBusy || projectRestoreFailed} onClick={() => void traceFixture()}>Trace an object from a photo</Button>
-            <p className="text-xs text-muted-foreground">Or use Add pocket for a basic shape. Locating pegs fit Wham Bam Systems ULTIM8 mat spacing.</p>
+            <p className="text-xs text-muted-foreground">Or use Add pocket for a basic shape. Locating pegs fit Wham Bam Systems <Ultim8Link /> mat spacing.</p>
           </section>}
           {bin.hydrated && pendingDestinationChanged && <div role="alert" className="z-40 flex shrink-0 flex-col items-stretch gap-2 border-b bg-background px-3 py-2 text-sm sm:flex-row sm:items-center" data-testid="queued-destination-changed">
             <p className="min-w-0 flex-1">Tools are waiting for {Array.from(new Set(library.pendingIds.map(id => library.pendingDestinations[id]?.name ?? "the previous project"))).join(", ")}. The destination has changed. Open that project, or choose to add them here.</p>

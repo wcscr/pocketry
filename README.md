@@ -19,7 +19,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Trace and refine outlines from PNG or JPEG photos.
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
-- Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8-compatible fixtures (Beta)](https://pocketry.xyz/ultim8) start with eufyMake E1 mat pegs and export a 1:1 alignment SVG.
+- Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Start a fixture (Beta)](https://pocketry.xyz/ultim8).
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.
@@ -60,26 +60,14 @@ Printables, or elsewhere, please give Pocketry a shout-out and link to
 ### 1. Trace the tools
 
 This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/).
-In **Trace**, add a clear, top-down photo with a known measurement or calibration
-aid. Set the scale, draw a **Region** around the tool, and refine its **Outline**.
-Use **Edit Contour** for manual corrections and **Margin** for clearance.
-Choose **Add to bin**. New pockets default to **To bin floor**; adjust the depth
-in Bin as needed. Repeat for each tool.
-Multiple objects traced together keep their relative positions in Bin, including
-overlaps. Each pocket and hole stays separate and editable; no grouping option is needed.
-In **Detected Contours**, choose **Pocket** to cut material or **Hole** to keep
-material inside the surrounding pockets. A hole crossing a pocket edge makes a
-notch. Select a hole to move, resize, edit its contour, change its type, or
-remove it; deleting it restores the original pocket. Undo/redo and project
-backups preserve these objects. Automatic arrangement keeps overlapping holes
-and pockets together. Trace margin and detail edits preserve the separate objects;
-a hole shared by overlapping pockets appears once in the contour list. In Bin,
-positive **Hole offset** expands the kept area. Holes must connect to a pocket
-floor or wall; printable export blocks floating caps and detached islands.
 
-Recognized calibration aids are excluded from tracing. If an aid hides a tool
-edge, a persistent notice and amber outline identify the estimated area. Choose
-**Show estimated area** to zoom in and review the contour against the photo.
+Photograph your tools from above on a plain, contrasting background, then open
+the photo in **Trace**. Set the scale from a measurement, paper corners, or an
+optional calibration sheet or aid.
+
+Draw a **Region** around each tool and refine its **Outline**. Add clearance with
+**Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
+there was estimated. You’ll set pocket depths in Bin.
 
 ![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 

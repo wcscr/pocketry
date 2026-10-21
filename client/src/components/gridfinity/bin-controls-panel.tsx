@@ -60,7 +60,8 @@ import { binWorkflowSections } from "./bin-workflow";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { usePanelState } from "@/components/layout/panel-context";
+import { usePanelState, useProjectStatusHost } from "@/components/layout/panel-context";
+import { Ultim8Link } from "@/components/ui/ultim8-link";
 import { FillHeightControl } from "./fill-height-control";
 import { SurfaceTextControls, SurfaceTextProperties } from "./surface-text-controls";
 import { Type } from "lucide-react";
@@ -317,6 +318,7 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
+  const projectStatusHost = useProjectStatusHost();
   // Keep project transactions mounted while their standard/workflow section is
   // closed. The stable portal host moves with the visible Project section.
   const [projectControlsHost] = useState(() => document.createElement("div"));
@@ -433,6 +435,8 @@ export function BinControlsPanel({
   const jigThicknessRef = useRef<HTMLInputElement>(null);
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
+  const projectNameButtonRef = useRef<HTMLButtonElement>(null);
+  const projectNameReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{
@@ -1424,18 +1428,20 @@ export function BinControlsPanel({
 
   const openProjectName = () => {
     if (!hydrated || !projectLibraryReady || projectBusy) return;
+    projectNameReturnFocusRef.current = projectNameButtonRef.current;
     if (inspector) inspector.showSection("bin-settings-project");
     else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
     setProjectNameOpen(true);
   };
 
   const projectStatus = (
-      <div className={!inspector && exportOnly ? "hidden" : cn("min-w-0 px-3 py-2", !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
+      <div className={!projectStatusHost && !inspector && exportOnly ? "hidden" : cn("min-w-0 py-2", projectStatusHost ? "px-1" : "px-3", !projectStatusHost && !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
         <div className="flex min-w-0 items-center gap-1">
           <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
             title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
             onDoubleClick={openProjectName}>{currentProjectName ?? "Untitled project"}</p>
           <Button type="button" variant="ghost" size="icon"
+            ref={projectNameButtonRef}
             className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
             aria-label="Edit project name" title="Edit project name"
             data-testid="button-edit-project-name"
@@ -1460,8 +1466,8 @@ export function BinControlsPanel({
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b py-3 pl-3 pr-9">
-        <h2 className="text-xs font-semibold">{isJig ? <>Wham Bam Systems ULTIM8-compatible fixture <span className="ml-1 rounded border px-1 text-[10px] font-normal">Beta</span></> : "Design workflow"}</h2>
-      </div> : projectStatus}
+        <h2 className="text-xs font-semibold">{isJig ? <>Wham Bam Systems <Ultim8Link />-compatible fixture <span className="ml-1 rounded border px-1 text-[10px] font-normal">Beta</span></> : "Design workflow"}</h2>
+      </div> : !projectStatusHost && projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
       {!inspector && <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
@@ -1843,7 +1849,7 @@ export function BinControlsPanel({
               </Select>
             </div>
             {spec.pegBottom && <PropertySurface tone="rose" role="group" aria-label="Wham Bam Systems ULTIM8 peg settings" className="space-y-2">
-              <p className="text-xs font-medium">Peg settings</p>
+              <p className="text-xs font-medium"><Ultim8Link /> peg settings</p>
               <div className="flex items-center gap-2">
                 <SettingLabel label="Underside" htmlFor="select-peg-underside" hint={spec.pegBottom.underside === "flat" ? "Flat backing removes tall peg roots and exports pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : spec.pegBottom.underside === "bridged" ? "Short bridges join the flared peg collars. Print upright with pegs down and supports off. Print a small fit check before a full fixture." : "Sloped roots print upright with pegs down and supports off."} />
                 <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged" | "flat") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside, density: underside === "flat" ? spec.pegBottom!.density : 1 } })}>
@@ -2387,6 +2393,15 @@ export function BinControlsPanel({
             onUltim8EntryComplete={onUltim8EntryComplete}
             saveOpen={projectNameOpen}
             setSaveOpen={setProjectNameOpen}
+            onSaveDialogCloseAutoFocus={event => {
+              const opener = projectNameReturnFocusRef.current;
+              projectNameReturnFocusRef.current = null;
+              // The shared header is outside the properties panel; its opener
+              // stays usable even when the dialog's ordinary trigger is hidden.
+              if (event.defaultPrevented || !opener?.isConnected || opener.closest("[hidden], [inert]")) return;
+              event.preventDefault();
+              opener.focus();
+            }}
             hydrated={hydrated}
             libraryReady={projectLibraryReady}
             libraryError={projectLibraryError}
@@ -2587,8 +2602,9 @@ export function BinControlsPanel({
       )}
 
     </div>
-      {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center gap-1 pr-2" data-testid="editor-project-header">
-        {projectStatus}
+      {projectStatusHost && createPortal(projectStatus, projectStatusHost)}
+      {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center justify-end gap-1 pr-2" data-testid="editor-project-header">
+        {!projectStatusHost && projectStatus}
         <div className="flex shrink-0 items-center gap-1 max-[500px]:w-full max-[500px]:justify-end max-[500px]:border-t max-[500px]:py-1">
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-project")}><FolderOpen className="h-4 w-4" />Project</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-fit")}><ClipboardCheck className="h-4 w-4" />Check fit</Button>
@@ -2607,6 +2623,7 @@ interface ProjectControlsProps {
   onUltim8EntryComplete?: () => void;
   saveOpen: boolean;
   setSaveOpen: (open: boolean) => void;
+  onSaveDialogCloseAutoFocus: (event: Event) => void;
   saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
@@ -2641,6 +2658,7 @@ function ProjectControls({
   onUltim8EntryComplete,
   saveOpen,
   setSaveOpen,
+  onSaveDialogCloseAutoFocus,
   hydrated,
   libraryReady,
   libraryError,
@@ -2709,7 +2727,7 @@ function ProjectControls({
   const keepDraftButtonRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const { libraryRequested, setLibraryRequested, sampleLibraryRequested, setSampleLibraryRequested } = usePanelState();
+  const { libraryRequested, setLibraryRequested, sampleLibraryRequested, setSampleLibraryRequested, newProjectRequested, setNewProjectRequested } = usePanelState();
   useEffect(() => {
     if (!libraryRequested || !libraryReady || busy) return;
     setLibraryOpen(true);
@@ -2723,6 +2741,14 @@ function ProjectControls({
     setSamplesOpen(true);
     setSampleLibraryRequested(false);
   }, [sampleLibraryRequested, ready, busy, setSampleLibraryRequested]);
+  useEffect(() => {
+    if (!newProjectRequested || !ready || busy) return;
+    setLibraryOpen(false);
+    setNewProjectName(currentProjectName ?? "");
+    setNewProjectError(false);
+    setNewProjectOpen(true);
+    setNewProjectRequested(false);
+  }, [newProjectRequested, ready, busy, currentProjectName, setNewProjectRequested]);
 
   const completeSampleAction = async (action: NonNullable<typeof sampleAction>) => {
     if (!ready || busy) return;
@@ -2828,7 +2854,10 @@ function ProjectControls({
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
           </Button>
         </DialogTrigger>}
-        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => { if (libraryOpen || returnToLibrary.current) event.preventDefault(); }}>
+        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => {
+          if (libraryOpen || returnToLibrary.current) event.preventDefault();
+          if (!project) onSaveDialogCloseAutoFocus(event);
+        }}>
           <form className="contents" onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
@@ -3115,12 +3144,12 @@ function ProjectControls({
               if (!unsavedDraft || newProjectName.trim()) void createNewProject(unsavedDraft ? newProjectName : undefined);
             }}>
             <AlertDialogHeader>
-              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : ultim8Entry ? "Start a Wham Bam Systems ULTIM8-compatible fixture?" : "Start a new project?"}</AlertDialogTitle>
+              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : ultim8Entry ? <>Start a Wham Bam Systems <Ultim8Link />-compatible fixture?</> : "Start a new project?"}</AlertDialogTitle>
               <AlertDialogDescription>
                 {unsavedDraft
-                  ? `This draft has work that is not saved in your library. Save it with a name before starting ${ultim8Entry ? "a Wham Bam Systems ULTIM8-compatible fixture" : "an empty project"}, or explicitly discard it.`
+                  ? <>This draft has work that is not saved in your library. Save it with a name before starting {ultim8Entry ? <>a Wham Bam Systems <Ultim8Link />-compatible fixture</> : "an empty project"}, or explicitly discard it.</>
                   : activeProjectId
-                    ? `Saves the latest changes to “${currentProjectName}” in this browser’s library, then starts ${ultim8Entry ? "a Wham Bam Systems ULTIM8-compatible fixture" : "an empty project"}.`
+                    ? <>Saves the latest changes to “{currentProjectName}” in this browser’s library, then starts {ultim8Entry ? <>a Wham Bam Systems <Ultim8Link />-compatible fixture</> : "an empty project"}.</>
                     : ultim8Entry ? "Start a fixture with locating pegs and a flat backing." : "Your current project is empty. Start again with the default bin settings."}
               </AlertDialogDescription>
             </AlertDialogHeader>

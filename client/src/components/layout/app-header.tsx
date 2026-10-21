@@ -80,20 +80,13 @@ export function AppHeader({
             by
           </span>
         </div>
-        <a
-          href="https://sugarcreekresearch.com"
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 rounded-sm transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <img
-            src="/sugarcreek-research-logo.png"
-            alt="Sugarcreek Research, LLC"
-            width={32}
-            height={32}
-            className="h-8 w-8 object-contain dark:invert"
-          />
-        </a>
+        <img
+          src="/sugarcreek-research-logo.png"
+          alt="Sugarcreek Research, LLC"
+          width={32}
+          height={32}
+          className="h-8 w-8 shrink-0 object-contain dark:invert"
+        />
       </div>
 
       <nav className={cn("items-center gap-1 ml-4", isMobile ? "hidden" : "flex")} aria-label="Workspaces">

@@ -89,10 +89,11 @@ describe("first-use welcome", () => {
     expect(dialog()!.querySelectorAll('ol[aria-label="From photo to bin"] li')).toHaveLength(3);
     expect(dialog()?.textContent).toContain("Projects are saved only in this browser.");
     expect(dialog()?.textContent).toContain("Export project");
-    expect(dialog()?.textContent).toContain("Or skip this and go to step 3 to create an empty bin or one with basic shapes.");
+    expect(dialog()!.querySelectorAll('[aria-label="Get started"] button')).toHaveLength(3);
+    expect(dialog()!.querySelector<HTMLDetailsElement>("details")?.open).toBe(false);
     expect(document.activeElement?.textContent?.trim()).toBe("Welcome to Pocketry");
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(dialog()?.textContent).toContain("Open sample projects");
+    expect(dialog()?.textContent).toContain("Open Sample Projects");
     expect(storage.setItem).not.toHaveBeenCalled();
   });
 
@@ -110,10 +111,10 @@ describe("first-use welcome", () => {
   });
 
   it.each([
-    ["/bin", "Start tracing", "/"],
-    ["/", "Design a bin", "/bin"],
-    ["/", "Start tracing", "/"],
-    ["/bin", "Design a bin", "/bin"],
+    ["/bin", "Trace a Photo", "/"],
+    ["/", "Design a Bin", "/bin"],
+    ["/", "Trace a Photo", "/"],
+    ["/bin", "Design a Bin", "/bin"],
   ])("takes %s users to the workspace for %s without changing their settings", async (from, action, to) => {
     await navigate(from);
     await close(action);
@@ -127,7 +128,7 @@ describe("first-use welcome", () => {
 
   it("opens the in-app samples without changing editor preferences", async () => {
     await render();
-    await close("Open sample projects");
+    await close("Open Sample Projects");
     expect(panelState.sampleLibraryRequested).toBe(true);
     expect(route.navigate).toHaveBeenCalledWith("/bin");
     expect(values.get(KEY)).toBe("dismissed");
@@ -135,6 +136,8 @@ describe("first-use welcome", () => {
 
   it("opens calibration aids and returns to the welcome without dismissing it", async () => {
     await render();
+    await React.act(async () => dialog()!.querySelector("summary")!.click());
+    expect(dialog()!.querySelector<HTMLDetailsElement>("details")?.open).toBe(true);
     const download = Array.from(dialog()!.querySelectorAll("button")).find(button => button.textContent === "Download optional calibration aids")!;
     React.act(() => download.focus());
     await close("Download optional calibration aids");
@@ -168,9 +171,9 @@ describe("first-use welcome", () => {
     expect(dialog()).not.toBeNull();
   });
 
-  it("persists Start tracing and does not reopen on navigation, resizing or a later page session", async () => {
+  it("persists Trace a Photo and does not reopen on navigation, resizing or a later page session", async () => {
     await render();
-    await close("Start tracing");
+    await close("Trace a Photo");
     expect(storage.setItem).toHaveBeenCalledWith(KEY, "dismissed");
     expect(dialog()).toBeNull();
     await navigate("/bin");
@@ -217,7 +220,7 @@ describe("first-use welcome", () => {
     storage.setItem.mockImplementation(() => { throw new DOMException("Quota exceeded", "QuotaExceededError"); });
     await render();
     expect(dialog()).not.toBeNull();
-    await close("Start tracing");
+    await close("Trace a Photo");
     await navigate("/bin");
     await resize(1280);
     await resize(390);

@@ -6,6 +6,7 @@ import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Rect, Ring } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
+import { StartDesignActions } from "@/components/layout/start-design-actions";
 import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-handoff";
@@ -801,16 +802,30 @@ function TraceWorkspace(): JSX.Element {
                   onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
-                      <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
-                        a plain, contrasting background with a known distance to set the scale. Keep the whole tool in frame.
-                      </p>
-                      <CalibrationDownloads />
-                      <Button variant="outline" className="min-h-11 self-center" onClick={() => {
-                        setSampleLibraryRequested(true);
-                        navigate("/bin");
-                      }}>Open sample projects or library</Button>
+                      <div className="w-full max-w-2xl self-center">
+                        <StartDesignActions traceActive
+                          onTracePhoto={showCanvas}
+                          onDesignBin={() => navigate("/bin")}
+                          onOpenSamples={() => {
+                            setSampleLibraryRequested(true);
+                            navigate("/bin");
+                          }} />
+                      </div>
+                      <details className="text-sm text-muted-foreground">
+                        <summary className="mx-auto w-fit cursor-pointer rounded px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Photo &amp; scale tips</summary>
+                        <div className="space-y-3 pb-2 pt-1">
+                          <p>Put your tool on a plain, contrasting background and photograph it from above.</p>
+                          <div className="space-y-1">
+                            <p>Set the scale using:</p>
+                            <ul className="flex list-inside list-disc flex-wrap justify-center gap-x-4 gap-y-1">
+                              <li>A measurement</li>
+                              <li>The corners of a sheet of paper</li>
+                              <li>A calibration sheet or aid (optional)</li>
+                            </ul>
+                          </div>
+                          <CalibrationDownloads />
+                        </div>
+                      </details>
                       {(store.draftSaveStatus === "loading" || store.draftSaveStatus === "error") && <p role="status" className={`text-sm ${store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
                         {store.draftSaveStatus === "loading" ? "Restoring trace draft…" : "Couldn’t restore the saved trace. Choose a photo to start again."}
                       </p>}

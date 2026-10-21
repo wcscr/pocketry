@@ -6,6 +6,9 @@
 - Preserve groups during footprint edits and bin fitting, keep moves within shared height limits, and keep legacy linked projects editable and saveable.
 
 - Group tilted-pocket insertion settings in a collapsible Insertion path section.
+- Give the welcome and initial Trace screens three equal-sized choices: Trace a Photo, Design a Bin, and Open Sample Projects. Keep photo and scale guidance in expandable tips.
+- Show project identity once, keep rename and save recovery available, and add New project beside the current project on Trace. Shorten the tracing instructions.
+- Label ULTIM8™ consistently and link mentions to Wham Bam Systems.
 
 - Fix Wham Bam Systems ULTIM8-compatible peg density around through openings: denser settings retain existing peg positions and fill gaps instead of skipping surviving edge rows.
 
