@@ -47,7 +47,7 @@ it.each([
   } finally { unmount(); }
 });
 
-it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: true }])(
+it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: true }, { layout: "workflow", mobile: false }, { layout: "workflow", mobile: true }])(
   "keeps named-member depth editing and grouping available in $layout properties (mobile: $mobile)", async ({ layout, mobile }) => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts });
@@ -57,7 +57,7 @@ it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: tr
       selectPocket(container, cutouts[1].id);
       React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Tool 1 in selection"]')!.click());
       const properties = () => container.querySelector<HTMLElement>('#pocket-properties')!;
-      const groupButton = [...properties().querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Group objects");
+      const groupButton = [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Group objects");
       expect(groupButton).toBeDefined();
       React.act(() => groupButton!.click());
       const frame = current()[0].placementGroup;
@@ -69,7 +69,7 @@ it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: tr
       React.act(() => depth!.blur());
       expect(current().map(c => c.depth)).toEqual([{ mode: "mm", value: 8 }, cutouts[1].depth]);
       expect(current().map(c => c.placementGroup)).toEqual([frame, frame]);
-      const ungroup = [...properties().querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Ungroup");
+      const ungroup = [...container.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Ungroup");
       expect(ungroup).toBeDefined();
       React.act(() => ungroup!.click());
       expect(current().every(c => !c.placementGroup)).toBe(true);

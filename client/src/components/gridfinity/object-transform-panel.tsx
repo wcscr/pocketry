@@ -26,13 +26,14 @@ export function commitEditorObjects(editor: PocketEditor, edits: ObjectEdits, te
 /** As-drawn XYZ offsets work for a single object and mixed selections.
  * Each finished axis edit or arrangement command is one document transaction. */
 export function ObjectTransformPanel({ editor, objects, selected, displayed, mode, setMode, snap, setSnap,
-  pivot, setPivot, limited, onClose, modeRequest = 0, disabled = false }: {
+  pivot, setPivot, limited, onClose, modeRequest = 0, disabled = false, view = "3d" }: {
   editor: PocketEditor; objects: readonly EditableObject[]; selected: readonly EditableObject[]; displayed: readonly EditableObject[];
   mode: PocketTransformMode; setMode: (mode: PocketTransformMode) => void; snap: boolean; setSnap: (value: boolean) => void;
   onClose: () => void;
   /** A keyboard command can request the same mode while another tab is open. */
   modeRequest?: number;
   disabled?: boolean;
+  view?: "2d" | "3d";
   pivot: RotationPivot; setPivot: (pivot: RotationPivot) => void; limited: boolean;
 }): JSX.Element {
   const inspector = useSelectionInspector();
@@ -188,7 +189,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [], placementOnly: true }), "Reset pockets to X–Y plane")}>
           Reset to X–Y plane
         </Button>}
-        {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : grouped ? "Drag a colored ring or enter a group angle. Relative spacing and orientation stay fixed." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}
+        {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : view === "2d" ? "Drag the rotation handle or a selected object to rotate in the layout, or enter an angle." : grouped ? "Drag a colored ring or enter a group angle. Relative spacing and orientation stay fixed." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}
       </>}
       {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform the whole selection. Keep every member within the height limits."}</p>}
     </div>

@@ -1,3 +1,4 @@
+import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
@@ -2612,7 +2613,7 @@ export function BinControlsPanel({
         </div>
       </div>, inspector.projectHeader)}
       {inspector?.properties && createPortal(<SurfaceTextProperties />, inspector.properties)}
-      {inspector?.properties && selection.length === 1 && createPortal(<>{pocketProperties}{fingerProperties}</>, inspector.properties)}
+      {inspector?.properties && (selection.length === 1 || groupForSelection({ cutouts, fingerHoles }, selection)) && createPortal(<>{pocketProperties}{fingerProperties}</>, inspector.properties)}
     </PanelSectionFilterContext.Provider>
   );
 }

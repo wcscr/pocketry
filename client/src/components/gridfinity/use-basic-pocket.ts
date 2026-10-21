@@ -8,7 +8,7 @@ import { useShapeLibrary } from "@/state/shape-library";
 
 /** A cancelled or tiny drag never creates a library shape or a history entry. */
 export function useBasicPocket({ toBin, viewport }: { toBin: (x: number, y: number) => Point | null; viewport: ViewportPointerHandlers }) {
-  const { spec, editorMode, dispatch } = useBin();
+  const { spec, editorMode, drawDepthMm, dispatch } = useBin();
   const { storeShape } = useShapeLibrary();
   const kind: BasicPocketShape | null = editorMode === "draw-rectangle" ? "rectangle"
     : editorMode === "draw-square" ? "square" : editorMode === "draw-circle" ? "circle" : null;
@@ -57,7 +57,7 @@ export function useBasicPocket({ toBin, viewport }: { toBin: (x: number, y: numb
       const pocket = createBasicPocket(kind, current.start, end, crypto.randomUUID());
       if (!pocket) return true;
       storeShape(pocket.shape);
-      dispatch({ type: "ADD_PLACED", cutouts: [pocket.cutout], gridX: spec.gridX, gridY: spec.gridY,
+      dispatch({ type: "ADD_PLACED", cutouts: [{ ...pocket.cutout, ...(drawDepthMm !== undefined ? { depth: { mode: "mm" as const, value: drawDepthMm } } : {}) }], gridX: spec.gridX, gridY: spec.gridY,
         historyLabel: `Add ${kind} pocket` });
       dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
       return true;

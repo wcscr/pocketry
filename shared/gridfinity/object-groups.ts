@@ -58,6 +58,12 @@ export function groupForRef(doc: GroupObjects, ref: GroupRef): ObjectGroup | und
   return (ref.kind === "pocket" ? doc.cutouts : doc.fingerHoles).find(o => o.id === ref.id)?.placementGroup;
 }
 
+/** Member geometry is editable when the selection is exactly one group. */
+export function groupForSelection(doc: GroupObjects, selection: readonly GroupRef[]): ObjectGroup | undefined {
+  const group = selection[0] && groupForRef(doc, selection[0]);
+  return group && selection.every(ref => groupForRef(doc, ref)?.id === group.id) ? group : undefined;
+}
+
 /** A selection always contains complete groups; the clicked object stays active. */
 export function expandGroupSelection(doc: GroupObjects, selection: readonly GroupRef[]): GroupRef[] {
   const ids = new Set(selection.flatMap(ref => { const group = groupForRef(doc, ref); return group ? [group.id] : []; }));
