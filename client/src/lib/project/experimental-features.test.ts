@@ -87,3 +87,15 @@ it.each([0, 1, 2])("does not require Experimental for ULTIM8 pegs in current or 
     { label: "Before", doc: plain }, { label: "Add pegs", doc: pegged }, { label: "Remove pegs", doc: plain },
   ] } })).toBe(false);
 });
+
+it.each(["pocket", "finger"] as const)("detects grouped %s objects in the design and saved history", kind => {
+  const placementGroup = { id: "group", pivot: { x: 0, y: 0, z: 10 }, origin: { x: 0, y: 0, z: 10 }, rotation: [0, 0, 0, 1] as [number, number, number, number] };
+  const grouped = { spec: ordinary.spec,
+    cutouts: kind === "pocket" ? [0, 1].map(i => ({ ...ordinary.cutouts[0], id: `p${i}`, placementGroup })) : [],
+    fingerHoles: kind === "finger" ? [0, 1].map(i => fingerHoleSchema.parse({ id: `f${i}`, center: { x: i * 20, y: 0 }, placementGroup })) : [],
+  };
+  expect(projectUsesExperimentalFeatures({ ...ordinary, ...grouped })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
+    { label: "Grouped", doc: grouped }, { label: "Removed", doc: ordinary },
+  ] } })).toBe(true);
+});

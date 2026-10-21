@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useBin } from "@/state/bin-store";
+import { ObjectGroupControls } from "./object-group-controls";
 import { useShapeLibrary } from "@/state/shape-library";
 import { canManageDesignLinks } from "@shared/gridfinity/design-links";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
@@ -121,7 +122,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
   const tone = section?.tone ?? (selectedText ? "cyan" : pockets.length && !fingers.length ? "violet" : fingers.length && !pockets.length ? "cyan" : chosen.length ? "slate" : "blue");
   const title = section?.title ?? (selectedText ? surfaceTextName(selectedText) : single ? single.kind === "pocket" ? pocketName(single.cutout, single.shape)
     : single.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(single.hole) + 1}` : chosen.length ? `${chosen.length} selected` : bin.spec.pegBottom ? "Fixture" : "Bin");
-  const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked designs" : "Properties";
+  const toolLabel = inspector?.tool === "translate" ? "Move" : inspector?.tool === "rotate" ? "Rotate" : inspector?.tool === "arrange" ? "Arrange" : inspector?.tool === "links" ? "Linked geometry" : "Properties";
   const links = new Set(chosen.map(o => o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id).filter(Boolean));
   const extraLinked = objects.filter(o => !chosen.includes(o) && links.has(o.kind === "pocket" ? o.cutout.designLink?.id : o.hole.designLink?.id)).length;
   return <aside className="flex h-full min-h-0 flex-col bg-background [@media(pointer:coarse)]:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_input:not([type=checkbox])]:min-h-11 [@media(pointer:coarse)]:[&_select]:min-h-11" aria-label="Selection inspector" data-testid="selection-inspector">
@@ -133,6 +134,7 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
       {!showingSection && (chosen.length > 1 || single?.kind === "finger") && <Button size="icon" variant="ghost" className="h-8 w-8" title="Duplicate selection" aria-label="Duplicate selection" onClick={() => bin.dispatch({ type: "DUPLICATE_SELECTION", labels: new Map(objects.map(o => [objectRef(o).id, o.kind === "pocket" ? pocketName(o.cutout, o.shape) : o.hole.name ?? `Finger access ${bin.fingerHoles.indexOf(o.hole) + 1}`])), ids: chosen.map(o => ({ source: objectRef(o), id: crypto.randomUUID() })) })}><Copy /></Button>}
       {!showingSection && chosen.length > 1 && <Button size="icon" variant="ghost" className="h-8 w-8" title="Delete selection" aria-label="Delete selection" onClick={() => bin.dispatch({ type: "REMOVE_SELECTION" })}><Trash2 /></Button>}
     </header>
+    {!showingSection && hasSelection && <ObjectGroupControls />}
     {!showingSection && hasSelection && (inspector?.tool !== "properties" || bin.editorMode === "contour") && <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 text-xs font-medium" data-testid="inspector-active-tool">
       <span>{bin.editorMode === "contour" ? "Editing contour" : toolLabel}</span>
       <Button variant="ghost" size="sm" aria-label="Back to properties" onClick={() => {
@@ -142,8 +144,9 @@ export function SelectionInspector({ propertiesRef, transformsRef, settingsRef }
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="inspector-scroll">
       <div ref={settingsRef} hidden={!showingSection && hasSelection} data-testid="inspector-bin-settings" />
       <div hidden={showingSection || !hasSelection || !selectedText && inspector?.tool !== "properties"}>
-      {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Design and height edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. X/Y movement stays independent.</p>}
+      {!!extraLinked && <p className="m-3 rounded-md border border-violet-500/30 bg-violet-500/5 p-2 text-xs" role="status">Geometry edits also update {extraLinked} unselected linked {extraLinked === 1 ? "copy" : "copies"}. Position and rotation stay independent.</p>}
       {chosen.length > 1 && <div className="space-y-4 p-3" data-testid="batch-properties">
+        <p className="text-xs text-muted-foreground">These fields edit every selected object.{chosen.some(o => o.kind === "pocket" ? o.cutout.placementGroup : o.hole.placementGroup) && " Ungroup to edit one member independently."}</p>
         {([pockets, fingers]).filter(items => items.length).map(items => {
           const holes = items.filter(o => o.kind === "pocket" && o.cutout.role === "hole").length;
           const noun = items[0].kind === "finger" ? `finger access${items.length === 1 ? "" : "es"}`

@@ -60,8 +60,8 @@ describe("/ultim8 entry", () => {
     expect(route.history).toEqual(["/about", "/bin"]);
     expect(Persistence.loadProjectDoc).toHaveBeenCalledTimes(2); // StrictMode only; URL replacement does not remount.
     expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Trace an object from a photo");
-    expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Wham Bam Systems ULTIM8-compatible fixture");
-    expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Locating pegs fit Wham Bam Systems ULTIM8 mat spacing.");
+    expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Wham Bam Systems ULTIM8™-compatible fixture");
+    expect(container.querySelector('[data-testid="jig-empty-state"]')?.textContent).toContain("Locating pegs fit Wham Bam Systems ULTIM8™ mat spacing.");
     openSettingsSection(container, "size");
     expect(container.querySelector('[aria-label="Keep fixture size fixed"]')).toBeNull();
     expect(container.textContent).not.toContain("Keep fixture size fixed");

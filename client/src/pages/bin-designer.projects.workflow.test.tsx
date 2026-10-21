@@ -171,7 +171,7 @@ describe("BinDesignerPage", () => {
       if (resolution === "accept") {
         React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Add waiting tools to Project B")!.click());
       } else {
-        React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Manage project: Project B"]')!.click());
+        React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
         await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-a"]')!.click());
         expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project A");
       }
@@ -443,21 +443,87 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it("keeps project identity and a failed save visible after leaving Bin", async () => {
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("uses one editable project header with collapsed controls and preserves recovery after leaving Bin: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, name: "Socket tray" });
     const route = memoryLocation({ path: "/bin" });
-    const { container } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider>
-      <ProjectStatusBar /><Route path="/bin"><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></Route>
-    </ProjectActivityProvider></PanelProvider></Router>);
+    function CollapseControls() {
+      const { setPanelOpen } = usePanelState();
+      return <button onClick={() => setPanelOpen(false)}>Collapse test controls</button>;
+    }
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider>
+      <ProjectStatusBar /><CollapseControls /><Route path="/bin"><ShapeLibraryProvider><BinDesignerPage /></ShapeLibraryProvider></Route>
+    </ProjectActivityProvider></PanelProvider></Router>, { mobile });
+    try {
     await flushHydration();
-    expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Socket tray");
+    const status = container.querySelector('[data-testid="global-project-status"]')!;
+    expect(status.textContent).toContain("Socket tray");
+    expect(status.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="project-status-title"]')).toHaveLength(1);
+    expect(status.querySelector('[aria-label="Manage project: Socket tray"]')).toBeNull();
+    React.act(() => [...container.querySelectorAll("button")].find(button => button.textContent === "Collapse test controls")!.click());
+    const rename = status.querySelector<HTMLButtonElement>('[aria-label="Edit project name"]')!;
+    expect(rename.closest('[hidden], [inert], .hidden')).toBeNull();
+    React.act(() => { rename.focus(); rename.click(); });
+    expect(document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!.value).toBe("Socket tray");
+    React.act(() => [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(document.activeElement).toBe(rename);
+    expect(document.activeElement?.closest('[hidden], [inert], .hidden')).toBeNull();
+    expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+    React.act(() => projectSaveMock.onSaved?.(false, new Error("Storage is full")));
+    expect(status.textContent).toContain("Download unsaved work");
+    expect(status.textContent).toContain("Storage is full");
+    React.act(() => projectSaveMock.onSaved?.(true));
     const completion = projectSaveMock.onSaved;
     React.act(() => route.navigate("/"));
+    expect(status.querySelector('[data-testid="project-status"]')).toBeNull();
+    expect(status.querySelector('[aria-label="Manage project: Socket tray"]')).not.toBeNull();
     React.act(() => completion?.(false, new Error("Could not save the last edit")));
-    expect(container.querySelector('[data-testid="global-project-status"]')!.textContent).toContain("Project storage needs attention");
+    expect(status.textContent).toContain("Project storage needs attention");
     expect(document.body.textContent).toContain("Could not save the last edit");
     React.act(() => [...document.querySelectorAll("button")].find(button => button.textContent === "Download unsaved work")!.click());
     expect(downloadBlob).toHaveBeenCalledOnce();
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([false, true])("starts a new project from Trace only after resolving the current draft (mobile=%s)", async mobile => {
+    const draft = { ...EMPTY_PROJECT, name: "My draft", spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.readProjectOverview).mockResolvedValue({ doc: draft, activeProjectId: null });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    const route = memoryLocation({ path: "/" });
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
+      <ProjectStatusBar /><Route path="/bin"><BinDesignerPage /></Route>
+    </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>, { mobile });
+    try {
+      await flushHydration();
+      const openNew = async () => {
+        React.act(() => [...container.querySelectorAll('[data-testid="global-project-status"] button')].find(button => button.textContent === "New project")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+        await flushHydration();
+      };
+      await openNew();
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Save this draft before starting over?");
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current project")!.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      React.act(() => route.navigate("/"));
+      await openNew();
+      expect(document.querySelector<HTMLInputElement>('[data-testid="input-new-project-draft-name"]')!.value).toBe("My draft");
+      vi.mocked(ProjectPersistence.startNewProject).mockRejectedValueOnce(new Error("Storage is full"));
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-save-draft-start-new"]')!.click());
+      expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Your current work is still open");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-save-draft-start-new"]')!.click());
+      expect(ProjectPersistence.startNewProject).toHaveBeenLastCalledWith(expect.objectContaining({ shapes: [] }), {
+        name: "My draft", doc: expect.objectContaining({ spec: draft.spec }),
+      });
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(2);
+    } finally { unmount(); }
   });
 
   it("reports a failed project restore without writing an empty replacement", async () => {

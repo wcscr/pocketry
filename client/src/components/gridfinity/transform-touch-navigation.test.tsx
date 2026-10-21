@@ -58,10 +58,11 @@ vi.mock("@react-three/drei", () => ({
 }));
 import { SelectionTransformScene } from "./pocket-transform-scene";
 import { SurfaceTextTransformScene } from "./surface-text-transform-scene";
+import { createPlacementGroup } from "@/lib/gridfinity/object-arrangement";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
-function mount(kind: "pocket" | "text", mode: "translate" | "rotate", orbitFirst: boolean) {
+function mount(kind: "pocket" | "group" | "text", mode: "translate" | "rotate", orbitFirst: boolean) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("PointerEvent", class extends MouseEvent {
     pointerId: number; pointerType: string;
@@ -91,8 +92,11 @@ function mount(kind: "pocket" | "text", mode: "translate" | "rotate", orbitFirst
   const cutout = parseCutoutPlacement({ id: "p", shapeId: "s", position: { x: 0, y: 0 } });
   const shape: TracedShape = { id: "s", name: "Slot", sourceMmPerPx: null, pointCount: 4, bboxMm: { minX: -5, minY: -5, maxX: 5, maxY: 5 }, outlineMm: [{ outer: [{ x: -5, y: -5 }, { x: 5, y: -5 }, { x: 5, y: 5 }, { x: -5, y: 5 }], holes: [] }] };
   const label = surfaceTextSchema.parse({ id: "text", text: "Metric", position: { x: 0, y: 0 } });
-  React.act(() => root.render(kind === "pocket"
-    ? <SelectionTransformScene objects={[{ kind: "pocket", cutout, shape }]} spec={spec} mode={mode} snap={false} pivot="individual" onCommit={onCommit} onPreview={onPreview} onLimit={() => {}} touchTargets viewportHeight={600} />
+  const pair = [-10, 10].map(x => ({ kind: "pocket" as const, shape, cutout: { ...cutout, id: `p${x}`, position: { x, y: 0 }, depth: { mode: "mm" as const, value: 12 } } }));
+  const frame = createPlacementGroup(pair, spec, "group");
+  const objects = kind === "group" ? pair.map(o => ({ ...o, cutout: { ...o.cutout, placementGroup: frame } })) : [{ kind: "pocket" as const, cutout, shape }];
+  React.act(() => root.render(kind !== "text"
+    ? <SelectionTransformScene objects={objects} spec={spec} mode={mode} snap={false} pivot="individual" onCommit={onCommit} onPreview={onPreview} onLimit={() => {}} touchTargets viewportHeight={600} />
     : <SurfaceTextTransformScene editor={{ label, z: 42, onCommit }} mode={mode} snap={false} onPreview={onPreview} touchTargets viewportHeight={600} />));
   if (!orbitFirst) orbit.connect(canvas);
   const update = () => { camera.updateMatrixWorld(); state.root.updateMatrixWorld(true); };
@@ -119,10 +123,10 @@ function mount(kind: "pocket" | "text", mode: "translate" | "rotate", orbitFirst
     React.act(() => root.unmount()); orbit.dispose(); canvas.remove(); container.remove();
   };
   cleanups.push(unmount);
-  return { camera, orbit, object, control, grip, pointer, onCommit, onPreview, unmount };
+  return { camera, orbit, object, control, grip, pointer, onCommit, onPreview, unmount, frame };
 }
 
-it.each(["pocket", "text"] as const)("hands a %s handle drag to camera pinch without committing, in either listener/release order", kind => {
+it.each(["pocket", "group", "text"] as const)("hands a %s handle drag to camera pinch without committing, in either listener/release order", kind => {
   for (const mode of ["translate", "rotate"] as const) for (const orbitFirst of [true, false]) for (const movedFirst of [false, true]) {
     const ui = mount(kind, mode, orbitFirst);
     const start = ui.grip(), original = ui.object.position.clone();
@@ -154,6 +158,26 @@ it.each(["pocket", "text"] as const)("hands a %s handle drag to camera pinch wit
     expect(ui.onCommit).toHaveBeenCalledOnce();
     ui.unmount();
   }
+});
+
+it("keeps the group center fixed through a real multi-sample rotation and commits both members once", () => {
+  const ui = mount("group", "rotate", true), start = ui.grip();
+  const pivot = new Vector3(ui.frame.pivot.x, ui.frame.pivot.y, ui.frame.pivot.z);
+  expect(ui.object.position.distanceTo(pivot)).toBeLessThan(1e-8);
+  ui.pointer("pointerdown", 1, start);
+  for (const offset of [6, 12, 20]) {
+    ui.pointer("pointermove", 1, { x: start.x + offset, y: start.y + offset });
+    expect(ui.object.position.distanceTo(pivot)).toBeLessThan(1e-8);
+  }
+  ui.pointer("pointerup", 1, start);
+  expect(ui.onCommit).toHaveBeenCalledOnce();
+  const members = ui.onCommit.mock.lastCall![0].cutouts;
+  expect(members).toHaveLength(2);
+  expect(members[0].placementGroup).toEqual(members[1].placementGroup);
+  expect(members[0].placementGroup.pivot).toEqual(ui.frame.pivot);
+  expect(Math.hypot(members[1].position.x - members[0].position.x, members[1].position.y - members[0].position.y)).toBeCloseTo(20, 5);
+  expect(Math.abs(members[0].rotationDeg)).toBeGreaterThan(1);
+  expect(members[0].rotationDeg).toBeCloseTo(members[1].rotationDeg);
 });
 
 it("keeps a pinch in camera navigation when its second finger lands on a handle", () => {

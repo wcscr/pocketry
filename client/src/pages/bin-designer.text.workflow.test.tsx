@@ -588,8 +588,8 @@ it('context unlink preserves mixed selection and changes both kinds in one undo 
     openSettingsSection(container, 'finger-holes');
     React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Access 1 in selection"]')!.click());
     const menu = openObjectContext(container.querySelector('[data-testid="finger-hole-row-mf-0"]')!);
-    expect(menu.textContent).toContain('2 selected objects'); expect(menu.textContent).not.toContain('Link selected…');
-    contextCommand('Unlink selected');
+    expect(menu.textContent).toContain('2 selected objects'); expect(menu.textContent).not.toContain('Link geometry…');
+    contextCommand('Unlink geometry');
     expect(doc().cutouts[0].designLink).toBeUndefined(); expect(doc().fingerHoles[0].designLink).toBeUndefined();
     expect(doc().cutouts[1]).toEqual(cutouts[1]); expect(doc().fingerHoles[1]).toEqual(fingerHoles[1]);
     clickBinHistory(container, 'undo'); expect(doc().cutouts).toEqual(cutouts); expect(doc().fingerHoles).toEqual(fingerHoles);
@@ -608,11 +608,11 @@ it('context linking reuses source choice, preserves multi-selection, and saves a
     await flushHydration(); selectPocket(container, cutouts[0].id);
     React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Target in selection"]')!.click());
     openObjectContext(container.querySelector('[data-testid="cutout-row-context-source"]')!);
-    contextCommand('Link selected…');
+    contextCommand('Link geometry…');
     const dialog = document.querySelector('[role="dialog"]')!;
-    const source = dialog.querySelector<HTMLSelectElement>('[aria-label="Linked design source"]')!;
+    const source = dialog.querySelector<HTMLSelectElement>('[aria-label="Linked geometry source"]')!;
     React.act(() => { source.value = cutouts[0].id; source.dispatchEvent(new Event('change', { bubbles: true })); });
-    React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Link 2 pockets')!.click());
+    React.act(() => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Link geometry')!.click());
     const linked = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
     expect(linked[0].designLink).toEqual(linked[1].designLink); expect(linked[1].elevationMm).toBeDefined();
     expect(parseProjectDoc({ ...EMPTY_PROJECT, shapes: [shape], cutouts: linked })).not.toBeNull();

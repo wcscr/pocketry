@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowRight, Box, Camera, ScanLine } from "lucide-react";
+import { Box, Camera, ScanLine } from "lucide-react";
 import { usePanelState } from "./panel-context";
+import { StartDesignActions } from "./start-design-actions";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 
 const DISMISSAL_KEY = "pocketry:welcome:1.1.1";
@@ -77,60 +77,53 @@ export function AppWelcome(): JSX.Element {
               Design custom Gridfinity or flat-bottom bins, or create templates for laser etching and UV printing.
             </DialogDescription>
           </DialogHeader>
-
-          <ol aria-label="From photo to bin" className="my-3 space-y-3 rounded-lg bg-muted/30 p-3 text-[13px] leading-[18px] sm:my-4 sm:p-4 sm:text-sm sm:leading-5">
-            <li className="flex gap-3">
-              <Camera aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
-              <div>
-                <h3 className="inline font-semibold">1. Take a photo.</h3>{" "}
-                <p className="inline text-muted-foreground">
-                  Shoot from above with a scale reference.
-                </p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <ScanLine aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
-              <div>
-                <h3 className="inline font-semibold">2. Trace your tool.</h3>{" "}
-                <p className="inline text-muted-foreground">
-                  Set the size and refine the outline.
-                </p>
-                <p className="mt-1 text-muted-foreground">
-                  Or skip this and go to step 3 to create an empty bin or one with basic shapes.
-                </p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Box aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
-              <div>
-                <h3 className="inline font-semibold">3. Make it fit.</h3>{" "}
-                <p className="inline text-muted-foreground">
-                  Arrange, check fit, and export.
-                </p>
-              </div>
-            </li>
-          </ol>
-
-          <div className="grid grid-cols-2 items-center gap-x-3 text-xs [&_button]:min-h-11 [&_button]:text-left">
-            <CalibrationDownloads />
-            <button type="button"
-              className="min-h-11 rounded text-left font-medium text-primary underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => { setSampleLibraryRequested(true); start("/bin"); }}>
-              Open sample projects
-            </button>
+          <div className="my-4">
+            <StartDesignActions
+              onTracePhoto={() => start("/")}
+              onDesignBin={() => start("/bin")}
+              onOpenSamples={() => { setSampleLibraryRequested(true); start("/bin"); }} />
           </div>
+
+          <details className="text-sm">
+            <summary className="w-fit cursor-pointer rounded py-2 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">How photo tracing works</summary>
+            <ol aria-label="From photo to bin" className="my-3 space-y-3 rounded-lg bg-muted/30 p-3 text-[13px] leading-[18px] sm:my-4 sm:p-4 sm:text-sm sm:leading-5">
+              <li className="flex gap-3">
+                <Camera aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
+                <div>
+                  <h3 className="inline font-semibold">1. Take a photo.</h3>{" "}
+                  <p className="inline text-muted-foreground">
+                    Put your tool on a plain, contrasting background and photograph from above. Use optional calibration sheets or aids to assist in auto scale detection.
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <ScanLine aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
+                <div>
+                  <h3 className="inline font-semibold">2. Trace your tool.</h3>{" "}
+                  <p className="inline text-muted-foreground">
+                    Set the scale and refine the outline.
+                  </p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <Box aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-primary sm:block" />
+                <div>
+                  <h3 className="inline font-semibold">3. Make it fit.</h3>{" "}
+                  <p className="inline text-muted-foreground">
+                    Arrange, check fit, and export.
+                  </p>
+                </div>
+              </li>
+            </ol>
+
+            <div className="text-xs [&_button]:min-h-11 [&_button]:text-left">
+              <CalibrationDownloads />
+            </div>
+          </details>
           <p className="mt-1 text-xs leading-4 text-muted-foreground">
             Projects are saved only in this browser. Use <strong>Export project</strong>{" "}
             in Bin to keep a copy.
           </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 border-t bg-muted/20 p-3 sm:px-5">
-          <Button className="min-h-11 px-2 sm:px-4" onClick={() => start("/")}>
-            Start tracing <ArrowRight aria-hidden="true" className="hidden sm:block" />
-          </Button>
-          <Button variant="outline" className="min-h-11 px-2 sm:px-4" onClick={() => start("/bin")}>
-            Design a bin
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

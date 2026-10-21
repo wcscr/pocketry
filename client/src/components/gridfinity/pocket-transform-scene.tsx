@@ -18,13 +18,14 @@ import {
 
 import { styleTransformGizmo, transformGizmoSize } from "@/lib/gridfinity/transform-gizmo-style";
 import { useTransformTouchGuard } from "@/hooks/use-transform-touch-guard";
-import { applyObjectEdits, objectEditsChanged, objectOutline, pickObject, selectionCenter, transformObjects,
+import { applyObjectEdits, objectEditsChanged, objectGroup, objectOutline, objectRef, pickObject, selectedPlacementGroup, selectionCenter, transformObjects,
   type EditableObject, type ObjectRef, type ObjectEdits, type RotationPivot } from "@/lib/gridfinity/object-arrangement";
 
 export interface PocketEditor {
   transformOrigins?: TransformOrigins;
   originShapes?: readonly TracedShape[];
   linkControls?: ReactNode;
+  groupControls?: ReactNode;
   spec: BinSpec;
   pockets: readonly EditablePocket[];
   /** Settled picking uses the same solid projection as the visible preview. */
@@ -54,7 +55,10 @@ export function PocketSelectionPlane({ editor, width, length, disabled }: {
     const additive = event.shiftKey || event.metaKey || event.ctrlKey;
     const selection = editor.selection ?? [];
     const contains = ref && selection.some(r => r.kind === ref.kind && r.id === ref.id);
-    editor.onSelectionChange(ref ? additive ? contains ? selection.filter(r => r.kind !== ref.kind || r.id !== ref.id) : [...selection, ref] : [ref]
+    const group = ref && objects.find(o => objectRef(o).kind === ref.kind && objectRef(o).id === ref.id);
+    const groupId = group && objectGroup(group)?.id;
+    editor.onSelectionChange(ref ? additive ? contains ? selection.filter(r => (r.kind !== ref.kind || r.id !== ref.id)
+      && (!groupId || !objects.some(o => objectRef(o).kind === r.kind && objectRef(o).id === r.id && objectGroup(o)?.id === groupId))) : [...selection, ref] : [ref]
       : additive ? [...selection] : []);
   };
   return <mesh position={[0, 0, z + 0.01]} onClick={select} onContextMenu={event => {
@@ -108,7 +112,7 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
   const place = useCallback((items: readonly EditableObject[]) => {
     const center = selectionCenter(items);
-    object.position.set(center.x, center.y, top);
+    object.position.set(center.x, center.y, selectedPlacementGroup(items)?.pivot.z ?? top);
     object.quaternion.identity();
     object.updateMatrixWorld();
   }, [object, top]);
@@ -147,7 +151,7 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
     const drag = gesture.current;
     if (!drag) return;
     const center = selectionCenter(drag.original);
-    const delta = mode === "translate" ? object.position.clone().sub(new Vector3(center.x, center.y, top)) : new Vector3();
+    const delta = mode === "translate" ? object.position.clone().sub(new Vector3(center.x, center.y, selectedPlacementGroup(drag.original)?.pivot.z ?? top)) : new Vector3();
     const patch = transformObjects(drag.original, spec, delta, mode === "rotate" ? object.quaternion : new Quaternion(), pivot, allObjects);
     if (!patch) {
       place(drag.patch ? applyObjectEdits(drag.original, drag.patch) : drag.original);
@@ -176,6 +180,7 @@ export function SelectionTransformScene({ objects, allObjects = objects, spec, m
     <primitive object={object} />
     <TransformControls key={String(touchTargets)} ref={attachControls} object={object} mode={mode} space="world" size={transformGizmoSize(viewportHeight, touchTargets)}
       showX={mode !== "rotate" || objects.every(o => o.kind === "pocket")} showY={mode !== "rotate" || objects.every(o => o.kind === "pocket")}
+      showZ={!(mode === "translate" && objects.some(o => o.kind === "finger" && (objects.some(objectGroup) || o.hole.designLink)))}
       translationSnap={snap ? 1 : null} rotationSnap={snap ? Math.PI / 36 : null}
       onMouseDown={() => { gesture.current = { original: objects, patch: null }; callbacks.current.onPreview({ cutouts: objects.flatMap(o => o.kind === "pocket" ? [o.cutout] : []), fingerHoles: objects.flatMap(o => o.kind === "finger" ? [o.hole] : []) }); }}
       onObjectChange={change} onMouseUp={finish} />

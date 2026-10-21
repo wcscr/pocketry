@@ -1,8 +1,8 @@
 import { hasRigidPocket, rigidPocket, rigidPocketPreviewWires } from "@shared/gridfinity/rigid-pocket";
 import { Euler, Quaternion, type Vector3 } from "three";
 import {
-  defaultPocketFloorThicknessMm, resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement, transformPointPlacement,
-  type CutoutPlacement, type DepthSpec, type TracedShape,
+  defaultPocketFloorThicknessMm, resolvePlacedPocketDepth, resolvePocketDepth, transformOutlinePlacement,
+  type CutoutPlacement, type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { pocketAxis, rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { defaultPocketInsertion } from "@shared/gridfinity/pocket-insertion";
@@ -27,33 +27,18 @@ export function pocketQuaternion(pocket: CutoutPlacement): Quaternion {
   ));
 }
 
-/** Preserve old translated cavities while returning an equivalent surface anchor.
- * Only legacy placement uses this adapter; rigid pockets already have an elevation. */
-export function surfaceAnchoredPocket(original: CutoutPlacement): CutoutPlacement {
-  if (original.profileBottom || hasRigidPocket(original)) return original;
-  const offset = original.zOffsetMm ?? 0;
-  if (offset === 0) return { ...original, zOffsetMm: undefined };
-  const nz = Math.max(0.01, pocketAxis(original).z);
-  const depthAtSurface = (depth: DepthSpec): DepthSpec => depth.mode === "through" ? depth
-    : depth.mode === "remaining" ? { mode: "remaining", floorThicknessMm: depth.floorThicknessMm + offset }
-      : { mode: "mm", value: depth.value - offset / nz };
-  return { ...original, position: transformPointPlacement({ x: 0, y: 0 }, original), zOffsetMm: undefined,
-    depth: depthAtSurface(original.depth),
-    split: original.split ? { ...original.split, depths: [depthAtSurface(original.split.depths[0]), depthAtSurface(original.split.depths[1])] } : undefined };
-}
-
 /** The gizmo uses fixed bin axes. Z moves the generated solid rigidly; a
- * rotation never changes its source dimensions. */
+ * rotation never changes its source dimensions. Keep legacy source anchors
+ * until rigid conversion so linking or unlinking cannot change their pose. */
 export function pocketTransformPatch(
   original: CutoutPlacement, shape: TracedShape, spec: BinSpec,
   position: Pick<Vector3, "x" | "y" | "z">, quaternion: Quaternion, mode: PocketTransformMode, rigidZOffsetMm = 0,
 ): PocketTransformPatch | null {
-  const anchored = surfaceAnchoredPocket(original);
-  const top = resolvePocketDepth(spec, anchored.depth).infillTopZ;
+  const top = resolvePocketDepth(spec, original.depth).infillTopZ;
   if (![position.x, position.y, position.z, ...quaternion.toArray()].every(Number.isFinite)) return null;
   const patch: PocketTransformPatch = {
-    position: { x: tidy(position.x), y: tidy(position.y) }, zOffsetMm: undefined,
-    rotationDeg: anchored.rotationDeg, tilt: anchored.tilt, depth: anchored.depth, split: anchored.split, elevationMm: anchored.elevationMm,
+    position: { x: tidy(position.x), y: tidy(position.y) }, zOffsetMm: original.zOffsetMm,
+    rotationDeg: original.rotationDeg, tilt: original.tilt, depth: original.depth, split: original.split, elevationMm: original.elevationMm,
   };
   // Finite inputs can overflow during coordinate rounding. Never let a bad
   // preview become a committed edit: it would also invalidate saved history.
@@ -76,7 +61,8 @@ export function pocketTransformPatch(
     return patch;
   }
   if (mode === "translate" && Math.abs(position.z - top) < 1e-8) return patch;
-  const rigid = rigidPocket(anchored, shape, spec);
+  const rigid = rigidPocket(original, shape, spec);
+  patch.zOffsetMm = undefined;
   patch.depth = rigid.depth;
   patch.split = rigid.split;
   patch.elevationMm = Math.max(0, Math.min(300, rigid.elevationMm! +
@@ -86,19 +72,18 @@ export function pocketTransformPatch(
     const angles = new Euler().setFromQuaternion(rotated, "ZYX");
     patch.tilt = { xDeg: angles.x / RAD, yDeg: angles.y / RAD };
     patch.rotationDeg = angles.z / RAD;
-    patch.insertionMode = defaultPocketInsertion(original, { ...original, ...patch });
+    patch.insertionMode = original.designLink ? original.insertionMode : defaultPocketInsertion(original, { ...original, ...patch });
   }
   return patch;
 }
 
-/** Ignore no-op drags and legacy re-anchoring when deciding whether to undo. */
+/** Ignore no-op drags when deciding whether to undo. */
 export function pocketTransformChanged(original: CutoutPlacement, patch: PocketTransformPatch, mode: PocketTransformMode): boolean {
-  const anchored = surfaceAnchoredPocket(original);
-  if (Math.hypot(patch.position.x - anchored.position.x, patch.position.y - anchored.position.y) > 1e-5) return true;
+  if (Math.hypot(patch.position.x - original.position.x, patch.position.y - original.position.y) > 1e-5) return true;
   if (mode === "rotate") return 1 - Math.abs(pocketQuaternion(original).dot(pocketQuaternion({ ...original, ...patch }))) > 1e-12;
   if (original.profileBottom) return Math.abs(original.profileBottom.elevationMm - (patch.profileBottom?.elevationMm ?? original.profileBottom.elevationMm)) > 1e-7;
   if (patch.elevationMm !== undefined) return Math.abs(patch.elevationMm - (original.elevationMm ?? 0)) > 1e-7;
-  const before = anchored.split?.depths ?? [anchored.depth];
+  const before = original.split?.depths ?? [original.depth];
   return (patch.split?.depths ?? [patch.depth]).some((after, i) => {
     const previous = before[i];
     return after.mode === "mm" && previous.mode === "mm" ? Math.abs(after.value - previous.value) > 1e-5

@@ -1,6 +1,7 @@
 import { binWidthMm, binLengthMm } from "./bin-size";
 import { hasSmoothBase } from "./peg-bottom";
 import { z } from "zod";
+import { objectGroupSchema } from "./object-groups";
 import { hasPocketTilt, pocketAxis, pocketMouthBasis, rotatePocketVector } from "./pocket-orientation";
 import { profileAlongX, profileBottomSchema, profileFloorSegments, profileFootprint, profilePrisms, hasProfileRotation } from "./profile-bottom";
 import { objectRotationSchema } from "./object-pose";
@@ -165,6 +166,7 @@ export const fingerHoleSchema = z
   .object({
     id: z.string().min(1),
     designLink: designLinkSchema.optional(),
+    placementGroup: objectGroupSchema.optional(),
     /** Optional display name; older projects use a numbered label. */
     name: z.string().trim().min(1).optional(),
     /** Bin-local mm, y-up, origin at the bin centre. */
@@ -579,6 +581,7 @@ const cutoutPlacementInputSchema = z
     /** Hole objects retain material wherever their volume overlaps a pocket. */
     role: z.literal("hole").optional(),
     designLink: designLinkSchema.optional(),
+    placementGroup: objectGroupSchema.optional(),
     /** Unadjusted depths and mouth anchor retained for reversible fill edits. */
     fillHeightReference: z.object({
       topZ: z.number().finite(),

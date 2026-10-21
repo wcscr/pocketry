@@ -19,10 +19,13 @@ export function canManageDesignLinks(objects: DesignObjects, selection: readonly
 const pocketFields = ["shapeId", "role", "scaleX", "scaleY", "aspectRatioLocked", "depth", "depthPending", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm", "insertionMode", "insertionAxis"] as const;
 const fingerFields = ["kind", "diameterMm", "lengthMm", "depthMm", "topFilletMm", "bottomFilletMm", "cornerRoundMm", "slotEnds"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// Finite source depths cache a legacy placement's solid, and profile elevation
+// is placement too. Neither is an authored shared dimension.
+const designSignature = (design: unknown) => JSON.stringify(design, (key, value: unknown) =>
+  key === "sourceDepthMm" || key === "elevationMm" ? undefined : value);
 
 export function pocketDesign(pocket: CutoutPlacement): Partial<CutoutPlacement> {
-  return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])), insertionAxis: pocket.insertionAxis ?? "z",
-    ...(pocket.designLink?.tilt ? { tilt: pocket.tilt ?? { xDeg: 0, yDeg: 0 }, profileRotation: pocket.profileRotation ?? { xDeg: 0, yDeg: 0 } } : {}) };
+  return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])), insertionAxis: pocket.insertionAxis ?? "z" };
 }
 export function fingerDesign(hole: FingerHole): Partial<FingerHole> {
   return Object.fromEntries(fingerFields.map(key => [key, hole[key]]));
@@ -49,32 +52,32 @@ function propagate<T extends LinkedObject>(before: T[], edits: T[], design: (ite
     ...(item.designLink ? changes.get(item.designLink.id) : {}) }));
 }
 
-/** Pose conversion accompanying rotation is not an explicit height edit. */
-export function pocketElevationEdited(before: CutoutPlacement, after: CutoutPlacement): boolean {
-  return before.elevationMm !== after.elevationMm && before.rotationDeg === after.rotationDeg
-    && equal(before.tilt, after.tilt) && equal(before.profileRotation, after.profileRotation);
-}
-
 /** Conflicting simultaneous edits reject the entire command, without picking a winner. */
 export function applyLinkedEdits(before: DesignObjects, edits: DesignObjects,
-  { shareElevation = true }: { shareElevation?: boolean } = {},
+  { placementOnly = false }: { placementOnly?: boolean } = {},
 ): DesignObjects | null {
-  // Elevation is shared when edited, rather than a saved-design invariant:
-  // existing projects and their history may contain differently placed copies.
-  // Rotation/legacy conversion callers can retain those placements explicitly.
-  let cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign);
-  if (cutouts && shareElevation) {
-    const heights = propagate(before.cutouts, edits.cutouts.filter(next => {
-      const original = before.cutouts.find(pocket => pocket.id === next.id);
-      return original && pocketElevationEdited(original, next);
-    }), pocket => ({ elevationMm: pocket.elevationMm }));
-    if (!heights) return null;
-    cutouts = cutouts.map((pocket, i) => heights[i].elevationMm !== before.cutouts[i].elevationMm
-      ? { ...pocket, elevationMm: heights[i].elevationMm } : pocket);
+  // Pose edits may materialize legacy finite depths, but never change other
+  // copies. Geometry commands remain explicit and propagate their design.
+  if (placementOnly) {
+    const preservesDesign = <T extends LinkedObject>(originals: T[], updates: T[], design: (item: T) => Partial<T>) =>
+      updates.every(next => {
+        const original = originals.find(item => item.id === next.id);
+        return !original || (!original.designLink && !next.designLink) ||
+          (equal(original.designLink, next.designLink) && designSignature(design(original)) === designSignature(design(next)));
+      });
+    if (!preservesDesign(before.cutouts, edits.cutouts, pocketDesign) ||
+        !preservesDesign(before.fingerHoles, edits.fingerHoles, fingerDesign)) return null;
+    const result = {
+      cutouts: before.cutouts.map(c => edits.cutouts.find(next => next.id === c.id) ?? c),
+      fingerHoles: before.fingerHoles.map(h => edits.fingerHoles.find(next => next.id === h.id) ?? h),
+    };
+    return designLinkErrors(result).length ? null : result;
   }
-  if (cutouts && shareElevation) cutouts.forEach((pocket, i) => {
-    if (pocket.elevationMm !== undefined && pocket.elevationMm !== before.cutouts[i].elevationMm) pocket.zOffsetMm = undefined;
-  });
+  const cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign)?.map(pocket => {
+    const own = edits.cutouts.find(c => c.id === pocket.id) ?? before.cutouts.find(c => c.id === pocket.id)!;
+    return pocket.profileBottom && own.profileBottom
+      ? { ...pocket, profileBottom: { ...pocket.profileBottom, elevationMm: own.profileBottom.elevationMm } } : pocket;
+  }) ?? null;
   const fingerHoles = propagate(before.fingerHoles, edits.fingerHoles, fingerDesign);
   return cutouts && fingerHoles ? { cutouts, fingerHoles } : null;
 }
@@ -87,7 +90,7 @@ export function designLinkErrors(objects: DesignObjects): string[] {
     for (const item of items) {
       if (!item.designLink) continue;
       const first = groups.get(item.designLink.id);
-      if (first && (!equal(first.designLink, item.designLink) || !equal(design(first), design(item)))) {
+      if (first && (!equal(first.designLink, item.designLink) || designSignature(design(first)) !== designSignature(design(item)))) {
         errors.push(`Linked ${kind} designs must agree`); break;
       }
       groups.set(item.designLink.id, item);

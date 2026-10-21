@@ -34,20 +34,20 @@ function mount() {
 it("previews the chosen source and links selected pockets without moving or renaming them", () => {
   const { host, click, store } = mount();
   expect(host.textContent).toContain("Copies adopt this shape, size and depth");
-  const source = host.querySelector('[aria-label="Linked design source"]') as HTMLSelectElement;
+  const source = host.querySelector('[aria-label="Linked geometry source"]') as HTMLSelectElement;
   expect(source.value).toBe("b");
   React.act(() => { source.value = "a"; source.dispatchEvent(new Event("change", { bubbles: true })); });
-  click("Link 2 pockets");
+  click("Link geometry");
   expect(store().cutouts.map(c => c.scaleX)).toEqual([1, 1]);
   expect(store().cutouts.map(c => c.name)).toEqual(["Alpha", "Beta"]);
   expect(store().cutouts.map(c => c.position.x)).toEqual([-15, 15]);
-  expect(host.textContent).toContain("Linked design · 2 pockets");
-  click("Unlink 2 pockets");
+  expect(host.textContent).toContain("Linked geometry · 2 pockets");
+  click("Unlink geometry");
   expect(store().cutouts.every(c => !c.designLink)).toBe(true);
   React.act(() => store().dispatch({ type: "UNDO" }));
-  expect(host.textContent).toContain("Linked design · 2 pockets");
+  expect(host.textContent).toContain("Linked geometry · 2 pockets");
 });
-it("offers linked duplication, optional tilt and selection of all linked copies", () => {
+it("offers geometry-linked duplication and selection without shared rotation", () => {
   const { host, click, store } = mount();
   React.act(() => store().dispatch({ type: "SELECT_CUTOUT", id: "a" }));
   click("Duplicate linked");
@@ -56,13 +56,13 @@ it("offers linked duplication, optional tilt and selection of all linked copies"
   expect(duplicate.designLink).toEqual(original.designLink);
   expect(duplicate.name).toBe("Alpha (copy)");
   expect(original.name).toBe("Alpha");
-  const checkbox = host.querySelector('input[type="checkbox"]') as HTMLInputElement;
-  React.act(() => checkbox.click());
-  expect(store().cutouts[0].designLink!.tilt).toBe(true);
+  expect(host.querySelector('input[type="checkbox"]')).toBeNull();
+  expect(store().cutouts[0].designLink!.tilt).toBe(false);
+  expect(host.textContent).toContain("Geometry edits update all 2 copies.");
   click("Select linked");
   expect(store().selection.map(s => s.id)).toEqual([original.id, duplicate.id]);
   React.act(() => store().dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: original.id }, { kind: "pocket", id: "b" }] }));
-  expect(host.textContent).toContain("Unlink 1 pocket");
+  expect(host.textContent).toContain("Unlink geometry");
 });
 it("keeps mixed pocket and thumb selections in separate design sets", () => {
   const { host, button, store } = mount();
@@ -70,7 +70,7 @@ it("keeps mixed pocket and thumb selections in separate design sets", () => {
     store().dispatch({ type: "ADD_FINGER_HOLE", hole: fingerHoleSchema.parse({ id: "f", center: { x: 0, y: 0 } }) });
     store().dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: "a" }, { kind: "finger", id: "f" }] });
   });
-  expect(button("Link 2 finger accesses")).toBeUndefined();
+  expect(button("Link geometry")).toBeUndefined();
   expect(host.textContent).toContain("Pockets and finger access link separately");
 });
 
@@ -79,9 +79,9 @@ it("discloses hole type adoption and propagation for linked copies", () => {
   const { host, click, store } = mount();
   React.act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "b", patch: { role: "hole" } }));
   expect(host.textContent).toContain("including its Pocket or Hole type");
-  click("Link 2 objects");
+  click("Link geometry");
   expect(store().cutouts.every(c => c.role === "hole")).toBe(true);
-  expect(host.textContent).toContain("Edits update all 2 copies.");
+  expect(host.textContent).toContain("Geometry edits update all 2 copies.");
   React.act(() => (host.querySelector('[aria-label="About linked copies"]') as HTMLButtonElement).click());
   expect(document.body.textContent).toContain("Linked copies share Pocket or Hole type, shape, size, depth");
   React.act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "b", patch: { role: undefined } }));

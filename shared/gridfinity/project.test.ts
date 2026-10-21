@@ -122,6 +122,7 @@ describe("parseProjectDoc", () => {
     const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))));
     expect(restored).toEqual(saved);
     expect(parseProjectDoc({ ...saved, schemaVersion: 49 })).toEqual(saved);
+    expect(parseProjectDoc({ ...saved, schemaVersion: 50 })).toEqual(saved);
     if (wallThicknessMm !== 0.95) {
       expect(parseProjectDoc({ ...saved, schemaVersion: 47 })).toEqual(saved);
       expect(parseProjectDoc({ ...saved, schemaVersion: 48 })).toEqual(saved);

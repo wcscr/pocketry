@@ -1,4 +1,5 @@
 import { expandLinkedObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { objectGroup, selectedPlacementGroup } from "@/lib/gridfinity/object-arrangement";
 import { hasRigidPocket, resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
 import { createPortal } from "react-dom";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -47,6 +48,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const [reference, setReference] = useState<"selection" | "active">("selection");
   const key = JSON.stringify(selected.map(o => objectKey(objectRef(o))));
   const offsets = displayed.map(o => objectTransformOffsets(o, editor.spec, editor.transformOrigins, mode, editor.originShapes));
+  const grouped = selected.some(objectGroup), group = selectedPlacementGroup(selected);
   useEffect(() => { setError(null); }, [key, mode, modeRequest]);
   useEffect(() => { setArranging(false); setLinking(false); }, [mode, modeRequest, experimentalEnabled]);
   const select = (next: EditableObject[]) => {
@@ -58,17 +60,15 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
   const label = (o: EditableObject) => o.kind === "pocket" ? pocketName(o.cutout, o.shape)
     : o.hole.name ?? `Finger access ${fingerObjects.indexOf(o) + 1}`;
   const commit = (edits: ObjectEdits | null, text: string) => {
-    if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Cannot transform every affected copy. Check depth and tilt limits; try editing one linked copy."); return; }
+    if (!edits) { setError(arranging ? "There is not enough room for equal gaps between the outer objects." : "Cannot transform the whole selection. Keep every object above the bin underside."); return; }
     setError(null);
     if (objectEditsChanged(selected, edits)) commitEditorObjects(editor, edits, text, mode);
   };
   const applyAxis = (axis: number, value: number, preview = false) => {
     const numbers = [0, 1, 2].map(i => i === axis ? value : undefined);
-    const edits = setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, pivot, objects, editor.originShapes);
+    const edits = setObjectTransformOffsets(selected, editor.spec, editor.transformOrigins, mode, numbers, grouped ? "individual" : pivot, objects, editor.originShapes);
     if (!edits) {
-      setError(mode === "translate" && axis === 2 && selected.length > 1 && selected.some(o => o.kind === "pocket" && o.cutout.designLink)
-        ? "Linked copies need a common Z move. Select every linked copy to restore individual heights, or set Elevation on one copy. Check height limits too."
-        : "Cannot transform every affected copy. Check depth and tilt limits.");
+      setError("Cannot place the whole selection there. Keep every member within the height limits.");
       return;
     }
     setError(null);
@@ -102,13 +102,14 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         <div className="max-h-40 overflow-y-auto" aria-label="Objects in selection">
           {objects.map(o => <label key={objectKey(objectRef(o))} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-accent">
             <input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Select ${label(o)}`} checked={isSelected(o)}
-              onChange={() => select(isSelected(o) ? selected.filter(s => objectKey(objectRef(s)) !== objectKey(objectRef(o))) : [...selected, o])} />
+              onChange={() => select(isSelected(o) ? selected.filter(s => objectKey(objectRef(s)) !== objectKey(objectRef(o)) && (!objectGroup(o) || objectGroup(s)?.id !== objectGroup(o)?.id)) : [...selected, o])} />
             <span className="truncate">{label(o)}</span>
           </label>)}
         </div>
         {<p className="px-2 pt-1 text-[10px] text-muted-foreground">Shift / ⌘ / Ctrl + click to add or remove.</p>}
       </div>
     </details>}
+    {!inspector && !mobile && editor.groupControls}
     <div className={mobile ? "space-y-2 p-1" : "space-y-3 p-3"}>
       {!inspector && !mobile && <div className={cn("grid gap-1 rounded-lg bg-muted p-1", showLinks ? "grid-cols-4" : "grid-cols-3")} role="group" aria-label="Object tools">
         {(["translate", "rotate", "arrange"] as const).map(tool => <button key={tool} type="button"
@@ -123,7 +124,7 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
           className={cn("flex min-h-9 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-medium", linking ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
           onClick={() => { toolbar?.setTool("links"); setLinking(true); setError(null); }}><Link2 className="h-4 w-4" />Links</button>}
       </div>}
-      {linking ? <>{selected.length ? editor.linkControls : <p className="text-muted-foreground">Select objects to link or unlink their designs.</p>}</> : arranging ? <>
+      {linking ? <>{selected.length ? editor.linkControls : <p className="text-muted-foreground">Select objects to link or unlink their geometry.</p>}</> : arranging && grouped ? <p className="text-muted-foreground">Ungroup to align or distribute individual objects. Move and Rotate preserve the group arrangement.</p> : arranging ? <>
         <label className="flex items-center gap-2 text-xs">Relative to
           <select aria-label="Align relative to" className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2" value={reference} onChange={e => setReference(e.target.value as "selection" | "active")}>
             <option value="selection">Selection bounds</option><option value="active">Last selected</option>
@@ -151,24 +152,26 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
         </div>
         <p className="text-[10px] leading-relaxed text-muted-foreground">Align opening edges or centers. Distribute keeps the two outer objects in place.{selected.length < 3 ? " Select 3 or more to distribute." : ""}</p>
       </> : <>
-        <div className="flex items-center justify-between"><span className="font-medium">{mode === "translate" ? "Move offset" : "Rotation offset"} <span className="font-normal text-muted-foreground">· Bin XYZ · {mode === "translate" ? "mm" : "°"}</span></span>
+        <div className="flex items-center justify-between"><span className="font-medium">{grouped ? "Group " : ""}{mode === "translate" ? "Move offset" : "Rotation offset"} <span className="font-normal text-muted-foreground">· Bin XYZ · {mode === "translate" ? "mm" : "°"}</span></span>
           <Button variant="ghost" size="icon" className={cn("h-8 w-8", snap && "bg-primary/10 text-primary")} aria-label="Snap: 1 mm moves and 5 degree rotations" aria-pressed={snap}
             title={`Snap ${snap ? "on" : "off"}: 1 mm moves / 5° rotations`} onClick={() => setSnap(!snap)}><Magnet className="h-4 w-4" /></Button>
         </div>
-        {!mobile && <p className="text-[10px] text-muted-foreground">From as drawn · Set an axis to 0 to restore it.</p>}
-        {mode === "translate" && selected.some(o => o.kind === "pocket" && o.cutout.designLink) && <p className="text-[10px] text-muted-foreground">Z moves also raise or lower linked copies. X/Y movement stays independent.</p>}
+        {!mobile && <p className="text-[10px] text-muted-foreground">{grouped ? "From grouped placement" : "From as drawn"} · Set an axis to 0 to restore it.</p>}
+        {selected.some(o => o.kind === "pocket" && o.cutout.designLink) && <p className="text-[10px] text-muted-foreground">Linked geometry shares dimensions. Position and rotation stay independent.</p>}
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">{["X", "Y", "Z"].map((a, i) => <label key={a} className="space-y-1">
             <span className={cn("font-semibold", i === 0 ? "text-red-500" : i === 1 ? "text-emerald-600 dark:text-emerald-400" : "text-blue-500")}>{a}</span>
             <DraftNumberInput key={`${key}:${mode}:${i}`} aria-label={`${mode === "translate" ? "Move" : "Rotate"} ${a} by`} step="any" className="h-9 w-full px-2 text-xs tabular-nums" displayPrecision={4}
               value={offsets[0]?.[i] ?? 0} min={-1000000} max={1000000}
               mixed={offsets.some(offset => Math.abs(offset[i] - offsets[0][i]) > 1e-5)} placeholder="Mixed"
-              disabled={!selected.length || (mixed && mode === "rotate" && i < 2)}
+              disabled={!selected.length || (mixed && mode === "rotate" && i < 2) || (mode === "translate" && i === 2 && selected.some(o => o.kind === "finger" && (grouped || o.hole.designLink)))}
               title="Preview live. Enter or leave the field to apply. Escape cancels."
               onValueChange={value => applyAxis(i, value, true)}
               onValueCommit={value => applyAxis(i, value)} />
           </label>)}</div>
-          {mode === "rotate" && selected.length > 1 && <select aria-label="Rotation pivot" className="h-9 w-full rounded-md border bg-background px-2" value={pivot} onChange={e => setPivot(e.target.value as RotationPivot)}>
+          {mode === "rotate" && group && <p className="text-xs text-muted-foreground">Fixed group pivot · X {group.pivot.x.toFixed(1)} · Y {group.pivot.y.toFixed(1)} · Z {group.pivot.z.toFixed(1)} mm</p>}
+          {mode === "translate" && selected.some(o => o.kind === "finger" && (grouped || o.hole.designLink)) && <p className="text-xs text-muted-foreground">Finger access stays at the bin surface. Change its depth in Properties.</p>}
+          {mode === "rotate" && selected.length > 1 && !grouped && <select aria-label="Rotation pivot" className="h-9 w-full rounded-md border bg-background px-2" value={pivot} onChange={e => setPivot(e.target.value as RotationPivot)}>
             <option value="individual">Each object’s center</option><option value="selection">Selection center</option>
           </select>}
         </div>
@@ -179,16 +182,17 @@ export function ObjectTransformPanel({ editor, objects, selected, displayed, mod
             ? `Lowest point: ${single.cutout.elevationMm!.toFixed(2)} mm`
             : (() => { const depth = pocketVerticalDepthMm(single, editor.spec); return depth === null ? "Depth: through" : `Depth: ${depth.toFixed(2)} mm`; })()}</p>
         </div>}
-        {mode === "rotate" && !mixed && <Button size="sm" variant="outline" className="w-full"
+        {mode === "rotate" && !mixed && !grouped && <Button size="sm" variant="outline" className="w-full"
           disabled={!selected.some(o => o.kind === "pocket" && ((o.cutout.tilt?.xDeg ?? 0) !== 0 || (o.cutout.tilt?.yDeg ?? 0) !== 0))}
           onClick={() => commit(expandLinkedObjectEdits(objects, editor.spec, { cutouts: selected.flatMap(o => o.kind === "pocket"
-            ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [], linkedElevation: "preserve" }), "Reset pockets to X–Y plane")}>
+            ? [resetPocketPlane(o.cutout, o.shape, editor.spec)] : []), fingerHoles: [], placementOnly: true }), "Reset pockets to X–Y plane")}>
           Reset to X–Y plane
         </Button>}
-        {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}
+        {(!mobile || mixed && mode === "rotate") && <p className="text-[10px] leading-relaxed text-muted-foreground">{mixed && mode === "rotate" ? "Thumb access stays upright. Select only pockets to rotate around X or Y." : mode === "translate" ? "Z raises or lowers the pocket. Its depth and dimensions stay unchanged." : grouped ? "Drag a colored ring or enter a group angle. Relative spacing and orientation stay fixed." : "Drag a colored ring or enter an angle. Reset to X–Y plane clears X/Y rotation and keeps Z rotation and elevation."}</p>}
       </>}
-      {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform every affected copy. Keep floors within the bin; edit one linked copy if the group needs different design changes."}</p>}
+      {!linking && (limited || error) && <p role="status" className="text-[11px] text-destructive">{error ?? "Cannot transform the whole selection. Keep every member within the height limits."}</p>}
     </div>
+    {mobile && editor.groupControls}
     </fieldset>
   </div>;
   if (mobile) return mobile.controls ? createPortal(content, mobile.controls) : <></>;

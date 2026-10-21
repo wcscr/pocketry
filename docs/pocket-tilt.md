@@ -1,14 +1,14 @@
 # Tilted pockets
 
 Pocket placement, rotation, multi-selection, alignment and distribution are
-available by default. Linked designs still require **App settings → Enable
+available by default. Linking and grouping require **App settings → Enable
 experimental features** (on mobile, **More options → App settings**). This choice
 is saved in the browser independently of project files. Opening a saved project
 never changes it; existing geometry stays visible and exportable.
 
 Turning Experimental off cancels unfinished experimental edits without changing
-saved geometry, links or history. Placement and ordinary independent copies stay
-available. Shared linked-design edits require opting back in.
+saved geometry, links, groups or history. Placement and ordinary independent copies
+stay available. Shared geometry edits and Group/Ungroup require opting back in.
 
 Select a pocket and open **Position & rotation**. X and Y tilt turn its depth
 axis; the existing Z rotation sets its heading in the bin. **Reset tilt** returns
@@ -74,15 +74,15 @@ Solid axis lines and labeled grips identify the fixed bin axes.
 Use Shift, Command, or Control + click to add/remove pockets and thumb-access
 features from a selection; checkboxes work without a keyboard. Command/Control+A
 selects all objects when a text field or dialog does not own the shortcut.
-Selection carries between 3D and Layout. Each group drag or command is one undo
+Selection carries between 3D and Layout. Each selection drag or command is one undo
 step and changes only selected objects. In Layout, drag any selected body to move
-the group; arrows nudge it (Shift = 10 mm), R rotates 15 degrees (Shift reverses).
+the selection; arrows nudge it (Shift = 10 mm), R rotates 15 degrees (Shift reverses).
 Escape, blur, and pointer cancellation discard incomplete drags.
 
-Group rotation defaults to **Each object's center**. **Selection center** also
+An ungrouped selection defaults to **Each object's center**. **Selection center** also
 rotates their positions around the shared bounding-box center. Rotated pocket
 origins project back to the top surface, retaining the rigidly rotated seats.
-If any member reaches a floor or tilt limit, the entire group retains the last
+If any member reaches a floor or tilt limit, the entire selection retains the last
 valid rotation. Z movement uses the most restrictive depth limit of all selected
 objects, so their relative floor depths remain unchanged. Through pockets have
 no floor to move. Thumb access remains upright: mixed selections support XYZ
@@ -156,7 +156,7 @@ Right-click an object in Layout, 3D, or the object list for Properties,
 Duplicate, Rename and Remove. Right-clicking an unselected object selects it;
 right-clicking a selected member keeps the current selection. Ordinary
 Duplicate creates independent copies. Experimental linking commands appear
-only when enabled and applicable; Link selected opens the existing source
+only when enabled and applicable; Link geometry opens the existing source
 chooser, and mixed pocket/finger-access unlinking is one undo step.
 
 Retained-material holes are inner contours owned by their pocket, including
@@ -171,16 +171,15 @@ undo/redo support and a minimum of three points per contour. Name fields keep th
 **Duplicate linked** creates another instance of the selected pocket or thumb
 slot. Ordinary pocket duplication remains independent. To link existing objects,
 Shift/Ctrl/Command-click two or more pockets (or thumb slots). In **Object controls → Links**
-or properties, review **Use design from** and click **Link N pockets/slots**. The
+or properties, review **Use design from** and click **Link geometry**. The
 last selected object supplies the initial source choice; change it if needed. Only
 selected objects join the new set; unselected members of previous sets retain
 their links and designs. Pockets and thumb slots use separate design sets.
 
 Linked pockets share their outline, dimensions, aspect-ratio preference, depth,
 split settings, fit clearance, and edge rounding. Names, X/Y positions, mirroring,
-and orientation remain independent. **Share X/Y tilt** optionally shares tilt;
-Z heading always remains independent. Enabling it adopts the active pocket's
-tilt for the set. Thumb slots share opening shape, width, length, depth and edge
+Z elevation and every rotation axis remain independent. Legacy tilt-link settings
+no longer synchronize orientation. Thumb slots share opening shape, width, length, depth and edge
 settings while keeping their positions, headings and names independent.
 
 Independent properties keep **Linked copies** collapsed, and hide it completely
@@ -188,31 +187,50 @@ when Experimental is off. Existing links show the copy count and the scope of
 shared edits; additional guidance is in **About linked copies**. The toolbar's
 **Link** action manages even one selected linked copy. It requires at least two
 objects of the same kind to create a link; a pocket and a finger access cannot
-link to one another. **Select linked** selects that set. **Unlink** removes links from the selected members
+link to one another. **Select linked** selects that set. **Unlink geometry** removes links from the selected members
 without changing geometry. There is no master instance: deleting the original
 does not delete or disconnect the remaining copies. Every link, unlink, linked
 edit and linked duplication is one undo step, including changes to unselected
 copies. Links survive project/library export, import and saved undo/redo history.
 
-Depth edits update the shared source dimensions. An **Elevation** edit sets every
-linked copy's lowest point to the entered height. Z gizmo moves and **Move Z**
-offsets raise or lower the linked copies together, preserving any existing height
-differences; X/Y movement remains independent. Existing projects retain their
-placements until a height edit, and rotation alone does not synchronize elevations.
-When a group first becomes rigid, unresolved source thicknesses use the last
-selected copy, matching a height edit of that copy alone; existing frozen
-thicknesses stay unchanged. Selecting the entire linked set also allows restoring
-each copy's original Z offset independently.
-Linking an insertion path initializes any legacy
-copy's rigid elevation from its own original outline and orientation before
-adopting the shared design, retaining its current floor. If that outline is
-unavailable, the entire link operation is rejected without changing history. A group transform that gives linked
-members contradictory shared settings is rejected as a whole. Edit one member,
-use each-object rotation, or make copies independent when distinct designs are
-needed. Transform previews check affected unselected seats too. Normal layout
-and solid-build checks still report overlaps and wall conflicts after design
-changes. Linked thumb dimensions clamp to a size compatible with all members'
-headings when the bin or opening is resized.
+Depth edits update the shared source dimensions. Elevation fields and XYZ
+transform tools affect only the selected copies. Their positions and rotations
+never propagate through geometry links. Moving a group containing a linked pocket
+also leaves linked copies outside that group in place.
+
+Linking an insertion path initializes a legacy copy's rigid elevation from its
+own original outline and orientation before adopting the shared design, retaining
+its current floor. An unavailable outline rejects the whole linking operation.
+Clearance settings still propagate as geometry, so a chosen insertion axis must
+work with each linked copy's independent orientation. Normal layout and solid-build
+checks report overlaps and wall conflicts after design changes.
+
+## Placement groups
+
+With Experimental enabled, select at least two pockets, retained holes or finger-access objects and choose
+**Group objects** in Properties or the context menu. Clicking any member selects
+the whole group. **Ungroup** removes the relationship without moving anything.
+Grouping never creates geometry links; an object may be grouped, linked, or both.
+The named object's Properties edit its geometry; fields labeled for selected
+objects edit all selected members. With Experimental off, Properties shows the
+saved grouping and an opt-in; existing groups still move and rotate together.
+
+The initial pivot is the center of the combined 3D bounds. All members rotate
+around that fixed point, preserving relative spacing and orientation. Moving a
+group moves the pivot by the same amount. Rotation and geometry edits do not
+recompute it. Group angle fields start at zero when grouped and describe the
+whole group's rotation, so entering 90 degrees does not erase member angles.
+Pocket and retained-hole groups support XYZ movement and rotation. Groups that
+include finger access support XY movement and Z rotation: finger access remains
+anchored upright at the bin surface. Invalid group transforms reject as a whole.
+
+Dragging a group or finishing a numeric edit adds one history step. Ordinary
+Duplicate creates an independent group with a new identity. Deleting a group
+removes its selected members; removing an individual member through document
+editing dissolves a group if fewer than two members remain. Align, distribute,
+and auto-arrange require ungrouping first. Groups persist in project format 51,
+including undo and redo snapshots. The earlier format-48 grouping preview and
+main's formats 48–50 migrate with their saved poses, wall settings and bottom provenance.
 
 Project format 22 reconciles the two historical version-20 variants (adjustable
 fill height and pocket tilt) and legacy version-21 offsets. Format 23 adds explicit

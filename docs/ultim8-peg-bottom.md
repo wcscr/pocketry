@@ -1,4 +1,4 @@
-# Wham Bam Systems ULTIM8-compatible fixture peg bottoms
+# Wham Bam Systems [ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixture peg bottoms
 
 Visit [pocketry.xyz/ultim8](https://pocketry.xyz/ultim8) to start a ready-to-edit
 fixture (Beta). An open fixture is kept exactly as saved. For other projects,
@@ -40,8 +40,7 @@ project never turns Experimental on automatically.
 Upright sloped and bridged modes use every fitting mat hole. Saved
 preview projects return to the full lattice without losing their other settings.
 
-The reference is Wham Bam Systems’ ULTIM8 mat for eufyMake E1:
-https://www.whambamsystems.com/pages/ultim8-jig
+The reference is Wham Bam Systems’ [ULTIM8™ mat for eufyMake E1](https://www.whambamsystems.com/pages/ultim8-jig).
 Its holes are 5 mm diameter, 10 mm apart along each row, with alternate rows
 shifted 5 mm. The mat photograph in the manufacturer’s zero-point calibration
 guide confirms 5 mm between staggered rows:

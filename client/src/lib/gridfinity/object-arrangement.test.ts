@@ -168,46 +168,47 @@ describe("mixed object arrangement", () => {
   });
 });
 
-it("shares Z movement and optional X/Y rotation while retaining linked copies' XY positions", () => {
+it("keeps XYZ movement and rotation independent for legacy tilt links", () => {
   const a = pocket("a", -20), b = pocket("b", 20);
   a.cutout.designLink = { id: "group", tilt: true };
   b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, rotationDeg: 90 };
   b.shape = a.shape;
   const all = [a, b];
   const move = transformObjects([a], spec, new Vector3(3, 0, 2), undefined, "individual", all)!;
-  expect(move.cutouts[1].depth).toEqual({ mode: "mm", value: 20 });
-  expect(move.cutouts[1].elevationMm).toBe(24);
+  expect(move.cutouts).toHaveLength(1);
   expect(move.cutouts[0].elevationMm).toBe(24);
-  expect(move.cutouts[1].position).toEqual(b.cutout.position);
+  expect(move.cutouts[0].position).toEqual({ x: -17, y: 0 });
+  expect(applyObjectEdits(all, move)[1]).toEqual(b);
   const turn = transformObjects([a], spec, new Vector3(), rotate("y", 15), "individual", all)!;
-  expect(turn.cutouts[1].tilt).toEqual(turn.cutouts[0].tilt);
-  expect(turn.cutouts[1].rotationDeg).toBe(90);
+  expect(turn.cutouts).toHaveLength(1);
+  expect(turn.cutouts[0].tilt?.yDeg).toBeCloseTo(15);
+  expect(applyObjectEdits(all, turn)[1]).toEqual(b);
 });
 
-it("moves the unselected linked seat by the same Z delta without changing its source dimensions", () => {
+it("keeps an unselected linked seat and its source dimensions unchanged", () => {
   const a = pocket("a", -20, 0, 8, 60), b = pocket("b", 20);
   a.cutout.designLink = { id: "group", tilt: false };
   b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, tilt: { xDeg: 25, yDeg: 0 } };
   b.shape = a.shape;
   const moved = transformObjects([a], spec, new Vector3(0, 0, 15), undefined, "individual", [a, b])!;
-  expect(moved.cutouts[1].elevationMm).toBeCloseTo(rigidPocket(b.cutout, b.shape, spec).elevationMm! + 15, 6);
-  expect(moved.cutouts[1]).toMatchObject({ position: b.cutout.position, tilt: b.cutout.tilt, depth: b.cutout.depth });
+  expect(moved.cutouts).toHaveLength(1);
+  expect(applyObjectEdits([a, b], moved)[1]).toEqual(b);
   expect(moved.cutouts[0].depth).toEqual(a.cutout.depth);
 });
 
-it("moves a selection and its unselected linked copies once while preserving existing height differences", () => {
+it("moves only selected linked copies while preserving existing height differences", () => {
   const a = pocket("a", -20), b = pocket("b", 20), c = pocket("c", 40);
   a.cutout = { ...a.cutout, elevationMm: 8, designLink: { id: "group", tilt: false } };
   b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, elevationMm: 11 };
   c.cutout = { ...a.cutout, id: c.cutout.id, position: c.cutout.position, elevationMm: 15 };
   b.shape = c.shape = a.shape;
   const moved = transformObjects([a, b], spec, new Vector3(3, 0, 4), undefined, "individual", [a, b, c])!;
-  expect(moved.cutouts.map(c => c.elevationMm)).toEqual([12, 15, 19]);
-  expect(moved.cutouts.map(c => c.position.x)).toEqual([-17, 23, 40]);
+  expect(moved.cutouts.map(c => c.elevationMm)).toEqual([12, 15]);
+  expect(moved.cutouts.map(c => c.position.x)).toEqual([-17, 23]);
   expect(designLinkErrors(moved)).toEqual([]);
 });
 
-it.each([false, true])("freezes one active source thickness on a first linked group Z move (split: %s)", split => {
+it.each([false, true])("preserves each legacy source on the first selected Z move (split: %s)", split => {
   const a = pocket("a", -20), b = pocket("b", 20), c = pocket("c", 40);
   a.cutout = { ...a.cutout, depth: { mode: "remaining", floorThicknessMm: 7 },
     ...(split ? { split: { boundary: [{ x: -6, y: 0 }, { x: 6, y: 0 }],
@@ -220,7 +221,9 @@ it.each([false, true])("freezes one active source thickness on a first linked gr
   const single = transformObjects([b], spec, new Vector3(0, 0, 3), undefined, "individual", all)!;
   const group = transformObjects([a, b], spec, new Vector3(0, 0, 3), undefined, "individual", all)!;
   expect(group).not.toBeNull();
-  expect(group.cutouts).toEqual(single.cutouts);
+  expect(group.cutouts[1]).toEqual(single.cutouts[0]);
+  expect(single.cutouts).toHaveLength(1);
+  expect(applyObjectEdits(all, group)[2]).toEqual(c);
   expect(designLinkErrors(group)).toEqual([]);
   group.cutouts.forEach((cutout, i) => {
     expect(cutout.elevationMm).toBeCloseTo(rigidPocket(all[i].cutout, all[i].shape, spec).elevationMm! + 3);
@@ -232,13 +235,13 @@ it.each([false, true])("freezes one active source thickness on a first linked gr
   expect(movedAgain.cutouts.map(c => c.split ?? c.depth)).toEqual(group.cutouts.map(c => c.split ?? c.depth));
 });
 
-it("includes unselected linked copies when limiting a Z move", () => {
+it("limits a Z move only against selected objects", () => {
   const a = pocket("a", -20), b = pocket("b", 20);
   a.cutout = { ...a.cutout, elevationMm: 8, designLink: { id: "group", tilt: false } };
   b.cutout = { ...a.cutout, id: b.cutout.id, position: b.cutout.position, elevationMm: 2 };
   b.shape = a.shape;
   const moved = transformObjects([a], spec, new Vector3(0, 0, -5), undefined, "individual", [a, b])!;
-  expect(moved.cutouts.map(c => c.elevationMm)).toEqual([6, 0]);
+  expect(moved.cutouts.map(c => c.elevationMm)).toEqual([3]);
 });
 
 it("keeps existing linked elevations during rotation and XY-only movement", () => {
@@ -248,8 +251,8 @@ it("keeps existing linked elevations during rotation and XY-only movement", () =
   b.shape = a.shape;
   for (const change of [transformObjects([a], spec, new Vector3(3, 0, 0), undefined, "individual", [a, b]),
     transformObjects([a], spec, new Vector3(), rotate("y", 15), "individual", [a, b])]) {
-    expect(change!.cutouts.map(c => c.elevationMm)).toEqual([8, 11]);
-    expect(change!.cutouts[1]).toEqual(b.cutout);
+    expect(change!.cutouts.map(c => c.elevationMm)).toEqual([8]);
+    expect(applyObjectEdits([a, b], change!)[1]).toEqual(b);
   }
 });
 

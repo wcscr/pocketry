@@ -19,6 +19,7 @@ import {
 import { binSpecSchema, type BinSpec } from "./types";
 import { binMaterialsSchema } from "./materials";
 import { designLinkErrors } from "./design-links";
+import { objectGroupErrors } from "./object-groups";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
 import { hasRigidPocket, migrateProfilePocket } from "./rigid-pocket";
@@ -88,11 +89,13 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 46 adds selection of one opposing wall while leaving the other vertical.
  * Version 47 supports slants up to 89 degrees and clipped support wedges.
  * Version 48 adds automatic hollow-wall thickness; older designs keep fixed walls.
+ * A preview branch also used version 48 for placement groups and geometry-only links.
  * Version 49 restores automatic walls for legacy 0.95 mm defaults.
  * Version 50 remembers flat bottoms applied automatically by arbitrary sizing.
+ * Version 51 combines placement groups with automatic walls and flat-bottom provenance.
  */
 
-export const PROJECT_SCHEMA_VERSION = 50 as const;
+export const PROJECT_SCHEMA_VERSION = 51 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -164,6 +167,7 @@ const validatedProjectDocSchema = version16ProjectSchema.extend({
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
   for (const message of designLinkErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  for (const message of objectGroupErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   if (!project.history) return;
   const current = project.history.stack[project.history.index]?.doc;
   const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
@@ -393,7 +397,7 @@ function parseProjectInput(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

@@ -1,3 +1,4 @@
+import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useBinObjectContextMenu } from "./object-context-menu";
@@ -59,7 +60,8 @@ import { binWorkflowSections } from "./bin-workflow";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { InspectorPanelSections } from "./inspector-panel-sections";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { usePanelState } from "@/components/layout/panel-context";
+import { usePanelState, useProjectStatusHost } from "@/components/layout/panel-context";
+import { Ultim8Link } from "@/components/ui/ultim8-link";
 import { FillHeightControl } from "./fill-height-control";
 import { SurfaceTextControls, SurfaceTextProperties } from "./surface-text-controls";
 import { Type } from "lucide-react";
@@ -173,6 +175,7 @@ import { cn } from "@/lib/utils";
 import { PocketSplitControls } from "./pocket-split-controls";
 import { changeBinGridPitchPreservingSize } from "@shared/gridfinity/grid-pitch";
 import { PocketDepthSummary, PocketInsertionControls, PocketMeasurements, PocketSizeInputs, PositionInputs } from "./pocket-measurements";
+import { ObjectGroupControls } from "./object-group-controls";
 import { ExportConfirmationDialog, ProjectBackupOption } from "./export-confirmation-dialog";
 import { FingerAccessShapeControls } from "./finger-access-shape-controls";
 import { INITIAL_BIN_SPEC, binReducer, useBin, type BinState } from "@/state/bin-store";
@@ -315,6 +318,7 @@ export function BinControlsPanel({
 }: BinControlsPanelProps): JSX.Element {
   const showPreviewBusy = useDelayedBusy(building);
   const inspector = useSelectionInspector();
+  const projectStatusHost = useProjectStatusHost();
   // Keep project transactions mounted while their standard/workflow section is
   // closed. The stable portal host moves with the visible Project section.
   const [projectControlsHost] = useState(() => document.createElement("div"));
@@ -431,6 +435,8 @@ export function BinControlsPanel({
   const jigThicknessRef = useRef<HTMLInputElement>(null);
   const [threeMfDialogOpen, setThreeMfDialogOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
+  const projectNameButtonRef = useRef<HTMLButtonElement>(null);
+  const projectNameReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const threeMfTitleRef = useRef<HTMLHeadingElement>(null);
   const [includeThreeMfProject, setIncludeThreeMfProject] = useState(false);
   const [pendingExport, setPendingExport] = useState<{
@@ -754,6 +760,13 @@ export function BinControlsPanel({
           </div>
   );
 
+  const groupAction = (ref: GroupRef, action: "duplicate" | "remove") => {
+    const members = expandGroupSelection({ cutouts, fingerHoles }, [ref]);
+    dispatch({ type: "SET_SELECTION", selection: members });
+    if (action === "remove") dispatch({ type: "REMOVE_SELECTION" });
+    else dispatch({ type: "DUPLICATE_SELECTION", ids: members.map(source => ({ source, id: crypto.randomUUID() })),
+      labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) });
+  };
   const retainedHoleCount = cutouts.filter(c => c.role === "hole").length;
   const pocketCount = cutouts.length - retainedHoleCount;
   const pocketList = cutouts.length > 0 && (
@@ -797,17 +810,18 @@ export function BinControlsPanel({
                       <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-violet-700 dark:text-violet-300")}>{name}</span>
                       {cutout.role === "hole" && <span className="text-[10px] text-muted-foreground">Hole</span>}
                       {cutout.depthPending && <span className="text-[10px] text-muted-foreground">Depth needed</span>}
-                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                      {cutout.placementGroup && <span className="text-[10px] text-muted-foreground">Grouped</span>}
+                      {cutout.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked geometry" />}
                     </button>
                     )}
                     <ObjectActions name={name}>
                     <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Rename ${name}`} disabled={!shape} data-testid={`button-rename-${cutout.id}`} onClick={startRenaming}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID(), labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={cutout.placementGroup ? `Duplicate group containing ${name}` : `Duplicate ${name}`} data-testid={`button-duplicate-${cutout.id}`} onClick={() => cutout.placementGroup ? groupAction({ kind: "pocket", id: cutout.id }, "duplicate") : dispatch({ type: "DUPLICATE_CUTOUT", id: cutout.id, newId: crypto.randomUUID(), labels: new Map(cutouts.map(c => [c.id, pocketName(c, shapesById.get(c.shapeId))])) })}>
                       <Copy className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={`Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
+                    <button type="button" className="flex h-8 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={cutout.placementGroup ? `Remove group containing ${name}` : `Remove ${name}`} data-testid={`button-remove-${cutout.id}`} onClick={() => cutout.placementGroup ? groupAction({ kind: "pocket", id: cutout.id }, "remove") : dispatch({ type: "REQUEST_REMOVE_CUTOUT", id: cutout.id })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                     </ObjectActions>
@@ -845,7 +859,8 @@ export function BinControlsPanel({
                           onDoubleClick={startRenaming}
                           onClick={event => { dispatch({ type: "SELECT_FINGER_HOLE", id: hole.id, additive: (event.shiftKey || event.metaKey || event.ctrlKey) }); if (event.shiftKey || event.metaKey || event.ctrlKey) inspector?.keepObjectsOpen(); else inspector?.setTool("properties"); }}>
                           <span className={cn("min-w-0 flex-1 truncate", isSelected && "font-medium text-cyan-700 dark:text-cyan-300")}>{name}</span>
-                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked design" />}
+                          {hole.placementGroup && <span className="text-[10px] text-muted-foreground">Grouped</span>}
+                          {hole.designLink && <Link2 className="h-3 w-3 shrink-0" aria-label="Linked geometry" />}
                         </button>
                       )}
                       <ObjectActions name={name}>
@@ -857,7 +872,7 @@ export function BinControlsPanel({
                       </button>
                       <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         title={`Remove ${name}`}
-                        aria-label={`Remove ${name}`} onClick={() => dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
+                        aria-label={hole.placementGroup ? `Remove group containing ${name}` : `Remove ${name}`} onClick={() => hole.placementGroup ? groupAction({ kind: "finger", id: hole.id }, "remove") : dispatch({ type: "REMOVE_FINGER_HOLE", id: hole.id })}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                       </ObjectActions>
@@ -958,6 +973,8 @@ export function BinControlsPanel({
               </div>
 
 
+              {!inspector && <ObjectGroupControls />}
+              {selectedCutout.placementGroup && <p className="py-2 text-xs text-muted-foreground">Geometry below applies to {pocketName(selectedCutout, selectedShape)}{selectedCutout.designLink ? " and its linked copies" : ""}. Move and Rotate affect the whole group.</p>}
               <label className="flex items-center gap-2 py-2 text-xs">
                 Type
                 <select aria-label="Outline type" className="h-9 min-w-0 flex-1 rounded border border-input bg-background px-2"
@@ -1140,6 +1157,8 @@ export function BinControlsPanel({
                   <h3 className="text-xs font-semibold">Finger access properties</h3>
                   <span className={inspector ? "sr-only" : "min-w-0 flex-1 truncate text-xs"}>{selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}</span>
                 </div>
+              {!inspector && <ObjectGroupControls />}
+              {selectedFingerHole.placementGroup && <p className="py-2 text-xs text-muted-foreground">Geometry below applies to {selectedFingerHole.name ?? `Finger access ${fingerHoles.indexOf(selectedFingerHole) + 1}`}{selectedFingerHole.designLink ? " and its linked copies" : ""}. Move and Rotate affect the whole group.</p>}
               {!inspector && !!selectedFingerHole.designLink && <LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} />}
 
 
@@ -1324,7 +1343,7 @@ export function BinControlsPanel({
 
                   </div>
                 </details>
-                <details className="group/position border-t pt-1 text-xs" data-testid="finger-position-settings">
+                {!selectedFingerHole.placementGroup && <details className="group/position border-t pt-1 text-xs" data-testid="finger-position-settings">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-2 font-medium [&::-webkit-details-marker]:hidden">
                     Position &amp; rotation
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/position:rotate-180" />
@@ -1402,25 +1421,27 @@ export function BinControlsPanel({
                 )}
                 <PositionInputs position={selectedFingerHole.center} onChange={(center, transient) => dispatch({ type: "UPDATE_FINGER_HOLE", id: selectedFingerHole.id, patch: { center }, transient, historyLabel: "Position finger access" })} />
                   </div>
-                </details>
+                </details>}
                 {(inspector || !selectedFingerHole.designLink) && <AdvancedLinks linked={!!selectedFingerHole.designLink}><LinkedDesignControls kind="finger" activeId={selectedFingerHole.id} labels={new Map(fingerHoles.map((h, i) => [h.id, h.name ?? `Finger access ${i + 1}`]))} /></AdvancedLinks>}
             </PropertySurface>
             );
 
   const openProjectName = () => {
     if (!hydrated || !projectLibraryReady || projectBusy) return;
+    projectNameReturnFocusRef.current = projectNameButtonRef.current;
     if (inspector) inspector.showSection("bin-settings-project");
     else revealPanelSection("bin-settings-project", BIN_SETTINGS_SECTIONS);
     setProjectNameOpen(true);
   };
 
   const projectStatus = (
-      <div className={!inspector && exportOnly ? "hidden" : cn("min-w-0 px-3 py-2", !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
+      <div className={!projectStatusHost && !inspector && exportOnly ? "hidden" : cn("min-w-0 py-2", projectStatusHost ? "px-1" : "px-3", !projectStatusHost && !inspector && "shrink-0 border-b", inspector && "flex-1")} data-testid="project-status">
         <div className="flex min-w-0 items-center gap-1">
           <p className="cursor-text truncate text-sm font-medium" data-testid="project-status-title"
             title={`${currentProjectName ?? "Untitled project"} — double-click to rename`}
             onDoubleClick={openProjectName}>{currentProjectName ?? "Untitled project"}</p>
           <Button type="button" variant="ghost" size="icon"
+            ref={projectNameButtonRef}
             className="h-8 w-8 shrink-0 text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
             aria-label="Edit project name" title="Edit project name"
             data-testid="button-edit-project-name"
@@ -1436,16 +1457,17 @@ export function BinControlsPanel({
   return (
     <PanelSectionFilterContext.Provider value={!inspector && exportOnly ? "bin-settings-export" : null}>
     <div className="flex h-full flex-col">
-      {!experimentalEnabled && (spec.wallSlant !== null || cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
+      {!experimentalEnabled && (spec.wallSlant !== null || cutouts.some(c => c.designLink || c.placementGroup) || fingerHoles.some(h => h.designLink || h.placementGroup)) && <div className="shrink-0 border-b bg-amber-50/60 px-3 py-2 text-xs dark:bg-amber-950/20" data-testid="experimental-design-notice">
         <p>Saved experimental features: {[
           spec.wallSlant !== null && "slanted walls",
           (cutouts.some(c => c.designLink) || fingerHoles.some(h => h.designLink)) && "linked designs",
+          (cutouts.some(c => c.placementGroup) || fingerHoles.some(h => h.placementGroup)) && "grouped objects",
         ].filter(Boolean).join(", ")}. Preserved in previews and exports.</p>
         <Button size="sm" variant="link" className="min-h-11 whitespace-normal px-0 text-xs" onClick={() => setExperimentalEnabled(true)}>Enable experimental tools</Button>
       </div>}
       {inspector ? <div className="shrink-0 border-b py-3 pl-3 pr-9">
-        <h2 className="text-xs font-semibold">{isJig ? <>Wham Bam Systems ULTIM8-compatible fixture <span className="ml-1 rounded border px-1 text-[10px] font-normal">Beta</span></> : "Design workflow"}</h2>
-      </div> : projectStatus}
+        <h2 className="text-xs font-semibold">{isJig ? <>Wham Bam Systems <Ultim8Link />-compatible fixture <span className="ml-1 rounded border px-1 text-[10px] font-normal">Beta</span></> : "Design workflow"}</h2>
+      </div> : !projectStatusHost && projectStatus}
       {/* On short screens the section headers remain reachable by scrolling;
           reserve the limited height for editable fields instead of shortcuts. */}
       {!inspector && <div className={exportOnly ? "hidden" : "shrink-0 [@media(max-height:500px)]:hidden"}>
@@ -1827,7 +1849,7 @@ export function BinControlsPanel({
               </Select>
             </div>
             {spec.pegBottom && <PropertySurface tone="rose" role="group" aria-label="Wham Bam Systems ULTIM8 peg settings" className="space-y-2">
-              <p className="text-xs font-medium">Peg settings</p>
+              <p className="text-xs font-medium"><Ultim8Link /> peg settings</p>
               <div className="flex items-center gap-2">
                 <SettingLabel label="Underside" htmlFor="select-peg-underside" hint={spec.pegBottom.underside === "flat" ? "Flat backing removes tall peg roots and exports pocket-side down, with pegs up. Check pocket bridges and overhangs in your slicer." : spec.pegBottom.underside === "bridged" ? "Short bridges join the flared peg collars. Print upright with pegs down and supports off. Print a small fit check before a full fixture." : "Sloped roots print upright with pegs down and supports off."} />
                 <Select value={spec.pegBottom.underside} onValueChange={(underside: "sloped" | "bridged" | "flat") => patchSpec({ pegBottom: { ...spec.pegBottom!, underside, density: underside === "flat" ? spec.pegBottom!.density : 1 } })}>
@@ -1951,7 +1973,7 @@ export function BinControlsPanel({
           {pocketList}
           <div className="grid grid-cols-2 gap-1">
             <AddPocketMenu className="min-w-0 gap-1 px-1.5" />
-            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0} data-testid="button-auto-arrange">
+            <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0 || [...cutouts, ...fingerHoles].some(object => object.placementGroup)} title={[...cutouts, ...fingerHoles].some(object => object.placementGroup) ? "Ungroup objects before auto-arranging" : undefined} data-testid="button-auto-arrange">
               <LayoutGrid className="h-4 w-4" />Auto-arrange
             </Button>
           </div>
@@ -2371,6 +2393,15 @@ export function BinControlsPanel({
             onUltim8EntryComplete={onUltim8EntryComplete}
             saveOpen={projectNameOpen}
             setSaveOpen={setProjectNameOpen}
+            onSaveDialogCloseAutoFocus={event => {
+              const opener = projectNameReturnFocusRef.current;
+              projectNameReturnFocusRef.current = null;
+              // The shared header is outside the properties panel; its opener
+              // stays usable even when the dialog's ordinary trigger is hidden.
+              if (event.defaultPrevented || !opener?.isConnected || opener.closest("[hidden], [inert]")) return;
+              event.preventDefault();
+              opener.focus();
+            }}
             hydrated={hydrated}
             libraryReady={projectLibraryReady}
             libraryError={projectLibraryError}
@@ -2571,8 +2602,9 @@ export function BinControlsPanel({
       )}
 
     </div>
-      {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center gap-1 pr-2" data-testid="editor-project-header">
-        {projectStatus}
+      {projectStatusHost && createPortal(projectStatus, projectStatusHost)}
+      {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center justify-end gap-1 pr-2" data-testid="editor-project-header">
+        {!projectStatusHost && projectStatus}
         <div className="flex shrink-0 items-center gap-1 max-[500px]:w-full max-[500px]:justify-end max-[500px]:border-t max-[500px]:py-1">
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-project")}><FolderOpen className="h-4 w-4" />Project</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-fit")}><ClipboardCheck className="h-4 w-4" />Check fit</Button>
@@ -2591,6 +2623,7 @@ interface ProjectControlsProps {
   onUltim8EntryComplete?: () => void;
   saveOpen: boolean;
   setSaveOpen: (open: boolean) => void;
+  onSaveDialogCloseAutoFocus: (event: Event) => void;
   saveStatus?: "saving" | "saved" | "error";
   hydrated: boolean;
   libraryReady: boolean;
@@ -2625,6 +2658,7 @@ function ProjectControls({
   onUltim8EntryComplete,
   saveOpen,
   setSaveOpen,
+  onSaveDialogCloseAutoFocus,
   hydrated,
   libraryReady,
   libraryError,
@@ -2693,7 +2727,7 @@ function ProjectControls({
   const keepDraftButtonRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const { libraryRequested, setLibraryRequested, sampleLibraryRequested, setSampleLibraryRequested } = usePanelState();
+  const { libraryRequested, setLibraryRequested, sampleLibraryRequested, setSampleLibraryRequested, newProjectRequested, setNewProjectRequested } = usePanelState();
   useEffect(() => {
     if (!libraryRequested || !libraryReady || busy) return;
     setLibraryOpen(true);
@@ -2707,6 +2741,14 @@ function ProjectControls({
     setSamplesOpen(true);
     setSampleLibraryRequested(false);
   }, [sampleLibraryRequested, ready, busy, setSampleLibraryRequested]);
+  useEffect(() => {
+    if (!newProjectRequested || !ready || busy) return;
+    setLibraryOpen(false);
+    setNewProjectName(currentProjectName ?? "");
+    setNewProjectError(false);
+    setNewProjectOpen(true);
+    setNewProjectRequested(false);
+  }, [newProjectRequested, ready, busy, currentProjectName, setNewProjectRequested]);
 
   const completeSampleAction = async (action: NonNullable<typeof sampleAction>) => {
     if (!ready || busy) return;
@@ -2812,7 +2854,10 @@ function ProjectControls({
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
           </Button>
         </DialogTrigger>}
-        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => { if (libraryOpen || returnToLibrary.current) event.preventDefault(); }}>
+        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => {
+          if (libraryOpen || returnToLibrary.current) event.preventDefault();
+          if (!project) onSaveDialogCloseAutoFocus(event);
+        }}>
           <form className="contents" onSubmit={async (event) => {
             event.preventDefault();
             if (busy) return;
@@ -3099,12 +3144,12 @@ function ProjectControls({
               if (!unsavedDraft || newProjectName.trim()) void createNewProject(unsavedDraft ? newProjectName : undefined);
             }}>
             <AlertDialogHeader>
-              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : ultim8Entry ? "Start a Wham Bam Systems ULTIM8-compatible fixture?" : "Start a new project?"}</AlertDialogTitle>
+              <AlertDialogTitle>{unsavedDraft ? "Save this draft before starting over?" : ultim8Entry ? <>Start a Wham Bam Systems <Ultim8Link />-compatible fixture?</> : "Start a new project?"}</AlertDialogTitle>
               <AlertDialogDescription>
                 {unsavedDraft
-                  ? `This draft has work that is not saved in your library. Save it with a name before starting ${ultim8Entry ? "a Wham Bam Systems ULTIM8-compatible fixture" : "an empty project"}, or explicitly discard it.`
+                  ? <>This draft has work that is not saved in your library. Save it with a name before starting {ultim8Entry ? <>a Wham Bam Systems <Ultim8Link />-compatible fixture</> : "an empty project"}, or explicitly discard it.</>
                   : activeProjectId
-                    ? `Saves the latest changes to “${currentProjectName}” in this browser’s library, then starts ${ultim8Entry ? "a Wham Bam Systems ULTIM8-compatible fixture" : "an empty project"}.`
+                    ? <>Saves the latest changes to “{currentProjectName}” in this browser’s library, then starts {ultim8Entry ? <>a Wham Bam Systems <Ultim8Link />-compatible fixture</> : "an empty project"}.</>
                     : ultim8Entry ? "Start a fixture with locating pegs and a flat backing." : "Your current project is empty. Start again with the default bin settings."}
               </AlertDialogDescription>
             </AlertDialogHeader>

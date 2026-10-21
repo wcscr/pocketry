@@ -71,31 +71,34 @@ it("restores linked placements independently without changing their shared depth
   expect(reset.cutouts.every(c => JSON.stringify(c.depth) === JSON.stringify(a.cutout.depth))).toBe(true);
 });
 
-it("rejects contradictory individual Z resets when a linked copy is unselected", () => {
+it("restores selected Z offsets without moving an unselected linked copy", () => {
   const a = { ...original, cutout: { ...original.cutout, designLink: { id: "copies", tilt: false } } };
   const b = { ...a, cutout: { ...a.cutout, id: "copy", position: { x: 20, y: 0 } } };
   const c = { ...a, cutout: { ...a.cutout, id: "unselected", position: { x: 40, y: 0 } } };
   const refs = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec,
     cutouts: [a.cutout, { ...b.cutout, depth: { mode: "mm", value: 20 } }, c.cutout], fingerHoles: [] }]);
-  expect(setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b, c])).toBeNull();
+  const reset = setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b, c])!;
+  expect(reset).not.toBeNull();
+  expect(applyObjectEdits([a, b, c], reset)[2]).toEqual(c);
+  applyObjectEdits([a, b], reset).forEach(o => expect(objectTransformOffsets(o, spec, refs, "translate")[2]).toBeCloseTo(0));
 });
 
-it("freezes the active legacy source and its floor when that copy already has zero Z offset", () => {
+it("resets a legacy source while leaving a linked copy already at zero unchanged", () => {
   const a = { ...original, cutout: { ...original.cutout, rotationDeg: 0, tilt: { xDeg: 25, yDeg: 0 },
     depth: { mode: "remaining" as const, floorThicknessMm: 7 }, designLink: { id: "copies", tilt: false } } };
   const b = { ...a, cutout: { ...a.cutout, id: "copy", position: { x: 20, y: 0 }, tilt: { xDeg: 0, yDeg: 0 } } };
   const refs = recordTransformOrigins({ pockets: [], fingerHoles: [] }, [{ spec,
     cutouts: [{ ...a.cutout, depth: { mode: "remaining", floorThicknessMm: 10 } }, b.cutout], fingerHoles: [] }]);
-  const expectedDepth = rigidPocket(b.cutout, b.shape, spec).depth;
   const reset = setObjectTransformOffsets([a, b], spec, refs, "translate", [undefined, undefined, 0], "individual", [a, b])!;
   expect(reset).not.toBeNull();
-  expect(reset.cutouts.map(c => c.elevationMm)).toEqual([10, 7]);
-  expect(reset.cutouts.map(c => c.depth)).toEqual([expectedDepth, expectedDepth]);
-  expect(expectedDepth).toHaveProperty("sourceDepthMm");
   const current = applyObjectEdits([a, b], reset);
-  const moved = transformObjects(current, { ...spec, heightUnits: 12 }, new Vector3(0, 0, 2))!;
-  expect(moved.cutouts.map(c => c.elevationMm)).toEqual([12, 9]);
-  expect(moved.cutouts.map(c => c.depth)).toEqual([expectedDepth, expectedDepth]);
+  expect(current[1]).toEqual(b);
+  current.forEach(o => expect(objectTransformOffsets(o, spec, refs, "translate")[2]).toBeCloseTo(0));
+  expect(reset.cutouts[0].depth).toEqual(rigidPocket(a.cutout, a.shape, spec).depth);
+  const moved = transformObjects(current.slice(0, 1), { ...spec, heightUnits: 12 }, new Vector3(0, 0, 2))!;
+  expect(moved.cutouts[0].elevationMm).toBeCloseTo(12);
+  expect(moved.cutouts[0].depth).toEqual(reset.cutouts[0].depth);
+  expect(applyObjectEdits(current, moved)[1]).toEqual(b);
 });
 
 it("rejects finite numeric input that overflows the persisted coordinates", () => {

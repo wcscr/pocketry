@@ -7,7 +7,7 @@ import type { ProjectDoc } from "@shared/gridfinity/project";
 export function projectUsesExperimentalFeatures(project: ProjectDoc): boolean {
   return [project, ...(project.history?.stack.map(entry => entry.doc) ?? [])].some(doc =>
     doc.spec.wallSlant !== null ||
-    doc.cutouts.some(cutout => cutout.designLink || (!hasRigidPocket(cutout) && (hasPocketTilt(cutout) || (cutout.zOffsetMm ?? 0) !== 0))) ||
-    doc.fingerHoles.some(hole => hole.designLink),
+    doc.cutouts.some(cutout => cutout.designLink || cutout.placementGroup || (!hasRigidPocket(cutout) && (hasPocketTilt(cutout) || (cutout.zOffsetMm ?? 0) !== 0))) ||
+    doc.fingerHoles.some(hole => hole.designLink || hole.placementGroup),
   );
 }
