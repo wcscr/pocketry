@@ -1,14 +1,14 @@
 # Tilted pockets
 
 Pocket placement, rotation, multi-selection, alignment and distribution are
-available by default. Linked designs still require **App settings → Enable
+available by default. Linking and grouping require **App settings → Enable
 experimental features** (on mobile, **More options → App settings**). This choice
 is saved in the browser independently of project files. Opening a saved project
 never changes it; existing geometry stays visible and exportable.
 
 Turning Experimental off cancels unfinished experimental edits without changing
-saved geometry, links or history. Placement and ordinary independent copies stay
-available. Shared linked-design edits require opting back in.
+saved geometry, links, groups or history. Placement and ordinary independent copies
+stay available. Shared geometry edits and Group/Ungroup require opting back in.
 
 Select a pocket and open **Position & rotation**. X and Y tilt turn its depth
 axis; the existing Z rotation sets its heading in the bin. **Reset tilt** returns
@@ -207,12 +207,13 @@ checks report overlaps and wall conflicts after design changes.
 
 ## Placement groups
 
-Select at least two pockets, retained holes or finger-access objects and choose
+With Experimental enabled, select at least two pockets, retained holes or finger-access objects and choose
 **Group objects** in Properties or the context menu. Clicking any member selects
 the whole group. **Ungroup** removes the relationship without moving anything.
 Grouping never creates geometry links; an object may be grouped, linked, or both.
 The named object's Properties edit its geometry; fields labeled for selected
-objects edit all selected members. Group controls remain available in Properties.
+objects edit all selected members. With Experimental off, Properties shows the
+saved grouping and an opt-in; existing groups still move and rotate together.
 
 The initial pivot is the center of the combined 3D bounds. All members rotate
 around that fixed point, preserving relative spacing and orientation. Moving a
@@ -227,8 +228,9 @@ Dragging a group or finishing a numeric edit adds one history step. Ordinary
 Duplicate creates an independent group with a new identity. Deleting a group
 removes its selected members; removing an individual member through document
 editing dissolves a group if fewer than two members remain. Align, distribute,
-and auto-arrange require ungrouping first. Groups persist in project format 48,
-including undo and redo snapshots. Existing projects retain their saved poses.
+and auto-arrange require ungrouping first. Groups persist in project format 51,
+including undo and redo snapshots. The earlier format-48 grouping preview and
+main's formats 48–50 migrate with their saved poses, wall settings and bottom provenance.
 
 Project format 22 reconciles the two historical version-20 variants (adjustable
 fill height and pocket tilt) and legacy version-21 offsets. Format 23 adds explicit

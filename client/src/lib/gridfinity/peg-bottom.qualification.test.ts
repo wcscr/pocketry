@@ -16,6 +16,7 @@ import { fingerHoleSchema, type CutoutPlacement } from "@shared/gridfinity/cutou
 import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
 import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { createBasicPocket } from "./basic-shape";
+import { generateUltim8JigSVG } from "@/lib/export/layout";
 
 describe("support-free peg bottoms", () => {
   it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("opens a rectangle inside a finger groove through the floor and roots at %j quality", quality => {
@@ -193,7 +194,7 @@ describe("support-free peg bottoms", () => {
     const s = spec({ gridX: 2, gridY: 2, gridPitch: "quarter" });
     const pocket = createBasicPocket("rectangle", { x: -9, y: -9 }, { x: 9, y: 9 }, "all")!;
     pocket.cutout.depth = { mode: "through" };
-    expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY)).toThrow(/overlap every ULTIM8 peg/);
+    expect(() => buildBinWithCutouts(kernel, s, { shapesById: new Map([[pocket.shape.id, pocket.shape]]), cutouts: [pocket.cutout], fingerHoles: [] }, EXPORT_QUALITY)).toThrow(/overlap every Wham Bam Systems ULTIM8-compatible peg/);
   });
 
   it.each(["sloped", "bridged"] as const)("rejects an unsupported corner after omitting a peg in %s mode", underside => {
@@ -240,4 +241,34 @@ it("builds a thin arbitrary flat backing at its requested height", () => {
   const s = spec({ arbitrarySizeMm: { width: 20.2, length: 14.1 }, heightUnits: 2.4 / 7, pegBottom: null, flatBottom: true });
   const result = buildBinWithCutouts(kernel, s, null, EXPORT_QUALITY);
   expect(result.solid.boundingBox().max[2]).toBeCloseTo(2.4, 6);
+});
+
+it.each([PREVIEW_QUALITY, EXPORT_QUALITY])("retains edge pegs at higher densities around a through frame at %j quality", async quality => {
+  const kernel = createKernel(wasm, arena);
+  const pocket = createBasicPocket("rectangle", { x: -40, y: -40 }, { x: 40, y: 40 }, "density-frame")!;
+  const cutout = { ...pocket.cutout, depth: { mode: "through" as const } };
+  const shapesById = new Map([[pocket.shape.id, pocket.shape]]);
+  let previous: { x: number; y: number }[] = [];
+  for (const [density, count] of [["corners", 4], [5, 6], [4, 12], [3, 12], [2, 26], [1, 36]] as const) {
+    const s = spec({ arbitrarySizeMm: { width: 100, length: 100 }, heightUnits: 5 / 7, fill: "solid", fillHeightPercent: 100,
+      pegBottom: { ...DEFAULT_PEG_BOTTOM, density } });
+    const solid = buildBinWithCutouts(kernel, s, { shapesById, cutouts: [cutout], fingerHoles: [] }, quality).solid;
+    expect(solid.status()).toBe("NoError");
+    expect(solid.decompose().map(part => arena.track(part))).toHaveLength(1);
+    const shafts = arena.track(solid.slice(-1));
+    const pegArea = arena.track(kernel.CrossSection.circle(2.4, quality.circularSegments)).area();
+    expect(shafts.area()).toBeCloseTo(count * pegArea, 5);
+    const opening = arena.track(kernel.CrossSection.square([80, 80], true));
+    expect(arena.track(shafts.intersect(opening)).area()).toBe(0);
+    const svg = await generateUltim8JigSVG(s, [cutout], shapesById);
+    const pegs = [...svg.matchAll(/<circle cx="([^"]+)" cy="([^"]+)" r="([^"]+)"/g)]
+      .map(match => ({ x: Number(match[1]) - 50, y: 50 - Number(match[2]) }));
+    expect(pegs).toHaveLength(count);
+    for (const peg of previous) expect(pegs).toContainEqual(peg);
+    for (const peg of pegs) {
+      const disk = arena.track(arena.track(kernel.CrossSection.circle(2.4, quality.circularSegments)).translate([peg.x, peg.y]));
+      expect(arena.track(shafts.intersect(disk)).area()).toBeCloseTo(pegArea, 5);
+    }
+    previous = pegs;
+  }
 });

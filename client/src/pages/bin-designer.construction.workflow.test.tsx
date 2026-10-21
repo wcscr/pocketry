@@ -18,7 +18,8 @@ import { describe, expect, it, vi } from "vitest";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { fingerHoleSchema, resolvePocketDepth, parseCutoutPlacement } from "@shared/gridfinity/cutout";
-import { parseBinSpec } from "@shared/gridfinity/types";
+import { MAX_HEIGHT_UNITS, parseBinSpec } from "@shared/gridfinity/types";
+import { binWallThicknessMm } from "@shared/gridfinity/standard";
 import { generateUltim8JigSVG } from "@/lib/export/layout";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { downloadBlob } from "@/lib/download";
@@ -231,7 +232,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["standard", "workflow"])("gates hollow wall thickness with undo and retained settings in %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits hollow walls directly without experimental tools in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ experimental: false });
@@ -242,9 +243,9 @@ describe("BinDesignerPage", () => {
       const toggle = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Solid fill"]')!;
       expect(field()).toBeNull();
       React.act(() => toggle().click());
-      expect(field()).toBeNull();
-      React.act(() => experimentalSettings.setEnabled(true));
       expect(field()!.value).toBe("0.95");
+      expect(container.querySelector('[aria-label="Override wall thickness"]')).toBeNull();
+      expect(field()!.disabled).toBe(false);
       React.act(() => {
         field()!.focus();
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), "2.4");
@@ -263,20 +264,79 @@ describe("BinDesignerPage", () => {
       expect(field()!.value).toBe("2.4");
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="About wall thickness"]')!.click());
       expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Thicker walls grow inward");
-      React.act(() => experimentalSettings.setEnabled(false));
-      expect(field()).toBeNull();
-      expect(container.querySelector('[aria-label="About wall thickness"]')).toBeNull();
-      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
-      expect(container.querySelector('[data-testid="experimental-design-notice"]')!.textContent).toContain("wall thickness");
       React.act(() => experimentalSettings.setEnabled(true));
+      React.act(() => experimentalSettings.setEnabled(false));
       expect(field()!.value).toBe("2.4");
+      expect(field()!.disabled).toBe(false);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
     } finally {
       unmount();
       window.history.replaceState(null, "", originalUrl);
     }
   });
 
-  it.each([false, true])("preserves opt-out for restored wall thickness, including history-only=%s", async historyOnly => {
+  it.each(["standard", "workflow"])("restores legacy defaults to automatic walls until directly edited in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(parseProjectDoc({
+      ...EMPTY_PROJECT, schemaVersion: 48,
+      spec: { ...EMPTY_PROJECT.spec, fill: "none", wallThicknessMm: 0.95 },
+    }));
+    const { container, unmount } = renderPage({ experimental: false });
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!;
+    const reset = () => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use recommended")!;
+    const enter = (label: string, value: string) => {
+      const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+      React.act(() => input.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => input.blur());
+    };
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      expect(current().wallThicknessMm).toBeNull();
+      for (const [height, thickness] of [["8", 1.2], ["15.5", 1.2], ["16", 1.6], ["7.5", 0.95], ["20", 1.6]] as const) {
+        openSettingsSection(container, "size");
+        enter("Bin height in units", height);
+        expect(current().wallThicknessMm).toBeNull();
+        expect(binWallThicknessMm(current())).toBe(thickness);
+        openSettingsSection(container, "construction");
+        expect(field().value).toBe(String(thickness));
+        expect(field().disabled).toBe(false);
+        expect(reset()).toBeUndefined();
+        expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
+      }
+      expect(container.textContent).toContain("Recommended · follows bin height");
+      expect(field().disabled).toBe(false);
+      enter("Wall thickness in millimetres", "0.95");
+      openSettingsSection(container, "size");
+      enter("Bin height in units", "30");
+      expect(binWallThicknessMm(current())).toBe(0.95);
+      openSettingsSection(container, "construction");
+      React.act(() => reset().click());
+      expect(current().wallThicknessMm).toBeNull();
+      expect(binWallThicknessMm(current())).toBe(1.6);
+      expect(reset()).toBeUndefined();
+      clickBinHistory(container, "undo");
+      expect(current().wallThicknessMm).toBe(0.95);
+      expect(field().disabled).toBe(false);
+      clickBinHistory(container, "redo");
+      expect(current().wallThicknessMm).toBeNull();
+      expect(reset()).toBeUndefined();
+      expect(experimentalSettings.enabled).toBe(false);
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each([false, true])("restores custom walls as standard controls, including history-only=%s", async historyOnly => {
     const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", wallThicknessMm: 2.4 });
     const doc = { spec, cutouts: [], fingerHoles: [] };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
@@ -290,13 +350,78 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       expect(experimentalSettings.enabled).toBe(false);
       expect(projectToast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Experimental features enabled" }));
-      expect(container.querySelector('[data-testid="experimental-design-notice"]') === null).toBe(historyOnly);
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
       if (historyOnly) React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       openSettingsSection(container, "construction");
       expect(experimentalSettings.enabled).toBe(false);
-      expect(container.querySelector('[aria-label="Wall thickness in millimetres"]')).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.value).toBe("2.4");
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!.disabled).toBe(false);
+      expect(container.querySelector('[aria-label="Override wall thickness"]')).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toMatchObject({ fill: "none", wallThicknessMm: 2.4 });
     } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"])("warns after committed thin-wall edits and higher recommendation bands in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec: { ...EMPTY_PROJECT.spec, fill: "none", heightUnits: 16, wallThicknessMm: null },
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const field = () => container.querySelector<HTMLInputElement>('[aria-label="Wall thickness in millimetres"]')!;
+    const warnings = () => projectToast.mock.calls.filter(([message]) => message.title === "Wall thickness below recommendation");
+    const draft = (input: HTMLInputElement, value: string) => {
+      React.act(() => input.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      expect(warnings()).toHaveLength(0);
+      draft(field(), "1.2");
+      expect(warnings()).toHaveLength(0);
+      React.act(() => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      expect(current().wallThicknessMm).toBeNull();
+      expect(warnings()).toHaveLength(0);
+      draft(field(), "1.2");
+      React.act(() => field().blur());
+      expect(current().wallThicknessMm).toBe(1.2);
+      expect(warnings()).toHaveLength(1);
+      expect(warnings()[0][0].description).toContain("recommended 1.6 mm");
+      expect(warnings()[0][0].description).toContain("16U");
+      draft(field(), "0.5");
+      React.act(() => field().blur());
+      expect(current().wallThicknessMm).toBe(1.2);
+      expect(warnings()).toHaveLength(1);
+      for (const [height, warningCount] of [["8", 1], ["16", 2], ["20", 2]] as const) {
+        openSettingsSection(container, "size");
+        const heightInput = container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!;
+        draft(heightInput, height);
+        React.act(() => heightInput.blur());
+        expect(warnings()).toHaveLength(warningCount);
+      }
+      openSettingsSection(container, "construction");
+      for (const thickness of ["2", "1.6"]) {
+        draft(field(), thickness);
+        React.act(() => field().blur());
+        expect(warnings()).toHaveLength(2);
+      }
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Wall thickness"]')!;
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+      expect(current().wallThicknessMm).toBe(1.55);
+      expect(warnings()).toHaveLength(3);
+      React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Use recommended")!.click());
+      expect(current().wallThicknessMm).toBeNull();
+      expect(field().value).toBe("1.6");
+      expect(warnings()).toHaveLength(3);
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
   });
 
   it("toggles flat bottoms without resizing and restores base hole preferences", async () => {
@@ -322,7 +447,7 @@ describe("BinDesignerPage", () => {
     unmount();
   });
 
-  it.each(["standard", "workflow"])("requires Experimental to create ULTIM8 pegs in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("requires Experimental to create Wham Bam Systems ULTIM8-compatible pegs in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage({ experimental: false });
     await flushHydration();
@@ -336,14 +461,14 @@ describe("BinDesignerPage", () => {
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].flatBottom).toBe(true);
       React.act(() => experimentalSettings.setEnabled(true));
       React.act(() => trigger().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-      React.act(() => options().find(o => o.textContent === "ULTIM8 jig pegs")!.click());
+      React.act(() => options().find(o => o.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
       enterJigThickness("8.5");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom).toBeNull();
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].pegBottom?.underside).toBe("flat");
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toBeNull();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits).toBe(6);
-      const group = container.querySelector('[role="group"][aria-label="ULTIM8 peg settings"]')!;
+      const group = container.querySelector('[role="group"][aria-label="Wham Bam Systems ULTIM8 peg settings"]')!;
       expect(group.getAttribute("data-property-tone")).toBe("rose");
       expect(group.hasAttribute("data-property-surface")).toBe(true);
       for (const label of ["Peg underside", "Peg density", "Peg diameter in millimetres", "Peg length in millimetres"]) {
@@ -372,7 +497,7 @@ describe("BinDesignerPage", () => {
     const choosePegs = () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!
         .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "ULTIM8 jig pegs")!.click());
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
     };
     const respond = (label: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === label)!.click());
     try {
@@ -398,11 +523,11 @@ describe("BinDesignerPage", () => {
       expect(current().heightUnits).toBe(original.heightUnits);
       expect(current().footprint).toEqual(original.footprint);
       openSettingsSection(container, "size");
-      expect(container.querySelector('[aria-label="Grid pitch"]')!.textContent).toBe(footprint === "rectangle" ? "Arbitrary · no Gridfinity" : "Full · 42 mm");
+      expect(container.querySelector('[aria-label="Grid pitch"]')).toBeNull();
       if (footprint === "rectangle") {
-        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin width in millimetres"]')!.value).toBe("83.5");
-        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin length in millimetres"]')!.value).toBe("83.5");
-        expect(container.querySelector<HTMLInputElement>('[aria-label="Bin height in millimetres"]')!.value).toBe("42");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture width in millimetres"]')!.value).toBe("83.5");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture length in millimetres"]')!.value).toBe("83.5");
+        expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture body thickness in millimetres"]')!.value).toBe("42");
       }
       for (const region of ["bin", "floor", "rim", "text"]) expect(viewport().getAttribute(`data-${region}-color`)).toBe(materials.binColor);
       expect(viewport().getAttribute("data-pocket-floor-color")).toBe("off");
@@ -436,7 +561,7 @@ describe("BinDesignerPage", () => {
     try {
       openUltim8Setup(container);
       expect(document.querySelector<HTMLInputElement>('[aria-label="Jig body thickness in millimetres"]')!.value).toBe("21");
-      for (const value of ["", "1.9", "295"]) {
+      for (const value of ["", "1.9", "421"]) {
         enterJigThickness(value);
         expect(jigDialogButton("Use jig settings").disabled).toBe(true);
         expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain("body thickness");
@@ -506,7 +631,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("keeps restored ULTIM8 pegs visible without opting into editing in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits restored Wham Bam Systems ULTIM8-compatible pegs without enabling other experimental tools in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", heightUnits: 8.5 / 7,
       arbitrarySizeMm: { width: 159.4, length: 75 }, pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
@@ -518,29 +643,25 @@ describe("BinDesignerPage", () => {
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
       expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
       expect(document.querySelector('[role="alertdialog"]')).toBeNull();
-      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).toBeNull();
-      expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("ULTIM8 jig pegs");
-      expect(container.querySelector('[aria-label="Peg underside"]')).toBeNull();
-      expect(container.querySelector('[aria-label="Peg density"]')).toBeNull();
-      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).toBeNull();
-      const notice = container.querySelector('[data-testid="experimental-design-notice"]')!;
-      expect(notice.textContent).toContain("ULTIM8 jig pegs");
-      React.act(() => notice.querySelector<HTMLButtonElement>('button')!.click());
-      expect(experimentalSettings.enabled).toBe(true);
-      expect(container.querySelector('[aria-label="Peg density"]')).not.toBeNull();
+      expect(container.querySelector('[aria-label="Wham Bam Systems ULTIM8 peg settings"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="select-bin-bottom"]')!.textContent).toBe("Wham Bam Systems ULTIM8-compatible pegs");
+      for (const label of ["Peg underside", "Peg density", "Peg diameter in millimetres"]) expect(container.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+      expect(container.querySelector('[data-testid="experimental-design-notice"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Slanted walls (prototype)"]')).toBeNull();
+      expect(experimentalSettings.enabled).toBe(false);
       const diameter = container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
       React.act(() => { diameter.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(diameter,"4.6");diameter.dispatchEvent(new Event("input", { bubbles: true })); });
       React.act(() => diameter.blur());
       React.act(() => experimentalSettings.setEnabled(false));
       expect(current().pegBottom).toEqual({ ...spec.pegBottom!, diameterMm: 4.6 });
       expect(current().arbitrarySizeMm).toEqual(spec.arbitrarySizeMm);expect(current().heightUnits).toBe(spec.heightUnits);
-      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Peg diameter in millimetres"]')).not.toBeNull();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
       expect(experimentalSettings.enabled).toBe(false);expect(current().pegBottom).toEqual(spec.pegBottom);
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("edits ULTIM8 peg bottoms, restores base holes, and undoes fit edits in the %s layout", async layout => {
+  it.each(["standard", "workflow"])("edits Wham Bam Systems ULTIM8-compatible peg bottoms, restores base holes, and undoes fit edits in the %s layout", async layout => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     const { container, unmount } = renderPage();
     await flushHydration();
@@ -553,15 +674,15 @@ describe("BinDesignerPage", () => {
       };
       const magnet = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Magnet holes"]');
       React.act(() => magnet()!.click());
-      choose("ULTIM8 jig pegs");
+      choose("Wham Bam Systems ULTIM8-compatible pegs");
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current settings")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].lip).toBe("standard");
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-stacking-rim-color")).toBe("on");
       expect(magnet()).toBeNull();
       expect(container.textContent).not.toContain("For Wham Bam ULTIM8 mats");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About bottom"]')!.click());
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("For Wham Bam ULTIM8 mats on eufyMake E1");
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the bin");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("Wham Bam Systems ULTIM8-compatible pegs for the eufyMake E1 mat");
+      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("4.0 mm below the fixture");
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toEqual({ diameterMm: 4.8, lengthMm: 4, underside: "flat", density: "corners" });
       const input = () => container.querySelector<HTMLInputElement>('[aria-label="Peg diameter in millimetres"]')!;
@@ -586,12 +707,118 @@ describe("BinDesignerPage", () => {
       React.act(() => undo.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom?.underside).toBe("flat");
       choose("Gridfinity feet");
-      expect(container.querySelector('[aria-label="ULTIM8 peg settings"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Wham Bam Systems ULTIM8 peg settings"]')).toBeNull();
       expect(magnet()!.getAttribute("aria-checked")).toBe("true");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].pegBottom).toBeNull();
       choose("Flat bottom");
       expect(vi.mocked(useBinGeometry).mock.lastCall?.[0].flatBottom).toBe(true);
     } finally { unmount(); }
+  });
+
+  it.each(["standard", "workflow"] as const)("restores Gridfinity feet after arbitrary sizes with undo and redo in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage({ experimental: false });
+    await flushHydration();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const choosePitch = (label: string) => {
+      openSettingsSection(container, "size");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Grid pitch"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+    };
+    const expectBottom = (label: string) => {
+      openSettingsSection(container, "construction");
+      expect(container.querySelector('[aria-label="Bottom"]')!.textContent).toBe(label);
+    };
+    try {
+      const original = current();
+      expect(original.flatBottom).toBe(false);
+      for (const label of ["Full · 42 mm", "Half · 21 mm", "Quarter · 10.5 mm"]) {
+        choosePitch("Arbitrary · no Gridfinity");
+        const arbitrary = current();
+        expect(arbitrary.arbitrarySizeMm).not.toBeNull();
+        expect(arbitrary.flatBottom).toBe(true);
+        expectBottom("Flat bottom (automatic)");
+        choosePitch(label);
+        const restored = current();
+        expect(restored).toMatchObject({ arbitrarySizeMm: null, flatBottom: false, pegBottom: null });
+        expect(footprintOuterRingMm(restored)).toEqual(footprintOuterRingMm(original));
+        expect(restored.heightUnits).toBe(original.heightUnits);
+        expectBottom("Gridfinity feet");
+        clickBinHistory(container, "undo");
+        expect(current()).toEqual(arbitrary);
+        expectBottom("Flat bottom (automatic)");
+        clickBinHistory(container, "redo");
+        expect(current()).toEqual(restored);
+        expectBottom("Gridfinity feet");
+      }
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
+  it.each(["standard", "workflow"] as const)("preserves explicit bottoms selected before or during arbitrary sizing in the %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const { container, unmount } = renderPage();
+    await flushHydration();
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+    const choose = (section: "size" | "construction", field: string, label: string) => {
+      openSettingsSection(container, section);
+      React.act(() => container.querySelector<HTMLButtonElement>(`[aria-label="${field}"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === label)!.click());
+      if (label === "Wham Bam Systems ULTIM8-compatible pegs") React.act(() => jigDialogButton("Keep current settings").click());
+    };
+    try {
+      for (const bottom of ["Flat bottom", "Wham Bam Systems ULTIM8-compatible pegs"]) {
+        for (const when of ["before", "during"]) {
+          choose("construction", "Bottom", "Gridfinity feet");
+          if (when === "before") choose("construction", "Bottom", bottom);
+          if (current().pegBottom) {
+            openSettingsSection(container, "size");
+            expect(container.querySelector('[aria-label="Grid pitch"]')).toBeNull();
+            const width = container.querySelector<HTMLInputElement>('[aria-label="Fixture width in millimetres"]')!;
+            React.act(() => { width.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(width, "125.5"); width.dispatchEvent(new Event("input", { bubbles: true })); });
+            React.act(() => width.blur());
+          } else choose("size", "Grid pitch", "Arbitrary · no Gridfinity");
+          if (when === "during") {
+            expect(current().autoFlatBottom).toBe(true);
+            choose("construction", "Bottom", bottom);
+            expect(current().autoFlatBottom).toBe(false);
+            clickBinHistory(container, "undo");
+            expect(current().autoFlatBottom).toBe(true);
+            clickBinHistory(container, "redo");
+          }
+          const chosen = current();
+          expect(chosen.autoFlatBottom).toBe(false);
+          if (chosen.pegBottom) {
+            expect(chosen.flatBottom).toBe(false);
+            openSettingsSection(container, "size");
+            expect(container.querySelector('[aria-label="Grid pitch"]')).toBeNull();
+            // Fixture dimensions use mm; returning to a regular flat bottom exposes grid choices again.
+            choose("construction", "Bottom", "Flat bottom");
+            choose("size", "Grid pitch", "Full · 42 mm");
+            expect(current()).toMatchObject({ arbitrarySizeMm: null, flatBottom: true, autoFlatBottom: false, pegBottom: null });
+            continue;
+          }
+          for (const pitch of ["Full · 42 mm", "Half · 21 mm", "Quarter · 10.5 mm"]) {
+            choose("size", "Grid pitch", pitch);
+            expect(current().arbitrarySizeMm).toBeNull();
+            expect(current().flatBottom).toBe(chosen.flatBottom);
+            expect(current().pegBottom).toEqual(chosen.pegBottom);
+            openSettingsSection(container, "construction");
+            expect(container.querySelector('[aria-label="Bottom"]')!.textContent).toBe(bottom);
+            clickBinHistory(container, "undo");
+            expect(current()).toEqual(chosen);
+          }
+          choose("size", "Grid pitch", "Full · 42 mm");
+        }
+      }
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
+    }
   });
 
   it.each(["standard", "workflow"] as const)("shows Arbitrary sizes as fixed and explains arrange overflow in the %s layout", async layout => {
@@ -680,16 +907,18 @@ describe("BinDesignerPage", () => {
     };
     try {
       openSettingsSection(container, "size");
-      choose('[data-testid="select-grid-pitch"]', "Arbitrary · no Gridfinity");
-      expect(container.querySelector('[data-testid="select-grid-pitch"]')!.textContent).toBe("Arbitrary · no Gridfinity");
+      expect(container.querySelector('[data-testid="select-grid-pitch"]')).toBeNull();
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
-      expect(current().arbitrarySizeMm).toEqual({ width: 167.5, length: 31 });
-      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About grid pitch"]')!.click());
-      expect(document.querySelector('[role="tooltip"]')!.textContent).toContain("do not support Gridfinity feet");
-      React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-      enter("Bin width in millimetres", "171.2"); enter("Bin length in millimetres", "29.7"); enter("Bin height in millimetres", "7.3");
+      expect(current().arbitrarySizeMm).toBeNull();
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture width in millimetres"]')!.value).toBe("167.5");
+      enter("Fixture width in millimetres", "171.2"); enter("Fixture length in millimetres", "29.7"); enter("Fixture body thickness in millimetres", "7.3");
       expect(current().arbitrarySizeMm).toEqual({ width: 171.2, length: 29.7 }); expect(current().heightUnits * 7).toBeCloseTo(7.3);
-      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-edit-footprint"]')!.disabled).toBe(true);
+      expect(container.querySelector<HTMLInputElement>('[aria-label="Fixture body thickness in millimetres"]')!.max).toBe("420");
+      enter("Fixture body thickness in millimetres", "420");
+      expect(current().heightUnits).toBe(MAX_HEIGHT_UNITS);
+      clickBinHistory(container, "undo");
+      expect(current().heightUnits * 7).toBeCloseTo(7.3);
+      expect(container.querySelector('[data-testid="button-edit-footprint"]')).toBeNull();
       openSettingsSection(container, "construction");
       expect(container.textContent).not.toContain("exports pocket-side down");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="About underside"]')!.click());
@@ -783,6 +1012,45 @@ describe("BinDesignerPage", () => {
       expect(size.textContent).toContain("Outer size 125.5 × 220.0 × 42.1 mm");
     } finally {
       unmount();
+    }
+  });
+
+  it.each(["standard", "workflow"])("edits restored tall bins up to the shared height limit in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({
+      ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 50.5 }),
+    });
+    const { container, unmount } = renderPage({ experimental: false });
+    try {
+      await flushHydration();
+      openSettingsSection(container, "size");
+      const input = container.querySelector<HTMLInputElement>('[aria-label="Bin height in units"]')!;
+      const slider = container.querySelector<HTMLElement>('[role="slider"][aria-label="Height in 0.5u increments"]')!;
+      const height = () => vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits;
+      expect(input.value).toBe("50.5");
+      expect(input.max).toBe(String(MAX_HEIGHT_UNITS));
+      expect(slider.getAttribute("aria-valuenow")).toBe("50.5");
+      expect(slider.getAttribute("aria-valuemax")).toBe(String(MAX_HEIGHT_UNITS));
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+      expect(height()).toBe(51);
+      clickBinHistory(container, "undo");
+      expect(height()).toBe(50.5);
+      clickBinHistory(container, "redo");
+      expect(height()).toBe(51);
+      React.act(() => input.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, String(MAX_HEIGHT_UNITS));
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(height()).toBe(MAX_HEIGHT_UNITS);
+      expect(container.querySelector("#bin-settings-size")!.textContent).toContain("423.6 mm");
+      React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+      expect(height()).toBe(MAX_HEIGHT_UNITS);
+    } finally {
+      unmount();
+      window.history.replaceState(null, "", originalUrl);
     }
   });
 
@@ -880,16 +1148,16 @@ it.each(["controls", "workflow"] as const)("exports a jig SVG and matching optio
   try {
     await flushHydration();
     openSettingsSection(container, "export");
-    expect(container.textContent).toContain("ULTIM8 jig layout");
+    expect(container.textContent).toContain("1:1 alignment SVG with peg locations");
     expect(container.textContent).not.toContain("Export shadow-board layout (top view)");
     const button = container.querySelector<HTMLButtonElement>('[data-testid="button-layout-svg"]')!;
-    expect(button.textContent).toBe("Save jig SVG");
+    expect(button.textContent).toBe("Save alignment SVG");
     expect(button.disabled).toBe(false);
     expect(container.querySelector('[data-testid="button-layout-dxf"]')).not.toBeNull();
     for (const includeProject of [false, true]) {
       vi.mocked(downloadBlob).mockClear();
       React.act(() => button.click());
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save ULTIM8 jig layout SVG?");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save Wham Bam Systems ULTIM8-compatible alignment SVG?");
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("does not set a bed position");
       expect(downloadBlob).not.toHaveBeenCalled();
       if (includeProject) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
@@ -917,7 +1185,7 @@ it("offers the jig reference for a peg-only bin and preserves ordinary empty-bin
       await flushHydration();
       openSettingsSection(container, "export");
       expect(container.querySelector('[data-testid="button-layout-svg"]') !== null).toBe(jig);
-      expect(container.textContent?.includes("ULTIM8 jig layout")).toBe(jig);
+      expect(container.textContent?.includes("1:1 alignment SVG with peg locations")).toBe(jig);
     } finally { unmount(); }
   }
 });

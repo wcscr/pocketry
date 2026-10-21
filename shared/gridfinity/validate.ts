@@ -148,7 +148,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
   }
   if (spec.pegBottom && ultim8PegCenters(spec).length === 0) {
     issues.push({ code: "no-ultim8-pegs", severity: "error",
-      message: "This footprint has no room for ULTIM8 pegs. Enlarge it or choose another bottom." });
+      message: "This footprint has no room for Wham Bam Systems ULTIM8-compatible pegs. Enlarge it or choose another bottom." });
   }
 
   if (spec.wallSlant) {

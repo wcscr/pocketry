@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
+import { MAX_HEIGHT_UNITS, parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
 import { labelTabStripMm, validateBinSpec } from "./validate";
 import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
 import { labelTabProfileMm } from "./label-tab";
@@ -26,7 +26,7 @@ describe("binSpecSchema", () => {
     // Solid by default: this tool's bins exist to have pockets cut into them.
     expect(parsed.fill).toBe("solid");
     expect(parsed.fillHeightPercent).toBe(100);
-    expect(parsed.wallThicknessMm).toBe(0.95);
+    expect(parsed.wallThicknessMm).toBeNull();
     expect(parsed.gridPitch).toBe("full");
   });
 
@@ -40,7 +40,8 @@ describe("binSpecSchema", () => {
     for (const wallThicknessMm of [0.95, 1.2, 2, 3]) {
       expect(spec({ fill: "none", wallThicknessMm }).wallThicknessMm).toBe(wallThicknessMm);
     }
-    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2", null]) {
+    expect(spec({ wallThicknessMm: null }).wallThicknessMm).toBeNull();
+    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2"]) {
       expect(() => spec({ wallThicknessMm: wallThicknessMm as number })).toThrow();
     }
   });
@@ -72,12 +73,14 @@ describe("binSpecSchema", () => {
 
   it("accepts half-unit heights and rejects unsupported or out-of-range sizes", () => {
     expect(spec({ heightUnits: 6.5 }).heightUnits).toBe(6.5);
+    expect(spec({ heightUnits: 50.5 }).heightUnits).toBe(50.5);
+    expect(spec({ heightUnits: MAX_HEIGHT_UNITS }).heightUnits).toBe(MAX_HEIGHT_UNITS);
     expect(() => spec({ gridX: 0 })).toThrow();
     expect(() => spec({ gridX: 2.5 })).toThrow();
     expect(() => spec({ gridY: 17 })).toThrow();
     expect(() => spec({ heightUnits: 6.25 })).toThrow();
     expect(() => spec({ heightUnits: 0 })).toThrow();
-    expect(() => spec({ heightUnits: 43 })).toThrow();
+    expect(() => spec({ heightUnits: MAX_HEIGHT_UNITS + 0.5 })).toThrow();
   });
 
   it("rejects unknown keys so typos cannot pass silently", () => {

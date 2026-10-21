@@ -18,6 +18,14 @@ it("does not enable experimental tools for ordinary positions, heading or zero t
   ] })).toBe(false);
 });
 
+it.each([7.5, 8, 15.5, 16, 60])("keeps automatic %sU wall thickness available without experimental tools", heightUnits => {
+  const spec = parseBinSpec({ ...ordinary.spec, fill: "none", heightUnits, wallThicknessMm: null });
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(false);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 0, stack: [
+    { label: "Tall bin", doc: { spec, cutouts: [], fingerHoles: [] } },
+  ] } })).toBe(false);
+});
+
 it("treats surface text as standard in the current design and in saved undo/redo history", () => {
   const label = surfaceTextSchema.parse({ id: "label", text: "METRIC", position: { x: 0, y: 0 } });
   const spec = { ...ordinary.spec, surfaceTexts: [label] };
@@ -29,13 +37,13 @@ it("treats surface text as standard in the current design and in saved undo/redo
   expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, textColor: "#ff8800" } })).toBe(false);
 });
 
-it.each(["none", "solid"] as const)("detects retained custom wall thickness with %s fill, including history", fill => {
+it.each(["none", "solid"] as const)("treats custom wall thickness as standard with %s fill, including history", fill => {
   const spec = { ...ordinary.spec, fill, wallThicknessMm: 2.4 };
-  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, spec })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
     { label: "Thicker walls", doc: { spec, cutouts: [], fingerHoles: [] } },
     { label: "Default walls", doc: { spec: ordinary.spec, cutouts: [], fingerHoles: [] } },
-  ] } })).toBe(true);
+  ] } })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, spec: { ...ordinary.spec, fill } })).toBe(false);
 });
 
@@ -71,11 +79,23 @@ it.each([0, 2])("detects linked thumb access only in undo/redo history at index 
   } })).toBe(true);
 });
 
-it.each([0, 1, 2])("detects ULTIM8 pegs in saved undo/redo history at index %s", index => {
+it.each([0, 1, 2])("does not require Experimental for ULTIM8 pegs in current or historical snapshots at index %s", index => {
   const plain = { spec: ordinary.spec, cutouts: ordinary.cutouts, fingerHoles: [] };
   const pegged = { ...plain, spec: parseBinSpec({ ...ordinary.spec, pegBottom: { underside: "flat", density: "corners" } }) };
-  expect(projectUsesExperimentalFeatures({ ...ordinary, ...pegged })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, ...pegged })).toBe(false);
   expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index, stack: [
     { label: "Before", doc: plain }, { label: "Add pegs", doc: pegged }, { label: "Remove pegs", doc: plain },
+  ] } })).toBe(false);
+});
+
+it.each(["pocket", "finger"] as const)("detects grouped %s objects in the design and saved history", kind => {
+  const placementGroup = { id: "group", pivot: { x: 0, y: 0, z: 10 }, origin: { x: 0, y: 0, z: 10 }, rotation: [0, 0, 0, 1] as [number, number, number, number] };
+  const grouped = { spec: ordinary.spec,
+    cutouts: kind === "pocket" ? [0, 1].map(i => ({ ...ordinary.cutouts[0], id: `p${i}`, placementGroup })) : [],
+    fingerHoles: kind === "finger" ? [0, 1].map(i => fingerHoleSchema.parse({ id: `f${i}`, center: { x: i * 20, y: 0 }, placementGroup })) : [],
+  };
+  expect(projectUsesExperimentalFeatures({ ...ordinary, ...grouped })).toBe(true);
+  expect(projectUsesExperimentalFeatures({ ...ordinary, history: { index: 1, stack: [
+    { label: "Grouped", doc: grouped }, { label: "Removed", doc: ordinary },
   ] } })).toBe(true);
 });

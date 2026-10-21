@@ -1,6 +1,8 @@
 import { Fragment, useEffect } from "react";
+import { arbitrarySizePatch } from "@shared/gridfinity/bin-size";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { surfaceTextName } from "@shared/gridfinity/surface-text";
+import { MAX_HEIGHT_UNITS } from "@shared/gridfinity/types";
 import { SurfaceTextProperties, SurfaceTextTransformControls } from "./surface-text-controls";
 import { useMobileObjectTools } from "./mobile-object-tools-context";
 import { SlidersHorizontal } from "lucide-react";
@@ -22,6 +24,7 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
   onWorkflow?: () => void;
 }) {
   const bin = useBin();
+  const isJig = !!bin.spec.pegBottom;
   const workspace = useMobileWorkspaceActions();
   const inspector = useSelectionInspector();
   const mobileTools = useMobileObjectTools();
@@ -30,7 +33,7 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
   const cutout = bin.cutouts.find(item => item.id === bin.selectedCutoutId);
   const finger = bin.fingerHoles.find(item => item.id === bin.selectedFingerHoleId);
   const shape = shapes.find(item => item.id === cutout?.shapeId);
-  const selectionTitle = bin.selection.length > 1 ? `${bin.selection.length} objects selected` : text ? surfaceTextName(text) : cutout ? pocketName(cutout, shape) : finger ? finger.name ?? "Finger access" : "Bin";
+  const selectionTitle = bin.selection.length > 1 ? `${bin.selection.length} objects selected` : text ? surfaceTextName(text) : cutout ? pocketName(cutout, shape) : finger ? finger.name ?? "Finger access" : isJig ? "Fixture" : "Bin";
   const activeTool = mobileTools && mobileTools.tool !== "properties" && bin.editorMode === "placement" && (bin.selection.length > 0 || text) ? mobileTools.tool : null;
   const canvasTool = activeTool === "translate" || activeTool === "rotate";
   const toolTitle = `${activeTool === "translate" ? "Move" : activeTool === "rotate" ? "Rotate" : activeTool === "arrange" ? "Arrange" : "Link"} · ${selectionTitle}`;
@@ -83,9 +86,11 @@ export function MobileBinActions({ open, onOpenChange, onMore, onExport, onWorkf
         </div>
         {cutout.role === "hole" && <p className="mt-2 text-xs text-muted-foreground">Positive offset keeps more material and reduces the surrounding pocket opening.</p>}
       </Fragment> : <>
-        <LabelledSlider id="quick-bin-height" label="Bin height" value={bin.spec.heightUnits} min={1} max={12} step={0.5} format={value => `${value} units`} touchTarget
+        {isJig ? <LabelledSlider id="quick-bin-height" label="Body thickness" value={bin.spec.heightUnits * 7} min={bin.spec.footprint.kind === "rectangle" ? 2 : 7} max={MAX_HEIGHT_UNITS * 7} step={bin.spec.footprint.kind === "rectangle" ? 0.5 : 3.5} format={mm} touchTarget
+          onChange={value => bin.dispatch({ type: "PATCH_SPEC", patch: { ...arbitrarySizePatch(bin.spec), heightUnits: value / 7, ...(value < 7 ? { lip: "none" } : {}) }, transient: true })}
+          onCommit={value => bin.dispatch({ type: "PATCH_SPEC", patch: { ...arbitrarySizePatch(bin.spec), heightUnits: value / 7, ...(value < 7 ? { lip: "none" } : {}) } })} /> : <LabelledSlider id="quick-bin-height" label="Bin height" value={bin.spec.heightUnits} min={1} max={MAX_HEIGHT_UNITS} step={0.5} format={value => `${value} units`} touchTarget
           onChange={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits }, transient: true })}
-          onCommit={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits } })} />
+          onCommit={heightUnits => bin.dispatch({ type: "PATCH_SPEC", patch: { heightUnits } })} />}
       </>}
     </MobileAdjustmentTray>}
     <div className="flex gap-2">

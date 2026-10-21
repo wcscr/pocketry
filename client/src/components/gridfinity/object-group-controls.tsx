@@ -2,6 +2,7 @@ import { Group, Ungroup } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useBin } from "@/state/bin-store";
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useShapeLibrary } from "@/state/shape-library";
 import { useMobileObjectTools } from "./mobile-object-tools-context";
 import { createPlacementGroup, objectGroup, selectedPlacementGroup, type EditableObject } from "@/lib/gridfinity/object-arrangement";
@@ -9,6 +10,7 @@ import { createPlacementGroup, objectGroup, selectedPlacementGroup, type Editabl
 /** Grouping describes placement separately from shared geometry. */
 export function ObjectGroupControls(): JSX.Element | null {
   const bin = useBin();
+  const { enabled, setEnabled } = useExperimentalFeatures();
   const compact = !!useMobileObjectTools();
   const { shapes } = useShapeLibrary();
   const selected: EditableObject[] = bin.selection.flatMap<EditableObject>(ref => {
@@ -21,6 +23,11 @@ export function ObjectGroupControls(): JSX.Element | null {
   });
   const group = selectedPlacementGroup(selected);
   if (selected.length < 2 && !group) return null;
+  if (!enabled) return selected.some(objectGroup) ? <section aria-label="Object grouping" className="space-y-1 border-b px-3 py-2 text-xs">
+    <p className="font-medium">Grouped objects</p>
+    <p className="text-muted-foreground">Move and rotate together. Enable experimental tools to change grouping.</p>
+    <Button variant="link" className="h-auto whitespace-normal px-0 text-xs" onClick={() => setEnabled(true)}>Enable experimental tools</Button>
+  </section> : null;
   const ungroup = <Button size="sm" variant="outline" onClick={() => bin.dispatch({ type: "UNGROUP_SELECTION" })}><Ungroup className="mr-1 h-3.5 w-3.5" />Ungroup</Button>;
   return <section aria-label="Object grouping" className="space-y-2 border-b px-3 py-2 text-xs">
     <div className="flex items-center gap-2"><Group className="h-4 w-4" />

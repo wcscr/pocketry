@@ -122,7 +122,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
       <DropdownMenuItem className={itemClass} onSelect={properties}><Settings2 className="h-4 w-4" />{target?.kind === "hole" ? "Pocket properties" : "Properties"}</DropdownMenuItem>
       {target?.kind !== "hole" && <DropdownMenuItem className={itemClass} disabled={target?.kind === "text" && bin.spec.surfaceTexts.length >= 32} onSelect={duplicate}><Copy className="h-4 w-4" />Duplicate{refs.length > 1 ? ` ${refs.length} objects` : ""}</DropdownMenuItem>}
       {target?.kind !== "hole" && refs.length <= 1 && <DropdownMenuItem className={itemClass} onSelect={() => { setName(target ? labels.get(target.id) ?? "" : ""); setRenaming(true); }}><Pencil className="h-4 w-4" />Rename…</DropdownMenuItem>}
-      {refs.length > 1 && <>
+      {enabled && refs.length > 1 && <>
         <DropdownMenuSeparator />
         {canGroup && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "GROUP_SELECTION", group: createPlacementGroup(groupObjects, bin.spec, crypto.randomUUID()) })}><Group className="h-4 w-4" />Group objects</DropdownMenuItem>}
         {selected.some(item => item.placementGroup) && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "UNGROUP_SELECTION" })}><Ungroup className="h-4 w-4" />Ungroup</DropdownMenuItem>}

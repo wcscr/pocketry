@@ -49,13 +49,13 @@ export function buildPegBottom(
   const coneHeight = underside === "bridged" ? ULTIM8_COLLAR_HEIGHT_MM : rootHeight;
   const radius = diameterMm / 2;
   const latticeCenters = ultim8PegCenters(spec);
-  if (!latticeCenters.length) throw new Error("This footprint has no room for ULTIM8 pegs. Enlarge the footprint or choose another bottom.");
+  if (!latticeCenters.length) throw new Error("This footprint has no room for Wham Bam Systems ULTIM8-compatible pegs. Enlarge the footprint or choose another bottom.");
   const outer = footprintOuterSection(kernel, spec, segments);
   const bottomZ = -pegBottomExtensionMm(spec);
   const through = throughCutters.length ? arena.track(Manifold.union(throughCutters)) : null;
   const centers = retainedUltim8PegCenters(kernel, spec, segments, through, latticeCenters);
   if (!centers.length) {
-    throw new Error("Through pockets overlap every ULTIM8 peg. Move or resize the pockets, enlarge the footprint, or choose a flat bottom.");
+    throw new Error("Through pockets overlap every Wham Bam Systems ULTIM8-compatible peg. Move or resize the pockets, enlarge the footprint, or choose a flat bottom.");
   }
   const slabOpening = through ? arena.track(through.slice(0)) : null;
   const requiredTop = slabOpening ? arena.track(outer.subtract(slabOpening)) : outer;

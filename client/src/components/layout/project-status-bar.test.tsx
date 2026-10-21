@@ -35,7 +35,7 @@ const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement
 
 it("shows the saved project on Trace, updates the tab title and opens its library", async () => {
   await render();
-  expect(host.textContent).toContain("Bin project: Socket tray");
+  expect(host.textContent).toContain("Project: Socket tray");
   expect(host.textContent).toContain("Saved in this browser");
   expect(button("Backups")).toBeUndefined();
   expect(button("Download unsaved work")).toBeUndefined();
@@ -93,7 +93,7 @@ it("retains an old visit's late failure without changing the new project's statu
   React.act(() => actions.publish({ name: "Old tray", activeProjectId: "old", status: "saving", error: null, hasDocument: true }, { ...DOC, name: "Old tray", spec: { ...DOC.spec, gridX: 5 } }, oldVisit));
   React.act(() => actions.publish({ name: "New tray", activeProjectId: "new", status: "saved", error: null, hasDocument: true }, { ...DOC, name: "New tray" }, newVisit));
   React.act(() => actions.saved(false, new Error("Storage is full"), oldVisit));
-  expect(host.textContent).toContain("Bin project: New tray");
+  expect(host.textContent).toContain("Project: New tray");
   expect(host.textContent).toContain("Saved in this browser");
   expect(host.textContent).toContain("Unsaved work: Old tray");
   React.act(() => actions.saved(true, undefined, newVisit));

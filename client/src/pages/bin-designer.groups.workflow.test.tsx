@@ -1,5 +1,5 @@
 import { EMPTY_PROJECT, rectangularShape, flushHydration, renderPage, toolButton, clickBinHistory, selectPocket,
-  openObjectContext, contextCommand } from "./bin-designer.test-support";
+  openObjectContext, contextCommand, experimentalSettings } from "./bin-designer.test-support";
 import * as React from "react";
 import { expect, it, vi } from "vitest";
 import { fingerHoleSchema, parseCutoutPlacement } from "@shared/gridfinity/cutout";
@@ -13,6 +13,39 @@ const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 8 });
 const cutouts = [-20, 20].map((x, i) => parseCutoutPlacement({ id: `group-${i}`, name: `Tool ${i + 1}`, shapeId: shape.id,
   position: { x, y: 0 }, rotationDeg: i * 20, depth: { mode: "mm", value: 12 } }));
 const current = () => vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+
+it.each([
+  { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+  { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+])("keeps grouping behind Experimental in $layout (mobile: $mobile)", async ({ layout, mobile }) => {
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [shape], cutouts });
+  const { container, unmount } = renderPage({ mobile, experimental: false });
+  try {
+    await flushHydration();
+    selectPocket(container, cutouts[0].id);
+    React.act(() => container.querySelector<HTMLInputElement>('[aria-label="Include Tool 2 in selection"]')!.click());
+    expect(container.querySelector('[aria-label="Object grouping"]')).toBeNull();
+    const row = () => container.querySelector(`[data-testid="button-select-${cutouts[0].id}"]`)!;
+    expect(openObjectContext(row()).textContent).not.toMatch(/Group objects|Ungroup|Link geometry/);
+    contextCommand("Properties");
+    React.act(() => experimentalSettings.setEnabled(true));
+    openObjectContext(row()); contextCommand("Group objects");
+    const grouped = current();
+    expect(grouped[0].placementGroup).toBeTruthy();
+    React.act(() => experimentalSettings.setEnabled(false));
+    expect(current()).toEqual(grouped);
+    const status = container.querySelector('[aria-label="Object grouping"]')!;
+    expect(status.textContent).toContain("Grouped objects");
+    expect(status.textContent).toContain("Enable experimental tools");
+    expect(openObjectContext(row()).textContent).not.toMatch(/Group objects|Ungroup/);
+    contextCommand("Properties");
+    React.act(() => status.querySelector<HTMLButtonElement>('button')!.click());
+    openObjectContext(row()); contextCommand("Ungroup");
+    expect(current()).toEqual(grouped.map(c => ({ ...c, placementGroup: undefined })));
+    expect(container.textContent).not.toContain("Ungroup to edit one member independently");
+  } finally { unmount(); }
+});
 
 it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: true }])(
   "keeps named-member depth editing and grouping available in $layout properties (mobile: $mobile)", async ({ layout, mobile }) => {
@@ -44,13 +77,15 @@ it.each([{ layout: "standard", mobile: false }, { layout: "standard", mobile: tr
   },
 );
 
-it("hides inoperative single-slot pose controls while grouped and retains geometry controls", async () => {
+it("preserves saved groups with Experimental off, hides single-slot pose controls and retains geometry controls", async () => {
   const holes = [-20, 20].map((x, i) => fingerHoleSchema.parse({ id: `finger-${i}`, name: `Slot ${i + 1}`, kind: "oblong-straight", center: { x, y: 0 }, lengthMm: 25 }));
   const frame = createPlacementGroup(holes.map(hole => ({ kind: "finger", hole })), spec, "finger-group");
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, fingerHoles: holes.map(h => ({ ...h, placementGroup: frame })) });
-  const { container, unmount } = renderPage({ mobile: true });
+  const { container, unmount } = renderPage({ mobile: true, experimental: false });
   try {
     await flushHydration();
+    expect(experimentalSettings.enabled).toBe(false);
+    expect(container.querySelector('[data-testid="experimental-design-notice"]')?.textContent).toContain("grouped objects");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-finger-hole-finger-0"]')!.click());
     const properties = container.querySelector('#finger-access-properties')!;
     expect(properties.querySelector('[aria-label="Elongated finger access rotation"]')).toBeNull();

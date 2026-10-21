@@ -6,14 +6,20 @@ work. Pocketry's original work is distributed under the GNU Affero General
 Public License, version 3 only (AGPL-3.0-only; see LICENSE). Third-party
 portions remain under the licences identified below.
 
-ULTIM8 jig compatibility dimensions come from Wham Bam Systems’ public product
-page and calibration guide. The peg builder is original Pocketry code; no Wham
+Wham Bam Systems ULTIM8 jig compatibility dimensions come from the creator’s
+public product page and calibration guide. The peg builder is original Pocketry code; no Wham
 Bam CAD files, meshes, or implementation are distributed. ULTIM8 and eufyMake
 are the respective owners’ trademarks.
 
 This notice inventories projects Pocketry directly depends on, bundles, or
 adapts. Transitive dependencies are not enumerated here; their notices remain
 with their packages. Exact npm versions are recorded in package-lock.json.
+
+Automatic hollow-wall thickness uses the numerical height bands documented by
+Gridfinity Extended: 0.95 mm below 8U, 1.2 mm below 16U, and 1.6 mm thereafter.
+Source: https://gridfinity-extended.ostat.com/gridfinity_basic_cup
+This is an independent Pocketry implementation of those dimensional defaults;
+no Gridfinity Extended source code or model assets are incorporated.
 
 ================================================================================
 Droid Sans and Droid Sans Mono — Apache License 2.0

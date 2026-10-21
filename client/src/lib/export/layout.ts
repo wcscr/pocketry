@@ -179,7 +179,7 @@ export async function generateUltim8JigSVG(
   spec: BinSpec, cutouts: readonly CutoutPlacement[],
   shapesById: ReadonlyMap<string, TracedShape>, fingerHoles: readonly FingerHole[] = [],
 ): Promise<string> {
-  if (!spec.pegBottom) throw new Error("ULTIM8 jig pegs are required for a jig layout SVG.");
+  if (!spec.pegBottom) throw new Error("Wham Bam Systems ULTIM8-compatible pegs are required for a jig layout SVG.");
   const error = validateLayout(spec, cutouts, shapesById, fingerHoles).find(issue => issue.severity === "error");
   if (error) throw new Error(error.message);
   const radius = spec.pegBottom.diameterMm / 2;
@@ -193,7 +193,7 @@ export async function generateUltim8JigSVG(
     const throughCutters = built.throughCutters ?? [];
     const through = throughCutters.length ? arena.track(Manifold.union(throughCutters)) : null;
     const pegs = retainedUltim8PegCenters(kernel, spec, EXPORT_QUALITY.circularSegments, through);
-    if (!pegs.length) throw new Error("This layout has no fitting ULTIM8 pegs. Move or resize the pockets, or enlarge the footprint.");
+    if (!pegs.length) throw new Error("This layout has no fitting Wham Bam Systems ULTIM8-compatible pegs. Move or resize the pockets, or enlarge the footprint.");
     const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
     const openingRings = (cutters: readonly Manifold[]): Ring[] => {
       if (!cutters.length) return [];
@@ -211,7 +211,7 @@ export async function generateUltim8JigSVG(
     return [
       `<?xml version="1.0" encoding="UTF-8"?>`,
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${length}mm" viewBox="0 0 ${width} ${length}">`,
-      `  <title>ULTIM8 jig layout</title>`,
+      `  <title>Wham Bam Systems ULTIM8-compatible fixture layout</title>`,
       `  <desc>1:1 millimetres. Installed top view, not the pegs-up print orientation. Origin: top-left of the bin bounds. Align peg circles to matching holes in your zero-point-calibrated mat template; this SVG does not assign a bed position. Gray: bin outline. Black: pocket openings. Orange: finger access. Blue: retained peg shafts.</desc>`,
       ...group("bin-outline", "#64748b", [footprintOuterRingMm(spec, EXPORT_QUALITY.circularSegments)]),
       ...group("pocket-openings", "#000000", (built.cutterGroups ?? []).flatMap(group => openingRings(group.cutters))),

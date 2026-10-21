@@ -5,7 +5,7 @@ import { fingerHoleSchema, resolvePocketDepth } from "@shared/gridfinity/cutout"
 import { applyLinkedEdits, designLinkErrors } from "@shared/gridfinity/design-links";
 import { expandGroupSelection, objectGroupErrors } from "@shared/gridfinity/object-groups";
 import { rigidPocket, rigidPocketVertices } from "@shared/gridfinity/rigid-pocket";
-import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc } from "@shared/gridfinity/project";
 import { createBasicPocket } from "./basic-shape";
 import { applyObjectEdits, createPlacementGroup, objectRef, transformObjects, type EditableObject } from "./object-arrangement";
 import { pocketQuaternion } from "./pocket-transform";
@@ -120,6 +120,35 @@ describe("persistent placement groups", () => {
     expect(transformObjects(mixed, spec, new Vector3(0, 0, 1))).toBeNull();
     expect(transformObjects(mixed, spec, new Vector3(), new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 0.1))).toBeNull();
     expect(transformObjects(mixed, spec, new Vector3(1, 2, 0), new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), 0.1))).not.toBeNull();
+  });
+
+  it.each([48, 49, 50])("integrates v%s groups, links, walls and bottom provenance without changing poses", schemaVersion => {
+    const pair = grouped();
+    pair[1].shape = pair[0].shape;
+    pair[1].cutout.shapeId = pair[0].shape.id;
+    pair.forEach(o => { o.cutout.designLink = { id: "linked", tilt: true }; });
+    const material = { ...doc(pair), spec: { ...spec, wallThicknessMm: 0.95, flatBottom: true, autoFlatBottom: true,
+      arbitrarySizeMm: { width: 250, length: 250 } } };
+    const project = { schemaVersion, ...material, shapes: [pair[0].shape],
+      history: { stack: [{ doc: material, label: "Group objects" }], index: 0 },
+      transformOrigins: { pockets: pair.map(o => ({ cutout: o.cutout, spec: material.spec })), fingerHoles: [] } };
+    const original = JSON.stringify(project);
+    const migrated = parseProjectDoc(project)!;
+    expect(migrated).not.toBeNull();
+    expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(migrated.cutouts).toEqual(material.cutouts);
+    expect(migrated.history!.stack[0].doc.cutouts).toEqual(material.cutouts);
+    expect(migrated.transformOrigins!.pockets.map(o => o.cutout)).toEqual(material.cutouts);
+    for (const savedSpec of [migrated.spec, migrated.history!.stack[0].doc.spec, migrated.transformOrigins!.pockets[0].spec]) {
+      expect(savedSpec.wallThicknessMm).toBe(schemaVersion < 49 ? null : 0.95);
+      expect(savedSpec.autoFlatBottom).toBe(true);
+    }
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(migrated))))).toEqual(migrated);
+    expect(JSON.stringify(project)).toBe(original);
+    const corrupt = { ...project, history: { index: 0, stack: [project.history.stack[0], {
+      label: "Invalid group", doc: { ...material, cutouts: [material.cutouts[0]] },
+    }] } };
+    expect(parseProjectDoc(corrupt)).toBeNull();
   });
 
   it("round-trips groups and history, migrates old poses, and rejects inconsistent frames", () => {

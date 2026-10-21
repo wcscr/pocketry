@@ -4,16 +4,18 @@ import { ChevronRight } from "lucide-react";
 import { PanelBody, type PanelSectionProps } from "@/components/layout/panel-section";
 import { PropertySurface } from "@/components/layout/property-surface";
 import { useSelectionInspector } from "./selection-inspector-context";
-import { BIN_OBJECT_SECTIONS as objectSections, BIN_WORKFLOW_SECTIONS } from "./bin-workflow";
+import { BIN_OBJECT_SECTIONS as objectSections, binWorkflowSections } from "./bin-workflow";
+import { useBin } from "@/state/bin-store";
 
 const binSections = new Set(["bin-settings-size", "bin-settings-construction", "bin-settings-materials"]);
 
 /** Keep every editor mounted once; workflow navigation chooses its right-hand home. */
 export function InspectorPanelSections({ children }: { children: ReactNode }): JSX.Element {
   const inspector = useSelectionInspector();
+  const { spec } = useBin();
   if (!inspector) return <PanelBody>{children}</PanelBody>;
   const sections = Children.toArray(children).filter(child => isValidElement<PanelSectionProps>(child));
-  const active = BIN_WORKFLOW_SECTIONS.find(section => section.id === inspector.activeSection);
+  const active = binWorkflowSections(!!spec.pegBottom).find(section => section.id === inspector.activeSection);
   return <>
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="object-list-scroll">
       {sections.map(child => {

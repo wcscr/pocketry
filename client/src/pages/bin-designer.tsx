@@ -1,4 +1,8 @@
 import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_ULTIM8_FOOTPRINT_MM, ultim8Defaults } from "@shared/gridfinity/ultim8-defaults";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { useLocation } from "wouter";
 import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import type { BinMaterials } from "@shared/gridfinity/materials";
@@ -12,6 +16,7 @@ import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
+import { binWallThicknessMm, defaultBinWallThicknessMm } from "@shared/gridfinity/standard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
@@ -113,6 +118,8 @@ export default function BinDesignerPage(): JSX.Element {
 }
 
 function BinDesignerWorkspace(): JSX.Element {
+  const [location, navigate] = useLocation();
+  const ultim8Entry = location.replace(/\/$/, "") === "/ultim8";
   const projectActivity = useProjectActivityActions();
   const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
   const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
@@ -144,8 +151,9 @@ function BinDesignerWorkspace(): JSX.Element {
       action: <ToastAction altText="Enable experimental tools" onClick={() => setExperimentalEnabled(true)}>Enable tools</ToastAction> });
   }, [bin.editError, setExperimentalEnabled, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  const isJig = !!spec.pegBottom;
   const editBinHeight = () => {
-    setSettingsSectionRequest({ id: "bin-settings-size", focusId: spec.arbitrarySizeMm ? "arbitrary-height" : "bin-height-units" });
+    setSettingsSectionRequest({ id: "bin-settings-size", focusId: isJig || spec.arbitrarySizeMm ? "arbitrary-height" : "bin-height-units" });
     setPanelOpen(true);
   };
   const isMobile = useIsMobile();
@@ -198,6 +206,26 @@ function BinDesignerWorkspace(): JSX.Element {
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
+  const previousWallSpec = useRef<typeof committedSpec | null>(null);
+  useEffect(() => {
+    if (!bin.hydrated || projectBusy) { previousWallSpec.current = null; return; }
+    const previous = previousWallSpec.current;
+    previousWallSpec.current = committedSpec;
+    const recommended = defaultBinWallThicknessMm(committedSpec.heightUnits);
+    const thickness = binWallThicknessMm(committedSpec);
+    // Warn once per committed wall edit or newly entered height band, never
+    // during a numeric draft/slider drag or when initially restoring a project.
+    if (previous && committedSpec.fill === "none" && thickness < recommended
+        && (previous.wallThicknessMm !== committedSpec.wallThicknessMm
+          || previous.fill !== committedSpec.fill
+          || defaultBinWallThicknessMm(previous.heightUnits) !== recommended)) {
+      toast({
+        title: "Wall thickness below recommendation",
+        description: `${thickness} mm is below the recommended ${recommended} mm for this ${committedSpec.heightUnits}U bin. Thin walls may flex or warp. Your chosen thickness has been kept.`,
+        duration: 8000,
+      });
+    }
+  }, [committedSpec, bin.hydrated, projectBusy, toast]);
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);
@@ -716,11 +744,13 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
-  const handleNewProject = useCallback(async (saveDraftName?: string): Promise<boolean> => {
+  const handleNewProject = useCallback(async (saveDraftName?: string, fixture = false): Promise<boolean> => {
+    const defaults = ultim8Defaults(INITIAL_BIN_SPEC, DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_BIN_MATERIALS.binColor, DEFAULT_ULTIM8_FOOTPRINT_MM);
     const doc: ProjectDoc = {
       schemaVersion: PROJECT_SCHEMA_VERSION,
       shapes: [],
-      spec: INITIAL_BIN_SPEC,
+      spec: fixture ? parseBinSpec({ ...INITIAL_BIN_SPEC, ...defaults.patch }) : INITIAL_BIN_SPEC,
+      ...(fixture ? { materials: { ...DEFAULT_BIN_MATERIALS, ...defaults.materialPatch } } : {}),
       cutouts: [],
       fingerHoles: [],
     };
@@ -764,6 +794,19 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectBusy(false);
     }
   }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast]);
+
+  /** Persist the exact fixture destination before Trace unmounts the designer. */
+  const traceFixture = async (): Promise<void> => {
+    if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
+    setProjectBusy(true);
+    saveProject.cancel();
+    try {
+      if (!await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId)) throw new Error("Could not save this fixture. Keep it open and try again.");
+      navigate("/");
+    } catch (cause) {
+      toast({ title: "Could not open Trace", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+    } finally { setProjectBusy(false); }
+  };
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -1068,7 +1111,7 @@ function BinDesignerWorkspace(): JSX.Element {
         }
         toast({
           title: "Saved",
-          description: `Exported bin ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -1207,7 +1250,7 @@ function BinDesignerWorkspace(): JSX.Element {
       autoSaveId="tooltrace:bin"
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
-      panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
+      panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? isJig ? "Export fixture" : "Export bin" : isJig ? "Wham Bam Systems ULTIM8-compatible fixture · Beta" : "Bin designer"}
       mobileActionsLayout="landscape-side"
       mobileActions={<PendingPocketDepthPrompt request={depthRequest} onEditBinHeight={editBinHeight} fallback={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
         onWorkflow={() => { setSettingsSectionRequest(undefined); setPanelOpen(!panelOpen); }}
@@ -1215,6 +1258,8 @@ function BinDesignerWorkspace(): JSX.Element {
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />} />}
       panel={
         <BinControlsPanel
+          ultim8Entry={ultim8Entry}
+          onUltim8EntryComplete={() => navigate("/bin", { replace: true })}
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
@@ -1278,6 +1323,14 @@ function BinDesignerWorkspace(): JSX.Element {
       }
       canvas={
         <div className="absolute inset-0 flex flex-col" data-testid="bin-canvas">
+          {bin.hydrated && isJig && cutouts.length === 0 && <section className="z-30 shrink-0 space-y-2 border-b bg-background px-3 py-3 sm:px-4" aria-label="Start your fixture" data-testid="jig-empty-state">
+            <p className="text-sm font-medium">Wham Bam Systems ULTIM8-compatible fixture <span className="ml-1 rounded border px-1.5 py-0.5 text-[10px] font-normal">Beta</span></p>
+            <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <li>1. Add an object</li><li>2. Set body thickness</li><li>3. Export fixture + alignment SVG</li>
+            </ol>
+            <Button size="sm" className="h-auto min-h-11 whitespace-normal" disabled={projectBusy || projectRestoreFailed} onClick={() => void traceFixture()}>Trace an object from a photo</Button>
+            <p className="text-xs text-muted-foreground">Or use Add pocket for a basic shape. Locating pegs fit Wham Bam Systems ULTIM8 mat spacing.</p>
+          </section>}
           {bin.hydrated && pendingDestinationChanged && <div role="alert" className="z-40 flex shrink-0 flex-col items-stretch gap-2 border-b bg-background px-3 py-2 text-sm sm:flex-row sm:items-center" data-testid="queued-destination-changed">
             <p className="min-w-0 flex-1">Tools are waiting for {Array.from(new Set(library.pendingIds.map(id => library.pendingDestinations[id]?.name ?? "the previous project"))).join(", ")}. The destination has changed. Open that project, or choose to add them here.</p>
             <Button variant="outline" size="sm" className="h-auto min-h-11 whitespace-normal" disabled={projectBusy || projectRestoreFailed} onClick={() => {

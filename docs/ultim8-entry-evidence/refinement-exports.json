@@ -1,0 +1,40 @@
+{
+  "profile": "390x844 mobile export; 1440x1000 desktop preview",
+  "body_dimensions_mm": [
+    100,
+    60,
+    5
+  ],
+  "triangles": 2044,
+  "bounds_mm": [
+    [
+      -50.0,
+      50.0
+    ],
+    [
+      -30.0,
+      30.0
+    ],
+    [
+      0.0,
+      9.0
+    ]
+  ],
+  "volume_mm3": 27387.817,
+  "non_two_manifold_edges": 0,
+  "svg_dimensions": {
+    "width": "100mm",
+    "height": "60mm",
+    "viewBox": "0 0 100 60"
+  },
+  "svg_title": "Wham Bam Systems ULTIM8-compatible fixture layout",
+  "svg_circle_count": 4,
+  "svg_groups": [
+    "bin-outline",
+    "pocket-openings",
+    "finger-access",
+    "peg-locations"
+  ],
+  "stl_sha256": "b3a4f6cbf5e3e2efa46a7b9a862acce20fe0340d08ba41ec766374715331851c",
+  "svg_sha256": "c219cdb29239c0056c4c34d4fa2f64b3c84841ad83ff6fb250ea0b691c458abf"
+}

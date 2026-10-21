@@ -25,9 +25,8 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
         </div>
         <ul id="experimental-features-description" className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           <li>Slanted bin walls</li>
-          <li>Wham Bam Ultim8 Jig fixtures for UV / laser jigs</li>
-          <li>Adjustable walls for empty bins</li>
           <li>Linked pockets and finger access with shared size, shape, and depth</li>
+          <li>Grouped objects that move and rotate together</li>
         </ul>
         <p className="mt-3 text-xs text-muted-foreground">Off by default. Saved designs remain visible and exportable.</p>
       </div>

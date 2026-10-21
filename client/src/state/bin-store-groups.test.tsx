@@ -12,7 +12,7 @@ import { createPlacementGroup, transformObjects } from "@/lib/gridfinity/object-
 
 const cleanup: (() => void)[] = [];
 afterEach(() => { cleanup.splice(0).forEach(fn => fn()); vi.unstubAllGlobals(); });
-function mount() {
+function mount(experimental = true) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const root = createRoot(document.createElement("div"));
   let state!: BinStore;
@@ -20,6 +20,7 @@ function mount() {
   React.act(() => root.render(<BinProvider><Probe /></BinProvider>));
   cleanup.push(() => React.act(() => root.unmount()));
   const send = (action: BinAction) => React.act(() => state.dispatch(action));
+  send({ type: "SET_EDITING_CAPABILITY", enabled: experimental });
   const basic = createBasicPocket("rectangle", { x: -4, y: -7 }, { x: 4, y: 7 }, "tool")!;
   const cutouts = [-15, 15].map((x, i) => ({ ...basic.cutout, id: `p${i}`, position: { x, y: i * 6 },
     depth: { mode: "mm" as const, value: 10 }, rotationDeg: i * 25 }));
@@ -31,6 +32,28 @@ function mount() {
   };
   return { state: () => state, send, group, objects, shape: basic.shape };
 }
+
+it("requires Experimental to group or ungroup but preserves saved groups and history when disabled", () => {
+  const ui = mount(false), before = getCommittedBinDoc(ui.state()), history = ui.state().history;
+  ui.group();
+  expect(ui.state().editError).toContain("Enable experimental");
+  expect(getCommittedBinDoc(ui.state())).toBe(before);
+  expect(ui.state().history).toBe(history);
+  ui.send({ type: "SET_EDITING_CAPABILITY", enabled: true });
+  ui.group();
+  const grouped = getCommittedBinDoc(ui.state());
+  ui.send({ type: "SET_EDITING_CAPABILITY", enabled: false });
+  ui.send({ type: "UNGROUP_SELECTION" });
+  expect(ui.state().editError).toContain("Enable experimental");
+  expect(getCommittedBinDoc(ui.state())).toBe(grouped);
+  ui.send({ type: "UPDATE_OBJECTS", edits: transformObjects(ui.objects(), ui.state().spec, new Vector3(2, 0, 0))!, historyLabel: "Move group" });
+  expect(ui.state().editError).toBeNull();
+  expect(ui.state().cutouts.map(c => c.position.x)).toEqual(grouped.cutouts.map(c => c.position.x + 2));
+  ui.send({ type: "UNDO" }); expect(getCommittedBinDoc(ui.state())).toEqual(grouped);
+  ui.send({ type: "UNDO" }); expect(getCommittedBinDoc(ui.state())).toEqual(before);
+  ui.send({ type: "REDO" }); expect(getCommittedBinDoc(ui.state())).toEqual(grouped);
+  expect(ui.state().experimentalEditing).toBe(false);
+});
 
 it("groups without moving or linking geometry and selects/deselects complete groups", () => {
   const ui = mount(), before = getCommittedBinDoc(ui.state()); ui.group();
