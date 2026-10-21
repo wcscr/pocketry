@@ -96,10 +96,19 @@ describe("pocket measurements", () => {
     const before = store.cutouts[0];
     expect(before.insertionMode).toBe("axis");
     expect(host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.checked).toBe(true);
-    expect(host.querySelector('[data-testid="pocket-insertion-controls"]')!.closest('details')).toBeNull();
+    const insertionSection = host.querySelector<HTMLDetailsElement>('[data-testid="pocket-insertion-controls"]')!;
+    expect(insertionSection.open).toBe(false);
+    expect(insertionSection.querySelector("summary")!.textContent).toBe("Insertion path");
+    React.act(() => insertionSection.querySelector("summary")!.click());
+    expect(insertionSection.open).toBe(true);
     const select = host.querySelector<HTMLSelectElement>('[aria-label="Pocket insertion direction"]')!;
     React.act(() => { select.value = "vertical"; select.dispatchEvent(new Event("change", {bubbles:true})); });
     expect(store.cutouts[0]).toEqual({ ...before, insertionMode: "vertical" });
+    const updated = store.cutouts[0];
+    React.act(() => insertionSection.querySelector("summary")!.click());
+    expect(insertionSection.open).toBe(false);
+    expect(store.cutouts[0]).toBe(updated);
+    React.act(() => insertionSection.querySelector("summary")!.click());
     React.act(() => store.dispatch({ type: "UNDO" }));
     expect(store.cutouts[0]).toEqual(before);
     React.act(() => host.querySelector<HTMLInputElement>('[aria-label="Clear pocket insertion path"]')!.click());
@@ -185,6 +194,7 @@ describe("pocket measurements", () => {
 
   it("recovers a horizontal insertion path through vertical drop-in with undo", () => {
     enter("Pocket X rotation in degrees", "90");
+    React.act(() => host.querySelector<HTMLElement>('[data-testid="pocket-insertion-controls"] summary')!.click());
     const before = store.cutouts[0];
     expect(host.querySelector('[role="alert"]')!.textContent).toContain("horizontal");
     React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Use vertical drop-in")!.click());
