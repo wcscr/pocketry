@@ -19,6 +19,118 @@ import * as ProjectPersistence from "@/lib/project/persist";
 
 describe("BinDesignerPage", () => {
 
+  it.each([
+    { layout: "standard", mobile: false, named: false }, { layout: "workflow", mobile: false, named: true },
+    { layout: "standard", mobile: true, named: true }, { layout: "workflow", mobile: true, named: true },
+  ])("downloads editable backups directly from Export ($layout, mobile=$mobile, named=$named)", async ({ layout, mobile, named }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const shape = rectangularShape("tool", "Wrench");
+    const project = { ...EMPTY_PROJECT, ...(named ? { name: "My tools" } : {}), shapes: [shape],
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }),
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 } })],
+    };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
+    const projects = named ? [{ id: "tools", name: "My tools", updatedAt: "2026-10-21T12:00:00Z", doc: project }] : [];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: named ? "tools" : null, projects });
+    const library = { format: "pocketry-library" as const, schemaVersion: 1 as const, projects };
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue(library);
+    const { container, unmount } = renderPage({ mobile, experimental: false });
+    try {
+      await flushHydration();
+      if (mobile) React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Export")!.click());
+      else openSettingsSection(container, "export");
+      const fitExport = container.querySelector<HTMLButtonElement>('#bin-settings-export [data-testid="button-export-open-fit-check"]')!;
+      expect(fitExport.closest('[hidden], [inert], .hidden')).toBeNull();
+      const modelExport = container.querySelector('[data-testid="export-final-model"]')!;
+      expect(fitExport.compareDocumentPosition(modelExport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(container.querySelector('#bin-settings-export [data-testid="select-surface-fit-test-style"]')).toBeNull();
+      const backups = container.querySelector('[aria-label="Editable backups"]')!;
+      expect(backups.closest('[hidden], [inert], .hidden')).toBeNull();
+      expect(backups.textContent).not.toContain("Unnamed drafts are not included");
+      expect(container.querySelector('#bin-settings-export')!.textContent).not.toContain("Download a model");
+      for (const [label, guidance] of [
+        ["current project export", ".pocketry.json"],
+        ["library export", "Unnamed drafts are not included"],
+      ]) {
+        const hint = backups.querySelector<HTMLButtonElement>(`[aria-label="About ${label}"]`)!;
+        await React.act(async () => hint.click());
+        expect(document.querySelector('[role="tooltip"]')!.textContent).toContain(guidance);
+        React.act(() => hint.click());
+        expect(document.querySelector('[role="tooltip"]')).toBeNull();
+      }
+      const projectButton = backups.querySelector<HTMLButtonElement>('[data-testid="button-export-current-project-backup"]')!;
+      const libraryButton = backups.querySelector<HTMLButtonElement>('[data-testid="button-export-library-backup"]')!;
+      expect(projectButton.disabled).toBe(false);
+      React.act(() => projectButton.click());
+      expect(downloadBlob).toHaveBeenCalledTimes(1);
+      const [blob, filename] = vi.mocked(downloadBlob).mock.calls[0];
+      expect(filename).toMatch(/\.pocketry\.json$/);
+      const json = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      expect(parseProjectDoc(JSON.parse(json))).toMatchObject({ spec: project.spec, shapes: [shape] });
+      expect(binGeometryMock.buildOnce).not.toHaveBeenCalled();
+      expect(libraryButton.disabled).toBe(false);
+      await React.act(async () => libraryButton.click());
+      expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ spec: project.spec, shapes: [shape] }));
+      expect(downloadBlob).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(downloadBlob).mock.calls[1][1]).toMatch(/^pocketry-library-.*\.json$/);
+      expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+      await React.act(async () => fitExport.click());
+      const thickness = container.querySelector<HTMLInputElement>('#bin-settings-fit [data-testid="input-surface-fit-test-thickness"]')!;
+      expect(thickness.closest('[hidden], [inert], .hidden')).toBeNull();
+      expect(thickness.value).toBe("0.6");
+      expect(container.querySelector<HTMLButtonElement>('#bin-settings-fit [data-testid="button-export-surface-fit-test"]')!.disabled).toBe(false);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("keeps backup exports available when model validation blocks printing, and recovers after library export fails", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 1000, y: 0 } })],
+      keepBinSize: true,
+    });
+    let rejectExport!: (error: Error) => void;
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockReturnValue(new Promise((_, reject) => { rejectExport = reject; }));
+    const { container } = renderPage();
+    await flushHydration();
+    openSettingsSection(container, "export");
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-stl"]')!.disabled).toBe(true);
+    const projectButton = container.querySelector<HTMLButtonElement>('[data-testid="button-export-current-project-backup"]')!;
+    const libraryButton = container.querySelector<HTMLButtonElement>('[data-testid="button-export-library-backup"]')!;
+    expect(projectButton.disabled).toBe(false);
+    expect(libraryButton.disabled).toBe(false);
+    React.act(() => projectButton.click());
+    expect(downloadBlob).toHaveBeenCalledOnce();
+    React.act(() => libraryButton.click());
+    expect(projectButton.disabled).toBe(true);
+    expect(libraryButton.disabled).toBe(true);
+    await React.act(async () => rejectExport(new Error("Library unavailable")));
+    expect(projectButton.disabled).toBe(false);
+    expect(libraryButton.disabled).toBe(false);
+    expect(downloadBlob).toHaveBeenCalledOnce();
+  });
+
+  it("waits for the current project and library to load before exporting", async () => {
+    let resolveProject!: (doc: ProjectDoc) => void;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockReturnValue(new Promise(resolve => { resolveProject = resolve; }));
+    const { container } = renderPage();
+    openSettingsSection(container, "export");
+    const projectButton = container.querySelector<HTMLButtonElement>('[data-testid="button-export-current-project-backup"]')!;
+    const libraryButton = container.querySelector<HTMLButtonElement>('[data-testid="button-export-library-backup"]')!;
+    expect(projectButton.disabled).toBe(true);
+    expect(libraryButton.disabled).toBe(true);
+    await flushHydration();
+    expect(projectButton.disabled).toBe(true);
+    expect(libraryButton.disabled).toBe(true);
+    React.act(() => projectButton.click());
+    expect(downloadBlob).not.toHaveBeenCalled();
+    await React.act(async () => resolveProject(EMPTY_PROJECT));
+    expect(projectButton.disabled).toBe(false);
+    expect(libraryButton.disabled).toBe(false);
+  });
+
   it.each(["stl", "3mf"])("cancels %s without downloads and resets the JSON checkbox for the next request", async (format) => {
     const { container, unmount } = renderPage();
     await flushHydration();
@@ -129,9 +241,9 @@ describe("BinDesignerPage", () => {
     ["stl", "", "stl"],
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
-    ["surface-fit-test", "-surface-fit-test-0.8mm", "stl"],
-    ["surface-outline", "-tool-outlines-5mm-wide-0.8mm-thick", "stl"],
-    ["fit-check", "-Left-wrench-fit-template-2mm", "stl"],
+    ["surface-fit-test", "-surface-fit-test-0.6mm", "stl"],
+    ["surface-outline", "-tool-outlines-5mm-wide-0.6mm-thick", "stl"],
+    ["fit-check", "-Left-wrench-fit-template-0.6mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
   ].flatMap(([kind, suffix, extension]) => [false, true].map((includeProject) => ({ kind, suffix, extension, includeProject }))))(
@@ -168,7 +280,10 @@ describe("BinDesignerPage", () => {
           selectPocket(container, "pocket");
         });
       }
-      openSettingsSection(container, kind.startsWith("surface-") || kind === "fit-check" ? "check-fit" : "export");
+      openSettingsSection(container, "export");
+      if (kind.startsWith("surface-") || kind === "fit-check") {
+        await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-export-open-fit-check"]')!.click());
+      }
       if (kind === "surface-fit-test") {
         React.act(() => container.querySelector('[data-testid="select-surface-fit-test-style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
         React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Full surface")!.click());
@@ -188,7 +303,7 @@ describe("BinDesignerPage", () => {
       });
       expect(downloadBlob).toHaveBeenCalledTimes(includeProject ? 2 : 1);
       if (kind.startsWith("surface-")) {
-        expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(0.8, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
+        expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(0.6, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
       }
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));

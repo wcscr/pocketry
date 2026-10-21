@@ -201,6 +201,8 @@ export interface BinControlsPanelProps {
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string; focusId?: string };
   exportOnly?: boolean;
+  /** Opens Check fit and leaves the compact mobile Export view. */
+  onShowFitCheck: () => void;
   /** Changes when the canvas explicitly requests the selected pocket editor. */
   pocketEditorRequest?: number;
   keepBinSize?: boolean;
@@ -270,6 +272,7 @@ export function BinControlsPanel({
   onRevealIssue,
   settingsSectionRequest,
   exportOnly = false,
+  onShowFitCheck,
   stats,
   statsAreStale = false,
   geometryError,
@@ -439,7 +442,7 @@ export function BinControlsPanel({
     spec.fill === "none" && internalCompartmentsOn,
     spec.fill === "none" && spec.compartments.scoop,
   ].filter(Boolean).length;
-  const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
+  const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
@@ -643,7 +646,7 @@ export function BinControlsPanel({
             data-testid="export-preview-layout"
           >
             <div>
-              <SettingLabel label="Prepare fit test templates" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
+              <SettingLabel label="Export fit check" hint="Print a thin template and try the actual tools before printing the full bin. Choose the full pocket-layout surface or 5 mm wide bands around tool openings. Tool outlines omit the bin perimeter and separate finger access features; widely spaced tools print as separate pieces. Thickness sets the printed height. Surface templates omit the base, walls, label tab, and stacking lip, so they do not test pocket depth or baseplate fit." />
             </div>
 
             {(cutouts.length > 0 || fingerHoles.length > 0) && (
@@ -721,7 +724,7 @@ export function BinControlsPanel({
                     value={fitCheckDepthMm}
                     min={0.5}
                     max={30}
-                    step={0.5}
+                    step={0.1}
                     normalize={(value) => Math.min(30, Math.max(0.5, value))}
                     onValueChange={setFitCheckDepthMm}
                     aria-label="Fit template thickness in millimetres"
@@ -2371,6 +2374,15 @@ export function BinControlsPanel({
             </ul>
           </div>}
 
+          <Button
+            variant="outline"
+            className="min-h-11 h-auto w-full whitespace-normal"
+            onClick={onShowFitCheck}
+            data-testid="button-export-open-fit-check"
+          >
+            <ClipboardCheck className="h-4 w-4 shrink-0" />Export fit check
+          </Button>
+
           <div
             className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5"
             data-testid="export-final-model"
@@ -2410,11 +2422,9 @@ export function BinControlsPanel({
             </div>
           </div>
 
-          {exportOnly && !isJig && fitTestControls}
-
           {(cutouts.length > 0 || spec.pegBottom) && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">
-              <SettingLabel label={spec.pegBottom ? "1:1 alignment SVG with peg locations" : "Export shadow-board layout (top view)"}
+              <SettingLabel label={spec.pegBottom ? "Alignment layout" : "Export layout"}
                 hint={spec.pegBottom
                   ? "The alignment SVG includes the fixture outline, pocket openings, finger access, and actual peg locations at 1:1 scale. Align its peg circles with a zero-point-calibrated mat template. The origin is the fixture’s top-left, not a bed position. DXF saves the ordinary pocket layout without pegs."
                   : "Bin footprint and pocket silhouettes in millimetres, for CNC or laser shadow boards."} />
@@ -2454,7 +2464,39 @@ export function BinControlsPanel({
               </div>
             </div>
           )}
-          {exportOnly && isJig && fitTestControls}
+          <div className="space-y-2 rounded-md border bg-background/60 p-2.5" role="group" aria-label="Editable backups">
+            <p className="text-xs font-medium">Editable backups</p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-11 h-auto min-w-0 flex-1 whitespace-normal"
+                disabled={!hydrated || !projectLibraryReady || projectBusy}
+                onClick={onExportProject}
+                data-testid="button-export-current-project-backup"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />Export current project
+              </Button>
+              <HelpHint label="current project export">
+                Download this design, tools, and settings as an editable .pocketry.json file.
+              </HelpHint>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-11 h-auto min-w-0 flex-1 whitespace-normal"
+                disabled={!projectLibraryReady || projectBusy}
+                onClick={onExportLibrary}
+                data-testid="button-export-library-backup"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />Export library
+              </Button>
+              <HelpHint label="library export">
+                Download all named projects saved in this browser as JSON. Unnamed drafts are not included.
+              </HelpHint>
+            </div>
+          </div>
         </PanelSection>
       </InspectorPanelSections>
       {createPortal(
@@ -2677,7 +2719,6 @@ export function BinControlsPanel({
       {inspector?.projectHeader && createPortal(<div className="flex flex-wrap items-center justify-end gap-1 pr-2" data-testid="editor-project-header">
         {!projectStatusHost && projectStatus}
         <div className="flex shrink-0 items-center gap-1 max-[500px]:w-full max-[500px]:justify-end max-[500px]:border-t max-[500px]:py-1">
-          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-project")}><FolderOpen className="h-4 w-4" />Project</Button>
           <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-fit")}><ClipboardCheck className="h-4 w-4" />Check fit</Button>
           <Button size="sm" className="gap-1.5" onClick={() => inspector.showSection("bin-settings-export")}><Download className="h-4 w-4" />Export</Button>
         </div>

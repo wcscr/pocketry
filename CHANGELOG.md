@@ -6,6 +6,8 @@
 - Restore group member properties and add group rotation in the layout canvas.
 - Keep mobile notifications clear of navigation.
 
+- Put an Export fit check shortcut above model export, opening Check fit with a default template thickness of 0.6 mm. Offer editable project and browser-library backups directly in Export, with guidance in hover hints. Show New project on both Trace and Bin, and keep Project management in the left workflow without a duplicate header shortcut.
+
 - Experimental: group pockets and holes to move and rotate around one stable center, with independent duplication, ungrouping, and saved history. Geometry links share dimensions while each copy keeps its own position and rotation.
 - Preserve groups during footprint edits and bin fitting, keep moves within shared height limits, and keep legacy linked projects editable and saveable.
 

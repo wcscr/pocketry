@@ -341,12 +341,12 @@ describe("BinDesignerPage", () => {
     const exportSection = container.querySelector("#bin-settings-export")!;
     expect(exportSection.querySelector("[data-panel-section-trigger]")?.textContent)
       .toMatch(/^Export/);
-    expect(exportSection.textContent).toContain("Export shadow-board layout (top view)");
+    expect(exportSection.textContent).toContain("Export layout");
     expect(exportSection.querySelector('[data-testid="button-layout-dxf"]')).not.toBeNull();
     expect(exportSection.querySelector('[data-testid="button-layout-svg"]')).not.toBeNull();
     openSettingsSection(container, "check-fit");
     const fitSection = container.querySelector("#bin-settings-fit")!;
-    expect(fitSection.textContent).toContain("Prepare fit test templates");
+    expect(fitSection.textContent).toContain("Export fit check");
     expect(fitSection.querySelector('[data-testid="button-layout-dxf"]')).toBeNull();
     expect(fitSection.querySelector('[data-testid="button-layout-svg"]')).toBeNull();
     expect(fitSection.querySelector('[aria-label="About surface fit test"]')).toBeNull();
@@ -358,7 +358,7 @@ describe("BinDesignerPage", () => {
           '[data-testid="input-surface-fit-test-thickness"]',
         ) as HTMLInputElement
       ).value,
-    ).toBe("0.8");
+    ).toBe("0.6");
     expect(
       (
         container.querySelector(

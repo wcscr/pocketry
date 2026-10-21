@@ -1265,6 +1265,7 @@ function BinDesignerWorkspace(): JSX.Element {
           ultim8Entry={ultim8Entry}
           onUltim8EntryComplete={() => navigate("/bin", { replace: true })}
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
+          onShowFitCheck={() => { setSettingsSectionRequest({ id: "bin-settings-fit" }); setPanelOpen(true); }}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
           onRevealIssue={revealIssue}

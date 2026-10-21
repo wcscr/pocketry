@@ -491,11 +491,14 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });
 
-  it.each([false, true])("starts a new project from Trace only after resolving the current draft (mobile=%s)", async mobile => {
+  it.each([
+    { page: "Trace", path: "/", mobile: false }, { page: "Trace", path: "/", mobile: true },
+    { page: "Bin", path: "/bin", mobile: false }, { page: "Bin", path: "/bin", mobile: true },
+  ])("starts a new project from the $page header only after resolving the current draft (mobile=$mobile)", async ({ path, mobile }) => {
     const draft = { ...EMPTY_PROJECT, name: "My draft", spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
     vi.mocked(ProjectPersistence.readProjectOverview).mockResolvedValue({ doc: draft, activeProjectId: null });
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
-    const route = memoryLocation({ path: "/" });
+    const route = memoryLocation({ path });
     const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
       <ProjectStatusBar /><Route path="/bin"><BinDesignerPage /></Route>
     </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>, { mobile });
@@ -510,7 +513,7 @@ describe("BinDesignerPage", () => {
       expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Keep current project")!.click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
-      React.act(() => route.navigate("/"));
+      React.act(() => route.navigate(path));
       await openNew();
       expect(document.querySelector<HTMLInputElement>('[data-testid="input-new-project-draft-name"]')!.value).toBe("My draft");
       vi.mocked(ProjectPersistence.startNewProject).mockRejectedValueOnce(new Error("Storage is full"));
