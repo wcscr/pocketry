@@ -64,45 +64,51 @@ function usePocketRigidUpdate(shape: TracedShape) {
   };
 }
 
-/** Keep insertion choices visible above all pocket-property disclosures. */
+/** Group tilted-pocket insertion choices in their own disclosure. */
 export function PocketInsertionControls({ cutout, shape }: { cutout: CutoutPlacement; shape: TracedShape }): JSX.Element | null {
   const { spec } = useBin();
   const updateRigid = usePocketRigidUpdate(shape);
   if (!hasPocketTilt(cutout) && !cutout.insertionMode && !cutout.insertionAxis) return null;
   const direction = pocketInsertionAxis(cutout);
   const degreesFromVertical = Math.acos(Math.min(1, Math.max(0, direction.z))) * 180 / Math.PI;
-  return <div className="space-y-2 rounded border bg-muted/30 p-2 text-xs" data-testid="pocket-insertion-controls">
-    <Label className="flex items-center gap-2 text-xs">
-      <input type="checkbox" aria-label={cutout.role === "hole" ? "Extend kept volume" : "Clear pocket insertion path"} checked={!!cutout.insertionMode}
-        onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
-          insertionMode: event.target.checked ? "axis" : undefined }, false, "Change pocket insertion path")} />
-      {cutout.role === "hole" ? "Extend kept volume" : "Clear insertion path"}
-      <HelpHint label={cutout.role === "hole" ? "kept volume extension" : "pocket insertion path"}>{cutout.role === "hole" ? "Protect material up to the fill surface along the selected object axis or its full vertical projection. Bottom height limits the kept volume without changing the original shape." : "Follow pocket angle clears a path along your chosen object axis after rotation. Choose X or Y to insert an object along its width or length, or Z along its thickness. Vertical drop-in clears the complete top-down outline while keeping the rotated object’s underside as the seat. Keep floor thickness clips the cut at the chosen floor limit without changing the original shape."}</HelpHint>
-    </Label>
-    {cutout.insertionMode && <select aria-label={cutout.role === "hole" ? "Kept volume extension direction" : "Pocket insertion direction"} className="h-8 w-full rounded border bg-background px-2"
-      value={cutout.insertionMode} onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
-        insertionMode: event.target.value as "axis" | "vertical" }, false, "Change pocket insertion path")}>
-      <option value="axis">{cutout.role === "hole" ? "Follow object angle" : "Follow pocket angle"}</option>
-      <option value="vertical">{cutout.role === "hole" ? "Vertical projection" : "Vertical drop-in"}</option>
-    </select>}
-    {cutout.insertionMode === "axis" && <div className="space-y-1">
-      <Label className="block space-y-1 text-xs">
-        <span>{cutout.role === "hole" ? "Extension axis (object)" : "Insertion axis (object)"}</span>
-        <select aria-label={cutout.role === "hole" ? "Kept volume extension axis" : "Pocket insertion axis"}
-          className="h-8 w-full rounded border bg-background px-2" value={cutout.insertionAxis ?? "z"}
-          onChange={event => updateRigid({ ...cutout, insertionAxis: event.target.value as "x" | "y" | "z" }, false, "Change pocket insertion axis")}>
-          <option value="x">X — width</option>
-          <option value="y">Y — length</option>
-          <option value="z">Z — thickness</option>
-        </select>
+  return <details className="group/insertion border-t pt-1 text-xs" data-testid="pocket-insertion-controls">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded py-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+      Insertion path
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/insertion:rotate-180" />
+    </summary>
+    <div className="space-y-2 pb-2 pt-2">
+      <Label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" aria-label={cutout.role === "hole" ? "Extend kept volume" : "Clear pocket insertion path"} checked={!!cutout.insertionMode}
+          onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
+            insertionMode: event.target.checked ? "axis" : undefined }, false, "Change pocket insertion path")} />
+        {cutout.role === "hole" ? "Extend kept volume" : "Clear insertion path"}
+        <HelpHint label={cutout.role === "hole" ? "kept volume extension" : "pocket insertion path"}>{cutout.role === "hole" ? "Protect material up to the fill surface along the selected object axis or its full vertical projection. Bottom height limits the kept volume without changing the original shape." : "Follow pocket angle clears a path along your chosen object axis after rotation. Choose X or Y to insert an object along its width or length, or Z along its thickness. Vertical drop-in clears the complete top-down outline while keeping the rotated object’s underside as the seat. Keep floor thickness clips the cut at the chosen floor limit without changing the original shape."}</HelpHint>
       </Label>
-      <p className="text-muted-foreground">Moves with the object and points toward the bin top. {degreesFromVertical.toFixed(1)}° from vertical.</p>
-    </div>}
-    {pocketInsertionError(cutout) && <div role="alert" className="space-y-1 text-destructive">
-      <p>{pocketInsertionError(cutout)}</p>
-      <Button size="sm" variant="outline" onClick={() => updateRigid({ ...cutout, insertionMode: "vertical" }, false, cutout.role === "hole" ? "Use vertical projection" : "Use vertical drop-in")}>{cutout.role === "hole" ? "Use vertical projection" : "Use vertical drop-in"}</Button>
-    </div>}
-  </div>;
+      {cutout.insertionMode && <select aria-label={cutout.role === "hole" ? "Kept volume extension direction" : "Pocket insertion direction"} className="h-8 w-full rounded border bg-background px-2"
+        value={cutout.insertionMode} onChange={event => updateRigid({ ...rigidPocket(cutout, shape, spec),
+          insertionMode: event.target.value as "axis" | "vertical" }, false, "Change pocket insertion path")}>
+        <option value="axis">{cutout.role === "hole" ? "Follow object angle" : "Follow pocket angle"}</option>
+        <option value="vertical">{cutout.role === "hole" ? "Vertical projection" : "Vertical drop-in"}</option>
+      </select>}
+      {cutout.insertionMode === "axis" && <div className="space-y-1">
+        <Label className="block space-y-1 text-xs">
+          <span>{cutout.role === "hole" ? "Extension axis (object)" : "Insertion axis (object)"}</span>
+          <select aria-label={cutout.role === "hole" ? "Kept volume extension axis" : "Pocket insertion axis"}
+            className="h-8 w-full rounded border bg-background px-2" value={cutout.insertionAxis ?? "z"}
+            onChange={event => updateRigid({ ...cutout, insertionAxis: event.target.value as "x" | "y" | "z" }, false, "Change pocket insertion axis")}>
+            <option value="x">X — width</option>
+            <option value="y">Y — length</option>
+            <option value="z">Z — thickness</option>
+          </select>
+        </Label>
+        <p className="text-muted-foreground">Moves with the object and points toward the bin top. {degreesFromVertical.toFixed(1)}° from vertical.</p>
+      </div>}
+      {pocketInsertionError(cutout) && <div role="alert" className="space-y-1 text-destructive">
+        <p>{pocketInsertionError(cutout)}</p>
+        <Button size="sm" variant="outline" onClick={() => updateRigid({ ...cutout, insertionMode: "vertical" }, false, cutout.role === "hole" ? "Use vertical projection" : "Use vertical drop-in")}>{cutout.role === "hole" ? "Use vertical projection" : "Use vertical drop-in"}</Button>
+      </div>}
+    </div>
+  </details>;
 }
 
 function PocketMeasurementFields({ cutout, shape, children }: {
