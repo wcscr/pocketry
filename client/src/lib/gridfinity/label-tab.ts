@@ -1,3 +1,8 @@
+import { buildCompartments } from "./compartments";
+import { buildWallRing } from "./wall";
+import { compartmentHeightMm, compartmentLabelTabPlacements } from "@shared/gridfinity/compartments";
+import { BASE_HEIGHT } from "@shared/gridfinity/standard";
+import { footprintOuterSection } from "./footprint-section";
 import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
 import type { Manifold } from "manifold-3d";
@@ -54,6 +59,7 @@ export function buildLabelTab(
 ): Manifold | null {
   const tab = spec.labelTab;
   if (!tab) return null;
+  if (tab.scope === "compartments" && spec.fill === "none") return buildCompartmentLabelTabs(kernel, spec, circularSegments);
   const profileMm = labelTabProfileMm(spec);
   if (!profileMm) return null;
 
@@ -111,4 +117,30 @@ export function buildLabelTab(
       ]));
   const column = arena.track(columnSection.extrude(binHeightMm(spec.heightUnits) + 1));
   return arena.track(placed.intersect(column));
+}
+
+/** Repeat the existing Rebuilt tab profile at each compartment's selected wall. */
+function buildCompartmentLabelTabs(kernel: Kernel, spec: BinSpec, segments: number): Manifold | null {
+  const { arena, CrossSection, Manifold } = kernel;
+  const placements = compartmentLabelTabPlacements(spec);
+  const height = compartmentHeightMm(spec);
+  if (!placements.length || height <= 0) return null;
+  const tabs = placements.map(({ x, y, start, length, depth, rotation, profile }) => {
+    const points = profile.points.map(([d, z]) => [d === 0 ? 0.02 : -d * depth / profile.depthMm, z] as [number, number]);
+    const section = arena.track(new CrossSection([points]));
+    const prism = arena.track(arena.track(section.extrude(length)).rotate([90, 0, 90]));
+    const local = arena.track(prism.translate([start, 0, BASE_HEIGHT + height - profile.heightMm]));
+    return arena.track(arena.track(local.rotate([0, 0, rotation])).translate([x, y, 0]));
+  });
+  const envelope = arena.track(arena.track(footprintOuterSection(kernel, spec, segments).extrude(height)).translate([0, 0, BASE_HEIGHT]));
+  const clipped = arena.track(arena.track(Manifold.union(tabs)).intersect(envelope));
+  if (spec.footprint.kind !== "custom") return clipped;
+  // A clipped cell can lose its mounting edge. Retain only shelf fragments
+  // attached to a wall/divider/scoop, or reaching the floor in a shallow bin.
+  const supports = [buildWallRing(kernel, spec, segments), buildCompartments(kernel, spec, segments)]
+    .filter((part): part is Manifold => part !== null);
+  const support = arena.track(Manifold.union(supports));
+  const attached = clipped.decompose().map(part => arena.track(part)).filter(part =>
+    part.boundingBox().min[2] <= BASE_HEIGHT + 1e-7 || arena.track(part.intersect(support)).volume() > 1e-7);
+  return attached.length ? arena.track(Manifold.union(attached)) : null;
 }

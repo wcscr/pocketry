@@ -78,6 +78,8 @@ export interface BuildBinRequest {
   stackingRimMaterialThicknessMm?: number;
   /** Inward width of the flush top border. Ignored when the bin has a lip. */
   borderWidthMm?: number;
+  /** Include internal divider caps in the existing rim material. */
+  colorDividerTops?: boolean;
 }
 
 export interface BuildBinStats {

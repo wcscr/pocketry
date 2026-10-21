@@ -271,6 +271,18 @@ describe("bin preview worker lifecycle", () => {
     await exported;
   });
 
+  it("rebuilds material regions when divider coloring changes and sends it to export", async () => {
+    await render(3, false, { 4: { colorDividerTops: false } }); await tick(); await reply(() => worker().finish(0));
+    await render(3, false, { 4: { colorDividerTops: true } }); await tick();
+    expect(worker().calls).toHaveLength(2);
+    expect(worker().calls[1].payload).toMatchObject({ colorDividerTops: true });
+    await reply(() => worker().finish(1));
+    let exported!: Promise<BuildBinResult>;
+    await React.act(async () => { exported = state.buildOnce(EXPORT_QUALITY, { colorDividerTops: true, stackingRimMaterialThicknessMm: 1.25 }); });
+    expect(detailWorker().calls[0].payload).toMatchObject({ colorDividerTops: true, exportTopology: true });
+    await reply(() => detailWorker().finish(0)); await exported;
+  });
+
   it("does not restart pending work after unmount or an old worker reply", async () => {
     await render(2); await tick(); await render(3); await tick(); const old = worker();
     await React.act(async () => root.render(null));

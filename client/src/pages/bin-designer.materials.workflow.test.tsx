@@ -731,3 +731,39 @@ describe("BinDesignerPage", () => {
       expect(projectToast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
     } finally { unmount(); }
   });});
+
+
+it.each(["standard", "workflow"])("retains optional divider coloring across construction changes and exports in %s", async layout => {
+  const url = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+    spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", lip: "none", compartments: { rows: 2, columns: 3 } }),
+  });
+  const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+  binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, stackingRim: mesh } });
+  const { container, unmount } = renderPage();
+  const option = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Include dividers"]');
+  const toggle = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+  try {
+    await flushHydration(); openSettingsSection(container, "materials");
+    expect(option()!.getAttribute("aria-checked")).toBe("false");
+    expect(container.querySelector('[data-testid="view-color-row-rim"]')!.contains(option())).toBe(true);
+    toggle("Include dividers");
+    expect(vi.mocked(useBinGeometry).mock.lastCall![4]?.colorDividerTops).toBe(true);
+    toggle("Color top border");
+    expect(option()!.disabled).toBe(true);
+    expect(option()!.getAttribute("aria-checked")).toBe("true");
+    toggle("Color top border");
+    for (const label of ["Internal compartments", "Solid fill"]) {
+      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "materials"); expect(option()).toBeNull();
+      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "materials");
+      expect(option()!.getAttribute("aria-checked")).toBe("true");
+    }
+    openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+    await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
+    expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), expect.objectContaining({ colorDividerTops: true, stackingRimMaterialThicknessMm: 1.25 }));
+  } finally { unmount(); window.history.replaceState(null, "", url); }
+});

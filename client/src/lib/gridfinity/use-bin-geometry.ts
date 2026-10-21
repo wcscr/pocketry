@@ -97,6 +97,7 @@ export interface BinGeometryState {
       pocketFloorMaterialThicknessMm?: number;
       stackingRimMaterialThicknessMm?: number;
       borderWidthMm?: number;
+      colorDividerTops?: boolean;
     },
   ) => Promise<BuildBinResult>;
   /** Builds a standalone filled outline for an inexpensive print-fit check. */
@@ -130,6 +131,7 @@ export function useBinGeometry(
     pocketFloorThicknessMm?: number;
     stackingRimThicknessMm?: number;
     borderWidthMm?: number;
+    colorDividerTops?: boolean;
   } = {},
   /** Live gesture values for preview only; exports still use the committed arguments above. */
   livePreview?: {
@@ -216,6 +218,7 @@ export function useBinGeometry(
           previewMaterials.stackingRimThicknessMm ??
           MULTICOLOR_RIM_THICKNESS_MM,
         borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
+        colorDividerTops: previewMaterials.colorDividerTops ?? false,
       }),
     [
       previewSpec,
@@ -227,6 +230,7 @@ export function useBinGeometry(
       previewMaterials.pocketFloorThicknessMm,
       previewMaterials.stackingRimThicknessMm,
       previewMaterials.borderWidthMm,
+      previewMaterials.colorDividerTops,
     ],
   );
 
@@ -256,7 +260,7 @@ export function useBinGeometry(
     const unroundedKey = JSON.stringify({ ...modelInputs,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, topFilletMm: 0, bottomFilletMm: 0 })) ?? [] });
     const cavityKey = JSON.stringify({ ...modelInputs,
-      pocketFloorThicknessMm: undefined, stackingRimThicknessMm: undefined, borderWidthMm: undefined,
+      pocketFloorThicknessMm: undefined, stackingRimThicknessMm: undefined, borderWidthMm: undefined, colorDividerTops: undefined,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, colorCoverage: undefined, colorFloorAxis: undefined })) ?? [] });
     const previous = previousKeysRef.current;
     const sectionOnly = previous?.model === modelKey;
@@ -294,6 +298,7 @@ export function useBinGeometry(
       stackingRimMaterialThicknessMm:
         previewMaterials.stackingRimThicknessMm ?? MULTICOLOR_RIM_THICKNESS_MM,
       borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
+      colorDividerTops: previewMaterials.colorDividerTops ?? false,
     };
 
     const publish = (result: BuildBinResult, draft: boolean, interactive = false) => {
@@ -493,6 +498,7 @@ export function useBinGeometry(
         pocketFloorMaterialThicknessMm?: number;
         stackingRimMaterialThicknessMm?: number;
         borderWidthMm?: number;
+        colorDividerTops?: boolean;
       } = {},
     ): Promise<BuildBinResult> => {
       const request: BuildBinRequest = {
@@ -512,6 +518,7 @@ export function useBinGeometry(
         stackingRimMaterialThicknessMm:
           options.stackingRimMaterialThicknessMm,
         borderWidthMm: options.borderWidthMm,
+        colorDividerTops: options.colorDividerTops,
       };
       return ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
         channel: "export",

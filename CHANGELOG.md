@@ -9,6 +9,7 @@
 - Give the welcome and initial Trace screens three equal-sized choices: Trace a Photo, Design a Bin, and Open Sample Projects. Keep photo and scale guidance in expandable tips.
 - Show project identity once, keep rename and save recovery available, and add New project beside the current project on Trace. Shorten the tracing instructions.
 - Label ULTIM8™ consistently and link mentions to Wham Bam Systems.
+- Add hollow-bin rows and columns, adjustable 1.2 mm dividers, scoop bottoms facing the obtuse angle, and per-compartment label tabs under Construction. Dividers and scoops follow slanted walls and are included in STL/3MF exports. Rim coloring can optionally include divider tops. New label tabs default to the acute-angle side; Construction uses compact, collapsible settings.
 
 - Fix Wham Bam Systems ULTIM8-compatible peg density around through openings: denser settings retain existing peg positions and fill gaps instead of skipping surviving edge rows.
 

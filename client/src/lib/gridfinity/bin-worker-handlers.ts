@@ -1,3 +1,5 @@
+import { binMaterialsSchema } from "@shared/gridfinity/materials";
+import { hasCompartments } from "@shared/gridfinity/compartments";
 import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
@@ -84,6 +86,7 @@ export function createBinWorkerHandlers(
     context: HandlerContext,
   ) => {
     const spec = parseBinSpec(payload.spec);
+    const colorDividerTops = binMaterialsSchema.shape.colorDividerTops.parse(payload.colorDividerTops);
     const floorMaterialThicknessMm = parseMaterialThickness(
       payload.pocketFloorMaterialThicknessMm,
       "Pocket-floor material thickness",
@@ -151,6 +154,7 @@ export function createBinWorkerHandlers(
           floorInsertThicknessMm: floorMaterialThicknessMm,
           rimInsertThicknessMm: rimMaterialThicknessMm,
           borderWidthMm,
+          colorDividerTops,
         },
       );
       if (payload.exportTopology && validationIssues.some(issue => issue.severity === "error")) {
@@ -206,7 +210,9 @@ export function createBinWorkerHandlers(
             // triangulated CSG partitions can leave subpixel cracks at the
             // slanted tab/border seam while orbiting. Export still receives
             // the disjoint printable body.
-            body: extractPart(payload.exportTopology
+            // Hollow compartments have tangent scoop/floor faces; use the
+            // disjoint material body to avoid overlay z-fighting there.
+            body: extractPart(payload.exportTopology || (spec.fill === "none" && hasCompartments(spec))
               ? displayedMaterialParts.body : displayedPart(binSolid)),
             ...(displayedMaterialParts.pocketFloors &&
             !displayedMaterialParts.pocketFloors.isEmpty()
