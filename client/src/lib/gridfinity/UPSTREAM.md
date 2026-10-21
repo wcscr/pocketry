@@ -18,6 +18,7 @@ vendored into this repository — porting stays explicit.
 | `client/src/lib/gridfinity/profiles.ts` | `src/core/base.scad` `_base_polygon()`, `src/core/standard.scad` `STACKING_LIP`, `src/core/wall.scad` `_profile_wall()`, `src/helpers/shapes.scad` `rounded_square()` | Closed profile polygons and the rounded rectangle |
 | `client/src/lib/gridfinity/sweep.ts` | `src/helpers/generic-helpers.scad` `sweep_rounded()` | The sweep primitive: 4 edge extrusions + 4 corner revolves |
 | `client/src/lib/gridfinity/base.ts` | `src/core/base.scad` `base_solid()`, `_base_bridge_solid()`, `gridfinityBase()` | Socket cell, centre fill, grid pattern, bridge plate |
+| `client/src/lib/gridfinity/compartments.ts` | `src/core/cutouts.scad` `_compartment_scoop()`, `src/core/standard.scad` `d_div` | Front quarter-circle scoop profile and 1.2 mm default; original additive divider grid |
 | `client/src/lib/gridfinity/wall.ts` | `src/core/wall.scad` `render_wall()` | Plain wall annulus + swept stacking lip |
 | `client/src/lib/gridfinity/bin.ts` | `src/core/bin.scad` `new_bin()`, `bin_render*()` | Assembly, infill height rule, height conventions |
 | `client/src/lib/gridfinity/holes.ts` | `src/core/gridfinity-rebuilt-holes.scad` `block_base_hole()`, `screw_hole()`, `make_hole_printable()`, `ribbed_circle()`/`ribbed_cylinder()`; `src/core/base.scad` `_base_holes()` | Magnet/screw holes, sequential-bridging ceilings, entry chamfer, crush ribs, hole grid |
@@ -31,6 +32,15 @@ check its licence independently before porting; drop the feature if not
 permissive).
 
 ## Deliberate deviations
+
+- **Compartments use additive dividers in the existing hollow shell.** Rebuilt
+  subtracts rounded compartment cutters from solid fill; Pocketry keeps its
+  established floor and shell, spaces equal clear compartments inside them, and
+  clips the grid to the footprint. Scoop profiles adapt Rebuilt's quarter-circle
+  construction with radius capped to half the clear span along the scoop axis. The shared body
+  deformation slants dividers and scoops with the outer walls. These adaptations
+  remain under the upstream MIT notice, compatible with Pocketry's AGPL-3.0-only
+  distribution. No Extended source code is incorporated.
 
 The **0.6 mm top-lip fillet itself is inherited from Rebuilt**; only its
 calculation differs as described below. It gives a total bin height of
@@ -67,14 +77,15 @@ for the height conventions, examples, and upstream explanation of stacking fit.
   cuts configurable non-overlapping volumes downward from blind-pocket floors
   and the stacking-lip summit, leaving the original exterior dimensions and
   the rest of the body material unchanged.
-- **Label tabs are per-bin, not per-compartment.** Upstream hangs tabs on
-  compartment walls with an `auto` style resolved per grid element; this bin
-  has no compartments, so the tab takes an explicit wall (`north`/…) and
+- **Label tabs can target the outer wall or every compartment.** Upstream hangs tabs on
+  compartment walls with an `auto` style resolved per grid element; Pocketry
+  uses an explicit target, wall direction (`north`/…), and
   width (`full` / 42 mm `left`/`center`/`right`, defined facing the wall from
-  the bin centre). The prism is intersected with the rounded interior column
-  instead of upstream's per-edge `snap_to_edge` clamping — the corner
-  fillets trim the ends exactly and a full-width tab cannot poke through a
-  wall.
+  bin or compartment centre). Outer-wall tabs are intersected with the rounded
+  interior column. Repeated tabs use each compartment's clear width, a depth
+  capped at half its clear span, and the same infill ceiling as the dividers.
+  They are clipped to the footprint, and fragments without a supporting wall,
+  divider, scoop, or floor are omitted.
 - **Hole bridging is built as a positive, overlapping stack.** Upstream's
   `make_hole_printable()` subtracts cubes from a cube and subtracts *that*
   from the hole cylinder; this port builds the equivalent narrowing bands

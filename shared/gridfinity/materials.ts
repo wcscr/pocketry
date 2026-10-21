@@ -26,6 +26,8 @@ export const binMaterialsSchema = z.object({
   stackingRimColor: colorSchema,
   colorPocketFloors: z.boolean(),
   colorStackingRim: z.boolean(),
+  /** Extend the rim color across internal divider tops; older designs retain body-colored dividers. */
+  colorDividerTops: z.boolean().default(false),
   pocketFloorThicknessMm: z.number().min(MULTICOLOR_MIN_THICKNESS_MM).max(MULTICOLOR_FLOOR_MAX_THICKNESS_MM),
   stackingRimThicknessMm: z.number().min(MULTICOLOR_MIN_THICKNESS_MM).max(MULTICOLOR_RIM_MAX_THICKNESS_MM),
   borderWidthMm: z.number().min(MULTICOLOR_MIN_THICKNESS_MM).max(MULTICOLOR_BORDER_MAX_WIDTH_MM),
@@ -40,6 +42,7 @@ export const DEFAULT_BIN_MATERIALS: Readonly<BinMaterials> = Object.freeze({
   stackingRimColor: STACKING_RIM_COLOR,
   colorPocketFloors: true,
   colorStackingRim: true,
+  colorDividerTops: false,
   pocketFloorThicknessMm: MULTICOLOR_FLOOR_THICKNESS_MM,
   stackingRimThicknessMm: MULTICOLOR_RIM_THICKNESS_MM,
   borderWidthMm: MULTICOLOR_BORDER_WIDTH_MM,

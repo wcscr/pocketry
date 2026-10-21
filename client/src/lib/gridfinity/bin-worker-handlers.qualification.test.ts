@@ -4,6 +4,7 @@ import {
   context,
   nonManifoldEdgeCount,
   printableMeshVolume,
+  previewMeshVolume,
   REQUEST,
 } from "./bin-worker-handlers.test-support";
 import { describe, expect, it } from "vitest";
@@ -769,4 +770,40 @@ it.each(["through island", "floating cap"])("blocks printable export of a retain
   const attached = (await handler({ ...request, exportTopology: true, layout: { ...request.layout!,
     cutouts: [pocket, { ...hole, position: { x: 15, y: 0 } }] } }, context())).value;
   expect(attached.validationIssues?.some(issue => issue.code === "disconnected-retained-material")).toBe(false);
+});
+
+it("previews disjoint compartment colors and exports closed slanted scoops with repeated tabs", async () => {
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 3, heightUnits: 6, fill: "none", lip: "none",
+      compartments: { rows: 2, columns: 3, scoop: true }, wallSlant: { axis: "y", angleDeg: 20 },
+      labelTab: { wall: "north", width: "full", scope: "compartments" } }, quality: EXPORT_QUALITY,
+    pocketFloorMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: 0.6 };
+  const preview = (await getHandler()(request, context())).value;
+  const exported = (await getHandler()({ ...request, exportTopology: true }, context())).value;
+  expect(previewMeshVolume(preview.materialMeshes!.body)).toBeCloseTo(printableMeshVolume(exported.materialMeshes!.body), 1);
+  for (const mesh of Object.values(exported.materialMeshes!)) expect(nonManifoldEdgeCount(mesh)).toBe(0);
+  expect(nonManifoldEdgeCount(exported.mesh)).toBe(0);
+  const sum = Object.values(exported.materialMeshes!).reduce((total, mesh) => total + printableMeshVolume(mesh), 0);
+  expect(Math.abs(sum - printableMeshVolume(exported.mesh))).toBeLessThan(0.1);
+});
+
+
+it("exports divider-top color as part of the same closed rim material shown in preview", async () => {
+  const request: BuildBinRequest = { spec: { gridX: 2, gridY: 2, heightUnits: 6, fill: "none", lip: "none",
+    wallSlant: { axis: "y", angleDeg: 20 }, compartments: { rows: 2, columns: 3, scoop: true } },
+    quality: EXPORT_QUALITY, colorDividerTops: true, pocketFloorMaterialThicknessMm: 0.6,
+    stackingRimMaterialThicknessMm: 1.25 };
+  const preview = (await getHandler()(request, context())).value;
+  const exported = (await getHandler()({ ...request, exportTopology: true }, context())).value;
+  const parts = Object.values(exported.materialMeshes!);
+  expect(parts.reduce((sum, part) => sum + printableMeshVolume(part), 0)).toBeCloseTo(exported.stats.volumeMm3, 1);
+  expect(previewMeshVolume(preview.materialMeshes!.stackingRim!)).toBeCloseTo(printableMeshVolume(exported.materialMeshes!.stackingRim!), 2);
+  const bytes = writeThreeMf(parts.map((mesh, i) => ({ name: `material-${i}`, mesh })), { assemble: true });
+  const xml = strFromU8(unzipSync(bytes)["3D/3dmodel.model"]);
+  expect([...xml.matchAll(/<object /g)]).toHaveLength(parts.length + 1);
+  for (const object of xml.matchAll(/<mesh>([\s\S]*?)<\/mesh>/g)) {
+    const positions = [...object[1].matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\s*\/>/g)].flatMap(match => match.slice(1).map(Number));
+    const indices = [...object[1].matchAll(/<triangle v1="([^"]+)" v2="([^"]+)" v3="([^"]+)"[^>]*\/>/g)].flatMap(match => match.slice(1).map(Number));
+    expect(positions.length).toBeGreaterThan(0); expect(indices.length).toBeGreaterThan(0);
+    expect(printableMeshVolume({ positions: new Float32Array(positions), indices: new Uint32Array(indices), normals: null })).toBeGreaterThan(0);
+  }
 });

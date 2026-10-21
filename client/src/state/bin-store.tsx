@@ -1,3 +1,4 @@
+import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
@@ -342,6 +343,7 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
   if ("gridPitch" in patch) return "Change grid pitch";
   if ("lip" in patch) return "Change stacking lip";
   if ("fill" in patch) return "Change solid fill";
+  if ("compartments" in patch) return "Change compartments";
   if ("wallThicknessMm" in patch) return "Change wall thickness";
   if ("fillHeightPercent" in patch) return "Change fill height";
   if ("labelTab" in patch) return "Change label tab";
@@ -598,6 +600,9 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         fingerHoles: BIN_SIZE_KEYS.some(key => key in action.patch)
           ? getCommittedBinDoc(state).fingerHoles : state.fingerHoles,
       };
+      if (doc.spec.labelTab?.autoWall && !doc.spec.labelTab.edge) {
+        doc.spec.labelTab = { ...doc.spec.labelTab, wall: defaultLabelTabWall(doc.spec) };
+      }
       if ("fillHeightPercent" in action.patch) {
         const previous = getCommittedBinDoc(state);
         const adjusted = adjustPocketsForFillHeight(previous.cutouts, previous.spec, doc.spec, doc.spec.adjustFixedPocketDepths);

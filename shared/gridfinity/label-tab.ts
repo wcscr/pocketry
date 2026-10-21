@@ -8,6 +8,15 @@ import {
   binWallHeightMm,
 } from "./standard";
 
+/** Place tabs above the acute floor-to-wall angle, opposite the scoops. */
+export function defaultLabelTabWall(spec: Pick<BinSpec, "wallSlant">): NonNullable<BinSpec["labelTab"]>["wall"] {
+  const slant = spec.wallSlant;
+  if (!slant || slant.angleDeg === 0) return "north";
+  return slant.axis === "x"
+    ? slant.angleDeg > 0 ? "west" : "east"
+    : slant.angleDeg > 0 ? "south" : "north";
+}
+
 /** Keep a slanted tab's 36-degree underside above the fixed Gridfinity base. */
 export function labelTabProfileMm(spec: Pick<BinSpec, "heightUnits" | "wallSlant">): {
   depthMm: number;

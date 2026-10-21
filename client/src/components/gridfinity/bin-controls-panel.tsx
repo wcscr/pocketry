@@ -1,5 +1,8 @@
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
+import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
+import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
+import { FeatureSettings } from "./feature-settings";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useBinObjectContextMenu } from "./object-context-menu";
@@ -243,6 +246,8 @@ export interface BinControlsPanelProps {
   pocketFloorThicknessMm: number;
   onPocketFloorThicknessChange: (thicknessMm: number) => void;
   colorStackingRim: boolean;
+  colorDividerTops: boolean;
+  onColorDividerTopsChange: (enabled: boolean) => void;
   onColorStackingRimChange: (enabled: boolean) => void;
   stackingRimColor: string;
   onStackingRimColorChange: (color: string) => void;
@@ -306,6 +311,8 @@ export function BinControlsPanel({
   onPocketFloorThicknessChange,
   colorStackingRim,
   onColorStackingRimChange,
+  colorDividerTops,
+  onColorDividerTopsChange,
   stackingRimColor,
   onStackingRimColorChange,
   stackingRimThicknessMm,
@@ -349,6 +356,10 @@ export function BinControlsPanel({
     dispatch,
   } = bin;
   const isJig = !!spec.pegBottom;
+  const internalCompartmentsOn = compartmentsEnabled(spec);
+  const compartmentError = compartmentLayoutError(spec);
+  const automaticLabelWall = defaultLabelTabWall(spec);
+  const labelWallNames = { north: "Back", south: "Front", east: "Right", west: "Left" } as const;
   const BIN_SETTINGS_SECTIONS = binWorkflowSections(isJig);
   const bodyNoun = isJig ? "fixture" : "bin";
   const FootprintSettings = isJig ? "details" : "div";
@@ -425,6 +436,8 @@ export function BinControlsPanel({
     !hasSmoothBase(spec) && spec.screwHoles,
     spec.labelTab !== null,
     spec.wallSlant !== null,
+    spec.fill === "none" && internalCompartmentsOn,
+    spec.fill === "none" && spec.compartments.scoop,
   ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(2);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
@@ -459,7 +472,7 @@ export function BinControlsPanel({
     { id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor },
   ];
   const hasMaterialEdits = Object.entries({
-    binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim,
+    binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim, colorDividerTops,
     pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
   }).some(([key, value]) => value !== DEFAULT_BIN_MATERIALS[key as keyof typeof DEFAULT_BIN_MATERIALS]);
   const hasSelectedMulticolor =
@@ -1705,43 +1718,45 @@ export function BinControlsPanel({
             disabled={spec.wallSlant !== null || spec.heightUnits < 1}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />}
-          {experimentalEnabled && <FeatureSwitch
+          {experimentalEnabled && <FeatureSettings
             label="Slanted walls (prototype)"
             description="Tilt either opposing wall or both along X or Y, with a flat base"
             checked={spec.wallSlant !== null}
             onChange={(on) => patchSpec(on
               ? { wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" }
               : { wallSlant: null })}
-          />}
-          {experimentalEnabled && spec.wallSlant && <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
-            <div className="flex items-center gap-2">
-              <SettingLabel label="Slant axis" hint="Choose the opposing pair of walls. Tilt moves along this axis; the base stays fixed." />
-              <Select value={spec.wallSlant.axis} onValueChange={(axis) => patchSpec({ wallSlant: { ...spec.wallSlant!, axis: axis === "x" ? "x" : "y" } })}>
-                <SelectTrigger className="ml-auto h-8 w-36" aria-label="Wall slant axis"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="x">Width (X)</SelectItem><SelectItem value="y">Length (Y)</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <SettingLabel label="Walls to tilt" hint="Tilt both opposing walls together, or keep one wall vertical. The connecting side walls taper to meet them." />
-              <Select value={spec.wallSlant.side ?? "both"} onValueChange={(side) => patchSpec({ wallSlant: { ...spec.wallSlant!, side: side === "negative" ? "negative" : side === "positive" ? "positive" : "both" } })}>
-                <SelectTrigger className="ml-auto h-8 w-40" aria-label="Walls to tilt"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="both">Both walls</SelectItem>
-                  <SelectItem value="negative">{spec.wallSlant.axis === "x" ? "Left only (−X)" : "Front only (−Y)"}</SelectItem>
-                  <SelectItem value="positive">{spec.wallSlant.axis === "x" ? "Right only (+X)" : "Back only (+Y)"}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <SettingLabel label="Wall angle" hint="Degrees from vertical. Positive moves the top toward the positive end of the chosen axis; negative moves it the other way." />
-              <DraftNumberInput className="ml-auto h-8 w-20" aria-label="Wall angle in degrees" value={spec.wallSlant.angleDeg} min={-MAX_WALL_SLANT_ANGLE_DEG} max={MAX_WALL_SLANT_ANGLE_DEG} step={0.5} displayPrecision={1}
-                onValueChange={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } }, true)}
-                onValueCommit={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } })} />
-              <span className="text-xs text-muted-foreground">°</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground">Tilted wall shift at rim: {Math.hypot(...Object.values(wallSlantTopOffsetMm(spec))).toFixed(1)} mm. The body can extend over adjacent grid cells.</p>
-            {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: { ...spec.wallSlant, ...matchedPocketSlant }, lip: "none" })}>Match selected pocket angle</Button>}
-          </div>}
+            settingsLabel="Slanted wall settings" testId="wall-slant-settings"
+            summary={spec.wallSlant ? `${spec.wallSlant.angleDeg}° ${spec.wallSlant.axis.toUpperCase()}` : ""}
+          >
+            {spec.wallSlant && <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <SettingLabel label="Slant axis" hint="Choose the opposing pair of walls. Tilt moves along this axis; the base stays fixed." />
+                <Select value={spec.wallSlant.axis} onValueChange={(axis) => patchSpec({ wallSlant: { ...spec.wallSlant!, axis: axis === "x" ? "x" : "y" } })}>
+                  <SelectTrigger className="ml-auto h-8 w-36" aria-label="Wall slant axis"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="x">Width (X)</SelectItem><SelectItem value="y">Length (Y)</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <SettingLabel label="Walls to tilt" hint="Tilt both opposing walls together, or keep one wall vertical. The connecting side walls taper to meet them." />
+                <Select value={spec.wallSlant.side ?? "both"} onValueChange={(side) => patchSpec({ wallSlant: { ...spec.wallSlant!, side: side === "negative" ? "negative" : side === "positive" ? "positive" : "both" } })}>
+                  <SelectTrigger className="ml-auto h-8 w-40" aria-label="Walls to tilt"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="both">Both walls</SelectItem>
+                    <SelectItem value="negative">{spec.wallSlant.axis === "x" ? "Left only (−X)" : "Front only (−Y)"}</SelectItem>
+                    <SelectItem value="positive">{spec.wallSlant.axis === "x" ? "Right only (+X)" : "Back only (+Y)"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <SettingLabel label="Wall angle" hint={`Degrees from vertical. Positive moves the top toward the positive end of the chosen axis; negative moves it the other way. Rim shift: ${Math.hypot(...Object.values(wallSlantTopOffsetMm(spec))).toFixed(1)} mm; the body can extend over adjacent grid cells.`} />
+                <DraftNumberInput className="ml-auto h-8 w-20" aria-label="Wall angle in degrees" value={spec.wallSlant.angleDeg} min={-MAX_WALL_SLANT_ANGLE_DEG} max={MAX_WALL_SLANT_ANGLE_DEG} step={0.5} displayPrecision={1}
+                  onValueChange={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } }, true)}
+                  onValueCommit={(angleDeg) => patchSpec({ wallSlant: { ...spec.wallSlant!, angleDeg } })} />
+                <span className="text-xs text-muted-foreground">°</span>
+              </div>
+              {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: { ...spec.wallSlant, ...matchedPocketSlant }, lip: "none" })}>Match selected pocket angle</Button>}
+            </div>}
+          </FeatureSettings>}
           <FeatureSwitch
             label="Solid fill"
             id="bin-solid-fill"
@@ -1749,17 +1764,60 @@ export function BinControlsPanel({
             checked={spec.fill === "solid"}
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
+          {spec.fill === "none" && <>
+            <div className="space-y-2" data-testid="internal-compartment-controls">
+              <FeatureSettings label="Internal compartments"
+                description="Rows run along the length (Y), columns along the width (X). Dividers follow the wall slant. Custom footprints clip the grid. Turning this off keeps your settings."
+                checked={internalCompartmentsOn}
+                onChange={enabled => patchSpec({ compartments: { ...spec.compartments, enabled,
+                  ...(enabled && spec.compartments.rows === 1 && spec.compartments.columns === 1 ? { rows: 2 } : {}),
+                } })}
+                settingsLabel="Compartment settings" testId="compartment-settings"
+                summary={`${spec.compartments.rows} × ${spec.compartments.columns}`}>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    {(["rows", "columns"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
+                      <Label className="text-xs" htmlFor={`compartment-${axis}`}>{axis === "rows" ? "Rows" : "Columns"}</Label>
+                      <DraftNumberInput id={`compartment-${axis}`} className="h-8 w-16" aria-label={`Sub-bin ${axis}`}
+                        value={spec.compartments[axis]} min={1} max={MAX_COMPARTMENTS_PER_AXIS} step={1} normalize={Math.round}
+                        onValueChange={value => patchSpec({ compartments: { ...spec.compartments, [axis]: value } }, true)}
+                        onValueCommit={value => patchSpec({ compartments: { ...spec.compartments, [axis]: value } })} />
+                    </div>)}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <SettingLabel label="Divider thickness" htmlFor="divider-thickness" hint="Defaults to 1.2 mm. Divider material is included when spacing the sub-bins." />
+                    <div className="flex items-center gap-1">
+                      <DraftNumberInput id="divider-thickness" className="h-8 w-20" aria-label="Divider thickness in millimetres"
+                        value={spec.compartments.dividerThicknessMm} min={D_WALL} max={MAX_HOLLOW_WALL_THICKNESS_MM} step={0.05}
+                        onValueChange={dividerThicknessMm => patchSpec({ compartments: { ...spec.compartments, dividerThicknessMm } }, true)}
+                        onValueCommit={dividerThicknessMm => patchSpec({ compartments: { ...spec.compartments, dividerThicknessMm } })} />
+                      <span className="text-xs text-muted-foreground">mm</span>
+                    </div>
+                  </div>
+                </div>
+              </FeatureSettings>
+            </div>
+            <FeatureSwitch label="Scoop bottoms"
+              description={`Curve the floor into the ${compartmentLayout(spec).scoopWall} wall for easier pickup. Slanted scoops face the obtuse angle. Works with or without internal compartments.`}
+              checked={spec.compartments.scoop}
+              onChange={scoop => patchSpec({ compartments: { ...spec.compartments, scoop } })} />
+            {compartmentError && <div role="alert" className="flex items-center gap-1 text-xs text-destructive">
+              Check compartment size <HelpHint label="compartment size">{compartmentError}</HelpHint>
+            </div>}
+          </>}
           {spec.fill === "none" && (
             <div className="space-y-1.5">
-              <MmSlider
-                label="Wall thickness"
-                value={binWallThicknessMm(spec)}
-                min={D_WALL}
-                max={MAX_HOLLOW_WALL_THICKNESS_MM}
-                step={0.05}
-                hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Editing the thickness keeps your value fixed when height changes. Use recommended restores automatic thickness. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`}
-                onChange={(wallThicknessMm, transient) => patchSpec({ wallThicknessMm }, transient)}
-              />
+              <div className="flex items-center justify-between gap-2">
+                <SettingLabel label="Wall thickness" htmlFor="bin-wall-thickness"
+                  hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Editing the thickness keeps your value fixed when height changes. Use recommended restores automatic thickness. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`} />
+                <div className="flex items-center gap-1">
+                  <DraftNumberInput id="bin-wall-thickness" className="h-8 w-20" aria-label="Wall thickness in millimetres"
+                    value={binWallThicknessMm(spec)} displayPrecision={2} min={D_WALL} max={MAX_HOLLOW_WALL_THICKNESS_MM} step={0.05}
+                    onValueChange={wallThicknessMm => patchSpec({ wallThicknessMm }, true)}
+                    onValueCommit={wallThicknessMm => patchSpec({ wallThicknessMm })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
                   ? "Recommended · follows bin height"
@@ -1883,46 +1941,52 @@ export function BinControlsPanel({
             </PropertySurface>}
           </div>
 
-          {!isJig && <div className="space-y-2 border-t pt-3">
-            <div className="flex items-center gap-2">
-              <SettingLabel label="Label tab" hint="A sloped shelf under the rim for labelling the bin." className="shrink-0" />
-              <Select
-                value={spec.labelTab?.width ?? "none"}
-                onValueChange={(width) =>
-                  patchSpec({
-                    labelTab:
-                      width === "none"
-                        ? null
-                        : {
-                            wall: spec.labelTab?.wall ?? "north",
-                            width: width as "full" | "center" | "left" | "right",
-                          },
-                  })
-                }
-              >
-                <SelectTrigger id="bin-label-tab" aria-label="Label tab" className="h-8 flex-1" data-testid="select-label-tab">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="full">Full width</SelectItem>
-                  <SelectItem value="center">Center · 42 mm</SelectItem>
-                  <SelectItem value="left">Left · 42 mm</SelectItem>
-                  <SelectItem value="right">Right · 42 mm</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {!isJig && <FeatureSettings label="Label tab"
+            description="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops."
+            checked={spec.labelTab !== null}
+            onChange={enabled => {
+              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full" } : null });
+              if (!enabled && editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+            }}
+            settingsLabel="Label tab settings" testId="label-tab-settings"
+            summary={spec.labelTab ? { full: "Full", center: "Center", left: "Left", right: "Right" }[spec.labelTab.width] : ""}>
             {spec.labelTab && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label className="w-16 shrink-0 text-xs">On wall</Label>
+                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
+                  <Select value={spec.labelTab.width}
+                    onValueChange={width => patchSpec({ labelTab: { ...spec.labelTab!, width: width as "full" | "center" | "left" | "right" } })}>
+                    <SelectTrigger id="bin-label-tab" aria-label="Label tab style" className="h-8 flex-1" data-testid="select-label-tab"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full width</SelectItem>
+                      <SelectItem value="center">Center · 42 mm</SelectItem>
+                      <SelectItem value="left">Left · 42 mm</SelectItem>
+                      <SelectItem value="right">Right · 42 mm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <SettingLabel label="Apply to" className="w-28 shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
+                  <Select value={spec.labelTab.scope ?? "outer"} disabled={spec.fill !== "none"}
+                    onValueChange={scope => {
+                      patchSpec({ labelTab: { ...spec.labelTab!, scope: scope === "compartments" ? "compartments" : "outer" } });
+                      if (editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
+                    }}>
+                    <SelectTrigger aria-label="Label tab placement" className="h-8 flex-1"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="outer">Outer wall</SelectItem><SelectItem value="compartments">Each sub-bin</SelectItem></SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs">On wall</Label>
                   <Select
-                    value={spec.labelTab.wall}
+                    value={spec.labelTab.autoWall ? "auto" : spec.labelTab.wall}
                     onValueChange={(wall) =>
                       patchSpec({
                         labelTab: {
                           ...spec.labelTab!,
-                          wall: wall as "north" | "south" | "east" | "west",
+                          wall: wall === "auto" ? automaticLabelWall : wall as "north" | "south" | "east" | "west",
+                          autoWall: wall === "auto",
                           edge: null,
                         },
                       })
@@ -1932,6 +1996,7 @@ export function BinControlsPanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="auto">Auto · {labelWallNames[automaticLabelWall]}</SelectItem>
                       <SelectItem value="north">Back</SelectItem>
                       <SelectItem value="south">Front</SelectItem>
                       <SelectItem value="east">Right</SelectItem>
@@ -1944,7 +2009,7 @@ export function BinControlsPanel({
                   size="sm"
                   className="w-full"
                   data-testid="button-choose-label-edge"
-                  disabled={!!spec.arbitrarySizeMm}
+                  disabled={!!spec.arbitrarySizeMm || (spec.fill === "none" && spec.labelTab.scope === "compartments")}
                   onClick={() => {
                     const editing = editorMode === "label-edge";
                     dispatch({ type: "SET_EDITOR_MODE", editorMode: editing ? "placement" : "label-edge" });
@@ -1956,7 +2021,7 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-          </div>}
+          </FeatureSettings>}
         </PanelSection>
 
         {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section
@@ -2154,6 +2219,11 @@ export function BinControlsPanel({
                 <span className="text-[11px] text-muted-foreground">mm down</span>
               </div>
             </div>
+            {spec.fill === "none" && internalCompartmentsOn && (spec.compartments.rows > 1 || spec.compartments.columns > 1) &&
+              <FeatureSwitch label="Include dividers"
+                description="Use the rim color and depth on the tops of internal dividers. Follows slanted walls without changing their dimensions."
+                checked={colorDividerTops} disabled={!colorStackingRim}
+                onChange={onColorDividerTopsChange} />}
             {spec.lip === "none" && <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Color width" htmlFor="input-border-width" hint="Width inward from the outer edge. Colors existing material only; hollow bins are limited to their walls." />
               <div className="flex items-center gap-1.5">
@@ -3463,8 +3533,7 @@ function FeatureSwitch({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <SettingLabel label={label} hint={disabled ? undefined : description} />
-        {disabled && description && <p className="text-[11px] text-muted-foreground">{description}</p>}
+        <SettingLabel label={label} hint={description} />
       </div>
       <Switch
         id={id}

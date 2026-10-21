@@ -1,3 +1,4 @@
+import { compartmentHeightMm, compartmentLabelTabPlacements, compartmentLayoutError } from "./compartments";
 import { binWidthMm, binLengthMm } from "./bin-size";
 import { hasSmoothBase, ultim8PegCenters } from "./peg-bottom";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
@@ -141,6 +142,8 @@ const FOOTPRINT_WARN_MM = 260;
 
 export function validateBinSpec(spec: BinSpec): ValidationResult {
   const issues: ValidationIssue[] = [];
+  const compartmentError = compartmentLayoutError(spec);
+  if (compartmentError) issues.push({ code: "invalid-compartments", severity: "error", message: compartmentError });
   const wallHeight = binWallHeightMm(spec.heightUnits);
   const heightLabel = spec.arbitrarySizeMm ? `${binHeightMm(spec.heightUnits).toFixed(1)} mm` : `${spec.heightUnits}u`;
   if (spec.pegBottom?.underside === "flat" && (spec.fill === "none" || spec.lip === "standard" || spec.labelTab || spec.surfaceTexts.length)) {
@@ -230,7 +233,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     });
   }
 
-  if (spec.labelTab?.edge && !isBoundaryEdge(spec, spec.labelTab.edge)) {
+  if (spec.labelTab?.edge && !(spec.fill === "none" && spec.labelTab.scope === "compartments") && !isBoundaryEdge(spec, spec.labelTab.edge)) {
     issues.push({
       code: "label-tab-edge-missing",
       severity: "error",
@@ -440,15 +443,24 @@ export function validateLayout(
 
   // A pocket mouth under the label tab: legal geometry, but the tab shadows
   // the opening and the tool may not come out past it.
-  const tabStrip = labelTabStripMm(spec);
-  if (tabStrip) {
+  const outerTabStrip = labelTabStripMm(spec);
+  const tabStrips = spec.fill === "none" && spec.labelTab?.scope === "compartments"
+    ? compartmentLabelTabPlacements(spec).map(tab => {
+      const angle = tab.rotation * Math.PI / 180;
+      const corners = [tab.start, tab.start + tab.length].flatMap(x => [0, -tab.depth].map(y => ({
+        x: tab.x + x * Math.cos(angle) - y * Math.sin(angle), y: tab.y + x * Math.sin(angle) + y * Math.cos(angle),
+      })));
+      const swept = [BASE_HEIGHT + compartmentHeightMm(spec) - tab.profile.heightMm, BASE_HEIGHT + compartmentHeightMm(spec)]
+        .flatMap(z => corners.map(point => wallSlantPointMm(spec, point, z)));
+      return { minX: Math.min(...swept.map(p => p.x)), maxX: Math.max(...swept.map(p => p.x)),
+        minY: Math.min(...swept.map(p => p.y)), maxY: Math.max(...swept.map(p => p.y)) };
+    }) : outerTabStrip ? [outerTabStrip] : [];
+  if (tabStrips.length) {
     for (const p of placed) {
       if (p.cutout.role === "hole") continue;
-      const overlaps =
-        p.bounds.minX < tabStrip.maxX &&
-        p.bounds.maxX > tabStrip.minX &&
-        p.bounds.minY < tabStrip.maxY &&
-        p.bounds.maxY > tabStrip.minY;
+      const overlaps = tabStrips.some(tabStrip =>
+        p.bounds.minX < tabStrip.maxX && p.bounds.maxX > tabStrip.minX &&
+        p.bounds.minY < tabStrip.maxY && p.bounds.maxY > tabStrip.minY);
       if (overlaps) {
         issues.push({
           code: "label-tab-shadow",

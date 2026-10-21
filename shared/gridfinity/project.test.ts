@@ -49,6 +49,16 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([undefined, false, true])("round-trips automatic label placement (%s) and history", autoWall => {
+    const spec = { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 }, labelTab: { wall: "west", autoWall, width: "full" } };
+    const parsed = parseProjectDoc({ ...VALID, spec, cutouts: [], history: { index: 0, stack: [
+      { label: "Label placement", doc: { spec, cutouts: [], fingerHoles: [] } },
+    ] } });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.spec.labelTab!.autoWall).toBe(autoWall);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed!))))).toEqual(parsed);
+  });
+
   it.each([12, 42, 50.5, 51, MAX_HEIGHT_UNITS])("round-trips a %sU bin and its saved history", heightUnits => {
     const parsed = parseProjectDoc({
       ...VALID, cutouts: [], spec: { ...VALID.spec, heightUnits },
@@ -290,7 +300,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, compartments: { rows: 1, columns: 1, dividerThicknessMm: 1.2, scoop: false }, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

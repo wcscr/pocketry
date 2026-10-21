@@ -14,7 +14,7 @@ describe("saved project materials", () => {
   it("round-trips the full appearance with independent text color and design history", () => {
     const doc = { ...design, materials: { ...DEFAULT_BIN_MATERIALS,
       binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
-      colorPocketFloors: false, colorStackingRim: false,
+      colorPocketFloors: false, colorStackingRim: false, colorDividerTops: true,
       pocketFloorThicknessMm: 1.2, stackingRimThicknessMm: 2.5, borderWidthMm: 3,
     }, history: { index: 0, stack: [{ label: "Opened", doc: {
       spec: design.spec, cutouts: [], fingerHoles: [],
@@ -66,11 +66,24 @@ describe("saved project materials", () => {
 
   it.each([
     { binColor: "red" }, { pocketFloorColor: "#123" }, { stackingRimColor: "#gggggg" },
-    { colorPocketFloors: "false" }, { colorStackingRim: 1 },
+    { colorPocketFloors: "false" }, { colorStackingRim: 1 }, { colorDividerTops: "true" },
     { pocketFloorThicknessMm: 0 }, { pocketFloorThicknessMm: 3.1 },
     { stackingRimThicknessMm: 8 }, { borderWidthMm: -1 }, { borderWidthMm: 21 },
     { unknown: true },
   ])("rejects invalid material settings %j", invalid => {
     expect(parseProjectDoc({ ...design, materials: { ...DEFAULT_BIN_MATERIALS, ...invalid } })).toBeNull();
   });
+});
+
+it("keeps old saved materials off without losing colors or compound history", () => {
+  const { colorDividerTops: _, ...legacyMaterials } = DEFAULT_BIN_MATERIALS;
+  const legacy = { ...design, materials: legacyMaterials, history: { index: 0, stack: [{
+    label: "Colors", doc: { spec: design.spec, cutouts: [], fingerHoles: [] },
+    materialChange: { before: legacyMaterials, after: { ...legacyMaterials, stackingRimColor: "#123456" } },
+  }] } };
+  const before = JSON.stringify(legacy);
+  const parsed = parseProjectDoc(legacy)!;
+  expect(parsed.materials!.colorDividerTops).toBe(false);
+  expect(parsed.history!.stack[0].materialChange!.after).toMatchObject({ colorDividerTops: false, stackingRimColor: "#123456" });
+  expect(JSON.stringify(legacy)).toBe(before);
 });

@@ -1,3 +1,4 @@
+import { dividerStripRings } from "@shared/gridfinity/compartments";
 import { pickBinContextTarget } from "@/lib/gridfinity/context-target";
 import { useBinObjectContextMenu, type BinContextTarget } from "./object-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
@@ -877,6 +878,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             labelTab: {
               ...(spec.labelTab ?? { width: "full" as const, wall: side }),
               wall: side,
+              autoWall: false,
               edge: { cell: { x, y }, side },
             },
           },
@@ -1803,6 +1805,11 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             strokeDasharray="3 3"
             vectorEffect="non-scaling-stroke"
           />
+          <defs><clipPath id={`${sceneId}-compartments`}><path d={ringToCanvasPath(interiorFootprint, spec)} /></clipPath></defs>
+          <g clipPath={`url(#${sceneId}-compartments)`} className="pointer-events-none fill-foreground/35" data-testid="layout-dividers">
+            <title>Divider footprints at the floor; inspect slants and scoops in 3D</title>
+            {dividerStripRings(spec).map((ring, i) => <path key={i} d={ringToCanvasPath(ring, spec)} />)}
+          </g>
           {/* 42 mm cell boundaries. */}
           {gridLines.map((line, index) => (
             <line

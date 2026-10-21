@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_COMPARTMENTS_PER_AXIS } from "./compartments";
 import { surfaceTextSchema, textColorSchema } from "./surface-text";
 import { withFontSourceValidationCache } from "./local-font";
 
@@ -8,7 +9,7 @@ import {
   type BoundaryEdge,
   type GridCell,
 } from "./footprint";
-import { D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitch } from "./standard";
+import { D_DIV, D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitch } from "./standard";
 
 /**
  * The Gridfinity bin specification — what the user asks for, not how it is
@@ -76,6 +77,15 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
+    /** Hollow sub-bins; retained while solid fill is enabled. */
+    compartments: z.object({
+      /** Missing preserves the original count-driven behavior of saved grids. */
+      enabled: z.boolean().optional(),
+      rows: z.number().int().min(1).max(MAX_COMPARTMENTS_PER_AXIS).default(1),
+      columns: z.number().int().min(1).max(MAX_COMPARTMENTS_PER_AXIS).default(1),
+      dividerThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_DIV),
+      scoop: z.boolean().default(false),
+    }).strict().default({}),
     /** Null follows bin height; a number fixes hollow-wall thickness, retained while solid. */
     wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).nullable().default(null),
     /** Prototype: tilt one or both opposing walls above the fixed base along one axis. */
@@ -121,6 +131,10 @@ export const binSpecSchema = z
     labelTab: z
       .object({
         wall: z.enum(["north", "south", "east", "west"]).default("north"),
+        /** New tabs follow the acute-angle side; absent preserves a saved explicit wall. */
+        autoWall: z.boolean().optional(),
+        /** Repeat the selected tab on every hollow sub-bin; absent keeps the outer wall. */
+        scope: z.enum(["outer", "compartments"]).optional(),
         /** Exact boundary anchor for an irregular footprint; null keeps wall-based rectangle behavior. */
         edge: boundaryEdgeSchema.nullable().default(null),
         width: z.enum(["full", "center", "left", "right"]).default("full"),

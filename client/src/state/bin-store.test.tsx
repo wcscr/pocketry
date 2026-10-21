@@ -56,6 +56,19 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("preserves saved and manually anchored tabs when the wall slant changes", () => {
+    const { store, act } = mountBin();
+    for (const tab of [
+      { width: "full", wall: "north" },
+      { width: "full", wall: "east", autoWall: false },
+      { width: "full", wall: "south", autoWall: true, edge: { cell: { x: 0, y: 0 }, side: "south" } },
+    ] as const) {
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { labelTab: tab, wallSlant: null } }));
+      act(() => store().dispatch({ type: "PATCH_SPEC", patch: { wallSlant: { axis: "x", angleDeg: 20 }, lip: "none" } }));
+      expect(store().spec.labelTab!.wall).toBe(tab.wall);
+    }
+  });
+
   it("keeps pending-depth drafts outside history and clears them on resolution or project replacement", () => {
     const { store, act } = mountBin();
     const pending = { ...CUTOUT, depthPending: true as const };

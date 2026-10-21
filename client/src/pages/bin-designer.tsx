@@ -200,7 +200,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
   const { materials } = bin;
   const { binColor, pocketFloorColor, stackingRimColor, colorPocketFloors,
-    colorStackingRim, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
+    colorStackingRim, colorDividerTops, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
   const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
@@ -536,7 +536,7 @@ function BinDesignerWorkspace(): JSX.Element {
     PREVIEW_QUALITY,
     committedLayout,
     section,
-    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm },
+    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, colorDividerTops },
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
@@ -1016,6 +1016,7 @@ function BinDesignerWorkspace(): JSX.Element {
           stackingRimMaterialThicknessMm: includeStackingRim
             ? stackingRimThicknessMm
             : undefined,
+          ...(includeStackingRim && colorDividerTops ? { colorDividerTops: true } : {}),
           borderWidthMm: includeStackingRim && exportProjectDoc.spec.lip === "none"
             ? borderWidthMm : undefined,
         });
@@ -1133,6 +1134,7 @@ function BinDesignerWorkspace(): JSX.Element {
       buildOnce,
       colorPocketFloors,
       colorStackingRim,
+      colorDividerTops,
       binColor,
       pocketFloorColor,
       pocketFloorThicknessMm,
@@ -1313,6 +1315,8 @@ function BinDesignerWorkspace(): JSX.Element {
           onPocketFloorColorChange={pocketFloorColor => patchMaterials({ pocketFloorColor })}
           pocketFloorThicknessMm={pocketFloorThicknessMm}
           onPocketFloorThicknessChange={pocketFloorThicknessMm => patchMaterials({ pocketFloorThicknessMm })}
+          colorDividerTops={colorDividerTops}
+          onColorDividerTopsChange={colorDividerTops => patchMaterials({ colorDividerTops })}
           colorStackingRim={colorStackingRim}
           onColorStackingRimChange={colorStackingRim => patchMaterials({ colorStackingRim })}
           stackingRimColor={stackingRimColor}

@@ -269,7 +269,10 @@ The Gridfinity bin generator (shared/gridfinity/ and client/src/lib/gridfinity/)
 is a TypeScript port of geometry and constants from
 https://github.com/kennetek/gridfinity-rebuilt-openscad, pinned at commit
 910e22d8607fd7f5f51ad5e5cbc5287a76810bfd. The per-file provenance table lives
-in client/src/lib/gridfinity/UPSTREAM.md. No .scad files are vendored.
+in client/src/lib/gridfinity/UPSTREAM.md. The hollow-compartment scoop profile
+in compartments.ts also adapts _compartment_scoop() from src/core/cutouts.scad
+at that commit; integral divider placement is original Pocketry code using the
+existing upstream d_div default. No .scad files are vendored.
 
 MIT License
 
