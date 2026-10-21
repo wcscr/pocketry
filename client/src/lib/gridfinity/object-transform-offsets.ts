@@ -5,7 +5,7 @@ import { pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { TransformOrigins } from "@shared/gridfinity/transform-origins";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { pocketQuaternion, surfaceAnchoredPocket, type PocketTransformMode } from "./pocket-transform";
+import { pocketQuaternion, type PocketTransformMode } from "./pocket-transform";
 import { objectGroup, objectPosition, transformObjects, type EditableObject, type ObjectEdits, type RotationPivot } from "./object-arrangement";
 
 const RAD = Math.PI / 180;
@@ -15,7 +15,7 @@ const orientation = (o: EditableObject) => o.kind === "pocket" ? pocketQuaternio
 const rotationFrom = (values: readonly number[]) => new Quaternion().setFromEuler(new Euler(values[0] * RAD, values[1] * RAD, values[2] * RAD, "ZYX"));
 function axialDepth(o: EditableObject, spec: BinSpec): number | null {
   if (o.kind === "finger") return effectiveFingerHoleDepthMm(o.hole);
-  const cutout = surfaceAnchoredPocket(o.cutout);
+  const cutout = o.cutout;
   const split = cutout.split ? resolvePocketSplit(o.shape.outlineMm, cutout.split.boundary) : null;
   for (const [i, depth] of (cutout.split?.depths ?? [cutout.depth]).entries()) {
     const seat = resolvePlacedPocketDepth(spec, depth, { outlineMm: split?.regions?.[i] ?? o.shape.outlineMm }, cutout);
@@ -59,7 +59,11 @@ export function objectTransformOffsets(object: EditableObject, spec: BinSpec, or
   }
   const before = axialDepth(original, pocket?.spec ?? spec), after = axialDepth(object, spec);
   const nz = object.kind === "pocket" ? pocketAxis(object.cutout).z : 1;
-  return [current.x - start.x, current.y - start.y, before === null || after === null ? 0 : (before - after) * nz];
+  const legacyZ = object.kind === "pocket" && original.kind === "pocket"
+    ? (object.cutout.zOffsetMm ?? 0) - (original.cutout.zOffsetMm ?? 0) : 0;
+  // Legacy finite pockets can encode vertical movement in either their depth
+  // or their anchor offset. Through shafts have no finite floor to measure.
+  return [current.x - start.x, current.y - start.y, before === null || after === null ? 0 : (before - after) * nz + legacyZ];
 }
 
 /** Edit only explicitly entered axes. Mixed values preserve each member's other axes. */

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Experimental: group pockets and holes to move and rotate around one stable center, with independent duplication, ungrouping, and saved history. Geometry links share dimensions while each copy keeps its own position and rotation.
+- Preserve groups during footprint edits and bin fitting, keep moves within shared height limits, and keep legacy linked projects editable and saveable.
 
 - Group tilted-pocket insertion settings in a collapsible Insertion path section.
 
@@ -35,7 +36,6 @@
 - Confirm fixed depth or to-floor depth alongside insertion clearance after the first 3D tilt, and again if the chosen insertion axis becomes invalid. Split sections retain separate depth choices.
 - Keep steep traced walls and rounded-edge risers out of object-axis floor coloring, including objects rotated exactly 90°. Pocket color settings now show an expand/collapse chevron.
 - Keep vertical drop-in walls bin-colored in Floor only mode, including shallow tilted pockets and linked copies.
-- Apply pocket depth and Z elevation edits to linked copies while keeping X/Y placement independent.
 
 - Undo and redo restore colors changed by jig setup. Arbitrary sizes show their fixed dimensions clearly, explain arrangement overflow, and display readable millimetre values without rounding saved geometry.
 

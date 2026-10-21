@@ -15,6 +15,44 @@ export type ObjectGroup = z.infer<typeof objectGroupSchema>;
 export type GroupMember = { id: string; placementGroup?: ObjectGroup };
 export type GroupRef = { kind: "pocket" | "finger"; id: string };
 type GroupObjects = { cutouts: GroupMember[]; fingerHoles: GroupMember[] };
+type LayoutGroupObjects = {
+  cutouts: (GroupMember & { position: { x: number; y: number } })[];
+  fingerHoles: (GroupMember & { center: { x: number; y: number } })[];
+};
+
+/** Resizing and recentering a layout change its coordinate frame, not the
+ * arrangement inside a group. Rebase both frame points by the members' shared
+ * translation; reject a layout command that would move members independently.
+ * Removed members are ignored, and the normal commit step prunes singletons. */
+export function rebaseLayoutGroups<T extends LayoutGroupObjects>(before: LayoutGroupObjects, next: T): T | null {
+  const frames = new Map<string, { delta: { x: number; y: number }; group: ObjectGroup }>();
+  const collect = <M extends GroupMember>(oldItems: M[], nextItems: M[], point: (item: M) => { x: number; y: number }) => {
+    const byId = new Map(nextItems.map(item => [item.id, item]));
+    for (const old of oldItems) {
+      const group = old.placementGroup, item = byId.get(old.id);
+      if (!group || !item) continue;
+      const delta = { x: point(item).x - point(old).x, y: point(item).y - point(old).y };
+      const previous = frames.get(group.id);
+      if (!Number.isFinite(delta.x) || !Number.isFinite(delta.y)
+        || previous && (Math.abs(previous.delta.x - delta.x) > 1e-7 || Math.abs(previous.delta.y - delta.y) > 1e-7)) return false;
+      if (!previous) frames.set(group.id, { delta, group: { ...group,
+        pivot: { ...group.pivot, x: group.pivot.x + delta.x, y: group.pivot.y + delta.y },
+        origin: { ...group.origin, x: group.origin.x + delta.x, y: group.origin.y + delta.y },
+      } });
+    }
+    return true;
+  };
+  if (!collect(before.cutouts, next.cutouts, item => item.position)
+    || !collect(before.fingerHoles, next.fingerHoles, item => item.center)) return null;
+  const rebase = <M extends GroupMember>(oldItems: GroupMember[], items: M[]) => {
+    const byId = new Map(oldItems.map(item => [item.id, item.placementGroup]));
+    return items.map(item => {
+      const group = byId.get(item.id);
+      return group ? { ...item, placementGroup: frames.get(group.id)!.group } : item;
+    });
+  };
+  return { ...next, cutouts: rebase(before.cutouts, next.cutouts), fingerHoles: rebase(before.fingerHoles, next.fingerHoles) };
+}
 
 export function groupForRef(doc: GroupObjects, ref: GroupRef): ObjectGroup | undefined {
   return (ref.kind === "pocket" ? doc.cutouts : doc.fingerHoles).find(o => o.id === ref.id)?.placementGroup;

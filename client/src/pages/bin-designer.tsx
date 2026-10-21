@@ -583,7 +583,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [cutoutReports, cutouts, layout.shapes, toast]);
 
   const handleAutoArrange = useCallback(() => {
-    if (cutouts.some(c => c.placementGroup)) return;
+    if ([...cutouts, ...fingerHoles].some(object => object.placementGroup)) return;
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result = autoArrangeLayout(
       cutouts,
@@ -597,6 +597,7 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!result) return;
     dispatch({
       type: "REPLACE_LAYOUT",
+      operation: "auto-arrange",
       cutouts: result.cutouts,
       gridX: result.gridX,
       gridY: result.gridY,
@@ -1349,7 +1350,7 @@ function BinDesignerWorkspace(): JSX.Element {
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
             onRevealIssue={revealIssue}
-            onAutoArrange={!cutouts.some(c => c.placementGroup) && cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
+            onAutoArrange={![...cutouts, ...fingerHoles].some(object => object.placementGroup) && cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
             fixedBinSize={fixedBinSize}
           />
           {viewMode === "3d" ? (

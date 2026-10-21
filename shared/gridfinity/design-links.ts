@@ -19,6 +19,10 @@ export function canManageDesignLinks(objects: DesignObjects, selection: readonly
 const pocketFields = ["shapeId", "role", "scaleX", "scaleY", "aspectRatioLocked", "depth", "depthPending", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm", "insertionMode", "insertionAxis"] as const;
 const fingerFields = ["kind", "diameterMm", "lengthMm", "depthMm", "topFilletMm", "bottomFilletMm", "cornerRoundMm", "slotEnds"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// Finite source depths cache a legacy placement's solid, and profile elevation
+// is placement too. Neither is an authored shared dimension.
+const designSignature = (design: unknown) => JSON.stringify(design, (key, value: unknown) =>
+  key === "sourceDepthMm" || key === "elevationMm" ? undefined : value);
 
 export function pocketDesign(pocket: CutoutPlacement): Partial<CutoutPlacement> {
   return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])), insertionAxis: pocket.insertionAxis ?? "z" };
@@ -54,10 +58,21 @@ export function applyLinkedEdits(before: DesignObjects, edits: DesignObjects,
 ): DesignObjects | null {
   // Pose edits may materialize legacy finite depths, but never change other
   // copies. Geometry commands remain explicit and propagate their design.
-  if (placementOnly) return {
-    cutouts: before.cutouts.map(c => edits.cutouts.find(next => next.id === c.id) ?? c),
-    fingerHoles: before.fingerHoles.map(h => edits.fingerHoles.find(next => next.id === h.id) ?? h),
-  };
+  if (placementOnly) {
+    const preservesDesign = <T extends LinkedObject>(originals: T[], updates: T[], design: (item: T) => Partial<T>) =>
+      updates.every(next => {
+        const original = originals.find(item => item.id === next.id);
+        return !original || (!original.designLink && !next.designLink) ||
+          (equal(original.designLink, next.designLink) && designSignature(design(original)) === designSignature(design(next)));
+      });
+    if (!preservesDesign(before.cutouts, edits.cutouts, pocketDesign) ||
+        !preservesDesign(before.fingerHoles, edits.fingerHoles, fingerDesign)) return null;
+    const result = {
+      cutouts: before.cutouts.map(c => edits.cutouts.find(next => next.id === c.id) ?? c),
+      fingerHoles: before.fingerHoles.map(h => edits.fingerHoles.find(next => next.id === h.id) ?? h),
+    };
+    return designLinkErrors(result).length ? null : result;
+  }
   const cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign)?.map(pocket => {
     const own = edits.cutouts.find(c => c.id === pocket.id) ?? before.cutouts.find(c => c.id === pocket.id)!;
     return pocket.profileBottom && own.profileBottom
@@ -75,11 +90,7 @@ export function designLinkErrors(objects: DesignObjects): string[] {
     for (const item of items) {
       if (!item.designLink) continue;
       const first = groups.get(item.designLink.id);
-      // Source depths cache each legacy placement's finite solid. Profile
-      // elevation is placement too; neither is an authored shared dimension.
-      const signature = (object: T) => JSON.stringify(design(object), (key, value: unknown) =>
-        key === "sourceDepthMm" || key === "elevationMm" ? undefined : value);
-      if (first && (!equal(first.designLink, item.designLink) || signature(first) !== signature(item))) {
+      if (first && (!equal(first.designLink, item.designLink) || designSignature(design(first)) !== designSignature(design(item)))) {
         errors.push(`Linked ${kind} designs must agree`); break;
       }
       groups.set(item.designLink.id, item);

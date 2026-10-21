@@ -12,7 +12,7 @@ import {
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { pocketTransformChanged, pocketTransformPatch, pocketTransformWires, surfaceAnchoredPocket, type EditablePocket } from "./pocket-transform";
+import { pocketTransformChanged, pocketTransformPatch, pocketTransformWires, type EditablePocket } from "./pocket-transform";
 
 export type ObjectRef = { kind: "pocket" | "finger"; id: string };
 export type EditableObject = ({ kind: "pocket" } & EditablePocket) | { kind: "finger"; hole: FingerHole };
@@ -37,7 +37,7 @@ export function objectBounds(object: EditableObject): Bounds {
   return outlineBounds(objectOutline(object))!;
 }
 export function objectPosition(object: EditableObject): Point {
-  return object.kind === "pocket" ? surfaceAnchoredPocket(object.cutout).position : object.hole.center;
+  return object.kind === "pocket" ? object.cutout.position : object.hole.center;
 }
 export function selectionBounds(objects: readonly EditableObject[]): Bounds {
   const bounds = objects.map(objectBounds);
@@ -94,7 +94,7 @@ function transformGroup(objects: readonly EditableObject[], spec: BinSpec, delta
       continue;
     }
     if (object.cutout.profileBottom) return null;
-    const rigid = rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
+    const rigid = rigidPocket(object.cutout, object.shape, spec);
     const source = pocketSourceRings(object.shape.outlineMm, rigid, top).flat();
     const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));
     const anchor = point(new Vector3(rigid.position.x, rigid.position.y, rigid.elevationMm! - minimum));
@@ -127,7 +127,7 @@ export function selectionZRange(objects: readonly EditableObject[], spec: BinSpe
       lower = Math.max(lower, depth - maximumFingerAccessDepth(spec));
       upper = Math.min(upper, depth - 1);
     } else {
-      const cutout = object.cutout.profileBottom ? object.cutout : rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
+      const cutout = object.cutout.profileBottom ? object.cutout : rigidPocket(object.cutout, object.shape, spec);
       const elevation = cutout.profileBottom?.elevationMm ?? cutout.elevationMm!;
       lower = Math.max(lower, -elevation);
       upper = Math.min(upper, 300 - elevation);
@@ -148,6 +148,13 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
     // contain a live preview, so use it only to find missing group members.
     const members = [...objects, ...allObjects.filter(o => groupIds.has(objectGroup(o)?.id ?? "")
       && !objects.some(s => sameObject(objectRef(o), objectRef(s))))];
+    const independent = members.filter(o => !objectGroup(o));
+    if (independent.length && Math.abs(delta.z) > 1e-7) {
+      // Groups reject moves beyond a limit. Their independent companions must
+      // accept the same delta, rather than clamping after the groups have moved.
+      const [lower, upper] = selectionZRange(independent, spec);
+      if (delta.z < lower || delta.z > upper) return null;
+    }
     const result: ObjectEdits = { cutouts: [], fingerHoles: [], placementOnly: true };
     for (const id of groupIds) {
       const unit = members.filter(o => objectGroup(o)?.id === id), group = objectGroup(unit[0])!;
@@ -156,7 +163,6 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
       if (!edits) return null;
       result.cutouts.push(...edits.cutouts); result.fingerHoles.push(...edits.fingerHoles);
     }
-    const independent = members.filter(o => !objectGroup(o));
     if (independent.length) {
       // A mixed selection rotates its independent objects in place; grouped
       // objects remain indivisible. The UI exposes each unit's pivot here.
@@ -192,7 +198,7 @@ export function transformObjects(objects: readonly EditableObject[], spec: BinSp
     } else {
       let elevationDelta = offset.z + dz;
       if (rotating && pivot === "selection" && !object.cutout.profileBottom) {
-        const rigid = rigidPocket(surfaceAnchoredPocket(object.cutout), object.shape, spec);
+        const rigid = rigidPocket(object.cutout, object.shape, spec);
         const source = pocketSourceRings(object.shape.outlineMm, rigid, top).flat();
         const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));
         const sourceOrigin = new Vector3(rigid.position.x - center.x, rigid.position.y - center.y,
@@ -276,7 +282,7 @@ export function arrangeObjects(objects: readonly EditableObject[], axis: Arrange
   const move = (object: EditableObject, distance: number) => {
     if (Math.abs(distance) < 1e-7) return;
     const p = objectPosition(object), next = { ...p, [axis]: tidy(p[axis] + distance) };
-    if (object.kind === "pocket") result.cutouts.push({ ...surfaceAnchoredPocket(object.cutout), position: next });
+    if (object.kind === "pocket") result.cutouts.push({ ...object.cutout, position: next });
     else result.fingerHoles.push({ ...object.hole, center: next });
   };
   if (operation === "centers" || operation === "gaps") {

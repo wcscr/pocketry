@@ -8,7 +8,7 @@ import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinit
 import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
-import { expandGroupSelection, groupForRef, objectGroupSchema, pruneObjectGroups, type ObjectGroup } from "@shared/gridfinity/object-groups";
+import { expandGroupSelection, groupForRef, objectGroupSchema, pruneObjectGroups, rebaseLayoutGroups, type ObjectGroup } from "@shared/gridfinity/object-groups";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
 import { useExperimentalFeatures } from "./experimental-features";
 
@@ -183,6 +183,8 @@ export type BinAction = (
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
   | {
       type: "REPLACE_LAYOUT";
+      /** Packing changes individual poses; resizing/recentering preserves groups. */
+      operation?: "auto-arrange";
       cutouts: CutoutPlacement[];
       fingerHoles?: FingerHole[];
       gridX: number;
@@ -800,8 +802,12 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       }
       return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
     }
-    case "REPLACE_LAYOUT":
-      if (state.cutouts.some(c => c.placementGroup)) return { ...state, editError: "Ungroup objects before auto-arranging the layout." };
+    case "REPLACE_LAYOUT": {
+      if (action.operation === "auto-arrange" && [...state.cutouts, ...state.fingerHoles].some(object => object.placementGroup)) {
+        return { ...state, editError: "Ungroup objects before auto-arranging the layout." };
+      }
+      const objects = rebaseLayoutGroups(state, { cutouts: action.cutouts, fingerHoles: action.fingerHoles ?? state.fingerHoles });
+      if (!objects) return { ...state, editError: "Move grouped objects together when changing the layout." };
       return commit(
         state,
         {
@@ -812,8 +818,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
-          cutouts: action.cutouts,
-          fingerHoles: action.fingerHoles ?? state.fingerHoles,
+          ...objects,
         },
         action.historyLabel ?? "Arrange tool pockets",
         {
@@ -830,6 +835,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           pendingRemovalId: null,
         },
       );
+    }
     case "UPDATE_OBJECTS": {
       const edits = applyLinkedEdits(state, action.edits, { placementOnly: action.edits.placementOnly });
       if (!edits) return linkedEditError(state);

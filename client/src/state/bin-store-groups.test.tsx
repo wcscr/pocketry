@@ -109,7 +109,7 @@ it("prunes a one-member group and prevents single-member movement or auto-arrang
   ui.send({ type: "UPDATE_CUTOUT", id: "p0", patch: { position: { x: 99, y: 0 } } });
   expect(ui.state().editError).toContain("group Move and Rotate");
   expect(ui.state().history).toBe(history);
-  ui.send({ type: "REPLACE_LAYOUT", cutouts: before.cutouts, gridX: 2, gridY: 2 });
+  ui.send({ type: "REPLACE_LAYOUT", operation: "auto-arrange", cutouts: before.cutouts, gridX: 2, gridY: 2 });
   expect(ui.state().editError).toContain("Ungroup");
   expect(getCommittedBinDoc(ui.state())).toBe(before);
   ui.send({ type: "REMOVE_CUTOUT", id: "p0" });

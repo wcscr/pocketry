@@ -5,7 +5,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { resetPocketPlane } from "@shared/gridfinity/rigid-pocket";
-import { pickPocketAtTop, pocketQuaternion, pocketTransformPatch, pocketTransformWires, surfaceAnchoredPocket, pocketTransformChanged, pocketVerticalDepthMm } from "./pocket-transform";
+import { pickPocketAtTop, pocketQuaternion, pocketTransformPatch, pocketTransformWires, pocketTransformChanged, pocketVerticalDepthMm } from "./pocket-transform";
 
 const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6, lip: "none", fill: "solid" });
 const shape: TracedShape = { id: "s", name: "Slot", source: "basic-shape", sourceMmPerPx: null, pointCount: 4,
@@ -153,13 +153,14 @@ describe("surface-anchored pocket controls", () => {
       expect(parseCutoutPlacement({...fixed,...patch})).toMatchObject({elevationMm:12});
     }
   });
-  it("re-anchors legacy offsets without changing their openings or seats, including a no-op drag", () => {
+  it("retains legacy anchors and dimensions without changing openings or seats during a no-op drag", () => {
     const old = { ...pocket, zOffsetMm: 2 };
-    const anchored = surfaceAnchoredPocket(old);
+    const patch = pocketTransformPatch(old, shape, spec, { ...old.position, z: 42 }, identity, "translate")!;
     const before = pocketTransformWires({ cutout: old, shape }, spec);
-    const after = pocketTransformWires({ cutout: anchored, shape }, spec);
+    const after = pocketTransformWires({ cutout: { ...old, ...patch }, shape }, spec);
     after.flat().forEach((point, i) => point.forEach((value, axis) => expect(value).toBeCloseTo(before.flat()[i][axis], 8)));
-    const patch = pocketTransformPatch(old, shape, spec, { ...anchored.position, z: 42 }, identity, "translate")!;
+    expect(patch.depth).toEqual(old.depth);
+    expect(patch.zOffsetMm).toBe(old.zOffsetMm);
     expect(pocketTransformChanged(old, patch, "translate")).toBe(false);
   });
   it("freezes split depths independently and preserves them through motion and rotation", () => {
