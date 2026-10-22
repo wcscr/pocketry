@@ -77,6 +77,8 @@ export const binSpecSchema = z
      * default. `none` is the classic hollow storage bin.
      */
     fill: z.enum(["none", "solid"]).default("solid"),
+    /** Interior floor-to-wall radius, retained while solid; zero leaves sharp edges. */
+    bottomFilletRadiusMm: z.number().min(0).max(50).default(0),
     /** Hollow sub-bins; retained while solid fill is enabled. */
     compartments: z.object({
       /** Missing preserves the original count-driven behavior of saved grids. */

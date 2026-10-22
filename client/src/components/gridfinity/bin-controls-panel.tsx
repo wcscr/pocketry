@@ -2,6 +2,7 @@ import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
 import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
+import { effectiveBottomFilletRadiusMm } from "@shared/gridfinity/bottom-fillet";
 import { FeatureSettings } from "./feature-settings";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
@@ -441,6 +442,7 @@ export function BinControlsPanel({
     spec.wallSlant !== null,
     spec.fill === "none" && internalCompartmentsOn,
     spec.fill === "none" && spec.compartments.scoop,
+    spec.fill === "none" && spec.bottomFilletRadiusMm > 0,
   ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
@@ -1768,6 +1770,21 @@ export function BinControlsPanel({
             onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
           />
           {spec.fill === "none" && <>
+            <div className="space-y-1.5" data-testid="bottom-fillet-controls">
+              <div className="flex items-center justify-between gap-2">
+                <SettingLabel label="Bottom edge fillet" htmlFor="bin-bottom-fillet"
+                  hint="Round the interior floor into walls and dividers. Zero leaves sharp edges. Scoops keep the larger curve at their edge. Slanted walls deform the upright radius with the rest of the bin. The radius is limited to fit; your entered value is retained when resizing or enabling Solid fill." />
+                <div className="flex items-center gap-1">
+                  <DraftNumberInput id="bin-bottom-fillet" className="h-8 w-20" aria-label="Bottom edge fillet in millimetres"
+                    value={spec.bottomFilletRadiusMm} min={0} max={50} step={0.5} displayPrecision={2}
+                    onValueChange={bottomFilletRadiusMm => patchSpec({ bottomFilletRadiusMm }, true)}
+                    onValueCommit={bottomFilletRadiusMm => patchSpec({ bottomFilletRadiusMm })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>
+              {effectiveBottomFilletRadiusMm(spec) < spec.bottomFilletRadiusMm &&
+                <p className="text-[11px] text-muted-foreground" role="status">Limited to {Number(effectiveBottomFilletRadiusMm(spec).toFixed(2))} mm to fit this bin.</p>}
+            </div>
             <div className="space-y-2" data-testid="internal-compartment-controls">
               <FeatureSettings label="Internal compartments"
                 description="Rows run along the length (Y), columns along the width (X). Dividers follow the wall slant. Custom footprints clip the grid. Turning this off keeps your settings."

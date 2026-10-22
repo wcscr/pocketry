@@ -31,7 +31,7 @@ export { infillHeightMm } from "@shared/gridfinity/fill";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
-import { buildCompartments, buildDividerTopRegion } from "./compartments";
+import { buildBottomFillet, buildCompartments, buildClosingWallFillet, buildDividerTopRegion } from "./compartments";
 import { buildBase } from "./base";
 import { buildPegBottom } from "./peg-bottom";
 import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
@@ -109,7 +109,7 @@ export interface BinParts {
   compartments: Manifold | null;
   /** Sockets/flat slab at z ∈ [0, 7]; peg roots and shafts extend below zero. */
   base: Manifold;
-  /** Plain wall ring, z ∈ [7, units·7]. `null` for 1u bins (zero height). */
+  /** Wall ring and optional floor fillet, z ∈ [7, units·7]. `null` for 1u bins. */
   wall: Manifold | null;
   /** Stacking lip swept around the rim. `null` when `spec.lip` is "none". */
   lip: Manifold | null;
@@ -238,8 +238,18 @@ export function buildBinParts(
     );
   }
 
-  const compartmentPart = buildCompartments(kernel, spec, segments);
+  const floorFillet = buildBottomFillet(kernel, spec, segments, quality.filletProfileStepMm);
+  const compartmentPart = buildCompartments(kernel, spec, segments, closes ? floorFillet : null);
+  if (floorFillet && !closes) {
+    // Fuse before the single-wall warp so curved wall/fillet joins share
+    // triangulation. Warping them separately can leave edge-only contact.
+    wall = wall ? arena.track(wall.add(floorFillet)) : floorFillet;
+  }
   let compartments = compartmentPart ? slantBodyPart(kernel, compartmentPart, spec) : null;
+  if (closes) {
+    const fixedWallFillet = buildClosingWallFillet(kernel, spec, segments, quality.filletProfileStepMm);
+    if (fixedWallFillet) compartments = compartments ? arena.track(compartments.add(fixedWallFillet)) : fixedWallFillet;
+  }
   if (compartments && spec.wallSlant) {
     // Single-wall warps are piecewise linear. Clip independently tessellated
     // scoop corners to the same body envelope used by full infill.
@@ -362,6 +372,9 @@ export function buildBinWithCutouts(
     const outer = footprintOuterSection(kernel, spec, quality.circularSegments);
     const wall = buildWallSection(kernel, spec, quality.circularSegments);
     let interior = arena.track(outer.subtract(wall));
+    if (spec.bottomFilletRadiusMm > 0 && base.parts.wall) {
+      interior = arena.track(interior.subtract(arena.track(base.parts.wall.slice(BASE_HEIGHT))));
+    }
     if (base.parts.compartments) {
       // Color only exposed floor, leaving the material under dividers and
       // scoop ramps in the body. This also avoids coincident color faces at

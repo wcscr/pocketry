@@ -300,7 +300,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, compartments: { rows: 1, columns: 1, dividerThicknessMm: 1.2, scoop: false }, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, bottomFilletRadiusMm: 0, compartments: { rows: 1, columns: 1, dividerThicknessMm: 1.2, scoop: false }, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);

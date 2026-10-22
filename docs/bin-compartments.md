@@ -41,6 +41,16 @@ collapsed by default and independently expandable. Their rows show short value
 summaries and normal foreground text. Switches, help, and disclosure buttons have
 separate keyboard targets; collapsed controls are hidden from focus navigation. Wall thickness uses
 a number field, with the existing recommendation and reset control.
+Bottom edge fillet is an independent millimetre field, visible whenever Solid fill
+is off. Zero disables it. It rounds the floor into outer walls and both sides of
+dividers, retaining the entered radius through fill toggles, disabled compartments,
+save/reload and undo/redo. The effective radius is limited to the hollow height
+and half the clear compartment span; the control reports a limit without changing
+the saved value. Scoops and fillets are combined as material, so the larger curve
+governs their shared edge. Slants deform the upright fillet profile with the walls:
+the radius is measured before slanting, not as a world-space circular arc. Fillets
+use the bin material and leave exposed horizontal floor available for floor color.
+Schema 53 adds the radius, defaulting older projects and history to zero.
 The width style and wall direction apply to every tab; their depth
 is capped at half the compartment to leave an opening. Custom footprints omit
 shelf fragments whose mounting wall was removed. Floor colors

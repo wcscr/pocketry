@@ -28,6 +28,67 @@ import { footprintOuterRingMm, occupiedCellCount } from "@shared/gridfinity/foot
 import * as ProjectPersistence from "@/lib/project/persist";
 
 describe("BinDesignerPage", () => {
+  it.each(["standard", "workflow"])("retains hollow bottom fillets through edits, undo, fill and reload in %s layout", async layout => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const page = renderPage({ experimental: false });
+    const { container } = page;
+    let unmount = page.unmount;
+    try {
+      await flushHydration();
+      openSettingsSection(container, "construction");
+      const field = () => container.querySelector<HTMLInputElement>('[aria-label="Bottom edge fillet in millimetres"]');
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+      const toggle = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
+      const enter = (value: string) => {
+        React.act(() => {
+          field()!.focus();
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), value);
+          field()!.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        React.act(() => field()!.blur());
+      };
+      expect(field()).toBeNull();
+      toggle("Solid fill");
+      expect(field()!.value).toBe("0");
+      enter("3");
+      expect(current().bottomFilletRadiusMm).toBe(3);
+      clickBinHistory(container, "undo");
+      expect(field()!.value).toBe("0");
+      clickBinHistory(container, "redo");
+      expect(field()!.value).toBe("3");
+      for (const label of ["Scoop bottoms", "Internal compartments", "Internal compartments"]) toggle(label);
+      expect(field()!.value).toBe("3");
+      React.act(() => experimentalSettings.setEnabled(true));
+      toggle("Slanted walls (prototype)");
+      React.act(() => experimentalSettings.setEnabled(false));
+      expect(field()!.disabled).toBe(false);
+      expect(current()).toMatchObject({ bottomFilletRadiusMm: 3, compartments: { enabled: false, scoop: true }, wallSlant: { angleDeg: 20 } });
+      enter("50");
+      expect(field()!.value).toBe("50");
+      expect(container.querySelector('[data-testid="bottom-fillet-controls"]')!.textContent).toContain("Limited to");
+      toggle("Solid fill");
+      expect(field()).toBeNull();
+      expect(current().bottomFilletRadiusMm).toBe(50);
+      toggle("Solid fill");
+      expect(field()!.value).toBe("50");
+      enter("0");
+      expect(current().bottomFilletRadiusMm).toBe(0);
+      clickBinHistory(container, "undo");
+      const saved = parseProjectDoc({ ...EMPTY_PROJECT, spec: current() })!;
+      expect(saved).not.toBeNull();
+      unmount();
+      unmount = () => {};
+      vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+      const reopened = renderPage({ experimental: false });
+      unmount = reopened.unmount;
+      await flushHydration();
+      openSettingsSection(reopened.container, "construction");
+      expect(reopened.container.querySelector<HTMLInputElement>('[aria-label="Bottom edge fillet in millimetres"]')!.value).toBe("50");
+      expect(current().compartments.scoop).toBe(true);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
   it.each(["standard", "workflow"])("edits compartments and scoops with undo and retained fill settings in %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
