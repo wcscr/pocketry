@@ -52,7 +52,7 @@ import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantCloses, wallSlantHeightMm } from "./wall-slant";
-import { labelTabProfileMm } from "./label-tab";
+import { boundaryLabelTabProfileMm } from "./label-tab";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -241,6 +241,14 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     });
   }
 
+  const labelProfiles = spec.fill === "none" && spec.labelTab?.scope === "compartments"
+    ? compartmentLabelTabPlacements(spec).map(tab => tab.profile)
+    : [boundaryLabelTabProfileMm(spec)];
+  if (labelProfiles.some(profile => profile?.supportLimited)) {
+    issues.push({ code: "label-tab-overhang", severity: "warning",
+      message: "The wall leans too far to support the label underside at its normal angle. Reduce the slant or check supports in your slicer." });
+  }
+
   return { issues, ok: issues.every((issue) => issue.severity !== "error") };
 }
 
@@ -252,7 +260,7 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
 export function labelTabStripMm(spec: BinSpec): Bounds | null {
   const tab = spec.labelTab;
   if (!tab) return null;
-  const profile = labelTabProfileMm(spec);
+  const profile = boundaryLabelTabProfileMm(spec);
   if (!profile) return null;
 
   const edge = tab.edge ?? edgeForWall(spec, tab.wall);

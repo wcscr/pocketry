@@ -1,5 +1,5 @@
-import { labelTabProfileMm } from "./label-tab";
-import { STACKING_LIP_SUPPORT_HEIGHT, TAB_WIDTH_NOMINAL_MM } from "./standard";
+import { labelTabProfileMm, supportedLabelTabProfileMm } from "./label-tab";
+import { BASE_HEIGHT, STACKING_LIP_SUPPORT_HEIGHT, TAB_WIDTH_NOMINAL_MM } from "./standard";
 import type { Ring } from "../geometry/types";
 import type { BinSpec } from "./types";
 import { binWidthMm, binLengthMm } from "./bin-size";
@@ -85,9 +85,13 @@ export function compartmentLabelTabPlacements(spec: BinSpec) {
   const start = tab.width === "left" ? -chord / 2 : tab.width === "right" ? chord / 2 - length : -length / 2;
   const depth = Math.min(profile.depthMm, (horizontal ? cellLength : cellWidth) / 2);
   const rotation = tab.wall === "north" ? 0 : tab.wall === "east" ? -90 : tab.wall === "south" ? 180 : 90;
-  return rowFronts.flatMap(y => columnFronts.map(x => ({
-    x: tab.wall === "west" ? x : tab.wall === "east" ? x + cellWidth : x + cellWidth / 2,
-    y: tab.wall === "south" ? y : tab.wall === "north" ? y + cellLength : y + cellLength / 2,
-    start, length, depth, rotation, profile,
-  })));
+  return rowFronts.flatMap(y => columnFronts.map(x => {
+    const origin = {
+      x: tab.wall === "west" ? x : tab.wall === "east" ? x + cellWidth : x + cellWidth / 2,
+      y: tab.wall === "south" ? y : tab.wall === "north" ? y + cellLength : y + cellLength / 2,
+    };
+    return { ...origin, start, length, depth, rotation,
+      profile: supportedLabelTabProfileMm(spec, profile, tab.wall, origin, depth,
+        BASE_HEIGHT + compartmentHeightMm(spec)) };
+  }));
 }

@@ -372,7 +372,8 @@ export function buildBinWithCutouts(
     const outer = footprintOuterSection(kernel, spec, quality.circularSegments);
     const wall = buildWallSection(kernel, spec, quality.circularSegments);
     let interior = arena.track(outer.subtract(wall));
-    if (spec.bottomFilletRadiusMm > 0 && base.parts.wall) {
+    if ((spec.bottomFilletRadiusMm > 0 || spec.labelTab) && base.parts.wall) {
+      // Slanted label supports can reach the floor even without a fillet.
       interior = arena.track(interior.subtract(arena.track(base.parts.wall.slice(BASE_HEIGHT))));
     }
     if (base.parts.compartments) {

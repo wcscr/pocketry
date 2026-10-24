@@ -76,7 +76,8 @@ describe("buildLabelTab (via buildBin)", () => {
     const outwardBound = topShift > 0 ? "max" : "min";
     expect(addedBounds[outwardBound][shiftedAxis]).toBeCloseTo(
       flatAddedBounds[outwardBound][shiftedAxis] + topShift, 2);
-    expect(added.volume()).toBeCloseTo(flatAdded.volume(), 3);
+    if (axis === "x") expect(added.volume()).toBeGreaterThan(flatAdded.volume());
+    else expect(added.volume()).toBeCloseTo(flatAdded.volume(), 3);
     expect(extractPrintableMeshData(kernel, tabbed).indices.length).toBeGreaterThan(0);
   });
 

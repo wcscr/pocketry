@@ -55,6 +55,11 @@ The width style and wall direction apply to every tab; their depth
 is capped at half the compartment to leave an opening. Custom footprints omit
 shelf fragments whose mounting wall was removed. Floor colors
 remain the base's thin floor layer; scoop ramps use the bin material.
+Slanted label supports deepen as needed to preserve their nominal 36-degree
+underside angle after deformation. Label surfaces retain their dimensions;
+short supports can meet the floor, where they remain body material. A warning
+identifies slants too steep to retain that angle. See [label support verification](label-tab-support.md)
+for the PrusaSlicer and Bambu Studio checks and remaining print limits.
 
 Materials & Colors offers Include dividers inside the rim/top-border color card
 when hollow dividers exist. It starts off and retains its choice when dividers or

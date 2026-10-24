@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve label-shelf underside support angles on slanted bins, including compartment labels and shallow supports that reach the floor.
+
 - Add an adjustable bottom edge fillet to hollow bins, including internal dividers, scoop bottoms and slanted walls. Preserve the radius through fill changes, saving and undo/redo.
 
 - Preserve entered pocket depths and names when drawing or linking geometry.
