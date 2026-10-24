@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MAX_HEIGHT_UNITS, parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
 import { labelTabStripMm, validateBinSpec } from "./validate";
 import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
-import { labelTabProfileMm } from "./label-tab";
-import { binFootprintMm, binHeightMm, TAB_DEPTH_MM, TAB_HEIGHT_MM } from "./standard";
+import { boundaryLabelTabProfileMm, labelTabProfileMm } from "./label-tab";
+import { binFootprintMm, binHeightMm, TAB_DEPTH_MM } from "./standard";
 
 function spec(partial: Partial<BinSpecInput> = {}) {
   return parseBinSpec({ gridX: 2, gridY: 3, heightUnits: 6, ...partial });
@@ -154,7 +154,7 @@ describe("label tab spec rule (G5)", () => {
       wallSlant: { axis: "y", angleDeg } });
     const original = labelTabStripMm(flat)!;
     const swept = labelTabStripMm(slanted)!;
-    const lower = wallSlantOffsetMm(slanted, binHeightMm(slanted.heightUnits) - TAB_HEIGHT_MM).y;
+    const lower = wallSlantOffsetMm(slanted, binHeightMm(slanted.heightUnits) - boundaryLabelTabProfileMm(slanted)!.heightMm).y;
     const upper = wallSlantTopOffsetMm(slanted).y;
     expect(swept.minY).toBeCloseTo(original.minY + Math.min(lower, upper), 6);
     expect(swept.maxY).toBeCloseTo(original.maxY + Math.max(lower, upper), 6);

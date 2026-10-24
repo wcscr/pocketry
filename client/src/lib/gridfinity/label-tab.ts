@@ -14,7 +14,7 @@ import {
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { labelTabProfileMm } from "@shared/gridfinity/label-tab";
+import { boundaryLabelTabProfileMm } from "@shared/gridfinity/label-tab";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
 import { roundedRectPolygon } from "./profiles";
@@ -60,7 +60,7 @@ export function buildLabelTab(
   const tab = spec.labelTab;
   if (!tab) return null;
   if (tab.scope === "compartments" && spec.fill === "none") return buildCompartmentLabelTabs(kernel, spec, circularSegments);
-  const profileMm = labelTabProfileMm(spec);
+  const profileMm = boundaryLabelTabProfileMm(spec);
   if (!profileMm) return null;
 
   const { CrossSection, arena } = kernel;
@@ -127,6 +127,9 @@ function buildCompartmentLabelTabs(kernel: Kernel, spec: BinSpec, segments: numb
   if (!placements.length || height <= 0) return null;
   const tabs = placements.map(({ x, y, start, length, depth, rotation, profile }) => {
     const points = profile.points.map(([d, z]) => [d === 0 ? 0.02 : -d * depth / profile.depthMm, z] as [number, number]);
+    // Keep the sloped underside's root at the nominal wall face. The tiny
+    // attachment overlap must not flatten the support by extending its run.
+    if (profile.points.at(-1)![0] !== 0 && profile.points.at(-1)![1] > 0) points.push([0, 0]);
     const section = arena.track(new CrossSection([points]));
     const prism = arena.track(arena.track(section.extrude(length)).rotate([90, 0, 90]));
     const local = arena.track(prism.translate([start, 0, BASE_HEIGHT + height - profile.heightMm]));
