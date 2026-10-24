@@ -166,6 +166,8 @@ export type BinAction = (
       expectedText: string;
       text: string;
       font: SurfaceText["font"];
+      /** Present (including undefined) when a content edit also replaces the symbol. */
+      symbol?: SurfaceText["symbol"];
     }
   | { type: "ADD_FINGER_HOLE"; hole: FingerHole }
   | {
@@ -895,8 +897,9 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       // Selection is UI-only. Any intervening document commit, undo, redo, or
       // project replacement changes this checkpoint and supersedes the edit.
       if (state.history !== action.expectedHistory || (action.expectedEditingEpoch !== undefined && state.editingEpoch !== action.expectedEditingEpoch) || state.pendingHistoryLabel || !current || current.text !== action.expectedText) return state;
-      const parsed = surfaceTextSchema.safeParse({ ...current, text: action.text, font: action.font });
-      if (!parsed.success || parsed.data.text === current.text) return state;
+      const parsed = surfaceTextSchema.safeParse({ ...current, text: action.text, font: action.font,
+        ...("symbol" in action ? { symbol: action.symbol } : {}) });
+      if (!parsed.success || (parsed.data.text === current.text && parsed.data.symbol === current.symbol)) return state;
       return commit(state, {
         spec: { ...state.spec, surfaceTexts: state.spec.surfaceTexts.map(label => label.id === action.id ? parsed.data : label) },
         cutouts: state.cutouts, fingerHoles: state.fingerHoles,

@@ -19,7 +19,11 @@ const localFont: LocalFont = { kind: "local", name: "Saved font", resolution: 10
   source: { data: "AA==", byteLength: 1 }, glyphs: { A: glyph } };
 const extended = (text: string): LocalFont => ({ ...localFont, glyphs: Object.fromEntries([...text].map(char => [char, glyph])) });
 const cleanups: (() => void)[] = [];
-beforeEach(() => { vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.mocked(extendLocalFont).mockReset(); });
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.mocked(extendLocalFont).mockReset();
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  HTMLElement.prototype.scrollIntoView = () => {};
+});
 afterEach(() => { cleanups.splice(0).forEach(cleanup => cleanup()); vi.unstubAllGlobals(); });
 
 function mount(mode: "properties" | "inline", system = false) {
@@ -131,4 +135,62 @@ it("Escape cancels a pending inline glyph conversion", async () => {
   await React.act(async () => finish(extended("AB")));
   expect(getBin().spec.surfaceTexts[0].text).toBe("A");
   expect(getBin().history).toBe(history);
+});
+
+const openSymbols = async (host: HTMLElement) => {
+  await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Hardware symbol"]')!.click());
+};
+const symbolOption = (name: string) => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === name)!;
+
+it("chooses a symbol with an empty draft, saves and undoes it, and prevents an empty label", async () => {
+  const { host, edit, change, getBin, first } = mount("properties");
+  const input = edit(); change(input, ""); React.act(() => input.blur());
+  expect(getBin().spec.surfaceTexts[0]).toEqual(first);
+  await openSymbols(host);
+  expect(document.querySelector('a[href="https://github.com/ndevenish/gflabel"]')).not.toBeNull();
+  expect(document.querySelector('a[href="/licenses/gflabel.txt"]')).not.toBeNull();
+  React.act(() => symbolOption("Hex nut").click());
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "", symbol: "hex-nut" });
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  await openSymbols(host);
+  expect(symbolOption("None").getAttribute("aria-disabled")).toBe("true");
+  React.act(() => symbolOption("None").click());
+  expect(getBin().spec.surfaceTexts[0].symbol).toBe("hex-nut");
+  React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Hardware symbol"]')!.click());
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.surfaceTexts[0]).toEqual(first);
+  React.act(() => getBin().dispatch({ type: "REDO" }));
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "", symbol: "hex-nut" });
+  const wording = edit(); change(wording, "M3"); React.act(() => wording.blur());
+  await openSymbols(host); React.act(() => symbolOption("None").click());
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "M3" });
+  expect(getBin().spec.surfaceTexts[0].symbol).toBeUndefined();
+});
+
+it("searches by drive alias and selects with the keyboard", async () => {
+  const { host, change, getBin } = mount("properties");
+  await openSymbols(host);
+  const search = document.querySelector<HTMLInputElement>('[aria-label="Search hardware symbols"]')!;
+  change(search, "allen");
+  await React.act(async () => {});
+  expect(document.querySelector('[role="option"]')!.textContent).toBe("Hex socket");
+  React.act(() => search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  expect(getBin().spec.surfaceTexts[0].symbol).toBe("hex-drive");
+  expect(host.querySelector('[aria-label="Hardware symbol"]')!.getAttribute("aria-expanded")).toBe("false");
+});
+
+it("keeps pending wording when choosing a symbol and ignores the superseded font result", async () => {
+  const finishes: ((font: LocalFont) => void)[] = [];
+  vi.mocked(extendLocalFont).mockImplementation(() => new Promise(resolve => finishes.push(resolve)));
+  const { host, edit, change, getBin } = mount("properties", true);
+  const input = edit(); change(input, "AB"); React.act(() => input.blur());
+  await openSymbols(host); React.act(() => symbolOption("Washer").click());
+  expect(finishes).toHaveLength(2);
+  await React.act(async () => finishes[0](extended("AB")));
+  expect(getBin().spec.surfaceTexts[0].text).toBe("A");
+  await React.act(async () => finishes[1](extended("AB")));
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "AB", symbol: "washer", font: { glyphs: { B: glyph } } });
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "A" });
+  expect(getBin().spec.surfaceTexts[0].symbol).toBeUndefined();
 });

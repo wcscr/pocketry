@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DraftNumberInput } from "@/components/ui/draft-number-input";
 import { SurfaceTextFontPicker } from "./surface-text-font-picker";
+import { SurfaceTextSymbolPicker } from "./surface-text-symbol-picker";
 import { useSurfaceTextWording } from "./use-surface-text-wording";
 import { useBin } from "@/state/bin-store";
 
@@ -108,7 +109,7 @@ function TextEditor({ label, index, onChange, onRemove }: {
   onRemove: () => void;
 }): JSX.Element {
   const id = useId();
-  const { draft, error, change, commit } = useSurfaceTextWording(label);
+  const { draft, error, change, commit, changeSymbol } = useSurfaceTextWording(label);
   const numericFields = [
     { key: "sizeMm", name: "Size (mm)", min: 2, max: 40, step: 0.5 },
     { key: "heightMm", name: "Raised height (mm)", min: 0.2, max: 5, step: 0.2 },
@@ -125,6 +126,7 @@ function TextEditor({ label, index, onChange, onRemove }: {
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Remove text ${index + 1}`} onClick={onRemove}><Trash2 className="h-4 w-4" /></Button>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} canRemove={!!draft.trim()} onChange={changeSymbol} />
     <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
     <div className="space-y-2">
       {numericFields.map(field => <Label key={field.key} className="flex min-w-0 items-center gap-2 text-xs">

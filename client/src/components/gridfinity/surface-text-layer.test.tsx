@@ -150,7 +150,7 @@ it("validates inline wording and cancels Escape or disabled editing without undo
   const initialHistory = getStore().history.stack.length;
   let input = edit();
   inputValue(input, " "); key(input, "Enter");
-  expect(host.querySelector('[role="alert"]')?.textContent).toBe("Enter some text.");
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe("Enter some text or choose a symbol.");
   expect(getStore().spec.surfaceTexts[0]).toEqual(label);
   inputValue(input, "SAE"); key(input, "Escape");
   expect(host.querySelector("input")).toBeNull();

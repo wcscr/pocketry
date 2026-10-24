@@ -2,6 +2,19 @@
 
 Reviewed: 2026-08-27
 
+Hardware-symbol addition reviewed: 2026-10-24. Pocketry bundles 18 vector outlines
+generated from [GFLabel](https://github.com/ndevenish/gflabel) at commit
+`7c6bfbaf1e007d42ea82cf1e2d89563ab545ebe0`, copyright 2024 Nicholas Devenish.
+The upstream BSD-3-Clause license permits redistribution and modification with
+the copyright, conditions, disclaimer, and non-endorsement condition retained.
+The complete notice is in `NOTICE` and `client/public/licenses/gflabel.txt`, both
+shipped with the app. Attribution and project links appear in the picker and
+About. These assets retain their upstream license alongside Pocketry's AGPL code.
+Only the hardware fragments listed in the generator are included; GFLabel's
+separately licensed fonts and electronic-symbol assets are not incorporated.
+See [provenance and regeneration](hardware-symbols.md) for the exact source,
+modifications, maintenance-only CAD dependencies, and output boundaries.
+
 ## Scope
 
 This review covers open-source projects Pocketry directly chose, bundles, or

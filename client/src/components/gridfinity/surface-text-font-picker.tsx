@@ -85,7 +85,7 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
         if (next) { setQuery(""); if (available && !attempted) void list(); }
         else close();
       }}>
-        <PopoverTrigger asChild><Button id={id} role="combobox" aria-label={`Text ${index + 1} font`} aria-expanded={open} variant="outline" className="h-8 min-w-0 flex-1 justify-between gap-1 px-2 font-normal">
+        <PopoverTrigger asChild><Button id={id} role="combobox" aria-label={`Text ${index + 1} font`} aria-expanded={open} disabled={!label.text.trim()} variant="outline" className="h-8 min-w-0 flex-1 justify-between gap-1 px-2 font-normal">
           <span className="truncate">{currentName}</span><ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button></PopoverTrigger>
         <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-0">
@@ -117,6 +117,7 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
         </PopoverContent>
       </Popover>
     </div>
+    {!label.text.trim() && <p className="text-[11px] text-muted-foreground">Add wording to choose a font. Symbols keep their own shape.</p>}
     {error && !open && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </div>;
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { localFontSchema } from "./local-font";
+import { hardwareSymbol, hardwareSymbolIdSchema } from "./hardware-symbols";
 
 export const textColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a six-digit hex color.");
 export const SURFACE_TEXT_FONTS = [
@@ -11,25 +12,33 @@ export const SURFACE_TEXT_FONTS = [
 ] as const;
 
 /** Planar raised labels, in the bin's y-up millimetre frame. */
-export const surfaceTextSchema = z.object({
+const surfaceTextFields = z.object({
   id: z.string().min(1).max(100),
   /** Optional object-list name, independent of the printed wording. */
   name: z.string().trim().min(1).optional(),
-  text: z.string().min(1).max(120).refine(value => value.trim().length > 0, "Enter some text.")
+  text: z.string().max(120)
     .refine(value => !/[\u0000-\u001f\u007f]/.test(value), "Use a single line of text."),
+  /** Optional bundled hardware outline before the wording. */
+  symbol: hardwareSymbolIdSchema.optional(),
   position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
-  /** Font em size; actual glyph height depends on the characters. */
+  /** Font em size and symbol height; actual glyph height depends on the characters. */
   sizeMm: z.number().finite().min(2).max(40).default(6),
   heightMm: z.number().finite().min(0.2).max(5).default(0.8),
   rotationDeg: z.number().finite().min(-180).max(180).default(0),
 }).strict();
 
+const hasContent = (label: z.infer<typeof surfaceTextFields>) => !!label.symbol || label.text.trim().length > 0;
+const contentError = { message: "Enter some text or choose a symbol.", path: ["text"] };
+export const surfaceTextSchema = surfaceTextFields.refine(hasContent, contentError);
+/** Older projects stored color per label; BinSpec migrates it to the shared text color. */
+export const surfaceTextWithLegacyColorSchema = surfaceTextFields.extend({ color: textColorSchema.optional() }).refine(hasContent, contentError);
+
 export type SurfaceText = z.infer<typeof surfaceTextSchema>;
 
-/** Existing unnamed labels retain their wording as the display-name fallback. */
+/** Prefer a custom name, then wording, then the symbol name for symbol-only labels. */
 export function surfaceTextName(label: SurfaceText): string {
-  return label.name ?? label.text;
+  return label.name ?? (label.text.trim() ? label.text : label.symbol ? hardwareSymbol(label.symbol).name : label.text);
 }
 
 /** Keep rotations continuous across the pointer-angle seam and inside the saved range. */

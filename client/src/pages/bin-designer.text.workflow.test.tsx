@@ -14,7 +14,7 @@ import {
   openObjectContext,
   contextCommand,
 } from "./bin-designer.test-support";
-import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { surfaceTextName, surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
@@ -46,6 +46,7 @@ describe("BinDesignerPage", () => {
       if (mobile) openMobileProperties();
       expect(wording().value).toBe("METRIC");
       expect(wording().closest("[hidden]")).toBeNull();
+      expect(document.querySelector('[aria-label="Hardware symbol"]')!.closest("[hidden]")).toBeNull();
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       if (layout === "workflow") {
         expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Tool label");
@@ -390,6 +391,16 @@ describe("BinDesignerPage", () => {
       setTextColor("#ff6600");
       openSettingsSection(container, "text");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Hardware symbol"]')!.click());
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Washer")!.click());
+      const symbolWording = container.querySelector<HTMLInputElement>('[data-testid="surface-text-editor"] input[type="text"]')!;
+      React.act(() => {
+        symbolWording.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(symbolWording, "");
+        symbolWording.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => symbolWording.blur());
+      expect(current()[1]).toMatchObject({ symbol: "washer", text: "" });
       openSettingsSection(container, "materials");
       expect([...container.querySelectorAll('[data-testid="surface-text-layer"] path')].map(path => path.getAttribute("fill"))).toEqual(["#ff6600", "#ff6600"]);
       setTextColor("#2244ff");
@@ -433,12 +444,13 @@ describe("BinDesignerPage", () => {
         const entries = unzipSync(new Uint8Array(buffer));
         const model = strFromU8(entries["3D/3dmodel.model"]);
         expect(model).toContain('name="Text: Metric &amp; SAE"');
+        expect(model).toContain('name="Text: Washer"');
         expect(model.match(/<component /g)).toHaveLength(["multicolor", "opted-out", "inherited"].includes(variant) ? 4 : 3);
         expect(model.match(/<item /g)).toHaveLength(1);
         const xml = new DOMParser().parseFromString(model, "application/xml");
         const colors = [...xml.getElementsByTagName("m:color")].map(item => item.getAttribute("color"));
         for (const label of current()) {
-          const object = [...xml.getElementsByTagName("object")].find(item => item.getAttribute("name") === `Text: ${label.text}`)!;
+          const object = [...xml.getElementsByTagName("object")].find(item => item.getAttribute("name") === `Text: ${surfaceTextName(label)}`)!;
           const color = colors[Number(object.getAttribute("pindex"))];
           expect(color).toBe(variant === "single-color" || variant === "text-only" ? "#BFBFBFFF"
             : variant === "inherited" ? "#778899FF" : `${textColor()!.toUpperCase()}FF`);
