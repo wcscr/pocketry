@@ -179,6 +179,48 @@ it("searches by drive alias and selects with the keyboard", async () => {
   expect(host.querySelector('[aria-label="Hardware symbol"]')!.getAttribute("aria-expanded")).toBe("false");
 });
 
+it("rotates the symbol alone with one undo entry and retains its angle across wording and symbol changes", async () => {
+  const { host, edit, change, getBin } = mount("properties");
+  const rotation = () => host.querySelector<HTMLInputElement>('[aria-label="Symbol rotation (°)"]');
+  expect(rotation()).toBeNull();
+  await openSymbols(host); React.act(() => symbolOption("Socket-head bolt").click());
+  expect(rotation()!.value).toBe("0");
+  const before = getBin().spec.surfaceTexts[0], historySize = getBin().history.stack.length;
+  const originalPreview = host.querySelector('[data-symbol-preview]')!.innerHTML;
+  React.act(() => rotation()!.focus()); change(rotation()!, "45"); change(rotation()!, "90");
+  React.act(() => rotation()!.blur());
+  expect(getBin().spec.surfaceTexts[0]).toEqual({ ...before, symbolRotationDeg: 90 });
+  expect(getBin().history.stack).toHaveLength(historySize + 1);
+  expect(host.querySelector('[data-symbol-preview]')!.innerHTML).not.toBe(originalPreview);
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  expect(rotation()!.value).toBe("0");
+  React.act(() => getBin().dispatch({ type: "REDO" }));
+  expect(rotation()!.value).toBe("90");
+  const wording = edit(); change(wording, "M3"); React.act(() => wording.blur());
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "M3", symbolRotationDeg: 90, rotationDeg: 0 });
+  await openSymbols(host); React.act(() => symbolOption("None").click());
+  expect(rotation()).toBeNull();
+  expect(getBin().spec.surfaceTexts[0].symbolRotationDeg).toBe(90);
+  await openSymbols(host); React.act(() => symbolOption("Self-tapping screw").click());
+  expect(rotation()!.value).toBe("90");
+});
+
+it("cancels symbol rotation and rejects an invalid angle without changing history", async () => {
+  const { host, change, getBin } = mount("properties");
+  await openSymbols(host); React.act(() => symbolOption("Pan-head screw").click());
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Symbol rotation (°)"]')!;
+  const before = getBin().spec.surfaceTexts[0], history = getBin().history;
+  React.act(() => input.focus()); change(input, "45");
+  React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  expect(getBin().history).toBe(history);
+  React.act(() => input.focus()); change(input, "181"); React.act(() => input.blur());
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  expect(getBin().history).toBe(history);
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+});
+
 it("keeps pending wording when choosing a symbol and ignores the superseded font result", async () => {
   const finishes: ((font: LocalFont) => void)[] = [];
   vi.mocked(extendLocalFont).mockImplementation(() => new Promise(resolve => finishes.push(resolve)));

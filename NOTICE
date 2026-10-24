@@ -33,8 +33,8 @@ Revision: 7c6bfbaf1e007d42ea82cf1e2d89563ab545ebe0
 Asset: shared/gridfinity/hardware-symbols.json
 Generator: scripts/generate-hardware-symbols.py (with its pinned dependency lock)
 Adaptations: selected fixed fragments, sampled curves, normalized height and
-winding, descriptive catalog names, and omitted tiny corner fillets in the
-threaded-insert fragment for stable generation. No GFLabel fonts, electronic-symbol
+winding, upright bolt/screw profiles, descriptive catalog names, and omitted tiny
+corner fillets in the threaded-insert fragment for stable generation. No GFLabel fonts, electronic-symbol
 assets, or label bases are incorporated. The Python generator is a maintenance
 tool; neither GFLabel nor its CAD runtime is shipped in the browser application.
 The artwork retains BSD-3-Clause terms. Its complete upstream notice is also

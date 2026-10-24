@@ -22,6 +22,21 @@ request is needed. Existing text-only labels retain their geometry.
 
 ## Assets and checks
 
+### Independent rotation follow-up
+
+- Bolt and screw side profiles start upright, head at the top, normalized to the
+  label size. Head/drive views and other hardware keep their existing orientation.
+- Add **Symbol rotation** immediately below the picker in the shared properties
+  editor. Show it only when a symbol is selected; retain its angle when None is
+  selected or another symbol is chosen. The existing **Rotation** turns the whole
+  label. Both controls use the existing numeric preview/commit and undo path.
+- Persist optional `symbolRotationDeg` in schema 54 (this feature's unreleased
+  schema); absent means zero. Rotate the symbol before calculating its bounds,
+  wording gap, and vertical alignment. The selected picker preview follows it.
+- Check arbitrary angles, inverse/whole-label rotation, holes and export topology,
+  default vertical profiles, save/history round-trips, undo/redo, invalid input,
+  text-only behavior, and visibility in desktop/mobile standard/workflow layouts.
+
 Generate only hardware fragments from pinned GFLabel source; no Open Sans,
 electronic symbols, or third-party label bases are incorporated. Commit the
 normalized outlines and generator/provenance so ordinary builds remain Node-only.
@@ -49,5 +64,22 @@ separate qualification and is not claimed by passing geometry/export checks.
   About credits and the served BSD license were read back. Production NOTICE
   and the license file match their source files byte for byte.
 - Two consecutive locked generator runs produced the same asset SHA-256:
-  `7b63c9d806421558c45d46c9c2cb03b2f33fbcf837687bc7a977e15d9e877353`.
+  `7b63c9d806421558c45d46c9c2cb03b2f33fbcf837687bc7a977e15d9e877353`
+  before the upright-profile follow-up below.
 - No deployment, slicer run, or physical print qualification was performed.
+
+### Rotation follow-up verification — 2026-10-24
+
+- Node 22: type check, all 3,331 quick tests, 39 surface-text workflows,
+  production build, and diff check passed locally. The quick suite was rerun
+  with loopback access after the sandbox prevented server tests from binding.
+- All 14 symbol qualification cases passed: every symbol at 2/6/40 mm and
+  -180/-45/0/90 degrees, with rotated mixed labels in closed STL and colored 3MF.
+- UI tests cover one-entry undo/redo, invalid and cancelled numeric drafts,
+  retained angles across wording/symbol edits, and visibility in all four
+  standard/workflow and desktop/mobile combinations.
+- Browser checks confirmed vertical bolts and screws, independent rotation with
+  upright wording, the selected picker preview, reload persistence, and phone
+  properties. Shipped NOTICE and GFLabel license match their source files.
+- Two locked generator runs produced identical upright-profile assets, SHA-256:
+  `4219fe27b338bec5b808b0092f167de13834a05526ce06fd8adff1b0508f1ce7`.

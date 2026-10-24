@@ -20,9 +20,11 @@ const surfaceTextFields = z.object({
     .refine(value => !/[\u0000-\u001f\u007f]/.test(value), "Use a single line of text."),
   /** Optional bundled hardware outline before the wording. */
   symbol: hardwareSymbolIdSchema.optional(),
+  /** Independent symbol angle; absent keeps the catalog's default orientation. */
+  symbolRotationDeg: z.number().finite().min(-180).max(180).optional(),
   position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
-  /** Font em size and symbol height; actual glyph height depends on the characters. */
+  /** Font em size and unrotated symbol height; glyph height depends on the characters. */
   sizeMm: z.number().finite().min(2).max(40).default(6),
   heightMm: z.number().finite().min(0.2).max(5).default(0.8),
   rotationDeg: z.number().finite().min(-180).max(180).default(0),

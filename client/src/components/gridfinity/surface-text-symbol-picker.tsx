@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { HARDWARE_SYMBOLS, HARDWARE_SYMBOL_SOURCE, hardwareSymbol, type HardwareSymbolId } from "@shared/gridfinity/hardware-symbols";
+import { HARDWARE_SYMBOLS, HARDWARE_SYMBOL_SOURCE, hardwareSymbol, hardwareSymbolOutline, type HardwareSymbolId } from "@shared/gridfinity/hardware-symbols";
 import type { Ring } from "@shared/geometry/types";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
-function SymbolPreview({ id }: { id: HardwareSymbolId }): JSX.Element {
-  const { outline } = hardwareSymbol(id);
+function SymbolPreview({ id, rotationDeg }: { id: HardwareSymbolId; rotationDeg?: number }): JSX.Element {
+  const outline = hardwareSymbolOutline(id, rotationDeg);
   const bounds = outlineBounds(outline)!;
   const path = (ring: Ring) => `M${ring.map(p => `${p.x},${-p.y}`).join("L")}Z`;
   return <svg aria-hidden="true" data-symbol-preview="" viewBox={`${bounds.minX - 0.06} ${-bounds.maxY - 0.06} ${bounds.maxX - bounds.minX + 0.12} ${bounds.maxY - bounds.minY + 0.12}`}
@@ -18,8 +18,8 @@ function SymbolPreview({ id }: { id: HardwareSymbolId }): JSX.Element {
   </svg>;
 }
 
-export function SurfaceTextSymbolPicker({ symbol, canRemove, id, onChange }: {
-  symbol?: HardwareSymbolId; canRemove: boolean; id: string;
+export function SurfaceTextSymbolPicker({ symbol, rotationDeg, canRemove, id, onChange }: {
+  symbol?: HardwareSymbolId; rotationDeg?: number; canRemove: boolean; id: string;
   onChange: (symbol: HardwareSymbolId | undefined) => void;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
@@ -30,7 +30,7 @@ export function SurfaceTextSymbolPicker({ symbol, canRemove, id, onChange }: {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild><Button id={id} role="combobox" aria-label="Hardware symbol" aria-expanded={open} variant="outline"
           className="h-9 min-w-0 flex-1 justify-between gap-2 px-2 font-normal [&_[data-symbol-preview]]:h-6 [&_[data-symbol-preview]]:w-9 [@media(pointer:coarse)]:min-h-11">
-          {symbol && <SymbolPreview id={symbol} />}<span className="flex-1 truncate text-left">{symbol ? hardwareSymbol(symbol).name : "None"}</span>
+          {symbol && <SymbolPreview id={symbol} rotationDeg={rotationDeg} />}<span className="flex-1 truncate text-left">{symbol ? hardwareSymbol(symbol).name : "None"}</span>
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button></PopoverTrigger>
         <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-0">

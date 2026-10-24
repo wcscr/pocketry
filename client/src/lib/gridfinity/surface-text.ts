@@ -6,7 +6,7 @@ import mono from "three/examples/fonts/droid/droid_sans_mono_regular.typeface.js
 import helvetiker from "three/examples/fonts/helvetiker_regular.typeface.json";
 import helvetikerBold from "three/examples/fonts/helvetiker_bold.typeface.json";
 import { surfaceTextName, type SurfaceText } from "@shared/gridfinity/surface-text";
-import { hardwareSymbol } from "@shared/gridfinity/hardware-symbols";
+import { hardwareSymbolOutline } from "@shared/gridfinity/hardware-symbols";
 import type { Outline, Ring } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { infillTopZ } from "@shared/gridfinity/fill";
@@ -61,12 +61,12 @@ export function surfaceTextOutline(label: SurfaceText): Outline {
   let outline = wordingOutline(label);
   if (label.symbol) {
     const scale = (ring: Ring) => ring.map(p => ({ x: p.x * label.sizeMm, y: p.y * label.sizeMm }));
-    const symbol = hardwareSymbol(label.symbol).outline.map(shape => ({ outer: scale(shape.outer), holes: shape.holes.map(scale) }));
+    const symbol = hardwareSymbolOutline(label.symbol, label.symbolRotationDeg).map(shape => ({ outer: scale(shape.outer), holes: shape.holes.map(scale) }));
     const symbolBounds = outlineBounds(symbol)!;
     const textBounds = outlineBounds(outline);
     if (textBounds) {
       const dx = symbolBounds.maxX + label.sizeMm * 0.25 - textBounds.minX;
-      const dy = -(textBounds.minY + textBounds.maxY) / 2;
+      const dy = (symbolBounds.minY + symbolBounds.maxY - textBounds.minY - textBounds.maxY) / 2;
       const offset = (ring: Ring) => ring.map(p => ({ x: p.x + dx, y: p.y + dy }));
       outline = outline.map(shape => ({ outer: offset(shape.outer), holes: shape.holes.map(offset) }));
     }

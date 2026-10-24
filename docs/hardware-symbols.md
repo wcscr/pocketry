@@ -4,15 +4,20 @@ Choose **Add → Surface text**, then **Symbol** in the selected label's propert
 Search by hardware or drive name. A label holds one symbol, optional wording,
 or wording alone. Clear wording to print only the symbol; enter wording before
 selecting None. Add more labels for more symbols. Symbols use the label's size,
-raised height, position, rotation, and text color. Fonts affect only the wording.
+raised height, position, and text color. Bolts and screws start upright, with the
+head at the top. **Symbol rotation** turns just the symbol; **Rotation** turns the
+whole label. The chosen symbol angle is retained when switching symbols or
+selecting None. Fonts affect only the wording.
 The shared properties editor makes this available in standard, workflow, and
 mobile layouts with the same existing surface-label restrictions.
 
-Size sets symbol height and text em size. A symbol is placed before the vertically
-centered wording with a quarter-em gap. The combined outline is centered at the
+Size sets unrotated symbol height and text em size. The symbol is rotated first,
+then placed before the vertically centered wording with a quarter-em gap measured
+from its rotated bounds. The combined outline is centered at the
 label position and then rotated. Existing text-only outlines are unchanged.
 STL joins labels to the bin; 3MF retains each label as a separately named part.
-Projects and undo history store a stable symbol ID (schema 54); old labels keep
+Projects and undo history store a stable symbol ID and optional independent angle
+(schema 54, absent angle means zero); old text-only labels keep
 their text and do not gain a default symbol.
 
 ## Source and license
@@ -50,7 +55,8 @@ The generator declares each stable ID, display name, search terms, and upstream
 fragment expression. It evaluates at height 6 mm, preserves line endpoints,
 and omits the threaded insert's tiny corner fillets because the upstream fillet
 operation can fail nondeterministically with the pinned CAD toolchain. It
-samples curves at intervals no larger than 0.04 mm, normalizes exact source
+samples curves at intervals no larger than 0.04 mm, turns bolt and screw side
+profiles clockwise to put their heads at the top, normalizes the oriented source
 bounds to height 1, and rounds coordinates to six decimals. Outer rings are
 counterclockwise and holes clockwise in y-up coordinates. Rings have implicit
 closing edges. The deterministic JSON records its source revision and license.

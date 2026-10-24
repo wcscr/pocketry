@@ -35,7 +35,7 @@ describe("BinDesignerPage", () => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
-      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "canvas-label", name: "Tool label", text: "METRIC", position: { x: 0, y: 25 } }] }),
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [{ id: "canvas-label", name: "Tool label", text: "METRIC", symbol: "socket-bolt", symbolRotationDeg: 45, position: { x: 0, y: 25 } }] }),
     });
     const { container, unmount } = renderPage({ mobile, experimental: false });
     try {
@@ -47,6 +47,9 @@ describe("BinDesignerPage", () => {
       expect(wording().value).toBe("METRIC");
       expect(wording().closest("[hidden]")).toBeNull();
       expect(document.querySelector('[aria-label="Hardware symbol"]')!.closest("[hidden]")).toBeNull();
+      const symbolRotation = document.querySelector<HTMLInputElement>('[aria-label="Symbol rotation (°)"]')!;
+      expect(symbolRotation.closest("[hidden]")).toBeNull();
+      expect(symbolRotation.value).toBe("45");
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       if (layout === "workflow") {
         expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Tool label");

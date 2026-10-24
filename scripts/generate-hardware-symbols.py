@@ -41,6 +41,7 @@ SYMBOLS = [
     ("security-torx", "Security Torx", "tamper resistant star torx drive bit", "head(torx,security)"),
     ("square-drive", "Square drive", "robertson square drive bit", "head(square)"),
 ]
+VERTICAL_PROFILES = {"socket-bolt", "pan-screw", "countersunk-screw", "tapping-screw"}
 
 
 def threaded_insert(height):
@@ -66,10 +67,11 @@ def threaded_insert(height):
     return sketch.sketch.locate(Location((0, 2.5 / 2))).scale(height / 10)
 
 
-def ring_points(wire, bounds, ccw):
+def ring_points(wire, bounds, ccw, vertical):
     """Preserve edge endpoints; sample curves at <=0.04 mm at source height 6.
 
     Store y-up coordinates centered on the source's exact bounds, height 1.
+    Turn side profiles clockwise so the head is at the top before normalizing.
     Normalize winding and rotate each ring to a stable starting vertex.
     """
     points = []
@@ -77,8 +79,9 @@ def ring_points(wire, bounds, ccw):
         count = 1 if edge.geom_type == GeomType.LINE else max(8, math.ceil(edge.length / 0.04))
         for i in range(count):
             p = edge.position_at(i / count)
-            points.append((round((p.X - bounds.center().X) / bounds.size.Y, 6),
-                           round((p.Y - bounds.center().Y) / bounds.size.Y, 6)))
+            x, y = p.X - bounds.center().X, p.Y - bounds.center().Y
+            x, y, height = (y, -x, bounds.size.X) if vertical else (x, y, bounds.size.Y)
+            points.append((round(x / height, 6), round(y / height, 6)))
     points = [p for i, p in enumerate(points) if p != points[i - 1]]
     area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(points, points[1:] + points[:1]))
     assert len(points) >= 3 and abs(area) > 1e-9
@@ -94,14 +97,16 @@ def main():
     for key, name, keywords, fragment in SYMBOLS:
         sketch = threaded_insert(6) if fragment == "threaded_insert" else fragment_from_spec(fragment).render(6, 100, None)
         bounds = sketch.bounding_box()
+        vertical = key in VERTICAL_PROFILES
+        height = bounds.size.X if vertical else bounds.size.Y
         shapes = []
         for face in sketch.faces():
-            holes = [ring_points(wire, bounds, False) for wire in face.inner_wires()]
+            holes = [ring_points(wire, bounds, False, vertical) for wire in face.inner_wires()]
             holes.sort(key=lambda ring: (ring[0]["x"], ring[0]["y"]))
-            shapes.append({"outer": ring_points(face.outer_wire(), bounds, True), "holes": holes})
+            shapes.append({"outer": ring_points(face.outer_wire(), bounds, True, vertical), "holes": holes})
         shapes.sort(key=lambda shape: (shape["outer"][0]["x"], shape["outer"][0]["y"]))
         symbols[key] = {"name": name, "keywords": keywords, "fragment": fragment,
-                        "sourceArea": round(sketch.area / bounds.size.Y ** 2, 8), "outline": shapes}
+                        "sourceArea": round(sketch.area / height ** 2, 8), "outline": shapes}
         print(f"{key}: {len(shapes)} shapes, {sum(len(s['holes']) for s in shapes)} holes")
     output = Path(__file__).resolve().parents[1] / "shared/gridfinity/hardware-symbols.json"
     # One entry per line keeps the asset compact while making symbol diffs reviewable.

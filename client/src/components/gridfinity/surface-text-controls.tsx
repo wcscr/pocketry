@@ -126,7 +126,13 @@ function TextEditor({ label, index, onChange, onRemove }: {
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Remove text ${index + 1}`} onClick={onRemove}><Trash2 className="h-4 w-4" /></Button>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} canRemove={!!draft.trim()} onChange={changeSymbol} />
+    <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} rotationDeg={label.symbolRotationDeg} canRemove={!!draft.trim()} onChange={changeSymbol} />
+    {label.symbol && <Label className="flex min-w-0 items-center gap-2 text-xs">
+      <span className="flex-1">Symbol rotation</span>
+      <DraftNumberInput aria-label="Symbol rotation (°)" className="h-8 w-20 min-w-0" value={label.symbolRotationDeg ?? 0} min={-180} max={180} step={5} displayPrecision={2}
+        onValueChange={symbolRotationDeg => onChange({ symbolRotationDeg }, true)} onValueCommit={symbolRotationDeg => onChange({ symbolRotationDeg })} />
+      <span className="w-4 text-[11px] text-muted-foreground">°</span>
+    </Label>}
     <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
     <div className="space-y-2">
       {numericFields.map(field => <Label key={field.key} className="flex min-w-0 items-center gap-2 text-xs">
