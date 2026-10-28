@@ -58,6 +58,11 @@ describe("BinDesignerPage", () => {
       expect(textSize.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(document.querySelector('[aria-label="Text 1 font"]')!.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(symbolPicker.compareDocumentPosition(symbolSize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      for (const name of ["X (mm)", "Y (mm)", "Raised height (mm)", "Label rotation (°)"]) {
+        const control = document.querySelector<HTMLInputElement>(`[aria-label="${name}"]`)!;
+        expect(control.closest("[hidden]")).toBeNull();
+        expect(control.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      }
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       if (layout === "workflow") {
         expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Tool label");

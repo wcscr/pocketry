@@ -135,19 +135,21 @@ function TextEditor({ label, index, onChange, onRemove }: {
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Remove text ${index + 1}`} onClick={onRemove}><Trash2 className="h-4 w-4" /></Button>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
-    {numeric("sizeMm", "Text size", "mm", 2, 40, 0.5)}
-    <div className="space-y-2 border-t pt-2" role="group" aria-label="Symbol settings">
-      <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} rotationDeg={label.symbolRotationDeg} canRemove={!!draft.trim()} onChange={changeSymbol} />
-      {label.symbol && <div className="grid grid-cols-2 gap-3">
-        {numeric("symbolSizeMm", "Symbol size", "mm", 2, 40, 0.5, "Size")}
-        {numeric("symbolRotationDeg", "Symbol rotation", "°", -180, 180, 5, "Rotation")}
-      </div>}
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+      <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
+      <Label className="min-w-0 space-y-1 text-xs">
+        <span className="flex h-5 items-center max-md:h-11 [@media(pointer:coarse)]:h-11">Text size</span>
+        <span className="flex items-center gap-1.5">
+          <DraftNumberInput aria-label="Text size (mm)" className="h-8 w-16 min-w-0" value={label.sizeMm} min={2} max={40} step={0.5} displayPrecision={2}
+            onValueChange={value => updateNumber("sizeMm", value, true)} onValueCommit={value => updateNumber("sizeMm", value)} />
+          <span className="text-[11px] text-muted-foreground">mm</span>
+        </span>
+      </Label>
     </div>
-    <div className="space-y-2 border-t pt-2" role="group" aria-label="Label placement and height">
+    <div className="space-y-2" role="group" aria-label="Label placement and height">
       <div className="grid grid-cols-2 gap-3">
         {numeric("heightMm", "Raised height", "mm", 0.2, 5, 0.2, "Height")}
-        {numeric("rotationDeg", "Rotation", "°", -180, 180, 5)}
+        {numeric("rotationDeg", "Label rotation", "°", -180, 180, 5)}
       </div>
       <div className="grid grid-cols-2 gap-3">
         {(["x", "y"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-1.5 text-xs">
@@ -158,6 +160,13 @@ function TextEditor({ label, index, onChange, onRemove }: {
           <span className="text-[11px] text-muted-foreground">mm</span>
         </Label>)}
       </div>
+    </div>
+    <div className="space-y-2 border-t pt-2" role="group" aria-label="Symbol settings">
+      <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} rotationDeg={label.symbolRotationDeg} canRemove={!!draft.trim()} onChange={changeSymbol} />
+      {label.symbol && <div className="grid grid-cols-2 gap-3">
+        {numeric("symbolSizeMm", "Symbol size", "mm", 2, 40, 0.5, "Size")}
+        {numeric("symbolRotationDeg", "Symbol rotation", "°", -180, 180, 5, "Rotation")}
+      </div>}
     </div>
   </fieldset>;
 }

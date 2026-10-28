@@ -5,15 +5,15 @@ Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised
 height, position, and text color. Bolts and screws start upright, with the
-head at the top. **Symbol rotation** turns just the symbol; **Rotation** turns the
+head at the top. **Symbol rotation** turns just the symbol; **Label rotation** turns the
 whole label. The chosen symbol angle is retained when switching symbols or
 selecting None. Fonts affect only the text.
 The shared properties editor makes this available in standard, workflow, and
 mobile layouts with the same existing surface-label restrictions.
 
-Text, Font, and Text size appear first in the compact properties editor. The
-Symbol picker follows, with its own Size and Rotation underneath. Shared raised
-height, label rotation, and X/Y position follow.
+Text appears first in the compact properties editor, then Font and Text size
+side by side. Shared height, Label rotation, and X/Y position stay above the
+Symbol picker. Only the symbol’s own Size and Rotation appear below that picker.
 
 Text size sets the font em size; Symbol size sets the unrotated symbol height
 independently (both 2–40 mm). Existing projects keep their current dimensions,

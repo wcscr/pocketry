@@ -27,8 +27,8 @@ No font installation or network request is needed. Existing text-only labels ret
 - Rename the content field to **Text** and use that term in nearby help and
   accessible editing labels. Keep text input, Font, and Text size above Symbol.
 - Remove the redundant inner frame/visible legend and permanent picker hint.
-  Put symbol Size and Rotation side by side below its picker; shared Raised
-  height, label Rotation, and X/Y follow in compact pairs. Keep attribution and
+  Put Font and Text size side by side. Keep shared Height, Label rotation,
+  and X/Y above Symbol. Put only symbol Size and Rotation below its picker. Keep attribution and
   symbol-only guidance in the picker, with all controls available on phones.
 - Store optional `symbolSizeMm` (2–40 mm) in this PR's unreleased schema 54.
   Missing values retain the old shared size. When text size changes on an old
@@ -114,3 +114,6 @@ separate qualification and is not claimed by passing geometry/export checks.
 - Browser checks confirmed compact desktop/phone controls, 8 mm text with a
   12 mm symbol, and both sizes surviving reload. The phone symbol controls fit
   their container without horizontal overflow.
+- Final grouping keeps shared X/Y, Height, and explicitly named Label rotation
+  above Symbol, with Font and Text size side by side. Browser measurements
+  confirm the font and size inputs align on both desktop and phone layouts.
