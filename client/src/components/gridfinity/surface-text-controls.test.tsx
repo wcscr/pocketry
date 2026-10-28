@@ -40,7 +40,7 @@ function mount(mode: "properties" | "inline", system = false) {
   });
   const edit = () => {
     if (mode === "inline") React.act(() => host.querySelector('[data-testid="surface-text-hit-first"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0 })));
-    const input = host.querySelector<HTMLInputElement>(mode === "properties" ? '[data-testid="surface-text-editor"] input[type="text"]' : '[aria-label="Edit surface text wording"]')!;
+    const input = host.querySelector<HTMLInputElement>(mode === "properties" ? '[data-testid="surface-text-editor"] input[type="text"]' : '[aria-label="Edit surface text"]')!;
     React.act(() => input.focus());
     return input;
   };
@@ -219,6 +219,52 @@ it("cancels symbol rotation and rejects an invalid angle without changing histor
   expect(getBin().spec.surfaceTexts[0]).toEqual(before);
   expect(getBin().history).toBe(history);
   expect(input.getAttribute("aria-invalid")).toBe("true");
+});
+
+it("keeps text and symbol sizes independent, retains them across symbol changes, and undoes each edit once", async () => {
+  const { host, change, getBin, edit } = mount("properties");
+  const field = (name: string) => host.querySelector<HTMLInputElement>(`[aria-label="${name} (mm)"]`)!;
+  const resize = (name: string, value: string) => {
+    const input = field(name); React.act(() => input.focus()); change(input, value); React.act(() => input.blur());
+  };
+  expect(field("Symbol size")).toBeNull();
+  await openSymbols(host); React.act(() => symbolOption("Socket-head bolt").click());
+  expect(field("Symbol size").value).toBe("6");
+  const before = getBin().spec.surfaceTexts[0], historySize = getBin().history.stack.length;
+  resize("Text size", "10");
+  expect(getBin().spec.surfaceTexts[0]).toEqual({ ...before, sizeMm: 10, symbolSizeMm: 6 });
+  expect(getBin().history.stack).toHaveLength(historySize + 1);
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  React.act(() => getBin().dispatch({ type: "REDO" }));
+  resize("Symbol size", "12");
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ sizeMm: 10, symbolSizeMm: 12 });
+  expect(getBin().history.stack).toHaveLength(historySize + 2);
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(field("Symbol size").value).toBe("6");
+  React.act(() => getBin().dispatch({ type: "REDO" }));
+  await openSymbols(host); React.act(() => symbolOption("None").click());
+  expect(field("Symbol size")).toBeNull();
+  resize("Text size", "8");
+  await openSymbols(host); React.act(() => symbolOption("Self-tapping screw").click());
+  expect(field("Symbol size").value).toBe("12");
+  const input = edit(); change(input, ""); React.act(() => input.blur());
+  resize("Symbol size", "15");
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "", sizeMm: 8, symbolSizeMm: 15 });
+});
+
+it.each(["Text size", "Symbol size"])("cancels %s drafts and rejects invalid sizes without undo noise", async name => {
+  const { host, change, getBin } = mount("properties");
+  await openSymbols(host); React.act(() => symbolOption("Hex nut").click());
+  const input = host.querySelector<HTMLInputElement>(`[aria-label="${name} (mm)"]`)!;
+  const before = getBin().spec.surfaceTexts[0], history = getBin().history;
+  React.act(() => input.focus()); change(input, "12");
+  React.act(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  expect(getBin().history).toBe(history);
+  React.act(() => input.focus()); change(input, "41"); React.act(() => input.blur());
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  expect(getBin().history).toBe(history);
 });
 
 it("keeps pending wording when choosing a symbol and ignores the superseded font result", async () => {

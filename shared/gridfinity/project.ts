@@ -95,7 +95,7 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 51 combines placement groups with automatic walls and flat-bottom provenance.
  * Version 52 adds hollow compartments, scoop bottoms, and repeated label tabs.
  * Version 53 adds a retained hollow-bin bottom edge fillet radius.
- * Version 54 adds optional bundled hardware symbols and independent symbol rotation to surface labels.
+ * Version 54 adds optional bundled hardware symbols and independent symbol size/rotation to surface labels.
  */
 
 export const PROJECT_SCHEMA_VERSION = 54 as const;

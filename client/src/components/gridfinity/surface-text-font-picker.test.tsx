@@ -37,7 +37,7 @@ describe("unified surface-text font picker", () => {
     const button = host.querySelector<HTMLButtonElement>('[aria-label="Text 1 font"]')!;
     expect(button.disabled).toBe(true);
     expect(button.textContent).toContain("Sans Bold");
-    expect(host.textContent).toContain("Add wording to choose a font");
+    expect(host.textContent).toContain("Add text to choose a font");
     expect(change).not.toHaveBeenCalled();
   });
   it("offers exactly five built-ins without system support or file uploads", async () => {

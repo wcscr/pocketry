@@ -99,7 +99,7 @@ describe("bundled hardware symbols", () => {
     expect(old.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(old.spec.surfaceTexts[0]).toEqual(label);
     const spec = { ...oldSpec, surfaceTexts: [
-      { ...label, text: "", symbol: "washer", symbolRotationDeg: -45 }, { ...label, id: "mixed", symbol: "socket-bolt", symbolRotationDeg: 90 },
+      { ...label, text: "", symbol: "washer", symbolRotationDeg: -45, symbolSizeMm: 12 }, { ...label, id: "mixed", symbol: "socket-bolt", symbolRotationDeg: 90, symbolSizeMm: 4 },
     ] };
     const current = { ...old, spec, history: { index: 1, stack: [
       { doc: oldDoc, label: "Old label" }, { doc: { ...oldDoc, spec }, label: "Choose symbols" },
@@ -111,6 +111,34 @@ describe("bundled hardware symbols", () => {
     expect(surfaceTextSchema.safeParse({ ...label, text: "\n", symbol: "washer" }).success).toBe(false);
     for (const symbolRotationDeg of [Infinity, NaN, -181, 181, "90"]) {
       expect(surfaceTextSchema.safeParse({ ...label, symbol: "washer", symbolRotationDeg }).success).toBe(false);
+    }
+    for (const symbolSizeMm of [Infinity, NaN, 0, 1.9, 40.1, "6"]) {
+      expect(surfaceTextSchema.safeParse({ ...label, symbol: "washer", symbolSizeMm }).success).toBe(false);
+    }
+  });
+
+  it.each([0, 45, 90])("sizes symbols independently at %s degrees without changing text dimensions", symbolRotationDeg => {
+    const symbol = "lock-washer" as const, count = hardwareSymbol(symbol).outline.length;
+    const base = { ...label, symbol, symbolRotationDeg };
+    const legacy = surfaceTextOutline(base);
+    expect(surfaceTextOutline({ ...base, symbolSizeMm: label.sizeMm })).toEqual(legacy);
+    const dimensions = (outline: ReturnType<typeof surfaceTextOutline>) => {
+      const bounds = outlineBounds(outline)!;
+      return { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY };
+    };
+    const oldIcon = dimensions(legacy.slice(0, count)), oldText = dimensions(legacy.slice(count));
+    for (const symbolSizeMm of [2, 12, 40]) {
+      const result = surfaceTextOutline({ ...base, symbolSizeMm });
+      const icon = dimensions(result.slice(0, count)), text = dimensions(result.slice(count));
+      expect(icon.width).toBeCloseTo(oldIcon.width * symbolSizeMm / label.sizeMm);
+      expect(icon.height).toBeCloseTo(oldIcon.height * symbolSizeMm / label.sizeMm);
+      expect(text.width).toBeCloseTo(oldText.width); expect(text.height).toBeCloseTo(oldText.height);
+      const iconBounds = outlineBounds(result.slice(0, count))!, textBounds = outlineBounds(result.slice(count))!;
+      expect(textBounds.minX - iconBounds.maxX).toBeCloseTo(label.sizeMm * 0.25);
+      expect(textBounds.minY + textBounds.maxY).toBeCloseTo(iconBounds.minY + iconBounds.maxY);
+      const resizedText = surfaceTextOutline({ ...base, sizeMm: 10, symbolSizeMm });
+      expect(dimensions(resizedText.slice(0, count)).height).toBeCloseTo(icon.height);
+      expect(dimensions(resizedText.slice(count)).height).toBeCloseTo(oldText.height * 10 / label.sizeMm);
     }
   });
 });

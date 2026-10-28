@@ -29,7 +29,7 @@ export function SurfaceTextSymbolPicker({ symbol, rotationDeg, canRemove, id, on
       <Label htmlFor={id} className="text-xs">Symbol</Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild><Button id={id} role="combobox" aria-label="Hardware symbol" aria-expanded={open} variant="outline"
-          className="h-9 min-w-0 flex-1 justify-between gap-2 px-2 font-normal [&_[data-symbol-preview]]:h-6 [&_[data-symbol-preview]]:w-9 [@media(pointer:coarse)]:min-h-11">
+          className="h-8 min-w-0 flex-1 justify-between gap-2 px-2 font-normal [&_[data-symbol-preview]]:h-6 [&_[data-symbol-preview]]:w-9 [@media(pointer:coarse)]:min-h-11">
           {symbol && <SymbolPreview id={symbol} rotationDeg={rotationDeg} />}<span className="flex-1 truncate text-left">{symbol ? hardwareSymbol(symbol).name : "None"}</span>
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button></PopoverTrigger>
@@ -51,13 +51,12 @@ export function SurfaceTextSymbolPicker({ symbol, rotationDeg, canRemove, id, on
             </CommandList>
           </Command>
           <div className="space-y-1 border-t p-2 text-xs text-muted-foreground">
-            {!canRemove && symbol && <p>Add wording before removing the symbol.</p>}
+            <p>{!canRemove && symbol ? "Add text before removing the symbol." : "Clear the text to use a symbol alone."}</p>
             <p>Symbols from <a href={HARDWARE_SYMBOL_SOURCE} target="_blank" rel="noreferrer" className="underline underline-offset-2">GFLabel</a> by Nicholas Devenish ·{" "}
               <a href="/licenses/gflabel.txt" target="_blank" rel="noreferrer" className="underline underline-offset-2">BSD-3-Clause</a></p>
           </div>
         </PopoverContent>
       </Popover>
     </div>
-    <p className="text-[11px] text-muted-foreground">Place a symbol before wording, or clear wording to use it alone.</p>
   </div>;
 }

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add 18 GFLabel hardware symbols to surface labels, alone or before wording, with independent symbol rotation, upright bolts and screws, saved history, STL/3MF export, and bundled BSD-3-Clause attribution and project links.
+- Add 18 GFLabel hardware symbols to surface labels, alone or before text, with compact settings, independent symbol size and rotation, upright bolts and screws, saved history, STL/3MF export, and bundled BSD-3-Clause attribution and project links.
 
 - Preserve label-shelf underside support angles on slanted bins, including compartment labels and shallow supports that reach the floor.
 

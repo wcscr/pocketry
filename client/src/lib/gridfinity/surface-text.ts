@@ -60,7 +60,8 @@ function wordingOutline(label: SurfaceText): Outline {
 export function surfaceTextOutline(label: SurfaceText): Outline {
   let outline = wordingOutline(label);
   if (label.symbol) {
-    const scale = (ring: Ring) => ring.map(p => ({ x: p.x * label.sizeMm, y: p.y * label.sizeMm }));
+    const symbolSize = label.symbolSizeMm ?? label.sizeMm;
+    const scale = (ring: Ring) => ring.map(p => ({ x: p.x * symbolSize, y: p.y * symbolSize }));
     const symbol = hardwareSymbolOutline(label.symbol, label.symbolRotationDeg).map(shape => ({ outer: scale(shape.outer), holes: shape.holes.map(scale) }));
     const symbolBounds = outlineBounds(symbol)!;
     const textBounds = outlineBounds(outline);

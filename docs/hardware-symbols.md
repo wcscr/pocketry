@@ -1,24 +1,30 @@
 # Hardware symbols
 
 Choose **Add → Surface text**, then **Symbol** in the selected label's properties.
-Search by hardware or drive name. A label holds one symbol, optional wording,
-or wording alone. Clear wording to print only the symbol; enter wording before
-selecting None. Add more labels for more symbols. Symbols use the label's size,
-raised height, position, and text color. Bolts and screws start upright, with the
+Search by hardware or drive name. A label holds one symbol, optional text,
+or text alone. Clear text to print only the symbol; enter text before
+selecting None. Add more labels for more symbols. Symbols share the label's raised
+height, position, and text color. Bolts and screws start upright, with the
 head at the top. **Symbol rotation** turns just the symbol; **Rotation** turns the
 whole label. The chosen symbol angle is retained when switching symbols or
-selecting None. Fonts affect only the wording.
+selecting None. Fonts affect only the text.
 The shared properties editor makes this available in standard, workflow, and
 mobile layouts with the same existing surface-label restrictions.
 
-Size sets unrotated symbol height and text em size. The symbol is rotated first,
-then placed before the vertically centered wording with a quarter-em gap measured
+Text, Font, and Text size appear first in the compact properties editor. The
+Symbol picker follows, with its own Size and Rotation underneath. Shared raised
+height, label rotation, and X/Y position follow.
+
+Text size sets the font em size; Symbol size sets the unrotated symbol height
+independently (both 2–40 mm). Existing projects keep their current dimensions,
+and changing text size preserves the current symbol size. The symbol is rotated first,
+then placed before the vertically centered text with a quarter-em gap measured
 from its rotated bounds. The combined outline is centered at the
 label position and then rotated. Existing text-only outlines are unchanged.
 STL joins labels to the bin; 3MF retains each label as a separately named part.
-Projects and undo history store a stable symbol ID and optional independent angle
-(schema 54, absent angle means zero); old text-only labels keep
-their text and do not gain a default symbol.
+Projects and undo history store a stable symbol ID, optional size, and independent
+angle (schema 54; absent angle means zero and absent symbol size inherits text
+size). Old text-only labels keep their text and do not gain a default symbol.
 
 ## Source and license
 

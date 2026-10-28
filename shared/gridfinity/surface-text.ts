@@ -22,9 +22,11 @@ const surfaceTextFields = z.object({
   symbol: hardwareSymbolIdSchema.optional(),
   /** Independent symbol angle; absent keeps the catalog's default orientation. */
   symbolRotationDeg: z.number().finite().min(-180).max(180).optional(),
+  /** Unrotated symbol height; absent preserves the legacy shared text size. */
+  symbolSizeMm: z.number().finite().min(2).max(40).optional(),
   position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
-  /** Font em size and unrotated symbol height; glyph height depends on the characters. */
+  /** Font em size; glyph height depends on the characters. */
   sizeMm: z.number().finite().min(2).max(40).default(6),
   heightMm: z.number().finite().min(0.2).max(5).default(0.8),
   rotationDeg: z.number().finite().min(-180).max(180).default(0),

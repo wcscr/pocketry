@@ -15,7 +15,7 @@ describe("hardware symbol export", () => {
   it.each([2, 6, 40].flatMap(sizeMm => [-180, -45, 0, 90].map(symbolRotationDeg => ({ sizeMm, symbolRotationDeg }))))("preserves area, holes and pieces at $sizeMm mm / $symbolRotationDeg degrees", async ({ sizeMm, symbolRotationDeg }) => {
     await withKernel(({ arena, CrossSection }) => {
       for (const symbol of HARDWARE_SYMBOLS) {
-        const label = surfaceTextSchema.parse({ id: symbol.id, text: "", symbol: symbol.id, sizeMm, symbolRotationDeg, position: { x: 0, y: 0 } });
+        const label = surfaceTextSchema.parse({ id: symbol.id, text: "", symbol: symbol.id, sizeMm: 8, symbolSizeMm: sizeMm, symbolRotationDeg, position: { x: 0, y: 0 } });
         const outline = surfaceTextOutline(label);
         const section = arena.track(new CrossSection(outline.flatMap(s => [s.outer, ...s.holes]).map(ring => ring.map(p => [p.x, p.y] as [number, number])), "NonZero"));
         expect(section.area() / sizeMm ** 2, symbol.name).toBeCloseTo(symbol.sourceArea, 3);
@@ -31,7 +31,7 @@ describe("hardware symbol export", () => {
   it("fuses all 18 symbols into a closed STL and keeps colored label parts in 3MF", async () => {
     const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 2, lip: "none", textColor: "#00aabb",
       surfaceTexts: HARDWARE_SYMBOLS.map((symbol, i) => ({ id: symbol.id, symbol: symbol.id,
-        text: i % 2 ? "M3" : "", sizeMm: 5, rotationDeg: i % 2 ? 12 : 0, symbolRotationDeg: i % 3 ? 45 : 90,
+        text: i % 2 ? "M3" : "", sizeMm: 5, symbolSizeMm: i % 2 ? 7 : 3, rotationDeg: i % 2 ? 12 : 0, symbolRotationDeg: i % 3 ? 45 : 90,
         position: { x: (i % 3 - 1) * 36, y: (Math.floor(i / 3) - 2.5) * 18 } })),
     });
     await withKernel(kernel => {

@@ -1,9 +1,9 @@
 # Hardware symbols for surface labels
 
 Add a curated, bundled collection of GFLabel hardware outlines. A surface label
-may contain one symbol, wording, or both. Symbols precede wording and share its
-size, raised height, position, rotation, and color. No font installation or network
-request is needed. Existing text-only labels retain their geometry.
+may contain one symbol, text, or both. Symbols precede text, with independent
+size/rotation and shared raised height, position, whole-label rotation, and color.
+No font installation or network request is needed. Existing text-only labels retain their geometry.
 
 ## Controls and persistence
 
@@ -21,6 +21,23 @@ request is needed. Existing text-only labels retain their geometry.
   identify the source project, pinned revision, author, and BSD-3-Clause terms.
 
 ## Assets and checks
+
+### Compact settings and independent size follow-up
+
+- Rename the content field to **Text** and use that term in nearby help and
+  accessible editing labels. Keep text input, Font, and Text size above Symbol.
+- Remove the redundant inner frame/visible legend and permanent picker hint.
+  Put symbol Size and Rotation side by side below its picker; shared Raised
+  height, label Rotation, and X/Y follow in compact pairs. Keep attribution and
+  symbol-only guidance in the picker, with all controls available on phones.
+- Store optional `symbolSizeMm` (2–40 mm) in this PR's unreleased schema 54.
+  Missing values retain the old shared size. When text size changes on an old
+  mixed label, capture its existing symbol size in the same transaction, so
+  only text changes. Explicit symbol sizes survive text edits, symbol changes,
+  None, project reload, and undo/redo.
+- Verify independent dimensions, rotated spacing/holes and real exports;
+  numeric preview/cancel/undo, old-project round-trips, symbol-only controls,
+  ordering/visibility and responsive layout. Keep fonts and source notices.
 
 ### Independent rotation follow-up
 
@@ -83,3 +100,17 @@ separate qualification and is not claimed by passing geometry/export checks.
   properties. Shipped NOTICE and GFLabel license match their source files.
 - Two locked generator runs produced identical upright-profile assets, SHA-256:
   `4219fe27b338bec5b808b0092f167de13834a05526ce06fd8adff1b0508f1ce7`.
+
+### Compact controls and size verification — 2026-10-28
+
+- Node 22: `npm run check`, `npm test` (3,337 tests), production build, and
+  `git diff --check` passed locally.
+- `npm run test:workflows -- bin-designer.text bin-designer.mobile`: 60 tests
+  passed, including text-before-symbol ordering in all four layout/device modes.
+- `npm run test:geometry -- hardware-symbols`: all 14 cases passed with independent
+  symbol sizes, including mixed labels in serialized STL and 3MF.
+- Numeric tests cover independent sizes, legacy-size preservation, cancel,
+  invalid drafts, one-step undo/redo, None/reselection and symbol-only edits.
+- Browser checks confirmed compact desktop/phone controls, 8 mm text with a
+  12 mm symbol, and both sizes surviving reload. The phone symbol controls fit
+  their container without horizontal overflow.

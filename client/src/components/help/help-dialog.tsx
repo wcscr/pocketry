@@ -186,7 +186,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <strong>Surface text:</strong> use <strong>Add → Surface text</strong> to
             create labels with built-in or supported system fonts. Choose <strong>Symbol</strong> in
             the label properties for nuts, bolts, washers, and drives from GFLabel.
-            Pair a symbol with wording or clear wording to use it alone. Text editing is available by default.
+            Pair a symbol with text or clear the text to use it alone. Adjust symbol size and rotation independently. Text editing is available by default.
           </p>
           <p>
             Right-click a pocket, finger access, text label, or traced contour for its available actions. Right-clicking a selected object keeps the current multi-selection. In contour editing mode, right-click a point to remove it immediately. The regular controls remain available.

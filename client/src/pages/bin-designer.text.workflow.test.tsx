@@ -50,6 +50,14 @@ describe("BinDesignerPage", () => {
       const symbolRotation = document.querySelector<HTMLInputElement>('[aria-label="Symbol rotation (°)"]')!;
       expect(symbolRotation.closest("[hidden]")).toBeNull();
       expect(symbolRotation.value).toBe("45");
+      const textSize = document.querySelector<HTMLInputElement>('[aria-label="Text size (mm)"]')!;
+      const symbolSize = document.querySelector<HTMLInputElement>('[aria-label="Symbol size (mm)"]')!;
+      const symbolPicker = document.querySelector('[aria-label="Hardware symbol"]')!;
+      expect(wording().labels![0].textContent).toBe("Text");
+      expect(symbolSize.closest("[hidden]")).toBeNull();
+      expect(textSize.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelector('[aria-label="Text 1 font"]')!.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(symbolPicker.compareDocumentPosition(symbolSize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       if (layout === "workflow") {
         expect(container.querySelector('[data-testid="inspector-properties-header"] h3')!.textContent).toBe("Tool label");

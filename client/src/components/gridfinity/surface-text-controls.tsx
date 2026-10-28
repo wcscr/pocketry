@@ -58,7 +58,7 @@ export function SurfaceTextControls({ onPositionText }: { onPositionText: () => 
     {!inspector && <SurfaceTextProperties />}
     {spec.surfaceTexts.length > 0 && <div className="flex items-center gap-1">
       <Button size="sm" variant="outline" className="flex-1" onClick={onPositionText}>Position text in Layout</Button>
-      <HelpHint label="surface text exports">3MF keeps each label as a separate named part for moving, scaling, or coloring in your slicer. Choose multi-color 3MF to preserve the text color. Change the wording in Pocketry. STL joins text to the bin.</HelpHint>
+      <HelpHint label="surface text exports">3MF keeps each label as a separate named part for moving, scaling, or coloring in your slicer. Choose multi-color 3MF to preserve the text color. Change the text in Pocketry. STL joins text to the bin.</HelpHint>
     </div>}
   </div>;
 }
@@ -110,53 +110,54 @@ function TextEditor({ label, index, onChange, onRemove }: {
 }): JSX.Element {
   const id = useId();
   const { draft, error, change, commit, changeSymbol } = useSurfaceTextWording(label);
-  const numericFields = [
-    { key: "sizeMm", name: "Size (mm)", min: 2, max: 40, step: 0.5 },
-    { key: "heightMm", name: "Raised height (mm)", min: 0.2, max: 5, step: 0.2 },
-  ] as const;
-  return <fieldset className="space-y-2 rounded-md border p-2.5" data-testid="surface-text-editor">
-    <legend className="px-1 text-xs font-medium">Text {index + 1}</legend>
-    <div className="flex items-end gap-2">
-      <div className="min-w-0 flex-1 space-y-1">
-        <Label htmlFor={id} className="text-xs">Wording</Label>
-        <Input id={id} type="text" value={draft} maxLength={120} className="h-8" aria-invalid={!!error}
-          onChange={event => change(event.target.value)} onBlur={commit}
-          onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
-      </div>
+  const numeric = (key: "sizeMm" | "symbolSizeMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg",
+    name: string, unit: "mm" | "°", min: number, max: number, step: number, caption = name) =>
+    <Label className="flex min-w-0 items-center gap-1.5 text-xs">
+      <span className="flex-1">{caption}</span>
+      <DraftNumberInput aria-label={`${name} (${unit})`} className="h-8 w-16 min-w-0" value={label[key] ?? (key === "symbolSizeMm" ? label.sizeMm : 0)}
+        min={min} max={max} step={step} displayPrecision={2}
+        onValueChange={value => updateNumber(key, value, true)} onValueCommit={value => updateNumber(key, value)} />
+      <span className="text-[11px] text-muted-foreground">{unit}</span>
+    </Label>;
+  const updateNumber = (key: "sizeMm" | "symbolSizeMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg", value: number, transient = false) => {
+    // An older mixed label inherits text size until its first size edit. Freeze
+    // that existing symbol size in the same undo transaction as a text resize.
+    onChange({ [key]: value, ...(key === "sizeMm" && label.symbol && label.symbolSizeMm === undefined
+      ? { symbolSizeMm: label.sizeMm } : {}) }, transient);
+  };
+  return <fieldset className="min-w-0 space-y-2" data-testid="surface-text-editor">
+    <legend className="sr-only">Text {index + 1}</legend>
+    <div className="flex items-center gap-2">
+      <Label htmlFor={id} className="shrink-0 text-xs">Text</Label>
+      <Input id={id} type="text" value={draft} maxLength={120} className="h-8 min-w-0 flex-1" aria-invalid={!!error}
+        onChange={event => change(event.target.value)} onBlur={commit}
+        onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Remove text ${index + 1}`} onClick={onRemove}><Trash2 className="h-4 w-4" /></Button>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} rotationDeg={label.symbolRotationDeg} canRemove={!!draft.trim()} onChange={changeSymbol} />
-    {label.symbol && <Label className="flex min-w-0 items-center gap-2 text-xs">
-      <span className="flex-1">Symbol rotation</span>
-      <DraftNumberInput aria-label="Symbol rotation (°)" className="h-8 w-20 min-w-0" value={label.symbolRotationDeg ?? 0} min={-180} max={180} step={5} displayPrecision={2}
-        onValueChange={symbolRotationDeg => onChange({ symbolRotationDeg }, true)} onValueCommit={symbolRotationDeg => onChange({ symbolRotationDeg })} />
-      <span className="w-4 text-[11px] text-muted-foreground">°</span>
-    </Label>}
     <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
-    <div className="space-y-2">
-      {numericFields.map(field => <Label key={field.key} className="flex min-w-0 items-center gap-2 text-xs">
-        <span className="flex-1">{field.key === "sizeMm" ? "Size" : "Raised height"}</span>
-        <DraftNumberInput aria-label={field.name} className="h-8 w-20 min-w-0" value={label[field.key]} displayPrecision={2} min={field.min} max={field.max} step={field.step}
-          onValueChange={value => onChange({ [field.key]: value }, true)}
-          onValueCommit={value => onChange({ [field.key]: value })} />
-        <span className="text-[11px] text-muted-foreground">mm</span>
-      </Label>)}
-      <div className="grid grid-cols-2 gap-2">
-        {(["x", "y"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-1 text-xs">
-          {axis.toUpperCase()}
-          <DraftNumberInput aria-label={`${axis.toUpperCase()} (mm)`} className="h-8 min-w-0" value={label.position[axis]} min={-672} max={672} step={1} displayPrecision={2}
+    {numeric("sizeMm", "Text size", "mm", 2, 40, 0.5)}
+    <div className="space-y-2 border-t pt-2" role="group" aria-label="Symbol settings">
+      <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} rotationDeg={label.symbolRotationDeg} canRemove={!!draft.trim()} onChange={changeSymbol} />
+      {label.symbol && <div className="grid grid-cols-2 gap-3">
+        {numeric("symbolSizeMm", "Symbol size", "mm", 2, 40, 0.5, "Size")}
+        {numeric("symbolRotationDeg", "Symbol rotation", "°", -180, 180, 5, "Rotation")}
+      </div>}
+    </div>
+    <div className="space-y-2 border-t pt-2" role="group" aria-label="Label placement and height">
+      <div className="grid grid-cols-2 gap-3">
+        {numeric("heightMm", "Raised height", "mm", 0.2, 5, 0.2, "Height")}
+        {numeric("rotationDeg", "Rotation", "°", -180, 180, 5)}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {(["x", "y"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-1.5 text-xs">
+          <span className="flex-1">{axis.toUpperCase()}</span>
+          <DraftNumberInput aria-label={`${axis.toUpperCase()} (mm)`} className="h-8 w-16 min-w-0" value={label.position[axis]} min={-672} max={672} step={1} displayPrecision={2}
             onValueChange={value => onChange({ position: { ...label.position, [axis]: value } }, true)}
             onValueCommit={value => onChange({ position: { ...label.position, [axis]: value } })} />
           <span className="text-[11px] text-muted-foreground">mm</span>
         </Label>)}
       </div>
-      <Label className="flex min-w-0 items-center gap-2 text-xs">
-        <span className="flex-1">Rotation</span>
-        <DraftNumberInput aria-label="Rotation (°)" className="h-8 w-20 min-w-0" value={label.rotationDeg} min={-180} max={180} step={5} displayPrecision={2}
-          onValueChange={value => onChange({ rotationDeg: value }, true)} onValueCommit={value => onChange({ rotationDeg: value })} />
-        <span className="w-4 text-[11px] text-muted-foreground">°</span>
-      </Label>
     </div>
   </fieldset>;
 }

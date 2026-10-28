@@ -91,7 +91,7 @@ function mountText() {
   });
   const edit = () => {
     React.act(() => path.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0 })));
-    return host.querySelector<HTMLInputElement>('[aria-label="Edit surface text wording"]')!;
+    return host.querySelector<HTMLInputElement>('[aria-label="Edit surface text"]')!;
   };
   const inputValue = (input: HTMLInputElement, value: string) => React.act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);

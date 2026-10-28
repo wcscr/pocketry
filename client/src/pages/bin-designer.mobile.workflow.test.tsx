@@ -387,7 +387,7 @@ it.each(["standard", "workflow"])("mobile canvas selection and inline editing re
     expect(document.querySelector('[data-testid="surface-text-editor"]')).not.toBeNull();
     expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
     React.act(()=>hit.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,button:0})));
-    const inline=container.querySelector<HTMLInputElement>('[aria-label="Edit surface text wording"]');
+    const inline=container.querySelector<HTMLInputElement>('[aria-label="Edit surface text"]');
     expect(inline).not.toBeNull();
     expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
     expect(document.activeElement).toBe(inline);
