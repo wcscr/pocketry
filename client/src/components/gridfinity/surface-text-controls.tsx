@@ -9,7 +9,7 @@ import { useSelectionInspector } from "./selection-inspector-context";
 import { useId, useState } from "react";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { Pencil, Trash2 } from "lucide-react";
-import { surfaceTextName, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { surfaceTextName, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,16 +110,16 @@ function TextEditor({ label, index, onChange, onRemove }: {
 }): JSX.Element {
   const id = useId();
   const { draft, error, change, commit, changeSymbol } = useSurfaceTextWording(label);
-  const numeric = (key: "sizeMm" | "symbolSizeMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg",
+  const numeric = (key: "sizeMm" | "symbolSizeMm" | "symbolGapMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg",
     name: string, unit: "mm" | "°", min: number, max: number, step: number, caption = name) =>
     <Label className="flex min-w-0 items-center gap-1.5 text-xs">
       <span className="flex-1">{caption}</span>
-      <DraftNumberInput aria-label={`${name} (${unit})`} className="h-8 w-16 min-w-0" value={label[key] ?? (key === "symbolSizeMm" ? label.sizeMm : 0)}
+      <DraftNumberInput aria-label={`${name} (${unit})`} className="h-8 w-16 min-w-0" value={label[key] ?? (key === "symbolSizeMm" ? label.sizeMm : key === "symbolGapMm" ? surfaceTextSymbolGap(label) : 0)}
         min={min} max={max} step={step} displayPrecision={2}
         onValueChange={value => updateNumber(key, value, true)} onValueCommit={value => updateNumber(key, value)} />
       <span className="text-[11px] text-muted-foreground">{unit}</span>
     </Label>;
-  const updateNumber = (key: "sizeMm" | "symbolSizeMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg", value: number, transient = false) => {
+  const updateNumber = (key: "sizeMm" | "symbolSizeMm" | "symbolGapMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg", value: number, transient = false) => {
     // An older mixed label inherits text size until its first size edit. Freeze
     // that existing symbol size in the same undo transaction as a text resize.
     onChange({ [key]: value, ...(key === "sizeMm" && label.symbol && label.symbolSizeMm === undefined
@@ -167,6 +167,7 @@ function TextEditor({ label, index, onChange, onRemove }: {
         {numeric("symbolSizeMm", "Symbol size", "mm", 2, 40, 0.5, "Size")}
         {numeric("symbolRotationDeg", "Symbol rotation", "°", -180, 180, 5, "Rotation")}
       </div>}
+      {label.symbol && label.text.trim() && numeric("symbolGapMm", "Text gap", "mm", 0, 40, 0.5)}
     </div>
   </fieldset>;
 }

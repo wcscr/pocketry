@@ -5,7 +5,7 @@ import sansBold from "three/examples/fonts/droid/droid_sans_bold.typeface.json";
 import mono from "three/examples/fonts/droid/droid_sans_mono_regular.typeface.json";
 import helvetiker from "three/examples/fonts/helvetiker_regular.typeface.json";
 import helvetikerBold from "three/examples/fonts/helvetiker_bold.typeface.json";
-import { surfaceTextName, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { surfaceTextName, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { hardwareSymbolOutline } from "@shared/gridfinity/hardware-symbols";
 import type { Outline, Ring } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -25,8 +25,8 @@ export function surfaceTextZ(spec: BinSpec): number {
 }
 
 /** Same outlines serve the layout and Manifold extrusion; never silently replace glyphs. */
-function wordingOutline(label: SurfaceText): Outline {
-  if (label.symbol && !label.text.trim()) return [];
+function wordingOutline(label: SurfaceText): { outline: Outline; leadingSpaceMm: number } {
+  if (label.symbol && !label.text.trim()) return { outline: [], leadingSpaceMm: 0 };
   const selectedFont = label.font;
   const font = typeof selectedFont === "string" ? fonts[selectedFont] : loader.parse({
     // FontLoader memoizes paths on glyph objects. Keep that cache out of saved data.
@@ -44,8 +44,12 @@ function wordingOutline(label: SurfaceText): Outline {
       throw new Error(`The label “${label.text}” contains an unsupported character: ${char}`);
     }
   }
+  // Spaces have advance widths but no outline. Bounds-based alignment must not
+  // cancel the spacing the user deliberately typed before the first glyph.
+  const leadingSpaceMm = [...label.text.match(/^\s*/u)![0]].reduce((width, char) =>
+    width + font.data.glyphs[char].ha * label.sizeMm / font.data.resolution, 0);
   const shapes = font.generateShapes(label.text, label.sizeMm);
-  return normalizeOutline(shapes.map(shape => {
+  const outline = normalizeOutline(shapes.map(shape => {
     const points = shape.extractPoints(12);
     const ring = (items: { x: number; y: number }[]) => {
       const result = items.map(({ x, y }) => ({ x, y }));
@@ -54,11 +58,12 @@ function wordingOutline(label: SurfaceText): Outline {
     };
     return { outer: ring(points.shape), holes: points.holes.map(ring) };
   }));
+  return { outline, leadingSpaceMm };
 }
 
 /** One optional symbol precedes vertically centered wording; text-only layout is unchanged. */
 export function surfaceTextOutline(label: SurfaceText): Outline {
-  let outline = wordingOutline(label);
+  let { outline, leadingSpaceMm } = wordingOutline(label);
   if (label.symbol) {
     const symbolSize = label.symbolSizeMm ?? label.sizeMm;
     const scale = (ring: Ring) => ring.map(p => ({ x: p.x * symbolSize, y: p.y * symbolSize }));
@@ -66,7 +71,7 @@ export function surfaceTextOutline(label: SurfaceText): Outline {
     const symbolBounds = outlineBounds(symbol)!;
     const textBounds = outlineBounds(outline);
     if (textBounds) {
-      const dx = symbolBounds.maxX + label.sizeMm * 0.25 - textBounds.minX;
+      const dx = symbolBounds.maxX + surfaceTextSymbolGap(label) + leadingSpaceMm - textBounds.minX;
       const dy = (symbolBounds.minY + symbolBounds.maxY - textBounds.minY - textBounds.maxY) / 2;
       const offset = (ring: Ring) => ring.map(p => ({ x: p.x + dx, y: p.y + dy }));
       outline = outline.map(shape => ({ outer: offset(shape.outer), holes: shape.holes.map(offset) }));

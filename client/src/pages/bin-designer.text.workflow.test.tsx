@@ -58,6 +58,10 @@ describe("BinDesignerPage", () => {
       expect(textSize.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(document.querySelector('[aria-label="Text 1 font"]')!.compareDocumentPosition(symbolPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(symbolPicker.compareDocumentPosition(symbolSize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const textGap = document.querySelector<HTMLInputElement>('[aria-label="Text gap (mm)"]')!;
+      expect(textGap.closest("[hidden]")).toBeNull();
+      expect(textGap.value).toBe("1.5");
+      expect(symbolPicker.compareDocumentPosition(textGap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       for (const name of ["X (mm)", "Y (mm)", "Raised height (mm)", "Label rotation (°)"]) {
         const control = document.querySelector<HTMLInputElement>(`[aria-label="${name}"]`)!;
         expect(control.closest("[hidden]")).toBeNull();

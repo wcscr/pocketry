@@ -9,6 +9,7 @@ import { writeThreeMf } from "@/lib/mesh/threemf";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
 import { createBasicPocket } from "./basic-shape";
+import { outlineBounds } from "@/lib/geometry/outline";
 import { surfaceTextOutline, surfaceTextZ } from "./surface-text";
 
 describe("hardware symbol export", () => {
@@ -31,7 +32,8 @@ describe("hardware symbol export", () => {
   it("fuses all 18 symbols into a closed STL and keeps colored label parts in 3MF", async () => {
     const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 2, lip: "none", textColor: "#00aabb",
       surfaceTexts: HARDWARE_SYMBOLS.map((symbol, i) => ({ id: symbol.id, symbol: symbol.id,
-        text: i % 2 ? "M3" : "", sizeMm: 5, symbolSizeMm: i % 2 ? 7 : 3, rotationDeg: i % 2 ? 12 : 0, symbolRotationDeg: i % 3 ? 45 : 90,
+        text: i % 2 ? (i % 4 === 1 ? "  M3" : "M3") : "", symbolGapMm: i % 3 ? 3 : 0,
+        sizeMm: 5, symbolSizeMm: i % 2 ? 7 : 3, rotationDeg: i % 2 ? 12 : 0, symbolRotationDeg: i % 3 ? 45 : 90,
         position: { x: (i % 3 - 1) * 36, y: (Math.floor(i / 3) - 2.5) * 18 } })),
     });
     await withKernel(kernel => {
@@ -67,6 +69,16 @@ describe("hardware symbol export", () => {
       expect(model).toContain('name="Text: Hex nut"');
       expect(model).toContain('name="Text: M3"');
       expect(model).toContain("#00AABB");
+      const objects = [...model.matchAll(/<object\b[^>]*>[\s\S]*?<\/object>/g)].filter(([xml]) => xml.includes("<vertices>"));
+      result.textParts.forEach(({ label }, i) => {
+        const vertices = [...objects[i + 1][0].matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"/g)];
+        const xs = vertices.map(vertex => Number(vertex[1])), ys = vertices.map(vertex => Number(vertex[2]));
+        const bounds = outlineBounds(surfaceTextOutline(label))!;
+        expect(Math.min(...xs)).toBeCloseTo(bounds.minX, 4);
+        expect(Math.max(...xs)).toBeCloseTo(bounds.maxX, 4);
+        expect(Math.min(...ys)).toBeCloseTo(bounds.minY, 4);
+        expect(Math.max(...ys)).toBeCloseTo(bounds.maxY, 4);
+      });
     });
   });
 
@@ -76,6 +88,8 @@ describe("hardware symbol export", () => {
     await withKernel(kernel => {
       const build = (surfaceTexts: typeof spec.surfaceTexts) => buildBinWithCutouts(kernel, { ...spec, surfaceTexts }, null, EXPORT_QUALITY);
       expect(() => build([{ ...label, position: { x: 21, y: 0 } }])).toThrow("must fit on the flat surface");
+      expect(() => build([{ ...label, text: "M3", symbolGapMm: 40 }])).toThrow("must fit on the flat surface");
+      expect(() => build([{ ...label, text: "                    M3" }])).toThrow("must fit on the flat surface");
       expect(() => build([label, { ...label, id: "other" }])).toThrow("overlaps");
       const pocket = createBasicPocket("rectangle", { x: -8, y: -8 }, { x: 8, y: 8 }, "pocket")!;
       expect(() => buildBinWithCutouts(kernel, spec, { cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [] }, EXPORT_QUALITY)).toThrow("must fit on the flat surface");

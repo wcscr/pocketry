@@ -13,16 +13,20 @@ mobile layouts with the same existing surface-label restrictions.
 
 Text appears first in the compact properties editor, then Font and Text size
 side by side. Shared height, Label rotation, and X/Y position stay above the
-Symbol picker. Only the symbol’s own Size and Rotation appear below that picker.
+Symbol picker. The symbol’s own Size, Rotation, and Text gap appear below that
+picker. Text gap is available when the label has both a symbol and visible text.
 
 Text size sets the font em size; Symbol size sets the unrotated symbol height
-independently (both 2–40 mm). Existing projects keep their current dimensions,
+independently (both 2–40 mm). Existing projects keep their text and symbol sizes,
 and changing text size preserves the current symbol size. The symbol is rotated first,
-then placed before the vertically centered text with a quarter-em gap measured
-from its rotated bounds. The combined outline is centered at the
+then placed before the vertically centered text. **Text gap** sets the space
+between their visible edges (0–40 mm). Leading spaces in Text add their font's
+normal space widths to this gap; trailing spaces do not change it. Existing
+labels default to a quarter-em gap until edited, while an explicitly set gap
+stays fixed when text or symbol size changes. The combined outline is centered at the
 label position and then rotated. Existing text-only outlines are unchanged.
 STL joins labels to the bin; 3MF retains each label as a separately named part.
-Projects and undo history store a stable symbol ID, optional size, and independent
+Projects and undo history store a stable symbol ID, optional size/gap, and independent
 angle (schema 54; absent angle means zero and absent symbol size inherits text
 size). Old text-only labels keep their text and do not gain a default symbol.
 

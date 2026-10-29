@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HARDWARE_SYMBOLS, hardwareSymbol, type HardwareSymbolId } from "@shared/gridfinity/hardware-symbols";
 import { surfaceTextName, surfaceTextSchema, SURFACE_TEXT_FONTS } from "@shared/gridfinity/surface-text";
+import type { LocalFont } from "@shared/gridfinity/local-font";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { doubleSignedArea, pointInRing } from "@shared/geometry/rings";
@@ -99,7 +100,8 @@ describe("bundled hardware symbols", () => {
     expect(old.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(old.spec.surfaceTexts[0]).toEqual(label);
     const spec = { ...oldSpec, surfaceTexts: [
-      { ...label, text: "", symbol: "washer", symbolRotationDeg: -45, symbolSizeMm: 12 }, { ...label, id: "mixed", symbol: "socket-bolt", symbolRotationDeg: 90, symbolSizeMm: 4 },
+      { ...label, text: "", symbol: "washer", symbolRotationDeg: -45, symbolSizeMm: 12, symbolGapMm: 0 },
+      { ...label, id: "mixed", text: "  M3", symbol: "socket-bolt", symbolRotationDeg: 90, symbolSizeMm: 4, symbolGapMm: 4.5 },
     ] };
     const current = { ...old, spec, history: { index: 1, stack: [
       { doc: oldDoc, label: "Old label" }, { doc: { ...oldDoc, spec }, label: "Choose symbols" },
@@ -115,6 +117,54 @@ describe("bundled hardware symbols", () => {
     for (const symbolSizeMm of [Infinity, NaN, 0, 1.9, 40.1, "6"]) {
       expect(surfaceTextSchema.safeParse({ ...label, symbol: "washer", symbolSizeMm }).success).toBe(false);
     }
+    for (const symbolGapMm of [Infinity, NaN, -0.1, 40.1, "2"]) {
+      expect(surfaceTextSchema.safeParse({ ...label, symbol: "washer", symbolGapMm }).success).toBe(false);
+    }
+  });
+
+  it.each(SURFACE_TEXT_FONTS)("honors leading spaces and explicit gaps in $name", ({ id: font }) => {
+    const symbol = "socket-bolt" as const, count = hardwareSymbol(symbol).outline.length;
+    const base = { ...label, font, symbol, symbolSizeMm: 12, symbolRotationDeg: 45 };
+    const gap = (outline: ReturnType<typeof surfaceTextOutline>) =>
+      outlineBounds(outline.slice(count))!.minX - outlineBounds(outline.slice(0, count))!.maxX;
+    const original = surfaceTextOutline(base);
+    expect(surfaceTextOutline({ ...base, symbolGapMm: label.sizeMm * 0.25 })).toEqual(original);
+    const oneSpace = gap(surfaceTextOutline({ ...base, text: " M3" })) - gap(original);
+    expect(oneSpace).toBeGreaterThan(0);
+    for (const symbolGapMm of [0, 2.5, 40]) {
+      const spaced = surfaceTextOutline({ ...base, text: "   M3 ", symbolGapMm });
+      expect(gap(spaced)).toBeCloseTo(symbolGapMm + 3 * oneSpace);
+      expect(gap(surfaceTextOutline({ ...base, symbolGapMm, sizeMm: 12 }))).toBeCloseTo(symbolGapMm);
+      const turned = surfaceTextOutline({ ...base, text: "   M3 ", symbolGapMm, rotationDeg: 90 });
+      spaced.forEach((shape, i) => [shape.outer, ...shape.holes].forEach((ring, j) => ring.forEach((point, k) => {
+        const actual = [turned[i].outer, ...turned[i].holes][j][k];
+        expect(actual.x).toBeCloseTo(-point.y);
+        expect(actual.y).toBeCloseTo(point.x);
+      })));
+      // Spacing translates pieces without resizing any glyph, symbol, or hole.
+      spaced.forEach((shape, i) => {
+        const dx = shape.outer[0].x - original[i].outer[0].x;
+        const dy = shape.outer[0].y - original[i].outer[0].y;
+        [shape.outer, ...shape.holes].forEach((ring, j) => ring.forEach((point, k) => {
+          const old = [original[i].outer, ...original[i].holes][j][k];
+          expect(point.x).toBeCloseTo(old.x + dx); expect(point.y).toBeCloseTo(old.y + dy);
+        }));
+      });
+    }
+    expect(surfaceTextOutline({ ...base, text: "", symbolGapMm: 40 })).toEqual(surfaceTextOutline({ ...base, text: "   " }));
+    expect(surfaceTextOutline({ ...label, font, symbolGapMm: 40 })).toEqual(surfaceTextOutline({ ...label, font }));
+  });
+
+  it("uses saved-font space advances without counting the first glyph's side bearing", () => {
+    const font: LocalFont = { kind: "local", name: "Spacing fixture", resolution: 1000, glyphs: {
+      " ": { ha: 250, o: "" }, A: { ha: 600, o: "m 100 0 l 100 500 l 500 500 l 500 0 l 100 0" },
+    } };
+    const base = { ...label, font, text: "  A", symbol: "hex-nut" as const, symbolGapMm: 2.5 };
+    const saved = JSON.stringify(base), count = hardwareSymbol(base.symbol).outline.length;
+    const outline = surfaceTextOutline(base);
+    expect(outlineBounds(outline.slice(count))!.minX - outlineBounds(outline.slice(0, count))!.maxX).toBeCloseTo(5.5);
+    expect(JSON.stringify(base)).toBe(saved);
+    expect(surfaceTextOutline(JSON.parse(saved))).toEqual(outline);
   });
 
   it.each([0, 45, 90])("sizes symbols independently at %s degrees without changing text dimensions", symbolRotationDeg => {

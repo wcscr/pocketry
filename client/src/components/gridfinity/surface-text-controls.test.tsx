@@ -253,7 +253,7 @@ it("keeps text and symbol sizes independent, retains them across symbol changes,
   expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "", sizeMm: 8, symbolSizeMm: 15 });
 });
 
-it.each(["Text size", "Symbol size"])("cancels %s drafts and rejects invalid sizes without undo noise", async name => {
+it.each(["Text size", "Symbol size", "Text gap"])("cancels %s drafts and rejects invalid values without undo noise", async name => {
   const { host, change, getBin } = mount("properties");
   await openSymbols(host); React.act(() => symbolOption("Hex nut").click());
   const input = host.querySelector<HTMLInputElement>(`[aria-label="${name} (mm)"]`)!;
@@ -265,6 +265,37 @@ it.each(["Text size", "Symbol size"])("cancels %s drafts and rejects invalid siz
   React.act(() => input.focus()); change(input, "41"); React.act(() => input.blur());
   expect(getBin().spec.surfaceTexts[0]).toEqual(before);
   expect(getBin().history).toBe(history);
+});
+
+it("edits the text gap once, preserves leading spaces, and retains the gap through content changes", async () => {
+  const { host, change, getBin, edit } = mount("properties");
+  const gap = () => host.querySelector<HTMLInputElement>('[aria-label="Text gap (mm)"]');
+  expect(gap()).toBeNull();
+  await openSymbols(host); React.act(() => symbolOption("Socket-head bolt").click());
+  expect(gap()!.value).toBe("1.5");
+  const before = getBin().spec.surfaceTexts[0], historySize = getBin().history.stack.length;
+  React.act(() => gap()!.focus()); change(gap()!, "3"); change(gap()!, "4.5");
+  React.act(() => gap()!.blur());
+  expect(getBin().spec.surfaceTexts[0]).toEqual({ ...before, symbolGapMm: 4.5 });
+  expect(getBin().history.stack).toHaveLength(historySize + 1);
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.surfaceTexts[0]).toEqual(before);
+  React.act(() => getBin().dispatch({ type: "REDO" }));
+  const wording = edit(); change(wording, "  M3"); React.act(() => wording.blur());
+  expect(getBin().spec.surfaceTexts[0]).toMatchObject({ text: "  M3", symbolGapMm: 4.5 });
+  const size = host.querySelector<HTMLInputElement>('[aria-label="Text size (mm)"]')!;
+  React.act(() => size.focus()); change(size, "10"); React.act(() => size.blur());
+  expect(gap()!.value).toBe("4.5");
+  const blank = edit(); change(blank, ""); React.act(() => blank.blur());
+  expect(gap()).toBeNull();
+  const restored = edit(); change(restored, "M3"); React.act(() => restored.blur());
+  expect(gap()!.value).toBe("4.5");
+  await openSymbols(host); React.act(() => symbolOption("None").click());
+  expect(gap()).toBeNull();
+  await openSymbols(host); React.act(() => symbolOption("Self-tapping screw").click());
+  expect(gap()!.value).toBe("4.5");
+  React.act(() => gap()!.focus()); change(gap()!, "0"); React.act(() => gap()!.blur());
+  expect(getBin().spec.surfaceTexts[0].symbolGapMm).toBe(0);
 });
 
 it("keeps pending wording when choosing a symbol and ignores the superseded font result", async () => {

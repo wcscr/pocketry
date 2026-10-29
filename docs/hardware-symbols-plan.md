@@ -22,6 +22,20 @@ No font installation or network request is needed. Existing text-only labels ret
 
 ## Assets and checks
 
+### Symbol-to-text spacing follow-up
+
+- Add **Text gap** (0–40 mm) below symbol Size/Rotation when both symbol and
+  visible text are present. Preserve the setting through text-only/symbol-only
+  transitions and symbol changes. Keep shared X/Y above Symbol.
+- Store optional `symbolGapMm` in this PR's unreleased schema 54. Missing values
+  retain the existing quarter-em gap; explicit gaps stay fixed when sizes change.
+- Preserve leading whitespace advances from the selected font when placing text
+  beside the symbol. These add to Text gap; trailing spaces and text-only geometry
+  stay unchanged. Use the same geometry for layout, preview, and exports.
+- Check zero/large gaps, multiple spaces, built-in and saved fonts, rotated symbols
+  and labels, unchanged dimensions/holes, unsupported placement, save/history,
+  numeric cancel/invalid input, and desktop/mobile control visibility.
+
 ### Compact settings and independent size follow-up
 
 - Rename the content field to **Text** and use that term in nearby help and
@@ -117,3 +131,17 @@ separate qualification and is not claimed by passing geometry/export checks.
 - Final grouping keeps shared X/Y, Height, and explicitly named Label rotation
   above Symbol, with Font and Text size side by side. Browser measurements
   confirm the font and size inputs align on both desktop and phone layouts.
+
+### Spacing verification — 2026-10-29
+
+- Node 22: type check, all 3,345 quick tests, 60 text/mobile workflows, production
+  build, and diff check passed locally.
+- All 14 hardware-symbol qualification cases passed. Mixed labels with custom
+  gaps and leading spaces produce a closed fused STL and colored 3MF parts whose
+  serialized bounds match the layout; oversized spacing fails support validation.
+- Tests cover all five bundled fonts, saved-font space advances, zero/large gaps,
+  both rotations, unchanged glyph/symbol dimensions, project/history round-trips,
+  single-entry undo/redo, cancelled/invalid drafts, and content transitions.
+- Desktop browser measurements confirmed a 2 mm then 4 mm gap; two leading spaces
+  in 8 mm Helvetiker increased the latter to 10 mm. Text and gap survived reload.
+  The Text gap control was accessible within the phone properties panel.

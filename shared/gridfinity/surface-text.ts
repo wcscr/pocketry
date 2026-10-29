@@ -24,6 +24,8 @@ const surfaceTextFields = z.object({
   symbolRotationDeg: z.number().finite().min(-180).max(180).optional(),
   /** Unrotated symbol height; absent preserves the legacy shared text size. */
   symbolSizeMm: z.number().finite().min(2).max(40).optional(),
+  /** Gap before any leading text spaces; absent keeps the quarter-em spacing. */
+  symbolGapMm: z.number().finite().min(0).max(40).optional(),
   position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
   /** Font em size; glyph height depends on the characters. */
@@ -39,6 +41,11 @@ export const surfaceTextSchema = surfaceTextFields.refine(hasContent, contentErr
 export const surfaceTextWithLegacyColorSchema = surfaceTextFields.extend({ color: textColorSchema.optional() }).refine(hasContent, contentError);
 
 export type SurfaceText = z.infer<typeof surfaceTextSchema>;
+
+/** Retain the original spacing for labels without an explicit gap. */
+export function surfaceTextSymbolGap(label: SurfaceText): number {
+  return label.symbolGapMm ?? label.sizeMm * 0.25;
+}
 
 /** Prefer a custom name, then wording, then the symbol name for symbol-only labels. */
 export function surfaceTextName(label: SurfaceText): string {
