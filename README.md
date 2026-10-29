@@ -193,6 +193,12 @@ licenses, copyright notices, and provenance are recorded in [NOTICE](NOTICE).
 The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
 
+Surface labels include 18 hardware symbols adapted from
+[GFLabel](https://github.com/ndevenish/gflabel) by Nicholas Devenish under
+[BSD-3-Clause](client/public/licenses/gflabel.txt). Choose **Add → Surface text**,
+then **Symbol** to pair one with wording or use it alone. See
+[symbol provenance and regeneration](docs/hardware-symbols.md).
+
 ## Contributors
 
 Pocketry is developed and maintained by Sugarcreek Research, LLC.

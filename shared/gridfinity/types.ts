@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_COMPARTMENTS_PER_AXIS } from "./compartments";
-import { surfaceTextSchema, textColorSchema } from "./surface-text";
+import { surfaceTextWithLegacyColorSchema, textColorSchema } from "./surface-text";
 import { withFontSourceValidationCache } from "./local-font";
 
 import {
@@ -53,7 +53,7 @@ const boundaryEdgeSchema = z.object({
 export const binSpecSchema = z
   .object({
     /** Editable raised labels on the interior's horizontal surface. */
-    surfaceTexts: z.array(surfaceTextSchema.extend({ color: textColorSchema.optional() })).max(32).default([])
+    surfaceTexts: z.array(surfaceTextWithLegacyColorSchema).max(32).default([])
       .refine(labels => new Set(labels.map(label => label.id)).size === labels.length, "Text ids must be unique."),
     /** One saved color for all labels; null inherits the displayed edge-band color. */
     textColor: textColorSchema.nullable().optional(),

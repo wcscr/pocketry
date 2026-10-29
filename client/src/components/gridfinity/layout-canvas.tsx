@@ -2325,7 +2325,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Object · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
                 : isMobile ? "Drag the object to move. Drag corners to resize or the round handle to rotate." : "Object · drag edges/corners to resize · Option resizes from center · round handle rotates"
-              : spec.surfaceTexts.length > 0 ? "Drag text to move · Drag the round handle to rotate · Double-click to edit wording"
+              : spec.surfaceTexts.length > 0 ? "Drag text to move · Drag the round handle to rotate · Double-click to edit text"
               : isMobile ? "Tap an object to select it. Use the hand to pan and pinch to zoom." : "Click an object to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>
       )}

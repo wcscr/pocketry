@@ -21,6 +21,12 @@ interface RelatedProject {
 
 const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
   {
+    name: "GFLabel",
+    description: "Printable labels and the source of Pocketry’s bundled nut, bolt, washer, and drive symbols.",
+    badge: "BSD-3-Clause",
+    url: "https://github.com/ndevenish/gflabel",
+  },
+  {
     name: "Gridfinity Rebuilt OpenSCAD",
     description:
       "Parametric OpenSCAD bins and the upstream geometry foundation directly adapted by Pocketry.",
@@ -308,6 +314,12 @@ export default function About(): JSX.Element {
               <p>
                 Major bundled or adapted projects include OpenCV/OpenCV.js,
                 manifold-3d, Gridfinity Rebuilt OpenSCAD, and shadcn/ui.
+              </p>
+              <p>
+                Hardware symbols are adapted from{" "}
+                <a href="https://github.com/ndevenish/gflabel" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">GFLabel</a>{" "}
+                by Nicholas Devenish, under the{" "}
+                <a href="/licenses/gflabel.txt" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">BSD-3-Clause license</a>.
               </p>
               <p>
                 Slanted bin walls were inspired by the{" "}

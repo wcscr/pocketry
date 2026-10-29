@@ -65,7 +65,7 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
       edit.finished = true;
       latestRequests.delete(edit.label.id);
       dispatch({ type: "COMMIT_SURFACE_TEXT_WORDING", id: edit.label.id,
-        expectedHistory: edit.history, expectedEditingEpoch: edit.editingEpoch, expectedText: edit.label.text, text: edit.text, font });
+        expectedHistory: edit.history, expectedEditingEpoch: edit.editingEpoch, expectedText: edit.label.text, text: edit.text, font, symbol: parsed.data.symbol });
       if (mounted.current) { setError(null); current.current.options.onDone?.(); }
     };
     const font = edit.label.font;
@@ -73,6 +73,14 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
       edit.pending = true;
       void extendLocalFont(font, edit.text).then(save).catch(cause => fail(cause instanceof Error ? cause.message : String(cause)));
     } else save(font);
+  };
+  // Selecting a symbol commits it together with the current wording draft. This
+  // also supersedes an in-flight font extension, without discarding typed text.
+  const changeSymbol = (symbol: SurfaceText["symbol"]) => {
+    const token = Symbol();
+    latestRequests.set(label.id, token);
+    staged.current = { label: { ...label, symbol }, history, editingEpoch, text: draft, token, pending: false, finished: false };
+    commit();
   };
   const commitRef = useRef(commit);
   commitRef.current = commit;
@@ -89,5 +97,5 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
       else cancel();
     };
   }, []);
-  return { draft, error, change, commit, cancel };
+  return { draft, error, change, commit, cancel, changeSymbol };
 }

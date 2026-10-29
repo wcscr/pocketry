@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add 18 GFLabel hardware symbols to surface labels, alone or before text, with compact settings, independent symbol size and rotation, adjustable text gap and preserved leading spaces, upright bolts and screws, saved history, STL/3MF export, and bundled BSD-3-Clause attribution and project links.
+
 - Preserve label-shelf underside support angles on slanted bins, including compartment labels and shallow supports that reach the floor.
 
 - Add an adjustable bottom edge fillet to hollow bins, including internal dividers, scoop bottoms and slanted walls. Preserve the radius through fill changes, saving and undo/redo.

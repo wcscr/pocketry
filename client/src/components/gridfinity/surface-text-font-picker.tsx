@@ -76,16 +76,16 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
     } catch (cause) { if (request.current === token) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { if (request.current === token) setBusy(false); }
   };
-  return <div className="space-y-1.5">
-    <div className="flex min-w-0 items-center gap-2">
+  return <div className="min-w-0 space-y-1.5">
+    <div className="min-w-0 space-y-1">
       <div className="flex shrink-0 items-center gap-1"><Label htmlFor={id} className="text-xs">Font</Label>
-        <HelpHint label="surface text fonts">Built-in fonts work in every supported browser. Installed system fonts require permission and desktop Chrome or Edge; Safari, Firefox, and mobile browsers cannot access them. Only system fonts with printable outlines for the characters in your wording are shown. The chosen font is saved with your project so wording stays editable on other devices.</HelpHint></div>
+        <HelpHint label="surface text fonts">Built-in fonts work in every supported browser. Installed system fonts require permission and desktop Chrome or Edge; Safari, Firefox, and mobile browsers cannot access them. Only system fonts with printable outlines for the characters in your text are shown. The chosen font is saved with your project so text stays editable on other devices.</HelpHint></div>
       <Popover open={open} onOpenChange={next => {
         if (next) setOpen(true);
         if (next) { setQuery(""); if (available && !attempted) void list(); }
         else close();
       }}>
-        <PopoverTrigger asChild><Button id={id} role="combobox" aria-label={`Text ${index + 1} font`} aria-expanded={open} variant="outline" className="h-8 min-w-0 flex-1 justify-between gap-1 px-2 font-normal">
+        <PopoverTrigger asChild><Button id={id} role="combobox" aria-label={`Text ${index + 1} font`} aria-expanded={open} disabled={!label.text.trim()} variant="outline" className="h-8 w-full min-w-0 justify-between gap-1 px-2 font-normal">
           <span className="truncate">{currentName}</span><ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button></PopoverTrigger>
         <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-0">
@@ -105,7 +105,7 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
                 {visible.map(font => <CommandItem key={font.postscriptName} value={font.postscriptName} disabled={busy}
                   onSelect={() => void selectSystemFont(font)}>{font.fullName}</CommandItem>)}
                 {checking && <p role="status" className="px-2 py-1 text-xs text-muted-foreground">Checking compatible fonts…</p>}
-                {fonts && !checking && !visible.length && <p className="px-2 py-1 text-xs text-muted-foreground">No compatible system fonts match this wording and search.</p>}
+                {fonts && !checking && !visible.length && <p className="px-2 py-1 text-xs text-muted-foreground">No compatible system fonts match this text and search.</p>}
               </CommandGroup>}
             </CommandList>
           </Command>
@@ -117,6 +117,7 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
         </PopoverContent>
       </Popover>
     </div>
+    {!label.text.trim() && <p className="text-[11px] text-muted-foreground">Add text to choose a font. Symbols keep their own shape.</p>}
     {error && !open && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </div>;
 }

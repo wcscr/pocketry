@@ -167,7 +167,7 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
       }}
       onPointerCancel={event => { if (drag.current) { event.stopPropagation(); cancel(); } }}
       onLostPointerCapture={commit}>
-      <title>{`Text: ${surfaceTextName(label)}${interactive ? " — double-click to edit wording" : ""}`}</title>
+      <title>{`Text: ${surfaceTextName(label)}${interactive ? " — double-click to edit text" : ""}`}</title>
       {/* Include letter holes and spaces in the hit area so a missed stroke
           cannot select or move a pocket underneath the label. */}
       {bounds && <rect x={bounds.minX - 0.5} y={bounds.minY - 0.5}
@@ -204,7 +204,7 @@ function InlineTextEditor({ label, onClose, commitOnUnmount }: {
   return <foreignObject x={-140} y={-20} width={280} height={100} style={{ overflow: "visible", cursor: "text" }}
     onPointerDown={event => event.stopPropagation()} onPointerMove={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
     <div className="rounded-md border bg-background p-1 shadow-lg">
-      <Input ref={input} aria-label="Edit surface text wording" aria-invalid={!!error} value={draft} maxLength={120} className="h-8 text-sm"
+      <Input ref={input} aria-label="Edit surface text" aria-invalid={!!error} value={draft} maxLength={120} className="h-8 text-sm"
         onChange={event => change(event.target.value)} onBlur={commit}
         onKeyDown={event => {
           event.stopPropagation();

@@ -5,6 +5,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { useLocation } from "wouter";
 import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
+import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
@@ -1021,7 +1022,7 @@ function BinDesignerWorkspace(): JSX.Element {
             ? borderWidthMm : undefined,
         });
         const textObjects: ThreeMfObject[] = (result.textMeshes ?? []).map(part => ({
-          name: part.label.name ?? `Text: ${part.label.text}`,
+          name: part.label.name ?? `Text: ${surfaceTextName(part.label)}`,
           mesh: part.mesh,
           material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
         }));

@@ -22,6 +22,52 @@ This is an independent Pocketry implementation of those dimensional defaults;
 no Gridfinity Extended source code or model assets are incorporated.
 
 ================================================================================
+GFLabel hardware symbols — BSD-3-Clause
+================================================================================
+
+Surface labels bundle normalized polygon outlines generated from GFLabel's
+hardware fragments (nuts, washers, inserts, screws, bolt heads, and drives).
+Project: https://github.com/ndevenish/gflabel
+Source: https://github.com/ndevenish/gflabel/blob/7c6bfbaf1e007d42ea82cf1e2d89563ab545ebe0/src/gflabel/fragments.py
+Revision: 7c6bfbaf1e007d42ea82cf1e2d89563ab545ebe0
+Asset: shared/gridfinity/hardware-symbols.json
+Generator: scripts/generate-hardware-symbols.py (with its pinned dependency lock)
+Adaptations: selected fixed fragments, sampled curves, normalized height and
+winding, upright bolt/screw profiles, descriptive catalog names, and omitted tiny
+corner fillets in the threaded-insert fragment for stable generation. No GFLabel fonts, electronic-symbol
+assets, or label bases are incorporated. The Python generator is a maintenance
+tool; neither GFLabel nor its CAD runtime is shipped in the browser application.
+The artwork retains BSD-3-Clause terms. Its complete upstream notice is also
+served at /licenses/gflabel.txt. Documentation: docs/hardware-symbols.md.
+
+Copyright (c) 2024 Nicholas Devenish
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+Neither the name of the copyright holder nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
 Droid Sans and Droid Sans Mono — Apache License 2.0
 ================================================================================
 
