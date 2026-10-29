@@ -22,6 +22,22 @@ No font installation or network request is needed. Existing text-only labels ret
 
 ## Assets and checks
 
+### Inline font controls follow-up
+
+- Keep Font and text Size together, with labels beside their controls and the
+  same spacing, heights, and numeric input width as neighboring properties.
+- Give the font picker the flexible width, truncate long selected names, and
+  keep the full name available on hover and in the menu. Move font guidance
+  into the picker footer, keeping search first for keyboard focus; retain the
+  explanation for symbol-only labels.
+- Verify desktop and phone layouts, long font names, keyboard selection,
+  numeric editing, and existing standard/workflow control visibility.
+- Verified locally on 2026-10-29: Node 22 type check, 3,345 quick tests,
+  60 text/mobile workflows, production build, and diff check. Browser checks
+  confirmed aligned controls, long-name truncation, keyboard font selection,
+  and the compact phone properties layout. Existing coarse-pointer touch sizing
+  remains in the shared property-surface styles.
+
 ### Symbol-to-text spacing follow-up
 
 - Add **Text gap** (0–40 mm) below symbol Size/Rotation when both symbol and

@@ -77,15 +77,14 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
     finally { if (request.current === token) setBusy(false); }
   };
   return <div className="min-w-0 space-y-1.5">
-    <div className="min-w-0 space-y-1">
-      <div className="flex shrink-0 items-center gap-1"><Label htmlFor={id} className="text-xs">Font</Label>
-        <HelpHint label="surface text fonts">Built-in fonts work in every supported browser. Installed system fonts require permission and desktop Chrome or Edge; Safari, Firefox, and mobile browsers cannot access them. Only system fonts with printable outlines for the characters in your text are shown. The chosen font is saved with your project so text stays editable on other devices.</HelpHint></div>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <Label htmlFor={id} className="shrink-0 text-xs">Font</Label>
       <Popover open={open} onOpenChange={next => {
         if (next) setOpen(true);
         if (next) { setQuery(""); if (available && !attempted) void list(); }
         else close();
       }}>
-        <PopoverTrigger asChild><Button id={id} role="combobox" aria-label={`Text ${index + 1} font`} aria-expanded={open} disabled={!label.text.trim()} variant="outline" className="h-8 w-full min-w-0 justify-between gap-1 px-2 font-normal">
+        <PopoverTrigger asChild><Button id={id} role="combobox" aria-label={`Text ${index + 1} font`} aria-expanded={open} title={currentName} disabled={!label.text.trim()} variant="outline" className="h-8 min-w-0 flex-1 justify-between gap-1 px-2 font-normal">
           <span className="truncate">{currentName}</span><ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button></PopoverTrigger>
         <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-0">
@@ -109,6 +108,10 @@ export function SurfaceTextFontPicker({ label, id, index, onChange }: {
               </CommandGroup>}
             </CommandList>
           </Command>
+          <div className="flex items-center justify-between border-t px-3 py-1.5">
+            <span className="text-xs text-muted-foreground">Font help</span>
+            <HelpHint label="surface text fonts">Built-in fonts work in every supported browser. Installed system fonts require permission and desktop Chrome or Edge; Safari, Firefox, and mobile browsers cannot access them. Only system fonts with printable outlines for the characters in your text are shown. The chosen font is saved with your project so text stays editable on other devices.</HelpHint>
+          </div>
           {!available && <p className="border-t p-2 text-xs text-muted-foreground">This browser cannot access system fonts. Built-in fonts are available above.</p>}
           {busy && <p role="status" className="border-t p-2 text-xs">Loading font…</p>}
           {error && <div className="border-t p-2"><p role="alert" className="text-xs text-destructive">{error}</p>

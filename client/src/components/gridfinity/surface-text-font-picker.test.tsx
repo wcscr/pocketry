@@ -42,6 +42,8 @@ describe("unified surface-text font picker", () => {
   });
   it("offers exactly five built-ins without system support or file uploads", async () => {
     render(); await open();
+    expect(document.querySelector('[aria-label="About surface text fonts"]')).not.toBeNull();
+    expect(document.activeElement).toBe(document.querySelector('[aria-label="Search fonts"]'));
     expect(options().map(option => option.textContent)).toEqual(["Sans", "Sans Bold", "Helvetiker", "Helvetiker Bold", "Monospace"]);
     expect(document.body.textContent).toContain("This browser cannot access system fonts");
     expect(document.querySelector('input[type="file"]')).toBeNull();
