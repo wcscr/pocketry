@@ -137,14 +137,7 @@ function TextEditor({ label, index, onChange, onRemove }: {
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
       <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
-      <Label className="min-w-0 space-y-1 text-xs">
-        <span className="flex h-5 items-center max-md:h-11 [@media(pointer:coarse)]:h-11">Text size</span>
-        <span className="flex items-center gap-1.5">
-          <DraftNumberInput aria-label="Text size (mm)" className="h-8 w-16 min-w-0" value={label.sizeMm} min={2} max={40} step={0.5} displayPrecision={2}
-            onValueChange={value => updateNumber("sizeMm", value, true)} onValueCommit={value => updateNumber("sizeMm", value)} />
-          <span className="text-[11px] text-muted-foreground">mm</span>
-        </span>
-      </Label>
+      {numeric("sizeMm", "Text size", "mm", 2, 40, 0.5, "Size")}
     </div>
     <div className="space-y-2" role="group" aria-label="Label placement and height">
       <div className="grid grid-cols-2 gap-3">

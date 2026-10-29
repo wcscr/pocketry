@@ -11,8 +11,9 @@ selecting None. Fonts affect only the text.
 The shared properties editor makes this available in standard, workflow, and
 mobile layouts with the same existing surface-label restrictions.
 
-Text appears first in the compact properties editor, then Font and Text size
-side by side. Shared height, Label rotation, and X/Y position stay above the
+Text appears first in the compact properties editor, then Font and Size
+side by side with their labels beside the controls. Font guidance is available
+inside the picker. Shared height, Label rotation, and X/Y position stay above the
 Symbol picker. The symbol’s own Size, Rotation, and Text gap appear below that
 picker. Text gap is available when the label has both a symbol and visible text.
 
