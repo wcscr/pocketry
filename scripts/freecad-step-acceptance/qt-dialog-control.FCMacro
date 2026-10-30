@@ -1,0 +1,50 @@
+"""Geometry-free diagnostic for the installed Qt Cocoa accessibility cache.
+
+Run in FreeCAD's supported Python console. Observe and close this test dialog
+through the native UI. No CAD document, STEP parser or import options are used.
+"""
+import json
+import platform
+import time
+from pathlib import Path
+from PySide6 import QtCore, QtWidgets
+import FreeCAD as App
+import FreeCADGui as Gui
+
+root = Path(__file__).resolve().parent
+record = {
+    "case": "geometry-free tree dialog",
+    "freecadVersion": App.Version(),
+    "qtVersion": QtCore.qVersion(),
+    "os": platform.platform(),
+    "cadDocumentsBefore": list(App.listDocuments()),
+    "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    "status": "dialog-open",
+    "stepParserUsed": False,
+}
+target = root / "qt-dialog-control.json"
+target.write_text(json.dumps(record, indent=2) + "\n")
+dialog = QtWidgets.QDialog(Gui.getMainWindow())
+dialog.setWindowTitle("Pocketry diagnostic: no geometry")
+dialog.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
+layout = QtWidgets.QVBoxLayout(dialog)
+layout.addWidget(QtWidgets.QLabel("This control has no STEP import or CAD geometry."))
+tree = QtWidgets.QTreeWidget(dialog)
+tree.setHeaderLabels(["Name", "Value"])
+for i in range(4):
+    tree.addTopLevelItem(QtWidgets.QTreeWidgetItem(["Control row " + str(i), str(i)]))
+layout.addWidget(tree)
+buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+buttons.accepted.connect(dialog.accept)
+buttons.rejected.connect(dialog.reject)
+layout.addWidget(buttons)
+
+def finished(code: int) -> None:
+    record.update(status="dialog-finished", result=code,
+                  finished=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                  cadDocumentsAfter=list(App.listDocuments()))
+    target.write_text(json.dumps(record, indent=2) + "\n")
+
+dialog.finished.connect(finished)
+dialog.resize(460, 300)
+dialog.show()

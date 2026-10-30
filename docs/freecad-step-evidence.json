@@ -1,0 +1,3960 @@
+{
+  "date": "2026-10-07",
+  "freecadVersion": [
+    "1",
+    "1",
+    "4",
+    "20260928 (Git shallow)",
+    "Unknown",
+    "2026/09/28 13:46:34",
+    "(HEAD detached at 4fd3bf320)",
+    "4fd3bf320d9566a27e60069fc8387448aaa3a094"
+  ],
+  "occtVersion": "7.8.1",
+  "pythonVersion": "3.11.14",
+  "nativeRun": {
+    "status": "passed",
+    "gui": true,
+    "cases": 12,
+    "started": "2026-10-07T13:32:44-0400",
+    "finished": "2026-10-07T13:34:32-0400"
+  },
+  "method": "Installed FreeCAD desktop application; supported native APIs executed from its built-in Python console",
+  "inputsMatchFusionAcceptance": true,
+  "activeManifestNamesAndStableIdsVerified": true,
+  "cases": [
+    {
+      "approach": "dedicated",
+      "fixture": "standard-solid",
+      "status": "passed",
+      "snapshotSha256": "d691ec82f2cac57ccbaa299a59c92b215b33cd90c95b4d2af4bd19996adc9452",
+      "inputSha256": {
+        "bin.step": "260de822931000c078a9cbf3c71127b33bf0b7a92e7b23def46c8f49431ad295",
+        "design-objects.step": "9a5b16bb6b041d5557b02a879b287f0c705510d6548d1dffedf59fc73237d90f",
+        "objects.json": "b86032e06cbc88865d9612d6918eb1b25ca5d821017f70921c8c0d7d7df5f567"
+      },
+      "dimensionsMm": [
+        41.5,
+        41.500000000000014,
+        24.551471962576002
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            0.8,
+            1.15,
+            1.6,
+            1.85,
+            2.72573593,
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 34051.05254777352,
+        "afterMm3": 33802.23840960911,
+        "removedMm3": 248.8141381644091,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 34051.05254777352,
+        "minMm": [
+          -20.750000000000004,
+          -20.750000000000007,
+          0.0
+        ],
+        "maxMm": [
+          20.75,
+          20.750000000000004,
+          24.551471962576002
+        ],
+        "faces": 122,
+        "edges": 248,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      },
+      "cutterMove": null,
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "standard-hollow",
+      "status": "passed",
+      "snapshotSha256": "0cff4beaac65112b4413a9e5a9d9dfc632792ef1a40f20f767a924ab226e331e",
+      "inputSha256": {
+        "bin.step": "4e635f4c2d105fa445752e1d68f7047e17f4080024e5539919d20c92de6dbbef",
+        "design-objects.step": "b8e23d1df8dac25281eb96fd2b1f8cc46a3f6edb1befa3dfdb63dae73c7275d5",
+        "objects.json": "63798d778dc2db3b1abdfa153b329354ce54395e5cc649dfe3e7b01b5a853701"
+      },
+      "dimensionsMm": [
+        83.50000010000001,
+        41.50000010000002,
+        24.551471962576002
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            5.30330086,
+            3.75
+          ]
+        ],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            0.8,
+            1.15,
+            1.6,
+            1.85,
+            2.72573593,
+            3.75
+          ],
+          "ellipseRadiiMm": [
+            [
+              5.30330086,
+              3.75
+            ]
+          ],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 27047.496879065755,
+        "afterMm3": 27011.447797182343,
+        "removedMm3": 36.04908188341142,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 27047.496879065755,
+        "minMm": [
+          -41.75000000000001,
+          -20.750000000000018,
+          0.0
+        ],
+        "maxMm": [
+          41.7500001,
+          20.7500001,
+          24.551471962576002
+        ],
+        "faces": 172,
+        "edges": 362,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      },
+      "cutterMove": null,
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "mixed",
+      "status": "passed",
+      "snapshotSha256": "109325246c4631f3a4e03657f98fa690b2d8473a16989354e40e6ae2836a46d2",
+      "inputSha256": {
+        "bin.step": "f984c9e9b25ec262f1d050eeb04fad5743539938fe1ed677d9cf9824e8e5257d",
+        "design-objects.step": "7b0fd477b3e4cdf18a406c222cf4fdb6bed6905ed41991abafc061e7c9a98c03",
+        "objects.json": "ac7721c926b3111996975c98f112fe5c766d7e5ac209ff7d08e2ac0002434331"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.50000000000004,
+        31.551472062576067
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.2,
+          0.6,
+          0.8,
+          1.0,
+          1.15,
+          1.6,
+          1.8,
+          1.85,
+          2.72573593,
+          3.75,
+          6.0
+        ],
+        "ellipseRadiiMm": [
+          [
+            8.48528137,
+            6.0
+          ]
+        ],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "SurfaceOfRevolution",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            0.8,
+            1.15,
+            1.6,
+            1.85,
+            2.72573593,
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        },
+        "source:cutout-rectangle": {
+          "circleRadiiMm": [
+            0.2,
+            0.8,
+            1.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "cutter:cutout-rectangle": {
+          "circleRadiiMm": [
+            0.2,
+            0.8,
+            1.0,
+            1.8
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution",
+            "Toroid"
+          ]
+        },
+        "source:cutout-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "cutter:cutout-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 269667.0102950138,
+        "afterMm3": 269382.1470749611,
+        "removedMm3": 284.8632200526772,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:cutout-rectangle",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        },
+        {
+          "name": "ReconstructionCut001",
+          "label": "Cut with cutter:cutout-circle",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 269667.0102963222,
+        "minMm": [
+          -62.75000000000001,
+          -41.75000000000003,
+          -1.0000000177635683e-07
+        ],
+        "maxMm": [
+          62.75,
+          41.750000000000014,
+          31.551471962576002
+        ],
+        "faces": 225,
+        "edges": 503,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 1.3083918020129204e-06
+      },
+      "cutterMove": {
+        "id": "cutter:cutout-rectangle",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Cl\u00e9 \u00d8 \u2014 duplicate \u2014 cutter [cutter:cutout-rectangle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 5297.159277815511,
+          "minMm": [
+            -32.6119484508,
+            -11.657561955037,
+            14.799999999999999
+          ],
+          "maxMm": [
+            -7.388051549193,
+            11.657561955037,
+            32.551471862576
+          ],
+          "faces": 35,
+          "edges": 80
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Cl\u00e9 \u00d8 \u2014 duplicate \u2014 cutter [cutter:cutout-rectangle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 5297.15927781551,
+          "minMm": [
+            -29.6119484508,
+            -11.657561955037,
+            14.799999999999999
+          ],
+          "maxMm": [
+            -4.388051549193,
+            11.657561955037,
+            32.551471862576
+          ],
+          "faces": 35,
+          "edges": 80
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "concave",
+      "status": "passed",
+      "snapshotSha256": "2b3622688788830b3e337c4184b20dd7a88a312285540aeb11ef7782fd74c5c9",
+      "inputSha256": {
+        "bin.step": "0571f0229c8b9a75f6487378f6e7052aa991268cf5e5cd46582846f71acd7cf5",
+        "design-objects.step": "be8dfc4bb074c21618609e1643fcb0f1bf05a3d9ce87f3fadb82233cf67e57a8",
+        "objects.json": "22a38cff9aba09b5eb14399213ae5a77c7f5ad693d25512f31da2f6038a92ed8"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.5,
+        28.0000001
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.3,
+          0.4,
+          0.5,
+          0.7,
+          1.2,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            0.56568542,
+            0.4
+          ],
+          [
+            0.70710678,
+            0.5
+          ],
+          [
+            9.8,
+            4.9
+          ]
+        ],
+        "surfaceTypes": [
+          "Cylinder",
+          "Plane",
+          "SurfaceOfExtrusion",
+          "SurfaceOfRevolution",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "source:concave": {
+          "circleRadiiMm": [
+            0.3,
+            0.4,
+            0.7
+          ],
+          "ellipseRadiiMm": [
+            [
+              0.56568542,
+              0.4
+            ]
+          ],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "cutter:concave": {
+          "circleRadiiMm": [
+            0.3,
+            0.4,
+            0.5,
+            0.7,
+            1.2
+          ],
+          "ellipseRadiiMm": [
+            [
+              0.56568542,
+              0.4
+            ],
+            [
+              0.70710678,
+              0.5
+            ]
+          ],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution",
+            "Toroid"
+          ]
+        },
+        "source:ellipse": {
+          "circleRadiiMm": [],
+          "ellipseRadiiMm": [
+            [
+              9.8,
+              4.9
+            ]
+          ],
+          "surfaceTypes": [
+            "Plane",
+            "SurfaceOfExtrusion"
+          ]
+        },
+        "cutter:ellipse": {
+          "circleRadiiMm": [],
+          "ellipseRadiiMm": [
+            [
+              9.8,
+              4.9
+            ]
+          ],
+          "surfaceTypes": [
+            "Plane",
+            "SurfaceOfExtrusion"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 288532.54892513674,
+        "afterMm3": 288205.16745760385,
+        "removedMm3": 327.3814675328904,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:concave",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        },
+        {
+          "name": "ReconstructionCut001",
+          "label": "Cut with cutter:ellipse",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 288532.5497691591,
+        "minMm": [
+          -62.7500001,
+          -41.7500001,
+          0.0
+        ],
+        "maxMm": [
+          62.7500001,
+          41.7500001,
+          28.00000010000001
+        ],
+        "faces": 59,
+        "edges": 137,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0008440223755314946
+      },
+      "cutterMove": {
+        "id": "cutter:concave",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Concavity with hole \u2014 cutter [cutter:concave]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 3391.611015569812,
+          "minMm": [
+            -25.7,
+            -10.7,
+            18.0
+          ],
+          "maxMm": [
+            -4.3,
+            10.7,
+            29.0
+          ],
+          "faces": 64,
+          "edges": 150
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Concavity with hole \u2014 cutter [cutter:concave]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 3391.611015569812,
+          "minMm": [
+            -22.7,
+            -10.7,
+            18.0
+          ],
+          "maxMm": [
+            -1.2999999999999998,
+            10.7,
+            29.0
+          ],
+          "faces": 64,
+          "edges": 150
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "tilted",
+      "status": "passed",
+      "snapshotSha256": "533b239ec8a150ce1dbb48bf59ca2ce81804b304c987f223243eb0e3a67bde81",
+      "inputSha256": {
+        "bin.step": "0dee7c722491abfd3058614fdfe332e8971cc24fca1700310be3838f5dafa153",
+        "design-objects.step": "355c5a0ceed1f42246ea0105df0c2d0fc48cee399891f4a0a66741c1f80ebae0",
+        "objects.json": "67e0497a5b2772dc9425695db628d414cefddd3c493f772f332b13d524daeac2"
+      },
+      "dimensionsMm": [
+        125.5,
+        125.5,
+        35.00000000000052
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.1,
+          0.6,
+          0.7,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            0.79961061,
+            0.7
+          ]
+        ],
+        "surfaceTypes": [
+          "Cylinder",
+          "Plane",
+          "SurfaceOfRevolution"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "source:cutout-split": {
+          "circleRadiiMm": [
+            0.1,
+            0.6,
+            0.7
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "cutter:cutout-split": {
+          "circleRadiiMm": [
+            0.1,
+            0.6,
+            0.7
+          ],
+          "ellipseRadiiMm": [
+            [
+              0.79961061,
+              0.7
+            ]
+          ],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "source:cutout-raised": {
+          "circleRadiiMm": [
+            4.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 545048.1646486622,
+        "afterMm3": 544925.1405479221,
+        "removedMm3": 123.02410074009094,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:cutout-split",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 545048.1646486791,
+        "minMm": [
+          -62.75,
+          -62.75,
+          0.0
+        ],
+        "maxMm": [
+          62.75,
+          62.75,
+          35.00000000000285
+        ],
+        "faces": 31,
+        "edges": 76,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 1.6880221664905548e-08
+      },
+      "cutterMove": {
+        "id": "cutter:cutout-split",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Tilted split source \u2014 cutter [cutter:cutout-split]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 6069.116139686793,
+          "minMm": [
+            -14.057188463576873,
+            -12.814564719309418,
+            7.000000025786772
+          ],
+          "maxMm": [
+            17.055993533918464,
+            10.775167496179131,
+            36.00000000000052
+          ],
+          "faces": 37,
+          "edges": 81
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Tilted split source \u2014 cutter [cutter:cutout-split]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 6069.116139686793,
+          "minMm": [
+            -11.057188463576873,
+            -12.814564719309418,
+            7.000000025786772
+          ],
+          "maxMm": [
+            20.055993533918464,
+            10.775167496179131,
+            36.00000000000052
+          ],
+          "faces": 37,
+          "edges": 81
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "irregular",
+      "status": "passed",
+      "snapshotSha256": "8e9d17594139db82397a21a60ecf122374eb8cf4e92f4b30808a52221ab68314",
+      "inputSha256": {
+        "bin.step": "99d5638f9f6c27cfc31029425f57efb5d44fdfdb941cdc6bc64788dec6af63c2",
+        "design-objects.step": "ec25cfebdb127559355facf9734fd31fd3e951fbffd432c4fb41743c80b1ca06",
+        "objects.json": "8175c7ba2022258b7c2a858cc02d8241b21d87ebe642902786b889db2c3c64c1"
+      },
+      "dimensionsMm": [
+        83.5,
+        83.5,
+        31.551471962576002
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.5,
+          0.6,
+          1.15,
+          1.85,
+          2.72573593,
+          3.75,
+          4.5,
+          4.77426407,
+          5.0,
+          5.65,
+          6.0,
+          6.35
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "SurfaceOfExtrusion",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            1.15,
+            1.85,
+            2.72573593,
+            3.75,
+            4.77426407,
+            5.65,
+            6.35
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        },
+        "source:cutout-irregular-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "cutter:cutout-irregular-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "finger:thumb": {
+          "circleRadiiMm": [
+            0.5,
+            4.5,
+            4.6,
+            5.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        },
+        "text:text": {
+          "circleRadiiMm": [],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Plane",
+            "SurfaceOfExtrusion"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 139938.2423197788,
+        "afterMm3": 139606.30427947082,
+        "removedMm3": 331.9380403079849,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:cutout-irregular-circle",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        },
+        {
+          "name": "ReconstructionCut001",
+          "label": "Cut with finger:thumb",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 4,
+        "volumeMm3": 139938.24231977965,
+        "minMm": [
+          -41.75,
+          -41.75,
+          0.0
+        ],
+        "maxMm": [
+          41.75,
+          41.75,
+          31.551471962576002
+        ],
+        "faces": 152,
+        "edges": 368,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 8.440110832452774e-10
+      },
+      "cutterMove": {
+        "id": "cutter:cutout-irregular-circle",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Circle pocket \u2014 cutter [cutter:cutout-irregular-circle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 2007.6441693794886,
+          "minMm": [
+            -27.0,
+            -27.0,
+            14.8
+          ],
+          "maxMm": [
+            -15.0,
+            -15.0,
+            32.551471862576
+          ],
+          "faces": 3,
+          "edges": 3
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Circle pocket \u2014 cutter [cutter:cutout-irregular-circle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 2007.6441693794886,
+          "minMm": [
+            -24.0,
+            -27.0,
+            14.8
+          ],
+          "maxMm": [
+            -12.0,
+            -15.0,
+            32.551471862576
+          ],
+          "faces": 3,
+          "edges": 3
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": -2.9103830456733704e-11
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-solid",
+      "status": "passed",
+      "snapshotSha256": "d691ec82f2cac57ccbaa299a59c92b215b33cd90c95b4d2af4bd19996adc9452",
+      "inputSha256": {
+        "bin.step": "ebd186a6d37ceab280529bed93307a7351ed307bb1e26c0e566dac74520c6bbd",
+        "design-objects.step": "d1593c78e3afb728ace560c7aa7940b0ecf74bb8cf95e882778f13ae50fd72da",
+        "objects.json": "b86032e06cbc88865d9612d6918eb1b25ca5d821017f70921c8c0d7d7df5f567"
+      },
+      "dimensionsMm": [
+        41.5,
+        41.500000000000014,
+        24.551471962576002
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            0.8,
+            1.15,
+            1.6,
+            1.85,
+            2.72573593,
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 34051.05254777352,
+        "afterMm3": 33802.23840960911,
+        "removedMm3": 248.8141381644091,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 34051.05254777352,
+        "minMm": [
+          -20.750000000000004,
+          -20.750000000000007,
+          0.0
+        ],
+        "maxMm": [
+          20.75,
+          20.750000000000004,
+          24.551471962576002
+        ],
+        "faces": 122,
+        "edges": 248,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      },
+      "cutterMove": null,
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-hollow",
+      "status": "passed",
+      "snapshotSha256": "0cff4beaac65112b4413a9e5a9d9dfc632792ef1a40f20f767a924ab226e331e",
+      "inputSha256": {
+        "bin.step": "e065684fba54858701cf344a4a09ec7e63902e76b8c62879ee9722c309241ba2",
+        "design-objects.step": "a9b8f4e00335d70a4df8c2090c85f10e4003d532247e5485d300cc815eec3d32",
+        "objects.json": "63798d778dc2db3b1abdfa153b329354ce54395e5cc649dfe3e7b01b5a853701"
+      },
+      "dimensionsMm": [
+        83.50000010000001,
+        41.50000010000002,
+        24.551471962576002
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.6,
+          0.8,
+          1.15,
+          1.6,
+          1.85,
+          2.72573593,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            5.30330086,
+            3.75
+          ]
+        ],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            0.8,
+            1.15,
+            1.6,
+            1.85,
+            2.72573593,
+            3.75
+          ],
+          "ellipseRadiiMm": [
+            [
+              5.30330086,
+              3.75
+            ]
+          ],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 27047.496879065755,
+        "afterMm3": 27011.447797182343,
+        "removedMm3": 36.04908188341142,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 27047.496879065755,
+        "minMm": [
+          -41.75000000000001,
+          -20.750000000000018,
+          0.0
+        ],
+        "maxMm": [
+          41.7500001,
+          20.7500001,
+          24.551471962576002
+        ],
+        "faces": 172,
+        "edges": 362,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      },
+      "cutterMove": null,
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "mixed",
+      "status": "passed",
+      "snapshotSha256": "109325246c4631f3a4e03657f98fa690b2d8473a16989354e40e6ae2836a46d2",
+      "inputSha256": {
+        "bin.step": "85565e51a0b449dac3a34c0e0497abc18adb17494a99a421d281d7623ee04c4f",
+        "design-objects.step": "cb742906427ad728398514544c78ab255b9f257a8d36b070e2f08ff519b8840c",
+        "objects.json": "ac7721c926b3111996975c98f112fe5c766d7e5ac209ff7d08e2ac0002434331"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.50000000000004,
+        31.551472062576067
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.2,
+          0.6,
+          0.8,
+          1.0,
+          1.15,
+          1.6,
+          1.8,
+          1.85,
+          2.72573593,
+          3.75,
+          6.0
+        ],
+        "ellipseRadiiMm": [
+          [
+            8.48528137,
+            6.0
+          ]
+        ],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "SurfaceOfRevolution",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            0.8,
+            1.15,
+            1.6,
+            1.85,
+            2.72573593,
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        },
+        "source:cutout-rectangle": {
+          "circleRadiiMm": [
+            0.2,
+            0.8,
+            1.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "cutter:cutout-rectangle": {
+          "circleRadiiMm": [
+            0.2,
+            0.8,
+            1.0,
+            1.8
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution",
+            "Toroid"
+          ]
+        },
+        "source:cutout-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "cutter:cutout-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 269667.0102950138,
+        "afterMm3": 269382.1470749611,
+        "removedMm3": 284.8632200526772,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:cutout-rectangle",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        },
+        {
+          "name": "ReconstructionCut001",
+          "label": "Cut with cutter:cutout-circle",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 269667.0102963222,
+        "minMm": [
+          -62.75000000000001,
+          -41.75000000000003,
+          -1.0000000177635683e-07
+        ],
+        "maxMm": [
+          62.75,
+          41.750000000000014,
+          31.551471962576002
+        ],
+        "faces": 225,
+        "edges": 503,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 1.3083918020129204e-06
+      },
+      "cutterMove": {
+        "id": "cutter:cutout-rectangle",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Cl\u00e9 \u00d8 \u2014 duplicate \u2014 cutter [cutter:cutout-rectangle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 5297.159277815511,
+          "minMm": [
+            -32.6119484508,
+            -11.657561955037,
+            14.799999999999999
+          ],
+          "maxMm": [
+            -7.388051549193,
+            11.657561955037,
+            32.551471862576
+          ],
+          "faces": 35,
+          "edges": 80
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Cl\u00e9 \u00d8 \u2014 duplicate \u2014 cutter [cutter:cutout-rectangle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 5297.15927781551,
+          "minMm": [
+            -29.6119484508,
+            -11.657561955037,
+            14.799999999999999
+          ],
+          "maxMm": [
+            -4.388051549193,
+            11.657561955037,
+            32.551471862576
+          ],
+          "faces": 35,
+          "edges": 80
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "concave",
+      "status": "passed",
+      "snapshotSha256": "2b3622688788830b3e337c4184b20dd7a88a312285540aeb11ef7782fd74c5c9",
+      "inputSha256": {
+        "bin.step": "60d04a9c5d7544b91bc03b18d1a3105a8a668dae0d05e61c6a1498370da83509",
+        "design-objects.step": "f97f04c8877e147878c6ec09bfe63d4fae75abb14466420cdd1a108766e1c7ea",
+        "objects.json": "22a38cff9aba09b5eb14399213ae5a77c7f5ad693d25512f31da2f6038a92ed8"
+      },
+      "dimensionsMm": [
+        125.5,
+        83.5,
+        28.0000001
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.3,
+          0.4,
+          0.5,
+          0.7,
+          1.2,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            0.56568542,
+            0.4
+          ],
+          [
+            0.70710678,
+            0.5
+          ],
+          [
+            9.8,
+            4.9
+          ]
+        ],
+        "surfaceTypes": [
+          "Cylinder",
+          "Plane",
+          "SurfaceOfExtrusion",
+          "SurfaceOfRevolution",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "source:concave": {
+          "circleRadiiMm": [
+            0.3,
+            0.4,
+            0.7
+          ],
+          "ellipseRadiiMm": [
+            [
+              0.56568542,
+              0.4
+            ]
+          ],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "cutter:concave": {
+          "circleRadiiMm": [
+            0.3,
+            0.4,
+            0.5,
+            0.7,
+            1.2
+          ],
+          "ellipseRadiiMm": [
+            [
+              0.56568542,
+              0.4
+            ],
+            [
+              0.70710678,
+              0.5
+            ]
+          ],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution",
+            "Toroid"
+          ]
+        },
+        "source:ellipse": {
+          "circleRadiiMm": [],
+          "ellipseRadiiMm": [
+            [
+              9.8,
+              4.9
+            ]
+          ],
+          "surfaceTypes": [
+            "Plane",
+            "SurfaceOfExtrusion"
+          ]
+        },
+        "cutter:ellipse": {
+          "circleRadiiMm": [],
+          "ellipseRadiiMm": [
+            [
+              9.8,
+              4.9
+            ]
+          ],
+          "surfaceTypes": [
+            "Plane",
+            "SurfaceOfExtrusion"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 288532.54892513674,
+        "afterMm3": 288205.16745760385,
+        "removedMm3": 327.3814675328904,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:concave",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        },
+        {
+          "name": "ReconstructionCut001",
+          "label": "Cut with cutter:ellipse",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 288532.5497691591,
+        "minMm": [
+          -62.7500001,
+          -41.7500001,
+          0.0
+        ],
+        "maxMm": [
+          62.7500001,
+          41.7500001,
+          28.00000010000001
+        ],
+        "faces": 59,
+        "edges": 137,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0008440223755314946
+      },
+      "cutterMove": {
+        "id": "cutter:concave",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Concavity with hole \u2014 cutter [cutter:concave]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 3391.611015569812,
+          "minMm": [
+            -25.7,
+            -10.7,
+            18.0
+          ],
+          "maxMm": [
+            -4.3,
+            10.7,
+            29.0
+          ],
+          "faces": 64,
+          "edges": 150
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Concavity with hole \u2014 cutter [cutter:concave]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 3391.611015569812,
+          "minMm": [
+            -22.7,
+            -10.7,
+            18.0
+          ],
+          "maxMm": [
+            -1.2999999999999998,
+            10.7,
+            29.0
+          ],
+          "faces": 64,
+          "edges": 150
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "tilted",
+      "status": "passed",
+      "snapshotSha256": "533b239ec8a150ce1dbb48bf59ca2ce81804b304c987f223243eb0e3a67bde81",
+      "inputSha256": {
+        "bin.step": "13c8cbb005990b6ac063bb2607b6a10ae16ea29bcb1e843b583c9422cc443957",
+        "design-objects.step": "723e846354a86c4df2cfce4c104a3193110b350c4fdec05f36ea21fb4a563289",
+        "objects.json": "67e0497a5b2772dc9425695db628d414cefddd3c493f772f332b13d524daeac2"
+      },
+      "dimensionsMm": [
+        125.5,
+        125.5,
+        35.00000000000052
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.1,
+          0.6,
+          0.7,
+          3.75
+        ],
+        "ellipseRadiiMm": [
+          [
+            0.79961061,
+            0.7
+          ]
+        ],
+        "surfaceTypes": [
+          "Cylinder",
+          "Plane",
+          "SurfaceOfRevolution"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            3.75
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "source:cutout-split": {
+          "circleRadiiMm": [
+            0.1,
+            0.6,
+            0.7
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "cutter:cutout-split": {
+          "circleRadiiMm": [
+            0.1,
+            0.6,
+            0.7
+          ],
+          "ellipseRadiiMm": [
+            [
+              0.79961061,
+              0.7
+            ]
+          ],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "SurfaceOfRevolution"
+          ]
+        },
+        "source:cutout-raised": {
+          "circleRadiiMm": [
+            4.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 545048.1646486622,
+        "afterMm3": 544925.1405479221,
+        "removedMm3": 123.02410074009094,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:cutout-split",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 1,
+        "volumeMm3": 545048.1646486791,
+        "minMm": [
+          -62.75,
+          -62.75,
+          0.0
+        ],
+        "maxMm": [
+          62.75,
+          62.75,
+          35.00000000000285
+        ],
+        "faces": 31,
+        "edges": 76,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 1.6880221664905548e-08
+      },
+      "cutterMove": {
+        "id": "cutter:cutout-split",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Tilted split source \u2014 cutter [cutter:cutout-split]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 6069.116139686793,
+          "minMm": [
+            -14.057188463576873,
+            -12.814564719309418,
+            7.000000025786772
+          ],
+          "maxMm": [
+            17.055993533918464,
+            10.775167496179131,
+            36.00000000000052
+          ],
+          "faces": 37,
+          "edges": 81
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Tilted split source \u2014 cutter [cutter:cutout-split]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 6069.116139686793,
+          "minMm": [
+            -11.057188463576873,
+            -12.814564719309418,
+            7.000000025786772
+          ],
+          "maxMm": [
+            20.055993533918464,
+            10.775167496179131,
+            36.00000000000052
+          ],
+          "faces": 37,
+          "edges": 81
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 0.0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "irregular",
+      "status": "passed",
+      "snapshotSha256": "8e9d17594139db82397a21a60ecf122374eb8cf4e92f4b30808a52221ab68314",
+      "inputSha256": {
+        "bin.step": "809d7ef8234ae09bfaa501fe310d55589a0b8b3671dd5a6a87f111156a86a12d",
+        "design-objects.step": "d597f06c3c8be06a8baa8aea370423cbffb0a2ea9e22be2fcd2b620984850595",
+        "objects.json": "8175c7ba2022258b7c2a858cc02d8241b21d87ebe642902786b889db2c3c64c1"
+      },
+      "dimensionsMm": [
+        83.5,
+        83.5,
+        31.551471962576002
+      ],
+      "binCurves": {
+        "circleRadiiMm": [
+          0.5,
+          0.6,
+          1.15,
+          1.85,
+          2.72573593,
+          3.75,
+          4.5,
+          4.77426407,
+          5.0,
+          5.65,
+          6.0,
+          6.35
+        ],
+        "ellipseRadiiMm": [],
+        "surfaceTypes": [
+          "Cone",
+          "Cylinder",
+          "Plane",
+          "SurfaceOfExtrusion",
+          "Toroid"
+        ]
+      },
+      "objectCurves": {
+        "bin-blank": {
+          "circleRadiiMm": [
+            0.6,
+            1.15,
+            1.85,
+            2.72573593,
+            3.75,
+            4.77426407,
+            5.65,
+            6.35
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cone",
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        },
+        "source:cutout-irregular-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "cutter:cutout-irregular-circle": {
+          "circleRadiiMm": [
+            6.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane"
+          ]
+        },
+        "finger:thumb": {
+          "circleRadiiMm": [
+            0.5,
+            4.5,
+            4.6,
+            5.0
+          ],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Cylinder",
+            "Plane",
+            "Toroid"
+          ]
+        },
+        "text:text": {
+          "circleRadiiMm": [],
+          "ellipseRadiiMm": [],
+          "surfaceTypes": [
+            "Plane",
+            "SurfaceOfExtrusion"
+          ]
+        }
+      },
+      "holeEdit": {
+        "beforeMm3": 139938.2423197788,
+        "afterMm3": 139606.30427947082,
+        "removedMm3": 331.9380403079849,
+        "feature": "NativeHoleEdit",
+        "radiusMm": 2.0
+      },
+      "holeFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveFeatures": [
+        {
+          "name": "NewHoleTool",
+          "label": "Native 4 mm hole tool",
+          "type": "Part::Cylinder",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        },
+        {
+          "name": "NativeHoleEdit",
+          "label": "FreeCAD native hole edit [bin]",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry bin"
+          ]
+        }
+      ],
+      "binArchiveLoadedFromDisk": true,
+      "objectsArchiveLoadedFromDisk": true,
+      "objectsArchiveFeatures": [
+        {
+          "name": "ReconstructionCut",
+          "label": "Cut with cutter:cutout-irregular-circle",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        },
+        {
+          "name": "ReconstructionCut001",
+          "label": "Cut with finger:thumb",
+          "type": "Part::Cut",
+          "state": [
+            "Up-to-date"
+          ],
+          "partContainers": [
+            "Pocketry design objects"
+          ]
+        }
+      ],
+      "baselineReconstruction": {
+        "valid": true,
+        "solidCount": 4,
+        "volumeMm3": 139938.24231977965,
+        "minMm": [
+          -41.75,
+          -41.75,
+          0.0
+        ],
+        "maxMm": [
+          41.75,
+          41.75,
+          31.551471962576002
+        ],
+        "faces": 152,
+        "edges": 368,
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": 8.440110832452774e-10
+      },
+      "cutterMove": {
+        "id": "cutter:cutout-irregular-circle",
+        "deltaMm": [
+          3,
+          0,
+          0
+        ],
+        "before": {
+          "name": "Part__Feature002",
+          "label": "Circle pocket \u2014 cutter [cutter:cutout-irregular-circle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 2007.6441693794886,
+          "minMm": [
+            -27.0,
+            -27.0,
+            14.8
+          ],
+          "maxMm": [
+            -15.0,
+            -15.0,
+            32.551471862576
+          ],
+          "faces": 3,
+          "edges": 3
+        },
+        "after": {
+          "name": "Part__Feature002",
+          "label": "Circle pocket \u2014 cutter [cutter:cutout-irregular-circle]",
+          "type": "Part::Feature",
+          "state": [
+            "Up-to-date"
+          ],
+          "valid": true,
+          "solidCount": 1,
+          "volumeMm3": 2007.6441693794886,
+          "minMm": [
+            -24.0,
+            -27.0,
+            14.8
+          ],
+          "maxMm": [
+            -12.0,
+            -15.0,
+            32.551471862576
+          ],
+          "faces": 3,
+          "edges": 3
+        },
+        "sourceUnchanged": true
+      },
+      "objectsArchiveGeometry": {
+        "extraSolids": 0,
+        "missingSolids": 0,
+        "volumeEstimateDifferenceMm3": -2.9103830456733704e-11
+      }
+    }
+  ],
+  "independentReader": {
+    "package": "cadquery-ocp",
+    "version": "7.8.1.1.post1",
+    "occtVersion": "7.8.1",
+    "comparisons": 32,
+    "validClosedSolids": true,
+    "meshRepresentations": false,
+    "unexpectedSolids": 0,
+    "missingSolids": 0,
+    "maxAbsoluteVolumeEstimateDifferenceMm3": 0.0020776422461494803
+  },
+  "independentComparisons": [
+    {
+      "approach": "dedicated",
+      "fixture": "standard-solid",
+      "expectedVolumeMm3": 33802.23840960918,
+      "freecadStepVolumeMm3": 33802.23840960819,
+      "volumeDifferenceMm3": -9.89530235528946e-10,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 34051.05254777352,
+        "freecadStepVolumeMm3": 34051.052547772524,
+        "volumeDifferenceMm3": -9.968061931431293e-10,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "standard-hollow",
+      "expectedVolumeMm3": 27011.447797202643,
+      "freecadStepVolumeMm3": 27011.447798549,
+      "volumeDifferenceMm3": 1.3463577488437295e-06,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 27047.496879065755,
+        "freecadStepVolumeMm3": 27047.496877469657,
+        "volumeDifferenceMm3": -1.5960977179929614e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "mixed",
+      "expectedVolumeMm3": 269382.1470749993,
+      "freecadStepVolumeMm3": 269382.1470747999,
+      "volumeDifferenceMm3": -1.9936123862862587e-07,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 269667.0102950138,
+        "freecadStepVolumeMm3": 269667.0102897818,
+        "volumeDifferenceMm3": -5.231995601207018e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 269667.0102962405,
+        "freecadStepVolumeMm3": 269667.0102897791,
+        "volumeDifferenceMm3": -6.461399607360363e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "concave",
+      "expectedVolumeMm3": 288205.16739291896,
+      "freecadStepVolumeMm3": 288205.1674557671,
+      "volumeDifferenceMm3": 6.284815026447177e-05,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 288532.54892513674,
+        "freecadStepVolumeMm3": 288532.5479955249,
+        "volumeDifferenceMm3": -0.0009296118514612317,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 288796.60085434595,
+        "freecadStepVolumeMm3": 288796.6029319882,
+        "volumeDifferenceMm3": 0.0020776422461494803,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "tilted",
+      "expectedVolumeMm3": 544925.1405478984,
+      "freecadStepVolumeMm3": 544925.1405576249,
+      "volumeDifferenceMm3": 9.726500138640404e-06,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 545048.1646486622,
+        "freecadStepVolumeMm3": 545048.1646486792,
+        "volumeDifferenceMm3": 1.6996636986732483e-08,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 545048.1646486849,
+        "freecadStepVolumeMm3": 545048.1646486998,
+        "volumeDifferenceMm3": 1.4901161193847656e-08,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "dedicated",
+      "fixture": "irregular",
+      "expectedVolumeMm3": 139606.30427954384,
+      "freecadStepVolumeMm3": 139606.30428054367,
+      "volumeDifferenceMm3": 9.998329915106297e-07,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 139938.2423197788,
+        "freecadStepVolumeMm3": 139938.24231977283,
+        "volumeDifferenceMm3": -5.966285243630409e-09,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 140221.96692840944,
+        "freecadStepVolumeMm3": 140221.96692840153,
+        "volumeDifferenceMm3": -7.916241884231567e-09,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-solid",
+      "expectedVolumeMm3": 33802.23840960918,
+      "freecadStepVolumeMm3": 33802.23840960819,
+      "volumeDifferenceMm3": -9.89530235528946e-10,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 34051.05254777352,
+        "freecadStepVolumeMm3": 34051.052547772524,
+        "volumeDifferenceMm3": -9.968061931431293e-10,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "standard-hollow",
+      "expectedVolumeMm3": 27011.447797202643,
+      "freecadStepVolumeMm3": 27011.447798549,
+      "volumeDifferenceMm3": 1.3463577488437295e-06,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 27047.496879065755,
+        "freecadStepVolumeMm3": 27047.496877469657,
+        "volumeDifferenceMm3": -1.5960977179929614e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "mixed",
+      "expectedVolumeMm3": 269382.1470749993,
+      "freecadStepVolumeMm3": 269382.1470747999,
+      "volumeDifferenceMm3": -1.9936123862862587e-07,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 269667.0102950138,
+        "freecadStepVolumeMm3": 269667.0102897818,
+        "volumeDifferenceMm3": -5.231995601207018e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 269667.0102962405,
+        "freecadStepVolumeMm3": 269667.0102897791,
+        "volumeDifferenceMm3": -6.461399607360363e-06,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "concave",
+      "expectedVolumeMm3": 288205.16739291896,
+      "freecadStepVolumeMm3": 288205.1674557671,
+      "volumeDifferenceMm3": 6.284815026447177e-05,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 288532.54892513674,
+        "freecadStepVolumeMm3": 288532.5479955249,
+        "volumeDifferenceMm3": -0.0009296118514612317,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 288796.60085434595,
+        "freecadStepVolumeMm3": 288796.6029319882,
+        "volumeDifferenceMm3": 0.0020776422461494803,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "tilted",
+      "expectedVolumeMm3": 544925.1405478984,
+      "freecadStepVolumeMm3": 544925.1405576249,
+      "volumeDifferenceMm3": 9.726500138640404e-06,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 545048.1646486622,
+        "freecadStepVolumeMm3": 545048.1646486792,
+        "volumeDifferenceMm3": 1.6996636986732483e-08,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 545048.1646486849,
+        "freecadStepVolumeMm3": 545048.1646486998,
+        "volumeDifferenceMm3": 1.4901161193847656e-08,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    },
+    {
+      "approach": "unified",
+      "fixture": "irregular",
+      "expectedVolumeMm3": 139606.30427954384,
+      "freecadStepVolumeMm3": 139606.30428054367,
+      "volumeDifferenceMm3": 9.998329915106297e-07,
+      "unexpectedMaterialMm3": 0.0,
+      "missingMaterialMm3": 0.0,
+      "unexpectedSolids": 0,
+      "missingSolids": 0,
+      "baselineReconstruction": {
+        "expectedVolumeMm3": 139938.2423197788,
+        "freecadStepVolumeMm3": 139938.24231977283,
+        "volumeDifferenceMm3": -5.966285243630409e-09,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      },
+      "movedReconstruction": {
+        "expectedVolumeMm3": 140221.96692840944,
+        "freecadStepVolumeMm3": 140221.96692840153,
+        "volumeDifferenceMm3": -7.916241884231567e-09,
+        "unexpectedMaterialMm3": 0.0,
+        "missingMaterialMm3": 0.0,
+        "unexpectedSolids": 0,
+        "missingSolids": 0
+      }
+    }
+  ],
+  "nativeOutputSha256": {
+    "results/dedicated/concave/bin-edited.FCStd": "af7be60863e47ee507cc4525716ef0f96bb55fd8c34f5a19cca10a7801d8c464",
+    "results/dedicated/concave/bin-edited.png": "5a8ee3eb93356069df6016fc6c01880cd6038f60a19a0da1a762b4ed037ed390",
+    "results/dedicated/concave/bin-edited.step": "418587104ec0eea200405a18f4e4f00a99221d02a22cfc5e70b1d481f90a037e",
+    "results/dedicated/concave/design-objects-edited.FCStd": "9ef819d2d30e5fbbca1d9bf0f60b0d4b348ab635788d872d4202f4189de0325a",
+    "results/dedicated/concave/reconstructed-moved.step": "2f5c64577d81c2691dcaf6a1e6a75a799704446744bdc645626e91cf1123704a",
+    "results/dedicated/concave/reconstructed-original.step": "10fcc8058679617bc3f68b53178dc1a97ad555b96c97cc7955872e6d589dd189",
+    "results/dedicated/concave/reconstructed.png": "1fb5089b99756e9c04423fcd8887a1856c08e76f956ff215a3f5611c73499376",
+    "results/dedicated/irregular/bin-edited.FCStd": "dcc4f6e04f4389502c6ace2383c4d53bfc4ffe03c31bd5ef2a11ac6e28eb9db6",
+    "results/dedicated/irregular/bin-edited.png": "c1cd0b2918a32384d7d4d7acce5256952e01e59f900f92c663f525e4b0604739",
+    "results/dedicated/irregular/bin-edited.step": "eedf4726caa899330916b04cf1b5d6ec5e830e24fb1f181f86ddc080c2eb489d",
+    "results/dedicated/irregular/design-objects-edited.FCStd": "7dea492b11e57707c13d389604f49905731ba65f92b3d54db08b9cb860dc7508",
+    "results/dedicated/irregular/reconstructed-moved.step": "0740ac00de9306ede6316e7e1ecdcaff6e5452d526564f572dd606e2e71811ec",
+    "results/dedicated/irregular/reconstructed-original.step": "80a51dd8cb967fd7cf676b855e3d0ce4fb6955e2c72b2c95f8e6b21c7f4db333",
+    "results/dedicated/irregular/reconstructed.png": "89ded8f3a11c7921837533af04e699b165a45f786cdc8fefc77bf147ac846385",
+    "results/dedicated/mixed/bin-edited.FCStd": "216fe665e47d1239e9d7b04b5943ab78256639bd52ad9f0cdc8be2eb84eddba6",
+    "results/dedicated/mixed/bin-edited.png": "168b133e6e861c25d3783da4c9ac9bb18b152991de4d7859062fd560f9232a5c",
+    "results/dedicated/mixed/bin-edited.step": "5fdf8238930810888a19b863e3ba3af7ad67d3c7e02567907ed5e2e53b50c961",
+    "results/dedicated/mixed/design-objects-edited.FCStd": "8f0d0c609b8318972a088a64930fa0aa75894185a52dafdd05840aa02cd274d8",
+    "results/dedicated/mixed/reconstructed-moved.step": "157a8d497d0f3081e89710d99b705fb1abdd940c0118a765aa1f926981945a30",
+    "results/dedicated/mixed/reconstructed-original.step": "0d53f91a637baadaccea1aa68b6e3dfddb936dfa72617f49e50d8308e6ef439b",
+    "results/dedicated/mixed/reconstructed.png": "d4ec68b2f5f7475a4d92d23f9c5cb32ff33eeb546e78d01fac043dbb6481d665",
+    "results/dedicated/standard-hollow/bin-edited.FCStd": "1dea41fc6320137c853a942b7476e9fba2c90e68a640612ea50e38647cfdb26c",
+    "results/dedicated/standard-hollow/bin-edited.png": "f03f0ef15dd0c959cb1de1b0f724948706db9eac167984e4aa42bb9b89cb97df",
+    "results/dedicated/standard-hollow/bin-edited.step": "e3589ea4201d09cbe8c80da2f206b5a92153fee6c0cddb3c604265bd0d03131b",
+    "results/dedicated/standard-hollow/design-objects-edited.FCStd": "827cf6d6a6d546349eb241498864c95155b3fcb8bc7b5c40eac149099de47008",
+    "results/dedicated/standard-hollow/reconstructed-original.step": "6031c60d941d2ca812cba0e862ff5a759a5e9b9938041f1c00dc6a73b5dcb527",
+    "results/dedicated/standard-hollow/reconstructed.png": "3df9b418d7086cb28668df40f0353d96c7854145cc788b995fa6e9b1f9cb161a",
+    "results/dedicated/standard-solid/bin-edited.FCStd": "c41813b9e8c240619897e94f6fc33f98117bdbbcce50a752c793ca65ffd6461b",
+    "results/dedicated/standard-solid/bin-edited.png": "c920b02be3e649822fe3d921a2c47f8d68513d73f8b89e3d08d275b02bf054b7",
+    "results/dedicated/standard-solid/bin-edited.step": "f57e9d3d3aa750e63d67e9b0495e6f65726ea7f390fa94f2028f1f8e6938f4cf",
+    "results/dedicated/standard-solid/design-objects-edited.FCStd": "8dc43730e26df4e756577b824c4e74a39c788d7069044d835c9e33b53a1332ec",
+    "results/dedicated/standard-solid/reconstructed-original.step": "d96fc50bca4966c2623b1a34ad438feed883a74f2ecc379925bf51b1973954ae",
+    "results/dedicated/standard-solid/reconstructed.png": "567687ced13e968c518dc24e068ba9bd95adf77bed5f95f290cbe563ede668c2",
+    "results/dedicated/tilted/bin-edited.FCStd": "fa1a8640ab2c0c555069412837a67bebee5fd5a801aeacc9c0856037669263d2",
+    "results/dedicated/tilted/bin-edited.png": "095d06a371a9b19528c9fc25796d0ac230bfb16a1a055c3f4e5480ba7b38c6bb",
+    "results/dedicated/tilted/bin-edited.step": "2ebbbab5c4c3ce2d3462f6ff894bbc037d67be64fe0f87a1eb054242fda95271",
+    "results/dedicated/tilted/design-objects-edited.FCStd": "52ce480ddf13bd15a98c7ec801f6d442f50f5e9d5a937e1eca61adc6b1e276a2",
+    "results/dedicated/tilted/reconstructed-moved.step": "adb8d185d3d01f50d9a51a32c5bdff9c80f0b181cbc18cb7f413080cbe7a1478",
+    "results/dedicated/tilted/reconstructed-original.step": "27da89534e8781bf13f1eead4b33d3437f6cc4868cac586bedb20ac45b391666",
+    "results/dedicated/tilted/reconstructed.png": "2e4591edfe96e031a6419e46bc1e2bbda4dc4580fc6426ffbfc509b11e15e63f",
+    "results/unified/concave/bin-edited.FCStd": "39341689635c1673608f37d6f7198fb19c2d902e879634b76215b7f7aa352e06",
+    "results/unified/concave/bin-edited.png": "7bdfc9b365ede819a2d1f26424a8d6e1eba1036851ba30c89bc369d909525717",
+    "results/unified/concave/bin-edited.step": "af0da8d0e88c4fa4d68314c685461c88ff9b7c3c8b0180d830845394ee9ee3eb",
+    "results/unified/concave/design-objects-edited.FCStd": "07fb5e9e01192d432bbc437b0d729a9bce9230c4d7b71d33493efa1a41842f05",
+    "results/unified/concave/reconstructed-moved.step": "5b661720015e134ed18e4c745b5702c3b0357662c5e520e890db0c1a52fa1456",
+    "results/unified/concave/reconstructed-original.step": "ef637caf0d8ad625dd986866e70bd5142dfb0a4f57eee488cdfa5e4e60fe94c5",
+    "results/unified/concave/reconstructed.png": "730ef25fe9890a4725097a0eb6561e12235af2863b621604c579610b66af1008",
+    "results/unified/irregular/bin-edited.FCStd": "58816d99e6be4769217bf6a3753d9ca347e38bd3fc384f4ada188c0a78bc63b0",
+    "results/unified/irregular/bin-edited.png": "88193e4309831222092f9c394ab3ce9456d49a2f6a05dec90f9bee9a48901143",
+    "results/unified/irregular/bin-edited.step": "12b73276563094883441b61895a6bc47a43b0a4134269213d89bc2f6344fd828",
+    "results/unified/irregular/design-objects-edited.FCStd": "c57ea17173cb5252f20d1b024633c37c0361fb9c251eb2aac44af7121fa3d28e",
+    "results/unified/irregular/reconstructed-moved.step": "b6e904af38fa42460eb9e8359c1c1f6eface7964b3556be74929ab135dfeca57",
+    "results/unified/irregular/reconstructed-original.step": "8a9870f9349fa7dd5c4a4f5549f49135415f292a4bf2bcce51e079a00884b0d6",
+    "results/unified/irregular/reconstructed.png": "35dc56933853e5daa0a65ce421500bc14aae15db06b8a5168f09fb70cbd3d2c2",
+    "results/unified/mixed/bin-edited.FCStd": "558b84600c522991924141bedc45628db057ab87f841a5a3cea8ff479810f543",
+    "results/unified/mixed/bin-edited.png": "b50cbf934f62c1cd8cfe88e642cf142af38b397eabf4d2f945f2a6ac0808e08c",
+    "results/unified/mixed/bin-edited.step": "535a42c1b10b3d7de69b882336bbde2c2ad0728c1d9ba794811c5ff8c63b927e",
+    "results/unified/mixed/design-objects-edited.FCStd": "b20b65334316ec7ff41135056db037f3ed985dfe803bf5b2987ba84326a8d65f",
+    "results/unified/mixed/reconstructed-moved.step": "f97cf581e6d83daa5f7f8ccc4825e9f2e070f1464da4d7ebfb6e81517b532e16",
+    "results/unified/mixed/reconstructed-original.step": "323f050d390805279cc5218fd2b34a9e1d4e43615fe0d1baf9e39c8e2c55da04",
+    "results/unified/mixed/reconstructed.png": "6b94ae2b3b3578df7a0a230c1eb60fa9067daff4947488b14c2a5fba4219272a",
+    "results/unified/standard-hollow/bin-edited.FCStd": "b6f6d3db6d97854a4c4838595241679b46def3c32c23057f4257b6cf8c719e14",
+    "results/unified/standard-hollow/bin-edited.png": "5ac3422ac22158fe4f43d742c2d4c5498daf9b04562dc8d70d07ad3dd95ed676",
+    "results/unified/standard-hollow/bin-edited.step": "012c165e35c5137e38271c6c0487f897341e4fff5af0737bb457881405cebcd3",
+    "results/unified/standard-hollow/design-objects-edited.FCStd": "86ea8045d5b7bf2666807d6956b3813770fb1ef9c5ca558ef05ed106d4ae07c8",
+    "results/unified/standard-hollow/reconstructed-original.step": "56992a8697e64f97b0f2b663b9f3b6c83dad380d80608780bc7043d8f1690753",
+    "results/unified/standard-hollow/reconstructed.png": "6f0549f38123fd6800c44086bfcaa391eb3dfac06f76410c88e899f7a99f7239",
+    "results/unified/standard-solid/bin-edited.FCStd": "a196436b408048410b976be6c9ee186ffc6392213ff5a08d67059e361f329c7b",
+    "results/unified/standard-solid/bin-edited.png": "618a6d96fa409a4ae159ca31a5cfd0c1dc08c3d9a800c18c65f0c848fb779367",
+    "results/unified/standard-solid/bin-edited.step": "0664c5847a548ceed452acf17edb01965035e1f6e528009e6fbb30dd7db8f8a5",
+    "results/unified/standard-solid/design-objects-edited.FCStd": "0d3508e99ed57690a77e608504c8d08b3fb259bfde8f121a2c104bbe38c3f179",
+    "results/unified/standard-solid/reconstructed-original.step": "f12df67e699214296df1347448401de2fcb1be435750ac0c5a4266c0e2a0df49",
+    "results/unified/standard-solid/reconstructed.png": "754f4804df13d634adf1f3b78eb3997f2dfa10aba2ebb73f705353d08c13fe66",
+    "results/unified/tilted/bin-edited.FCStd": "4705e0b6a1fc638dcecb7d2cc605df13491533b6a675b73bf97dff29875d5ac1",
+    "results/unified/tilted/bin-edited.png": "5f092d88af5e298b3f98c4ed38c494aebc48c622fad98cdc372ab202127d2cd3",
+    "results/unified/tilted/bin-edited.step": "9da2f3804b4e86fadab1b800ac9e15efc5dc62a3dbcc667b2779889078495271",
+    "results/unified/tilted/design-objects-edited.FCStd": "671ce4b683a40cc3f607faa4ebadc1e32f0677777461b57e9fcc555ef52679be",
+    "results/unified/tilted/reconstructed-moved.step": "1568c5e9fb3dab68dc3b0104336761720a3153f047ad7ad41f7cf7ee9894b7f0",
+    "results/unified/tilted/reconstructed-original.step": "69042976f04bf5f00f0c88c8c6ee475bf22885a4f7df073dbac4b05688d17c1b",
+    "results/unified/tilted/reconstructed.png": "7d0d9b78e6db5d83eee2371c224b841cb6faefc378069c03e2405917ee498c8c"
+  },
+  "nativeReportSha256": "ce194fbbd2c2cbb6492afa466f178366e4912a69eded719697053838b560ad36",
+  "nativeImportDialog": {
+    "application": "FreeCAD 1.1.4",
+    "os": "macOS 26.6.2 (25G83)",
+    "status": "unresolved",
+    "rootCause": "Not established. Faulting stacks are in macOS/Qt event handling; they do not establish that STEP geometry caused the crashes.",
+    "operation": "File \u2192 Open; accept unchanged STEP Import Settings",
+    "attempts": [
+      {
+        "approach": "dedicated",
+        "fixture": "irregular",
+        "file": "bin.step",
+        "confirmation": "accessibility click",
+        "session": "after native macro checks",
+        "result": "crash"
+      },
+      {
+        "approach": "dedicated",
+        "fixture": "irregular",
+        "file": "bin.step",
+        "confirmation": "accessibility click",
+        "session": "fresh",
+        "result": "crash"
+      },
+      {
+        "approach": "dedicated",
+        "fixture": "irregular",
+        "file": "bin.step",
+        "confirmation": "keyboard Return",
+        "session": "fresh",
+        "result": "crash"
+      },
+      {
+        "approach": "unified",
+        "fixture": "irregular",
+        "file": "bin.step",
+        "confirmation": "keyboard Return",
+        "session": "fresh",
+        "result": "crash"
+      },
+      {
+        "approach": "control",
+        "fixture": "FreeCAD-authored 10 mm box",
+        "file": "control-freecad-box.step",
+        "confirmation": "keyboard Return",
+        "session": "fresh",
+        "result": "crash",
+        "sha256": "1688daaa9a3178353d92a76302e8f6751041737bb28fa807d349ada4a94a7783",
+        "creator": "Installed FreeCAD 1.1.4 Part.makeBox and native TopoShape.exportStep",
+        "expectedDimensionsMm": [
+          10,
+          10,
+          10
+        ],
+        "expectedVolumeMm3": 1000,
+        "validClosedSolids": 1
+      }
+    ],
+    "unchangedImportOptions": {
+      "compoundMerge": false,
+      "linkGroup": false,
+      "importInvisibleObjects": true,
+      "reduceObjects": false,
+      "expandCompound": false,
+      "showProgress": true,
+      "ignoreInstanceNames": true,
+      "codePage": "No conversion",
+      "mode": "Single document",
+      "suppressDialog": false
+    },
+    "crashReports": [
+      {
+        "when": "2026-10-07 13:38:05.00 -0400",
+        "incidentId": "D2C47049-391F-4EA3-81C1-58722389C4A8",
+        "exception": {
+          "codes": "0x0000000000000001, 0x0000096a92a2b6b0",
+          "rawCodes": [
+            1,
+            10353331320496
+          ],
+          "type": "EXC_BAD_ACCESS",
+          "signal": "SIGSEGV",
+          "subtype": "KERN_INVALID_ADDRESS at 0x0000096a92a2b6b0"
+        },
+        "termination": {
+          "flags": 0,
+          "code": 11,
+          "namespace": "SIGNAL",
+          "indicator": "Segmentation fault: 11",
+          "byProc": "exc handler",
+          "byPid": 65152
+        },
+        "triggeredFrames": [
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_release"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_autoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFAutoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopPerCalloutARPEnd"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSource0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSources0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopRun"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFRunLoopRunSpecificWithOptions"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "RunCurrentEventLoopInMode"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "ReceiveNextEventCommon"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "_BlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSBlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSNextEvent"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication run]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "QCocoaEventDispatcher::processEvents(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QCoreApplication::exec()"
+          },
+          {
+            "library": "libFreeCADGui.dylib",
+            "symbol": "Gui::Application::runApplication()"
+          },
+          {
+            "library": "freecad",
+            "symbol": "main"
+          },
+          {
+            "library": "dyld",
+            "symbol": "start"
+          }
+        ]
+      },
+      {
+        "when": "2026-10-07 13:40:39.00 -0400",
+        "incidentId": "6CA10D65-9264-4A86-A985-D8865AE31A58",
+        "exception": {
+          "codes": "0x0000000000000001, 0x0000736d9cbbea90",
+          "rawCodes": [
+            1,
+            126914618190480
+          ],
+          "type": "EXC_BAD_ACCESS",
+          "signal": "SIGSEGV",
+          "subtype": "KERN_INVALID_ADDRESS at 0x0000736d9cbbea90"
+        },
+        "termination": {
+          "flags": 0,
+          "code": 11,
+          "namespace": "SIGNAL",
+          "indicator": "Segmentation fault: 11",
+          "byProc": "exc handler",
+          "byPid": 68547
+        },
+        "triggeredFrames": [
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_release"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "-[QMacAccessibilityElement dealloc]"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_autoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFAutoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopPerCalloutARPEnd"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSource0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSources0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopRun"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFRunLoopRunSpecificWithOptions"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "RunCurrentEventLoopInMode"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "ReceiveNextEventCommon"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "_BlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSBlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSNextEvent"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication run]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "QCocoaEventDispatcher::processEvents(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QCoreApplication::exec()"
+          },
+          {
+            "library": "libFreeCADGui.dylib",
+            "symbol": "Gui::Application::runApplication()"
+          },
+          {
+            "library": "freecad",
+            "symbol": "main"
+          },
+          {
+            "library": "dyld",
+            "symbol": "start"
+          }
+        ]
+      },
+      {
+        "when": "2026-10-07 13:41:59.00 -0400",
+        "incidentId": "B9EBF0DD-A9E4-4794-B6E3-54748C5325F2",
+        "exception": {
+          "codes": "0x0000000000000001, 0x00000fda5b142ff0",
+          "rawCodes": [
+            1,
+            17430505336816
+          ],
+          "type": "EXC_BAD_ACCESS",
+          "signal": "SIGSEGV",
+          "subtype": "KERN_INVALID_ADDRESS at 0x00000fda5b142ff0"
+        },
+        "termination": {
+          "flags": 0,
+          "code": 11,
+          "namespace": "SIGNAL",
+          "indicator": "Segmentation fault: 11",
+          "byProc": "exc handler",
+          "byPid": 68936
+        },
+        "triggeredFrames": [
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_release"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "-[QMacAccessibilityElement dealloc]"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_autoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFAutoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopPerCalloutARPEnd"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSource0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSources0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopRun"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFRunLoopRunSpecificWithOptions"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "RunCurrentEventLoopInMode"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "ReceiveNextEventCommon"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "_BlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSBlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSNextEvent"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication run]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "QCocoaEventDispatcher::processEvents(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QCoreApplication::exec()"
+          },
+          {
+            "library": "libFreeCADGui.dylib",
+            "symbol": "Gui::Application::runApplication()"
+          },
+          {
+            "library": "freecad",
+            "symbol": "main"
+          },
+          {
+            "library": "dyld",
+            "symbol": "start"
+          }
+        ]
+      },
+      {
+        "when": "2026-10-07 13:43:56.00 -0400",
+        "incidentId": "F13D430B-835A-4213-8932-0B58EDEC2746",
+        "exception": {
+          "codes": "0x0000000000000001, 0x00003443fc738958",
+          "rawCodes": [
+            1,
+            57466602883416
+          ],
+          "type": "EXC_BAD_ACCESS",
+          "signal": "SIGSEGV",
+          "subtype": "KERN_INVALID_ADDRESS at 0x00003443fc738958"
+        },
+        "termination": {
+          "flags": 0,
+          "code": 11,
+          "namespace": "SIGNAL",
+          "indicator": "Segmentation fault: 11",
+          "byProc": "exc handler",
+          "byPid": 69606
+        },
+        "triggeredFrames": [
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_release"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "-[QMacAccessibilityElement dealloc]"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_autoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFAutoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopPerCalloutARPEnd"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSource0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSources0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopRun"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFRunLoopRunSpecificWithOptions"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "RunCurrentEventLoopInMode"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "ReceiveNextEventCommon"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "_BlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSBlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSNextEvent"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication run]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "QCocoaEventDispatcher::processEvents(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QCoreApplication::exec()"
+          },
+          {
+            "library": "libFreeCADGui.dylib",
+            "symbol": "Gui::Application::runApplication()"
+          },
+          {
+            "library": "freecad",
+            "symbol": "main"
+          },
+          {
+            "library": "dyld",
+            "symbol": "start"
+          }
+        ]
+      },
+      {
+        "when": "2026-10-07 13:58:48.6409 -0400",
+        "incidentId": "162DF477-A2E7-44DB-BB24-E22990CEE747",
+        "exception": {
+          "codes": "0x0000000000000001, 0x00001317af17c2d8",
+          "rawCodes": [
+            1,
+            20992442745560
+          ],
+          "type": "EXC_BAD_ACCESS",
+          "signal": "SIGSEGV",
+          "subtype": "KERN_INVALID_ADDRESS at 0x00001317af17c2d8"
+        },
+        "termination": {
+          "flags": 0,
+          "code": 11,
+          "namespace": "SIGNAL",
+          "indicator": "Segmentation fault: 11",
+          "byProc": "exc handler",
+          "byPid": 73104
+        },
+        "triggeredFrames": [
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_release"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "-[QMacAccessibilityElement dealloc]"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "-[__NSArrayM dealloc]"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)"
+          },
+          {
+            "library": "libobjc.A.dylib",
+            "symbol": "objc_autoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFAutoreleasePoolPop"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopPerCalloutARPEnd"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSource0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopDoSources0"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "__CFRunLoopRun"
+          },
+          {
+            "library": "CoreFoundation",
+            "symbol": "_CFRunLoopRunSpecificWithOptions"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "RunCurrentEventLoopInMode"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "ReceiveNextEventCommon"
+          },
+          {
+            "library": "HIToolbox",
+            "symbol": "_BlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSBlockUntilNextEventMatchingListInMode"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "_DPSNextEvent"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]"
+          },
+          {
+            "library": "AppKit",
+            "symbol": "-[NSApplication run]"
+          },
+          {
+            "library": "libqcocoa.dylib",
+            "symbol": "QCocoaEventDispatcher::processEvents(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>)"
+          },
+          {
+            "library": "libQt6Core.6.8.3.dylib",
+            "symbol": "QCoreApplication::exec()"
+          },
+          {
+            "library": "libFreeCADGui.dylib",
+            "symbol": "Gui::Application::runApplication()"
+          },
+          {
+            "library": "freecad",
+            "symbol": "main"
+          },
+          {
+            "library": "dyld",
+            "symbol": "start"
+          }
+        ]
+      }
+    ],
+    "nativeApiEditing": "12 GUI API cases passed before these attempts; saved native and STEP results retained",
+    "releaseGate": "Normal desktop import-dialog acceptance remains unpassed for both approaches",
+    "controlInterpretation": "The normal dialog also crashes on a simple STEP created by this installed FreeCAD, with no Pocketry geometry. This suggests a broader desktop/dialog runtime issue; it does not prove the root cause or close the Pocketry workflow gate."
+  },
+  "limitations": [
+    "Four normal import-dialog crashes were observed across the dedicated and unified irregular bin STEP files; a fifth occurred with a simple FreeCAD-authored box STEP. Root cause is not established; native API success does not close this desktop workflow gate.",
+    "Native FreeCAD files retain newly created native cylinder/cut dependencies, not imported Pocketry parametric feature history.",
+    "FreeCAD expands disconnected text compounds into a native part container and letter bodies. Stable IDs are resolved at the topmost matching container.",
+    "Empty symmetric CAD differences and numerical volume estimates are recorded separately; maximum local surface error is not measured.",
+    "Full authored-feature support, physical/mobile/printing qualification and human backend selection remain separate gates."
+  ],
+  "supersededRuns": [
+    "cli-initial-run: ten geometry cases passed; two text-compound identity assumptions failed.",
+    "cli-validation-run and gui-initial-run: geometry checks passed; archive reopening reused open documents and saved views showed construction tools.",
+    "gui-fresh-load-initial-scopes-run: fresh disk reopening passed; native feature links produced assembly-scope warnings.",
+    "Final results: fresh disk loads, correctly scoped native features, hidden construction tools, and 32 independent STEP comparisons passed."
+  ],
+  "localGates": {
+    "status": "passed",
+    "node": "v22.23.3",
+    "ci": "disabled; no GitHub workflows invoked",
+    "runs": [
+      {
+        "approach": "dedicated",
+        "command": "npm run check",
+        "exitCode": 0,
+        "seconds": 1.557
+      },
+      {
+        "approach": "dedicated",
+        "command": "npm test",
+        "exitCode": 0,
+        "seconds": 45.823
+      },
+      {
+        "approach": "dedicated",
+        "command": "npm run build",
+        "exitCode": 0,
+        "seconds": 5.864
+      },
+      {
+        "approach": "dedicated",
+        "command": "git diff --check",
+        "exitCode": 0,
+        "seconds": 0.015
+      },
+      {
+        "approach": "unified",
+        "command": "npm run check",
+        "exitCode": 0,
+        "seconds": 7.136
+      },
+      {
+        "approach": "unified",
+        "command": "npm test",
+        "exitCode": 0,
+        "seconds": 58.607
+      },
+      {
+        "approach": "unified",
+        "command": "npm run build",
+        "exitCode": 0,
+        "seconds": 6.602
+      },
+      {
+        "approach": "unified",
+        "command": "git diff --check",
+        "exitCode": 0,
+        "seconds": 0.02
+      }
+    ]
+  },
+  "initialLocalVerification": {
+    "result": {
+      "status": "failed",
+      "node": "v22.23.3",
+      "ci": "disabled; no GitHub workflows invoked",
+      "runs": [
+        {
+          "approach": "dedicated",
+          "command": "npm run check",
+          "exitCode": 0,
+          "seconds": 3.487
+        },
+        {
+          "approach": "dedicated",
+          "command": "npm test",
+          "exitCode": 1,
+          "seconds": 52.923
+        }
+      ]
+    },
+    "failure": "Existing 5000 ms timeout: pocket-surface-rounding.test.ts, uses one real opening for a tilted split pocket with holes=true. No geometry code or test timeout was changed; the suite was rerun sequentially after native CAD work ended."
+  }
+}

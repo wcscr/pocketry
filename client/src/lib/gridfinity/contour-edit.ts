@@ -98,8 +98,9 @@ export function reviseTracedShape(
 
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
+  const { analyticProfile: _analyticProfile, ...polygonSource } = source;
   return {
-    ...source,
+    ...polygonSource,
     id,
     outlineMm: normalized,
     bboxMm: {

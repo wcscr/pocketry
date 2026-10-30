@@ -1,0 +1,37 @@
+{
+  "originalWasmSha256": "4c9f22e9f3828dca6f3c95405934cdbe624e593c35266f47f392ab337478dbde",
+  "candidateWasmSha256": "6d0c2946d642e5edf83482218717aa006dd562a701dbbc645a0282d6bbc6de35",
+  "originalRegisteredClasses": 454,
+  "candidateRegisteredClasses": 454,
+  "originalEmptyDestructorCount": 171,
+  "repairedCount": 169,
+  "missingOriginalClasses": [],
+  "remainingEmptyOriginalDestructors": [
+    "BRepAlgoAPI_Algo",
+    "CDM_Document"
+  ],
+  "candidateEmptyDestructors": [
+    "BRepAlgoAPI_Algo",
+    "CDM_Document"
+  ],
+  "protectedBaseExceptions": [
+    {
+      "name": "BRepAlgoAPI_Algo",
+      "header": "src/ModelingAlgorithms/TKBO/BRepAlgoAPI/BRepAlgoAPI_Algo.hxx",
+      "protectedSectionLine": 56,
+      "constructorLine": 58,
+      "destructorLine": 61,
+      "reason": "The algorithm base has protected construction and destruction. Concrete public derived classes own native destruction."
+    },
+    {
+      "name": "CDM_Document",
+      "header": "src/ApplicationFramework/TKCDF/CDM/CDM_Document.hxx",
+      "protectedSectionLine": 347,
+      "constructorLine": 348,
+      "destructorLine": 350,
+      "reason": "The document base has protected construction and destruction. Concrete document classes and reference-counted handles own native destruction."
+    }
+  ],
+  "unexpectedRemainingEmptyDestructors": [],
+  "passed": true
+}

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocketry CAD engine source and notices</title><body>
+<h1>Pocketry CAD engine source and notices</h1>
+<p><a href="NOTICE.txt">Notices</a> | <a href="BUILD-INFO.txt">Build information and compatibility review</a> | <a href="sources.json">Source and SHA-256 manifest</a></p>
+<p>Upstream library: replicad-opencascadejs@1.1.0, LGPL-2.1-only. Pocketry's adapter is AGPL-3.0-only. Individual components retain their listed terms.</p>
+<p>Concatenate each archive's numbered parts in order, verify its SHA-256 against the manifest, then extract it. Sources include upstream wrappers, build recipes and compiler patches. Designs remain on your device.</p>
+<h2>Pocketry binding repair</h2>
+<p>Package: replicad-opencascadejs@1.1.0-pocketry.2. Status: locally-qualified. See build information for the qualification status and reproducibility limits.</p>
+<p><a href="native-destructors.patch">native-destructors.patch</a></p>
+<p><a href="single-thread-emmalloc.patch">single-thread-emmalloc.patch</a></p>
+<p><a href="build-cad-engine.sh">build-cad-engine.sh</a></p>
+<p>Rebuild support files and native qualification evidence:</p>
+<ul>
+<li><a href="build-cad-engine.sh">build-cad-engine.sh</a> (124 bytes), SHA-256 8170fba7ae93d2c264a16f6b94e15abe8b702b257a4876366218f709fba5e7ff</li>
+<li><a href="cad-build/REBUILD.md">cad-build/REBUILD.md</a> (5869 bytes), SHA-256 e2884c39da6d1569b1501469e08341e902cdfea55c69d9e35d0150168c812a30</li>
+<li><a href="cad-build/allocator-patch-hashes.json">cad-build/allocator-patch-hashes.json</a> (244 bytes), SHA-256 a4d2fb5085c264a2358706f8bdedd736077632f82578ebdd9cfd64efa161f2d9</li>
+<li><a href="cad-build/build-provenance.json">cad-build/build-provenance.json</a> (4294 bytes), SHA-256 34a9d596d6091bbd7324e6cf8b9bbf0f8a6db19cc42708eb0303b25c496892d2</li>
+<li><a href="cad-build/build.sh">cad-build/build.sh</a> (2342 bytes), SHA-256 6bd2b690eb91ab8ba38775d5c88fcd63c9f5170ec835aaa76f61a1dd51b1c1b3</li>
+<li><a href="cad-build/candidate-analyzer-lifetime.json">cad-build/candidate-analyzer-lifetime.json</a> (1604 bytes), SHA-256 58a8d6b039457fad8ef36301a98550a1b6bb7bb556656152e1df72335d0f4027</li>
+<li><a href="cad-build/candidate-build-manifest.json">cad-build/candidate-build-manifest.json</a> (483723 bytes), SHA-256 bcf5a5af32b8fbed69d3ab8bed473984dc39faaf4d6cfa0f3de0098a8031fe34</li>
+<li><a href="cad-build/candidate-destructors.json">cad-build/candidate-destructors.json</a> (142134 bytes), SHA-256 886ff240d639196b3dc30f3e0f42c5ab62ae62e6de7896f8df4712bf6d9d0aa9</li>
+<li><a href="cad-build/candidate-engine-provenance.json">cad-build/candidate-engine-provenance.json</a> (7497 bytes), SHA-256 7a32be1cc4a268a43164ff16970b2f8a6515112bc93a0b9f481ba029fc1869fa</li>
+<li><a href="cad-build/candidate-hashes.json">cad-build/candidate-hashes.json</a> (701 bytes), SHA-256 03e1d223fb0a7c31df81e6aacc6587205a5016e6744c6a122994b8d903d00570</li>
+<li><a href="cad-build/candidate-owned-shapes.json">cad-build/candidate-owned-shapes.json</a> (969 bytes), SHA-256 93aad210a1804df6cf86e9c56acfa357e580327074b32a264b421ff37503f5e2</li>
+<li><a href="cad-build/compare-destructors.mjs">cad-build/compare-destructors.mjs</a> (1780 bytes), SHA-256 3bfb9c42471e868e0f0447881a2cd666bd1275cc2a2afa7c3299c2434530fef6</li>
+<li><a href="cad-build/compiler-inventory.json">cad-build/compiler-inventory.json</a> (1202 bytes), SHA-256 29272b3c124e501a9c4c9a2949ecf89303e3c526cbd5a4bf680f88d49c899596</li>
+<li><a href="cad-build/compiler-manifest.json">cad-build/compiler-manifest.json</a> (34397 bytes), SHA-256 9e7e71d48dcc5e0182056e4e8a9d7c963e0dc3f7b41677edff9290af87bd6664</li>
+<li><a href="cad-build/destructor-comparison.json">cad-build/destructor-comparison.json</a> (1346 bytes), SHA-256 6ee62b9c1324a9f9c4148973c7e3a770b2441857c5a86364b460ccad7d186be3</li>
+<li><a href="cad-build/destructor-exceptions.json">cad-build/destructor-exceptions.json</a> (810 bytes), SHA-256 79b6bf0d6fa58c14d21bfeffdc786d3cf4cc101ea3faa1509e7db543db685893</li>
+<li><a href="cad-build/link.log">cad-build/link.log</a> (9647 bytes), SHA-256 7034c4769973fa1b94eed8cff78d62cce6ca93ad5ea036e5ba7d717cc7fe4935</li>
+<li><a href="cad-build/original-destructors.json">cad-build/original-destructors.json</a> (134983 bytes), SHA-256 1243dc476879f6e67f5fd593b1e98049f0088fe5e2570c011f37481930c3ad60</li>
+<li><a href="cad-build/patch-hashes.json">cad-build/patch-hashes.json</a> (244 bytes), SHA-256 f3110d79f005f50cb4f77457be237d021ae745719680152d189f4c5a855611ff</li>
+<li><a href="cad-build/pocketry.1-baseline/BASELINE.txt">cad-build/pocketry.1-baseline/BASELINE.txt</a> (288 bytes), SHA-256 6f1315c4166906aedf2f7242687be9adeaa814dd107e4a81548e87ed55f54a9c</li>
+<li><a href="cad-build/pocketry.1-baseline/REBUILD.md">cad-build/pocketry.1-baseline/REBUILD.md</a> (4794 bytes), SHA-256 b48d713f56d4a21f2229855155ae01925ced65dac273ba96934c30804e73f0b9</li>
+<li><a href="cad-build/pocketry.1-baseline/build-provenance.json">cad-build/pocketry.1-baseline/build-provenance.json</a> (2432 bytes), SHA-256 859eca128fabe095e4c11486d5ad8e98e37bee1ff4fa116c7d2528a67356252e</li>
+<li><a href="cad-build/pocketry.1-baseline/build.sh">cad-build/pocketry.1-baseline/build.sh</a> (1540 bytes), SHA-256 c7759d9e0dffc8398db2070857a3d4c759d381a5ba9f601307c1c6a8762204dd</li>
+<li><a href="cad-build/pocketry.1-baseline/candidate-analyzer-lifetime.json">cad-build/pocketry.1-baseline/candidate-analyzer-lifetime.json</a> (1604 bytes), SHA-256 fb7830807208bb007e5eb4234d1c2284625af5c116d9dae090901e83ce8d2feb</li>
+<li><a href="cad-build/pocketry.1-baseline/candidate-build-manifest.json">cad-build/pocketry.1-baseline/candidate-build-manifest.json</a> (483723 bytes), SHA-256 7cd16143c88ba11beefbc073a3af3b02056b9b168b5c7770b7e348e30b9cabac</li>
+<li><a href="cad-build/pocketry.1-baseline/candidate-destructors.json">cad-build/pocketry.1-baseline/candidate-destructors.json</a> (142188 bytes), SHA-256 3befe0fb1fc5b3f9550d202b4b1fd7d8bad42af4fbe8b66853b2e86250235477</li>
+<li><a href="cad-build/pocketry.1-baseline/candidate-engine-provenance.json">cad-build/pocketry.1-baseline/candidate-engine-provenance.json</a> (7497 bytes), SHA-256 4269ddb5a6c40ed1aa99ce53e11811993d846b2a8dc3d3f8f4e8b854a29e5aef</li>
+<li><a href="cad-build/pocketry.1-baseline/candidate-hashes.json">cad-build/pocketry.1-baseline/candidate-hashes.json</a> (701 bytes), SHA-256 b4481537e2c854bd77c40cfbb73c87e01914972fb54c7f5745f1dba2929a3ee4</li>
+<li><a href="cad-build/pocketry.1-baseline/candidate-owned-shapes.json">cad-build/pocketry.1-baseline/candidate-owned-shapes.json</a> (969 bytes), SHA-256 93aad210a1804df6cf86e9c56acfa357e580327074b32a264b421ff37503f5e2</li>
+<li><a href="cad-build/pocketry.1-baseline/destructor-comparison.json">cad-build/pocketry.1-baseline/destructor-comparison.json</a> (1346 bytes), SHA-256 da7b629cd7f5d929a6d141a216729ad4319f99a4acc9bcd088f4b73149047daa</li>
+<li><a href="cad-build/pocketry.1-baseline/link.log">cad-build/pocketry.1-baseline/link.log</a> (9925 bytes), SHA-256 ec1514a4c085c73679eaf243a85325047114299e2bcadb4b0f2b1d5acec139ec</li>
+<li><a href="cad-build/pocketry.1-baseline/prepare-rebuild.py">cad-build/pocketry.1-baseline/prepare-rebuild.py</a> (2806 bytes), SHA-256 25743b55c27ee3b5e25315e7b3c7770bdb8aba7e2bdccb148d5631758b324fd6</li>
+<li><a href="cad-build/portable-recipe-check.json">cad-build/portable-recipe-check.json</a> (527 bytes), SHA-256 b76b5f0024e862614d40b18e9d8590ef2ea02366f31a49f4909793d0994fc170</li>
+<li><a href="cad-build/prepare-rebuild.py">cad-build/prepare-rebuild.py</a> (3441 bytes), SHA-256 51324e87f02e0bb1564517b5ddada756ea531e849274f7b6571e505470902e51</li>
+<li><a href="cad-build/rebuild.sh">cad-build/rebuild.sh</a> (863 bytes), SHA-256 8a5b42b7843ad3df0c62d027b729705728bfc0ab957c164a1f152d38b5e39328</li>
+<li><a href="cad-build/selective-compile.json">cad-build/selective-compile.json</a> (36940 bytes), SHA-256 cc367fa6496eb5b7965fd2fa77634178723dd594ed70d546e0ebf27aeec19718</li>
+<li><a href="cad-build/selective-compile.py">cad-build/selective-compile.py</a> (1870 bytes), SHA-256 9070bbe2fc00ab8cd5fd17e8f02f5da55ef7b9c966b4893906df128b87f5c1ca</li>
+<li><a href="cad-build/source-inputs.json">cad-build/source-inputs.json</a> (373 bytes), SHA-256 6867b777e64f997eecc10f249af28ea8365d1b845ba395855658958594b04d06</li>
+<li><a href="cad-build/verify-analyzer-lifetime.mjs">cad-build/verify-analyzer-lifetime.mjs</a> (1780 bytes), SHA-256 41f69cc2efd338fa54850aad41372d016ce20c69180ea0a52bdecf011a1e6ab7</li>
+<li><a href="cad-build/verify-destructors.mjs">cad-build/verify-destructors.mjs</a> (3208 bytes), SHA-256 d79d350c7a35aa26eefe4ba1f20486a5768fffadca9fcc6890836e826a2dfbce</li>
+<li><a href="cad-build/verify-owned-shapes.mjs">cad-build/verify-owned-shapes.mjs</a> (3254 bytes), SHA-256 29e281ec778bad62e23cc65345898529291478cac157809c043f760e94964b84</li>
+<li><a href="native-destructors.patch">native-destructors.patch</a> (1106 bytes), SHA-256 dafb4fdd851b38431515f334e79bb73b04388dd37ca47cdfc9f1120879ca9fbd</li>
+<li><a href="single-thread-emmalloc.patch">single-thread-emmalloc.patch</a> (364 bytes), SHA-256 f59d9172396b05e6c996c1035ae08d701a5713ec1510f3b3cfaa1bb096fd71e4</li>
+</ul>
+<h2>replicad</h2>
+<p>Revision e4b05f67dc4e2393a876ce8c5064a9c93db05bf1</p>
+<ul>
+<li><a href="replicad.tar.gz.part00">replicad.tar.gz.part00</a> (17426998 bytes), SHA-256 92180710da11a6e67ab75eaac8b494b29d32011415c22e29f7fecb1c796da783</li>
+<li><a href="replicad-package-LICENSE">replicad-package-LICENSE</a></li>
+<li><a href="replicad-root-LICENSE">replicad-root-LICENSE</a></li>
+</ul>
+<h2>ocjs</h2>
+<p>Revision ebd263f15337b440b391492af073662707e86482</p>
+<ul>
+<li><a href="ocjs.tar.gz.part00">ocjs.tar.gz.part00</a> (4449501 bytes), SHA-256 1e0342c8dbdc04d1835c776d5e95ab25fcad56a5f4cafcbecad92a959b6b00b7</li>
+<li><a href="ocjs-LICENSE">ocjs-LICENSE</a></li>
+<li><a href="ocjs-LICENSE.OCCT-Exception">ocjs-LICENSE.OCCT-Exception</a></li>
+</ul>
+<h2>occt</h2>
+<p>Revision b8f597c677811d1f9f4d8a97f5ae2825c0353a42</p>
+<ul>
+<li><a href="occt.tar.gz.part00">occt.tar.gz.part00</a> (20971520 bytes), SHA-256 7b44e8f675c24b97a5e5dce7d60142ce3c47a5031d1c5d22029587a349c67a0b</li>
+<li><a href="occt.tar.gz.part01">occt.tar.gz.part01</a> (20971520 bytes), SHA-256 e4d0aacb34b326011a73cccfee04076fa7d010d4ca8021baab7e243a7f6f7e16</li>
+<li><a href="occt.tar.gz.part02">occt.tar.gz.part02</a> (3188774 bytes), SHA-256 4d46755bd64c8c82c4ea924e63a4b91305cc97e7f6cec17ae311a36f845605bc</li>
+<li><a href="occt-LICENSE_LGPL_21.txt">occt-LICENSE_LGPL_21.txt</a></li>
+<li><a href="occt-OCCT_LGPL_EXCEPTION.txt">occt-OCCT_LGPL_EXCEPTION.txt</a></li>
+</ul>
+<h2>freetype</h2>
+<p>Revision de8b92dd7ec634e9e2b25ef534c54a3537555c11</p>
+<ul>
+<li><a href="freetype.tar.gz.part00">freetype.tar.gz.part00</a> (2496556 bytes), SHA-256 14791d34053acf30394912a8b963277bee60b35fbb3038795d86555ba0415a44</li>
+<li><a href="freetype-FTL.TXT">freetype-FTL.TXT</a></li>
+</ul>
+<h2>rapidjson</h2>
+<p>Revision 24b5e7a8b27f42fa16b96fc70aade9106cf7102f</p>
+<ul>
+<li><a href="rapidjson.tar.gz.part00">rapidjson.tar.gz.part00</a> (1116703 bytes), SHA-256 2d2601a82d2d3b7e143a3c8d43ef616671391034bc46891a9816b79cf2d3e7a8</li>
+<li><a href="rapidjson-license.txt">rapidjson-license.txt</a></li>
+</ul>
+<h2>emscripten</h2>
+<p>Revision 5.0.1</p>
+<ul>
+<li><a href="emscripten.tar.gz.part00">emscripten.tar.gz.part00</a> (20971520 bytes), SHA-256 cedc074bbbeb0cc0fd4b89c2803b12db8ba0817266437af7c7ffb68c919a3d16</li>
+<li><a href="emscripten.tar.gz.part01">emscripten.tar.gz.part01</a> (13724168 bytes), SHA-256 82ed85a85f3229e2899d5c90545bc38b33b9b65a49baf79a077b3ceabcfa1d0b</li>
+<li><a href="emscripten-LICENSE">emscripten-LICENSE</a></li>
+<li><a href="mimalloc-LICENSE">mimalloc-LICENSE</a></li>
+</ul>
+<p>This archive contains mimalloc 2.1.7 with its Emscripten port, emmalloc and sbrk sources, and their component licenses. The manifest distinguishes the current compiled allocator from retained baseline evidence. No separate allocator source download is needed.</p>
+</body></html>

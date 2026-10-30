@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix native CAD cleanup in both experimental investigations without changing modeled geometry; retain the 512 MiB guard. Complex authored bottom fillets remain an unresolved export gate.
+
+- Refresh the isolated CAD investigations against current main, preserving edited polygon provenance in schema 55 and rejecting newer unsupported features before export. Backend selection and real-bin fillet qualification remain pending.
+
+- Experimental CAD investigations: curved STEP solids, named source objects and cutters, complete project packages, progress and cancellation. Stable object IDs survive Fusion import through geometry-associated names. Production backend selection and remaining feature gates are pending.
+
+- Added Wiha stacking fit notes recommending lowering the driver pockets about 1 mm to avoid interference.
 - Add 18 GFLabel hardware symbols to surface labels, alone or before text, with compact settings and consistent inline labels, independent symbol size and rotation, adjustable text gap and preserved leading spaces, upright bolts and screws, saved history, STL/3MF export, and bundled BSD-3-Clause attribution and project links.
 
 - Preserve label-shelf underside support angles on slanted bins, including compartment labels and shallow supports that reach the floor.

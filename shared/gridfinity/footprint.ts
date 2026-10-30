@@ -253,13 +253,10 @@ function removeCollinear(points: readonly GridCell[]): GridCell[] {
   });
 }
 
-function roundedOffsetRing(
-  spec: FootprintSpec,
-  insetMm: number,
-  convexRadiusMm: number,
-  concaveRadiusMm: number,
-  circularSegments: number,
-): Ring {
+export interface FootprintCornerGeometry { start: Point; end: Point; centre: Point; radius: number; startAngle: number; delta: number }
+
+/** Shared analytic corner definition; display rings sample this exact geometry. */
+export function footprintCornerGeometry(spec: FootprintSpec, insetMm: number, convexRadiusMm: number, concaveRadiusMm: number): FootprintCornerGeometry[] {
   const lattice = orderedLatticeRing(spec);
   if (lattice.length < 3) return [];
   const pitch = gridPitchMm(spec.gridPitch);
@@ -267,42 +264,27 @@ function roundedOffsetRing(
     x: (point.x - spec.gridX / 2) * (spec.arbitrarySizeMm ? (spec.arbitrarySizeMm.width + BASE_GAP_MM) / spec.gridX : pitch),
     y: (point.y - spec.gridY / 2) * (spec.arbitrarySizeMm ? (spec.arbitrarySizeMm.length + BASE_GAP_MM) / spec.gridY : pitch),
   }));
-  const result: Ring = [];
-  const quarterSegments = Math.max(1, Math.round(circularSegments / 4));
+  return points.map((point,i)=>{
+    const prev=points[(i-1+points.length)%points.length],next=points[(i+1)%points.length];
+    const incoming=unit({x:point.x-prev.x,y:point.y-prev.y}),outgoing=unit({x:next.x-point.x,y:next.y-point.y});
+    const vertex={x:point.x+insetMm*(-incoming.y-outgoing.y),y:point.y+insetMm*(incoming.x+outgoing.x)};
+    const turn=incoming.x*outgoing.y-incoming.y*outgoing.x;
+    const radius=turn>0?convexRadiusMm:concaveRadiusMm;
+    const start={x:vertex.x-incoming.x*radius,y:vertex.y-incoming.y*radius};
+    const centre={x:start.x+outgoing.x*radius,y:start.y+outgoing.y*radius};
+    const startAngle=Math.atan2(start.y-centre.y,start.x-centre.x),delta=turn>0?Math.PI/2:-Math.PI/2;
+    const end={x:centre.x+radius*Math.cos(startAngle+delta),y:centre.y+radius*Math.sin(startAngle+delta)};
+    return {start,end,centre,radius,startAngle,delta};
+  });
+}
 
-  for (let i = 0; i < points.length; i++) {
-    const prev = points[(i - 1 + points.length) % points.length];
-    const point = points[i];
-    const next = points[(i + 1) % points.length];
-    const incoming = unit({ x: point.x - prev.x, y: point.y - prev.y });
-    const outgoing = unit({ x: next.x - point.x, y: next.y - point.y });
-    const leftIn = { x: -incoming.y, y: incoming.x };
-    const leftOut = { x: -outgoing.y, y: outgoing.x };
-    const vertex = {
-      x: point.x + insetMm * (leftIn.x + leftOut.x),
-      y: point.y + insetMm * (leftIn.y + leftOut.y),
-    };
-    const turn = incoming.x * outgoing.y - incoming.y * outgoing.x;
-    const radius = turn > 0 ? convexRadiusMm : concaveRadiusMm;
-    const start = {
-      x: vertex.x - incoming.x * radius,
-      y: vertex.y - incoming.y * radius,
-    };
-    const centre = {
-      x: start.x + outgoing.x * radius,
-      y: start.y + outgoing.y * radius,
-    };
-    const startAngle = Math.atan2(start.y - centre.y, start.x - centre.x);
-    const delta = turn > 0 ? Math.PI / 2 : -Math.PI / 2;
-    for (let step = 0; step < quarterSegments; step++) {
-      const angle = startAngle + delta * (step / quarterSegments);
-      result.push({
-        x: centre.x + radius * Math.cos(angle),
-        y: centre.y + radius * Math.sin(angle),
-      });
-    }
-  }
-  return result;
+function roundedOffsetRing(spec: FootprintSpec, insetMm: number, convexRadiusMm: number, concaveRadiusMm: number, circularSegments: number): Ring {
+  const quarterSegments=Math.max(1,Math.round(circularSegments/4));
+  return footprintCornerGeometry(spec,insetMm,convexRadiusMm,concaveRadiusMm).flatMap(({centre,radius,startAngle,delta})=>
+    Array.from({length:quarterSegments},(_,step)=>{
+      const angle=startAngle+delta*(step/quarterSegments);
+      return {x:centre.x+radius*Math.cos(angle),y:centre.y+radius*Math.sin(angle)};
+    }));
 }
 
 function unit(vector: Point): Point {

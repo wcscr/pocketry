@@ -1,0 +1,146 @@
+Loading configuration: single-threaded
+
+╔══════════════════════════════════════════════════════════╗
+║         OpenCascade.js WASM Build                       ║
+╠══════════════════════════════════════════════════════════╣
+║  EMSDK:         /emsdk ║
+║  Emscripten:    emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 5.0.1 (8c5f43157a3f069ade75876e23061330521eabde) ║
+║  OCCT_ROOT:     /occt ║
+║  OCJS_OPT:      -O3 ║
+║  OCJS_LTO:      0 ║
+║  OCJS_EXCEPTIONS: 1 ║
+║  OCJS_SIMD:     1 ║
+║  OCJS_RELAXED_SIMD: 0 ║
+║  THREADING:     single-threaded ║
+║  OCJS_MALLOC:   mimalloc ║
+║  wasm-opt:      -O4 ║
+║  BUILD_DIR:     /opencascade.js/build ║
+║  OCJS_CONFIG:   single-threaded ║
+╚══════════════════════════════════════════════════════════╝
+
+═══ Extracting Embind registration manifest from /work/diagnostic-emmalloc/build-config/custom_build_single.yml ═══
+bind-symbols: 3 Embind registration(s) -> /opencascade.js/build/additional-bind-symbols.json
+
+═══ Linking WASM from /work/diagnostic-emmalloc/build-config/custom_build_single.yml ═══
+  Output dir: /work/diagnostic-emmalloc/candidate
+Generating custom code bindings...
+Diagnostic Messages:
+  /occt/src/FoundationClasses/TKernel/NCollection/NCollection_Vector.hxx:22:1: warning: NCollection_Vector.hxx is deprecated since OCCT 8.0.0. Use NCollection_DynamicArray.hxx directly. [-W#pragma-messages]
+Processing ReplicadShapeHasher
+Processing ReplicadShapeCaster
+Processing ReplicadMeshData
+[rule 2 / matrix row 8] ReplicadMeshData: deferring k=0 sub-2b pair (ctor#0 / ctor#1) — empty smaller registers natively as ``.constructor<>()``; Hunk 1 arity-padding handles caller args.length>0 via the larger ctor's std::optional<T> wrapping.
+Processing ReplicadMeshExtractor
+Processing ReplicadEdgeMeshData
+[rule 2 / matrix row 8] ReplicadEdgeMeshData: deferring k=0 sub-2b pair (ctor#0 / ctor#1) — empty smaller registers natively as ``.constructor<>()``; Hunk 1 arity-padding handles caller args.length>0 via the larger ctor's std::optional<T> wrapping.
+Processing ReplicadEdgeMeshExtractor
+Processing BRepToolsWrapper
+Processing GeomToolsWrapper
+Processing ReplicadShapeHasher
+Processing ReplicadShapeCaster
+Processing ReplicadMeshData
+Processing ReplicadMeshExtractor
+Processing ReplicadEdgeMeshData
+Processing ReplicadEdgeMeshExtractor
+Processing BRepToolsWrapper
+Processing GeomToolsWrapper
+Compiling custom code bindings...
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/GeomToolsWrapper.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/ReplicadEdgeMeshData.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/BRepToolsWrapper.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/ReplicadMeshData.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/ReplicadMeshExtractor.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/ReplicadEdgeMeshExtractor.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/ReplicadShapeCaster.cpp
+building /opencascade.js/build/link-work/0b6c7d994fdd/bindings/myMain.h/ReplicadShapeHasher.cpp
+Custom code bindings done.
+INFO: 10 of 248 requested bindings resolve via NCollection typedef alias to a compiled canonical (linker will substitute at link-time):
+  - Poly_Array1OfTriangle -> NCollection_Array1_Poly_Triangle (alias-resolved)
+  - TColStd_Array1OfBoolean -> NCollection_Array1_bool (alias-resolved)
+  - TColStd_Array1OfInteger -> NCollection_Array1_int (alias-resolved)
+  - TColStd_Array1OfReal -> NCollection_Array1_double (alias-resolved)
+  - TColgp_Array1OfDir -> NCollection_Array1_gp_Dir (alias-resolved)
+  - TColgp_Array1OfPnt -> NCollection_Array1_gp_Pnt (alias-resolved)
+  - TColgp_Array1OfPnt2d -> NCollection_Array1_gp_Pnt2d (alias-resolved)
+  - TColgp_Array1OfVec -> NCollection_Array1_gp_Vec (alias-resolved)
+  - TColgp_Array2OfPnt -> NCollection_Array2_gp_Pnt (alias-resolved)
+  - TopTools_ListOfShape -> NCollection_List_TopoDS_Shape (alias-resolved)
+INFO: 1 of 248 requested bindings resolve via Embind builtin registration in the link-stage additionalBindCode TU:
+  - TopoDS (builtin)
+All bindings verified.
+NCollection link filter: kept 86 / 883 auto-discovered entries (dropped 797 unreachable from YAML scope |scope|=464)
+In file included from /opencascade.js/build/link-work/0b6c7d994fdd/additionalBindCode/replicad_single.js.cpp:11:
+/opencascade.js/build/occt-includes/TColStd_IndexedDataMapOfStringString.hxx:27:1: warning: TColStd_IndexedDataMapOfStringString.hxx is deprecated since OCCT 8.0.0. Use NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> directly. [-W#pragma-messages]
+   27 | Standard_HEADER_DEPRECATED(
+      | ^
+/opencascade.js/build/occt-includes/Standard_Macro.hxx:53:44: note: expanded from macro 'Standard_HEADER_DEPRECATED'
+   53 | #define Standard_HEADER_DEPRECATED(theMsg) Standard_DEPRECATED_WARNING(theMsg)
+      |                                            ^
+/opencascade.js/build/occt-includes/Standard_Macro.hxx:35:47: note: expanded from macro 'Standard_DEPRECATED_WARNING'
+   35 |   #define Standard_DEPRECATED_WARNING(theMsg) Standard_DEPRECATED_WARNING_PRAGMA(GCC warning theMsg)
+      |                                               ^
+/opencascade.js/build/occt-includes/Standard_Macro.hxx:34:49: note: expanded from macro 'Standard_DEPRECATED_WARNING_PRAGMA'
+   34 |   #define Standard_DEPRECATED_WARNING_PRAGMA(x) _Pragma(#x)
+      |                                                 ^
+<scratch space>:3:6: note: expanded from here
+    3 |  GCC warning "TColStd_IndexedDataMapOfStringString.hxx is deprecated since OCCT 8.0.0. Use " "NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> directly."
+      |      ^
+1 warning generated.
+building /opencascade.js/build/link-work/0b6c7d994fdd/additionalBindCode/replicad_single.js.cpp
+Running build: replicad_single.js
+Using 35 immutable CMake libraries (filtered by filterPackages)
+Linking 317 bindings + 35 sources ...
+building:INFO: ctor_evaller: trying to eval global ctors (--ctors=__wasm_call_ctors --ignore-external-input)
+building:INFO: 
+
+trying to eval __wasm_call_ctors
+  ...partial evalling successful, but stopping since could not eval: call import: env._embind_register_void
+  ...stopping
+
+Running wasm-opt on /work/diagnostic-emmalloc/candidate/replicad_single.wasm (21.9 MB)...
+wasm-opt: 21.9 MB -> 21.9 MB (0.1% reduction)
+Build finished
+
+=== OCJS_STRICT_TYPES WARNING: missing types in .d.ts ===
+  rewrites to 'unknown': 983 (budget: 0)
+  unbound class references: 0 unique
+  Sample lines with `unknown` rewrites:
+    CreateReference(aMetaData: unknown, aReferenceIdentifier: number, anApplication: unknown, aToDocumentVersion: number, UseStorageConfiguration: boolean): void;
+    CreateReference(aMetaData: unknown, anApplication: unknown, aDocumentVersion: number, UseStorageConfiguration: boolean): number;
+    SetMetaData(aMetaData: unknown): void;
+    MetaData(): unknown;
+    Open(anApplication: unknown): void;
+    CanClose(): unknown;
+    Application(): unknown;
+    Reference(aReferenceIdentifier: number): unknown;
+    static get_type_descriptor(): unknown;
+    DynamicType(): unknown;
+  This is a WARNING -- the build will continue. To escalate to a build failure in CI, set OCJS_STRICT_TYPES=1.
+  Action: ensure `TypescriptBindings.resolve_type` records the missing class identifier into `referenced_classes` (see ocjs_bindgen.codegen.bindings + ocjs_bindgen.resolver.strategies) so the structural lift in `_compute_yaml_class_scope` picks it up on the next link cycle.
+TypeScript definitions written.
+
+═══ Post-link validation ═══
+Validating build: /work/diagnostic-emmalloc/build-config/custom_build_single.yml (hash: 0b6c7d994fdd)
+  Build dir:  /opencascade.js/build
+  Output dir: /work/diagnostic-emmalloc/candidate
+
+  [PASS] Symbols: 244 requested, 5352 compiled, 10 alias-resolved, 1 builtin
+  [PASS] Output: replicad_single.wasm (21.9 MB)
+  [PASS] Runtime helpers: 3 EH helpers present in linked JS glue
+  [INFO] Binding report: 5348 total, 4 failed
+
+  Manifest written to /work/diagnostic-emmalloc/candidate/replicad_single.build-manifest.json
+
+  BUILD VALIDATION PASSED
+Provenance written to /work/diagnostic-emmalloc/candidate/replicad_single.provenance.json
+
+
+╔══════════════════════════════════════════════════════════╗
+║                  Build Complete                         ║
+╠══════════════════════════════════════════════════════════╣
+║  Duration:      143s ║
+║  Config:        single-threaded ║
+║  WASM:          replicad_single.wasm (21.86 MB, 6.88 MB gzipped) ║
+║  JS:            replicad_single.js (57.3 KB) ║
+║  Types:         replicad_single.d.ts (1579.3 KB) ║
+╚══════════════════════════════════════════════════════════╝

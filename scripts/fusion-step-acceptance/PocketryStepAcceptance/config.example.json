@@ -1,0 +1,16 @@
+{
+  "fixturesRoot": "/absolute/path/to/fixtures-containing-dedicated-and-unified",
+  "outputRoot": "/absolute/path/to/fusion-results",
+  "approaches": [
+    "dedicated",
+    "unified"
+  ],
+  "fixtures": [
+    "standard-solid",
+    "standard-hollow",
+    "mixed",
+    "concave",
+    "tilted",
+    "irregular"
+  ]
+}

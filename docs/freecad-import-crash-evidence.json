@@ -1,0 +1,283 @@
+{
+  "date": "2026-10-15",
+  "rootCause": "Qt Cocoa accessibility cache ownership defect QTBUG-134784: cached table-cell elements were not retained, leaving stale pointers in parent arrays after invalidation.",
+  "confidence": "High: geometry-free native reproduction, matching crash frames, upstream fix and installed/candidate binary comparison.",
+  "installedApplication": "FreeCAD 1.1.4 / Qt 6.8.3 / macOS 26.6.2 arm64",
+  "geometryFreeControl": {
+    "case": "geometry-free tree dialog",
+    "freecadVersion": [
+      "1",
+      "1",
+      "4",
+      "20260928 (Git shallow)",
+      "Unknown",
+      "2026/09/28 13:46:34",
+      "(HEAD detached at 4fd3bf320)",
+      "4fd3bf320d9566a27e60069fc8387448aaa3a094"
+    ],
+    "qtVersion": "6.8.3",
+    "os": "macOS-26.6.2-arm64-arm-64bit",
+    "cadDocumentsBefore": [],
+    "started": "2026-10-15T07:39:53-0400",
+    "status": "dialog-finished",
+    "stepParserUsed": false,
+    "result": 1,
+    "finished": "2026-10-15T07:39:56-0400",
+    "cadDocumentsAfter": []
+  },
+  "geometryFreeCrash": {
+    "captureTime": "2026-10-15 07:39:56.8735 -0400",
+    "incident": "362805D1-5676-408C-8B77-F66916EC4708",
+    "exception": {
+      "codes": "0x0000000000000001, 0x000026b8ec60a228",
+      "rawCodes": [
+        1,
+        42575681593896
+      ],
+      "type": "EXC_BAD_ACCESS",
+      "signal": "SIGSEGV",
+      "subtype": "KERN_INVALID_ADDRESS at 0x000026b8ec60a228"
+    },
+    "termination": {
+      "flags": 0,
+      "code": 11,
+      "namespace": "SIGNAL",
+      "indicator": "Segmentation fault: 11",
+      "byProc": "exc handler",
+      "byPid": 82683
+    },
+    "frames": [
+      {
+        "library": "libobjc.A.dylib",
+        "symbol": "objc_release"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "-[__NSArrayM dealloc]"
+      },
+      {
+        "library": "libqcocoa.dylib",
+        "symbol": "-[QMacAccessibilityElement dealloc]"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "__RELEASE_OBJECTS_IN_THE_ARRAY__"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "-[__NSArrayM dealloc]"
+      },
+      {
+        "library": "libobjc.A.dylib",
+        "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)"
+      },
+      {
+        "library": "libobjc.A.dylib",
+        "symbol": "objc_autoreleasePoolPop"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "_CFAutoreleasePoolPop"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "__CFRunLoopPerCalloutARPEnd"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "__CFRunLoopDoSource0"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "__CFRunLoopDoSources0"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "__CFRunLoopRun"
+      },
+      {
+        "library": "CoreFoundation",
+        "symbol": "_CFRunLoopRunSpecificWithOptions"
+      },
+      {
+        "library": "HIToolbox",
+        "symbol": "RunCurrentEventLoopInMode"
+      },
+      {
+        "library": "HIToolbox",
+        "symbol": "ReceiveNextEventCommon"
+      },
+      {
+        "library": "HIToolbox",
+        "symbol": "_BlockUntilNextEventMatchingListInMode"
+      },
+      {
+        "library": "AppKit",
+        "symbol": "_DPSBlockUntilNextEventMatchingListInMode"
+      },
+      {
+        "library": "AppKit",
+        "symbol": "_DPSNextEvent"
+      },
+      {
+        "library": "AppKit",
+        "symbol": "-[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]"
+      },
+      {
+        "library": "AppKit",
+        "symbol": "-[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]"
+      },
+      {
+        "library": "AppKit",
+        "symbol": "-[NSApplication run]"
+      },
+      {
+        "library": "libqcocoa.dylib",
+        "symbol": "QCocoaEventDispatcher::processEvents(QFlags<QEventLoop::ProcessEventsFlag>)"
+      },
+      {
+        "library": "libQt6Core.6.8.3.dylib",
+        "symbol": "QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>)"
+      },
+      {
+        "library": "libQt6Core.6.8.3.dylib",
+        "symbol": "QCoreApplication::exec()"
+      },
+      {
+        "library": "libFreeCADGui.dylib",
+        "symbol": "Gui::Application::runApplication()"
+      },
+      {
+        "library": "freecad",
+        "symbol": "main"
+      },
+      {
+        "library": "dyld",
+        "symbol": "start"
+      }
+    ]
+  },
+  "priorCrashesWithIdenticalFirstSixFrames": 4,
+  "installedCacheInsertRetainsElement": false,
+  "candidateCacheInsertRetainsElement": true,
+  "candidate": {
+    "release": "26.3rc1",
+    "qtVersion": "6.11.2",
+    "provenance": {
+      "release": "https://github.com/FreeCAD/FreeCAD/releases/tag/26.3rc1",
+      "tag": "26.3rc1",
+      "publishedAt": "2026-10-08T14:40:27Z",
+      "url": "https://github.com/FreeCAD/FreeCAD/releases/download/26.3rc1/FreeCAD_26.3rc1-macOS15-arm64.dmg",
+      "bytes": 604144480,
+      "sha256": "593a25880b5e8aef815db8e04e6d728cb5f13e3faee7170f490d4d72058b028f",
+      "matchesOfficialDigest": true,
+      "seconds": 13.62
+    },
+    "signatureVerification": "codesign --verify --deep --strict: valid on disk; satisfies its Designated Requirement (normal macOS signing-service access)",
+    "gatekeeper": "spctl --assess --type execute: accepted; Notarized Developer ID (normal macOS signing-service access)",
+    "normalImportWorkflow": "Not tested. Session stopped at initial configuration migration; no successful patched-runtime import is claimed.",
+    "duplicateInstances": "CLI launch followed by computer-use attachment started two instances of the same copied app. Both were closed; no CAD documents were open."
+  },
+  "triggerScope": "Accessibility table/outline queries expose the defect; computer-use observation exercised that path. Unobserved human-only import was not compared.",
+  "causalLimits": [
+    "No allocation/free tracing or NSZombie capture was performed. Detailed ownership attribution uses the matching upstream fix and binary evidence.",
+    "Qt cache code was inspected, not patched, loaded by injection, or bundled into Pocketry.",
+    "No claim that all FreeCAD users or all macOS builds crash, and no cross-platform import qualification.",
+    "The compatible-build import/edit/reopen workflow must still pass before closing the FreeCAD release gate."
+  ],
+  "upstream": {
+    "freecadIssue": "https://github.com/FreeCAD/FreeCAD/issues/30720",
+    "qtIssue": "https://bugreports.qt.io/browse/QTBUG-134784",
+    "qtFix": "https://github.com/qt/qtbase/commit/b1ed5f656f064e553b33752f8e87d2f5b9553e38",
+    "freecadDependencyUpgrade": "https://github.com/FreeCAD/FreeCAD/pull/32431",
+    "candidateRelease": "https://github.com/FreeCAD/FreeCAD/releases/tag/26.3rc1"
+  },
+  "cleanup": {
+    "closedOwnedTestProcessIds": [
+      84804,
+      84819
+    ],
+    "method": "SIGTERM to the exact copied test executable; both instances were at the initial migration dialog with no CAD documents",
+    "installedApplicationModified": false,
+    "when": "2026-10-15T07:47:52-0400",
+    "remainingInstalledOrTestFreecadProcesses": 0,
+    "diskImageUnmounted": true
+  },
+  "diskImageUnmounted": true,
+  "sourceRevisions": {
+    "dedicated": "6e893c8c4ccdbf411b98eb299df3256edba49d5c",
+    "unified": "91661cce0145d0f74a53e487c1ca05a1693d5920"
+  },
+  "artifactSha256": {
+    "qt-dialog-control.FCMacro": "aec99f23a77a250a44ddeb681fa65a78aaef6847ecadf1c953a8295aab3ab45b",
+    "qt-dialog-control-qt6.8.3.json": "b83e64780d3b30055fecb83e13cbd4f9e98e130fa469f339463c370704643715",
+    "geometry-free-crash.json": "3e6665422656452dffd1e940934ccf2a6c2f4feecac916eb92df42c036364a71",
+    "binary-comparison.json": "a14cf4374c1086665abbd2bd3c2311dfce924857e794c8713f02020fde8e126b",
+    "installed-qt6.8.3-cache-insert-annotated.txt": "17cfeb86046698dd014f50a102811dd92a4120a3348135f681680c89b50f22c9",
+    "candidate-qt6.11.2-cache-insert-annotated.txt": "1f8e0a3f51769d1eb0b5521ea4eb52cc474c03bb77f47151a4b87d0a7fd42d8b",
+    "download-provenance.json": "68f5004732481d1c2bd94a401ff3e082e28ff050dd64d14123447101076f7d98",
+    "test-session-cleanup.json": "a9f148c548ca2993fed04d0446e0607457fb284a72c02bc4ae2b387172feffe8",
+    "control-provenance.json": "04547ce2c6c83dbd1a0dba6612b642bb92b078bcc775dcce96cfea3b2eb32cd0",
+    "inputs/dedicated-provenance.json": "96163db782e3046abf720b36b16d0e104eed8b31fdb1a60e4a50d88c331b1312",
+    "inputs/unified-provenance.json": "4286380df4c4da84a885305a2e796e9c542acefeca004e42dd1e9a333ac6bba5"
+  },
+  "localGates": {
+    "status": "passed",
+    "node": "v22.23.3",
+    "ci": "disabled; no GitHub workflow invoked",
+    "runs": [
+      {
+        "approach": "dedicated",
+        "command": "npm run check",
+        "exitCode": 0,
+        "seconds": 2.048
+      },
+      {
+        "approach": "dedicated",
+        "command": "npm test",
+        "exitCode": 0,
+        "seconds": 48.064
+      },
+      {
+        "approach": "dedicated",
+        "command": "npm run build",
+        "exitCode": 0,
+        "seconds": 5.914
+      },
+      {
+        "approach": "dedicated",
+        "command": "git diff --check",
+        "exitCode": 0,
+        "seconds": 0.013
+      },
+      {
+        "approach": "unified",
+        "command": "npm run check",
+        "exitCode": 0,
+        "seconds": 6.712
+      },
+      {
+        "approach": "unified",
+        "command": "npm test",
+        "exitCode": 0,
+        "seconds": 48.574
+      },
+      {
+        "approach": "unified",
+        "command": "npm run build",
+        "exitCode": 0,
+        "seconds": 6.005
+      },
+      {
+        "approach": "unified",
+        "command": "git diff --check",
+        "exitCode": 0,
+        "seconds": 0.013
+      }
+    ]
+  }
+}
