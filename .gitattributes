@@ -1,3 +1,7 @@
 # Preserve hashed build evidence and unified-diff blank context markers verbatim.
 client/public/licenses/cad/*.patch -whitespace
 client/public/licenses/cad/**/link.log -whitespace
+# Preserve verbatim third-party license files covered by the source manifest.
+client/public/licenses/cad/emscripten-LICENSE -whitespace
+client/public/licenses/cad/occt-LICENSE_LGPL_21.txt -whitespace
+client/public/licenses/cad/rapidjson-license.txt -whitespace
