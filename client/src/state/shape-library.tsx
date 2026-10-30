@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { z } from "zod";
+import { PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { tracePlacementSchema, type TracePlacement, type TracePlacements } from "@shared/gridfinity/trace-placement";
 import { depthSpecSchema, tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
 
@@ -21,6 +22,24 @@ export type PendingPocketDepth = z.infer<typeof pendingDepthSchema>;
 const destinationSchema = z.object({ key: z.string(), name: z.string() }).strict();
 export type PendingDestination = z.infer<typeof destinationSchema>;
 const queuedToolSchema = tracedShapeSchema.extend({ pendingDepth: pendingDepthSchema.optional(), pendingDestination: destinationSchema.optional(), pendingPlacement: tracePlacementSchema.optional() });
+const queuedShapesSchema = z.object({
+  schemaVersion: z.union([z.literal(36), z.literal(PROJECT_SCHEMA_VERSION)]),
+  shapes: queuedToolSchema.array(),
+}).strict();
+
+/** Unversioned queues may contain contour revisions resaved by main. Preserve
+ * metadata exactly; a matching polygon alone cannot prove primitive intent. */
+function readQueuedShapes() {
+  const input: unknown = JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]");
+  if (Array.isArray(input)) return queuedToolSchema.array().safeParse(input);
+  const parsed = queuedShapesSchema.safeParse(input);
+  return parsed.success ? queuedToolSchema.array().safeParse(parsed.data.shapes) : queuedToolSchema.array().safeParse(null);
+}
+
+function storeQueuedShapes(shapes: z.infer<typeof queuedToolSchema>[]): void {
+  sessionStorage.setItem("pocketry:queued-tools", JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION, shapes }));
+}
+
 
 /**
  * The app-level shape library: traced shapes on their way to (or living in)
@@ -125,7 +144,7 @@ const ShapeLibraryContext = createContext<ShapeLibrary | null>(null);
 export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX.Element {
   const [state, dispatch] = useReducer(reducer, { shapes: [], pendingIds: [], pendingDepths: {}, pendingDestinations: {}, pendingPlacements: {} }, (initial) => {
     try {
-      const parsed = queuedToolSchema.array().safeParse(JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"));
+      const parsed = readQueuedShapes();
       return parsed.success ? {
         shapes: parsed.data.map(({ pendingDepth, pendingDestination, pendingPlacement, ...shape }) => shape),
         pendingIds: parsed.data.map((shape) => shape.id),
@@ -137,9 +156,9 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   });
   useEffect(() => {
     if (state.pendingIds.length === 0) return;
-    try { sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(state.shapes
+    try { storeQueuedShapes(state.shapes
       .filter((shape) => state.pendingIds.includes(shape.id))
-      .map(shape => ({ ...shape, pendingDepth: state.pendingDepths[shape.id], pendingDestination: state.pendingDestinations[shape.id], pendingPlacement: state.pendingPlacements[shape.id] })))); }
+      .map(shape => ({ ...shape, pendingDepth: state.pendingDepths[shape.id], pendingDestination: state.pendingDestinations[shape.id], pendingPlacement: state.pendingPlacements[shape.id] }))); }
     catch { /* The in-memory queue remains usable when browser storage is unavailable. */ }
   }, [state]);
 
@@ -157,13 +176,9 @@ export function ShapeLibraryProvider({ children }: { children: ReactNode }): JSX
   const removeShape = useCallback((id: string) => {
     // Removing the last queued shape must not revive it on the next reload.
     try {
-      const queued = queuedToolSchema.array().safeParse(
-        JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]"),
-      );
+      const queued = readQueuedShapes();
       if (queued.success) {
-        sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(
-          queued.data.filter((shape) => shape.id !== id),
-        ));
+        storeQueuedShapes(queued.data.filter((shape) => shape.id !== id));
       }
     } catch { /* The in-memory removal still succeeds. */ }
     dispatch({ type: "REMOVE_SHAPE", id });

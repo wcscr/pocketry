@@ -44,6 +44,8 @@ export function createBasicPocket(kind: BasicPocketShape, start: Point, end: Poi
     id, name: `${BASIC_POCKET_LABELS[kind]} pocket`, outlineMm,
     bboxMm: outlineBounds(outlineMm)!, pointCount: outlinePointCount(outlineMm),
     source: "basic-shape", sourceMmPerPx: null,
+    analyticProfile: kind === "circle" ? { kind: "circle", radiusMm: halfWidth }
+      : { kind: "rectangle", widthMm: width, lengthMm: length },
   };
   const cutout = parseCutoutPlacement({
     id: `cutout-${id}`, shapeId: id, position,

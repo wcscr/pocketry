@@ -25,8 +25,7 @@ export function surfaceTextZ(spec: BinSpec): number {
 }
 
 /** Same outlines serve the layout and Manifold extrusion; never silently replace glyphs. */
-function wordingOutline(label: SurfaceText): { outline: Outline; leadingSpaceMm: number } {
-  if (label.symbol && !label.text.trim()) return { outline: [], leadingSpaceMm: 0 };
+function wordingFont(label: SurfaceText) {
   const selectedFont = label.font;
   const font = typeof selectedFont === "string" ? fonts[selectedFont] : loader.parse({
     // FontLoader memoizes paths on glyph objects. Keep that cache out of saved data.
@@ -44,6 +43,17 @@ function wordingOutline(label: SurfaceText): { outline: Outline; leadingSpaceMm:
       throw new Error(`The label “${label.text}” contains an unsupported character: ${char}`);
     }
   }
+  return font;
+}
+
+/** Original font curves for CAD; geometry is never reconstructed from samples. */
+export function surfaceTextShapes(label: SurfaceText) {
+  return wordingFont(label).generateShapes(label.text, label.sizeMm);
+}
+
+function wordingOutline(label: SurfaceText): { outline: Outline; leadingSpaceMm: number } {
+  if (label.symbol && !label.text.trim()) return { outline: [], leadingSpaceMm: 0 };
+  const font = wordingFont(label);
   // Spaces have advance widths but no outline. Bounds-based alignment must not
   // cancel the spacing the user deliberately typed before the first glyph.
   const leadingSpaceMm = [...label.text.match(/^\s*/u)![0]].reduce((width, char) =>

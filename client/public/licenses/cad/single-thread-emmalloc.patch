@@ -1,0 +1,10 @@
+--- a/packages/replicad-opencascadejs/build-config/custom_build_single.yml
++++ b/packages/replicad-opencascadejs/build-config/custom_build_single.yml
+@@ -250,6 +250,7 @@
+   - symbol: ReplicadEdgeMeshData
+   - symbol: ReplicadEdgeMeshExtractor
+   emccFlags:
++  - -sMALLOC=emmalloc
+   - -fwasm-exceptions
+   - -sEXPORT_EXCEPTION_HANDLING_HELPERS
+   - -sEXPORT_ES6=1

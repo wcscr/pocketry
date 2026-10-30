@@ -1,0 +1,1 @@
+Historical 1.1.0-pocketry.1 baseline: repaired native destructors with mimalloc. These files do not describe the current 1.1.0-pocketry.2 emmalloc candidate. Original WASM SHA256 6d0c2946d642e5edf83482218717aa006dd562a701dbbc645a0282d6bbc6de35. No baseline artifact has been overwritten.

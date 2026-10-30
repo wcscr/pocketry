@@ -70,6 +70,8 @@ import {
 } from "@/lib/project/export";
 import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
+import { exportStepInBrowser } from "@/lib/cad/client";
+import { getStepExportStatus } from "@/lib/cad/model";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import {
   createDebouncedProjectSaver,
@@ -197,6 +199,9 @@ function BinDesignerWorkspace(): JSX.Element {
   })), [bin.history.stack]);
 
   const [exporting, setExporting] = useState(false);
+  const [stepExportPhase, setStepExportPhase] = useState<string>();
+  const stepAbortRef = useRef<AbortController>();
+  useEffect(() => () => stepAbortRef.current?.abort(), []);
   const [section, setSection] = useState<BuildBinSection | null>(null);
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
   const { materials } = bin;
@@ -406,6 +411,11 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Exports and autosaves use the same committed design/history snapshot.
   const exportProjectDoc = currentProjectDoc;
+  const stepUnavailableReason = useMemo(() => {
+    const status = getStepExportStatus(exportProjectDoc);
+    const issue = status.issues[0];
+    return issue ? `${issue.objectName ? `${issue.objectName}: ` : ""}${issue.message}` : undefined;
+  }, [exportProjectDoc]);
   const pendingDestinationChanged = library.pendingIds.some(id => {
     const target = library.pendingDestinations[id];
     return target && target.key !== restoredDestination;
@@ -993,7 +1003,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
+    async (format: "3mf" | "3mf-multicolor" | "stl" | "step", includeProject: boolean) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
@@ -1003,6 +1013,15 @@ function BinDesignerWorkspace(): JSX.Element {
           currentProjectName,
           multicolor ? "multicolor" : "",
         );
+        if (format === "step") {
+          const controller = new AbortController();
+          stepAbortRef.current = controller;
+          setStepExportPhase("Waiting for CAD worker");
+          const { bytes } = await exportStepInBrowser(exportProjectDoc, { signal: controller.signal, onPhase: setStepExportPhase });
+          downloadBlob(new Blob([bytes], { type: "application/zip" }), `${project.baseName}-cad.zip`);
+          toast({ title: "Saved", description: "Exported STEP solids, named pocket tools, and the editable Pocketry project in a CAD package." });
+          return;
+        }
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
@@ -1126,6 +1145,8 @@ function BinDesignerWorkspace(): JSX.Element {
           });
         }
       } finally {
+        stepAbortRef.current = undefined;
+        setStepExportPhase(undefined);
         setExporting(false);
       }
     },
@@ -1282,6 +1303,9 @@ function BinDesignerWorkspace(): JSX.Element {
           building={building}
           previewIsDraft={previewIsDraft}
           exporting={exporting}
+          stepUnavailableReason={stepUnavailableReason}
+          stepExportPhase={stepExportPhase}
+          onCancelStepExport={() => stepAbortRef.current?.abort()}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)

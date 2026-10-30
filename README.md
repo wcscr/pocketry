@@ -99,6 +99,8 @@ The original slicer screenshot below shows an earlier **1.2 mm** fit check.
 
 ![The original Wolfbox tool-outline fit check in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
+**CAD editing:** early [STEP CAD export](docs/step-export.md) supports simple flat trays and preserves named pocket cutter solids in a companion file.
+
 ### 5. Export and print the finished bin
 
 Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.

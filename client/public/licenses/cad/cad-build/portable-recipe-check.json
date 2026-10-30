@@ -1,0 +1,23 @@
+{
+  "checks": [
+    {
+      "name": "new directory verified source preparation",
+      "passed": true
+    },
+    {
+      "name": "nonempty directory rejected without changes",
+      "passed": true
+    },
+    {
+      "name": "container allocator patch block produces exact diagnostic YAML",
+      "passed": true
+    },
+    {
+      "name": "already patched configuration rejected rather than silently reused",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "fullBuildExecuted": false,
+  "recipeVersion": "1.1.0-pocketry.2"
+}

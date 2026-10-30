@@ -160,7 +160,7 @@ describe("BinDesignerPage", () => {
       // A wrong destination must be rejected, not modified and autosaved.
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(0);
       expect(container.querySelector('[data-testid="queued-destination-changed"]')?.textContent).toContain("Project A");
-      const queued = JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!);
+      const queued = JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!).shapes;
       expect(queued).toHaveLength(1);
       expect(queued[0].pendingDestination).toEqual({ key: "project:a", name: "Project A" });
       openSettingsSection(container, "project");

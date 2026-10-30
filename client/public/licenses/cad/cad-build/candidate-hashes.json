@@ -1,0 +1,22 @@
+{
+  "replicad_single.wasm": {
+    "bytes": 22927086,
+    "sha256": "c4dec33bb5c623782ccdba290c5c4b280cf9a458b2d62d59dc4f900d6f87a255"
+  },
+  "replicad_single.provenance.json": {
+    "bytes": 7497,
+    "sha256": "7a32be1cc4a268a43164ff16970b2f8a6515112bc93a0b9f481ba029fc1869fa"
+  },
+  "replicad_single.js": {
+    "bytes": 58648,
+    "sha256": "452800b7bd503098ad5ff47afeb19d264aa2432de1d931eeb922614bcb1e2a8c"
+  },
+  "replicad_single.d.ts": {
+    "bytes": 1617183,
+    "sha256": "b44516bd24e6abf0dbe680086e286b117d77299ea77e80f230220dc77d250b08"
+  },
+  "replicad_single.build-manifest.json": {
+    "bytes": 483723,
+    "sha256": "bcf5a5af32b8fbed69d3ab8bed473984dc39faaf4d6cfa0f3de0098a8031fe34"
+  }
+}

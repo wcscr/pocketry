@@ -500,3 +500,69 @@ Sources and upstream licence information:
   https://www.alpinelinux.org/about/
 
 The runtime serves Pocketry's LICENSE.txt and NOTICE.txt alongside the app.
+
+================================================================================
+Optional STEP acceptance reader (development only; not bundled)
+================================================================================
+
+scripts/verify-step-export.py can use cadquery-ocp 7.8.1.1.post1 as an independently
+installed verification tool. OCP is Apache-2.0, copyright 2020 OCP contributors:
+https://github.com/CadQuery/OCP/blob/master/LICENSE
+Its Open CASCADE Technology runtime uses LGPL-2.1 with the OCCT exception:
+https://github.com/Open-Cascade-SAS/OCCT/blob/master/LICENSE_LGPL_21.txt
+https://github.com/Open-Cascade-SAS/OCCT/blob/master/OCCT_LGPL_EXCEPTION.txt
+
+Compatibility review: the optional reader executes in a separate development
+environment. No OCP/OCCT code or binaries are linked, copied, bundled, or served
+by Pocketry. The preserved handwritten STEP writer is a regression reference only. The
+experimental CAD writer uses the reviewed library described below.
+
+================================================================================
+Experimental replicad-opencascadejs 1.1.0 / Open CASCADE Technology — LGPL
+================================================================================
+
+The user-authorized CAD investigations are based on the single-threaded
+replicad-opencascadejs 1.1.0 library (Steve Genoud and contributors), declared
+LGPL-2.1-only. This software uses facilities provided by Open CASCADE Technology
+8.0.1, copyright Open CASCADE SAS and contributors, LGPL-2.1 with the Open CASCADE
+exception. The exception applies to OCCT portions, not to the whole package.
+The compiled library also includes FreeType 2.13.0 under the FreeType License,
+RapidJSON under MIT and its upstream notices, and Emscripten runtime portions
+under their upstream MIT/University of Illinois-NCSA terms and exceptions.
+
+The local repair package is 1.1.0-pocketry.2. It corrects the
+binding generator's handling of ordinary deletion for classes that also declare
+placement delete, and selects Emscripten's direct emmalloc allocator at link time.
+OCCT modeling algorithms, geometry tolerances and mesh quality are unchanged.
+Its patches, rebuild recipe, artifact identities and qualification status are
+recorded separately from the original upstream and pocketry.1 baseline packages
+in the CAD source manifest and build review. The CommonJS wrapper and TypeScript
+declarations remain byte-identical to upstream; the ESM loader and WASM are modified.
+
+The upstream and pocketry.1 single-threaded builds use mimalloc 2.1.7, upstream commit
+8c532c32c3c96e5ba1f2283e032f69ead8add00f, with Emscripten-specific changes.
+mimalloc is MIT licensed. Copyright (c) 2018-2021 Microsoft Corporation,
+Daan Leijen. The Emscripten port also credits Copyright (c) 2018-2023,
+Microsoft Research, Daan Leijen, Alon Zakai. The full MIT license is served at
+/licenses/cad/mimalloc-LICENSE. All 43 source files are retained in the served
+Emscripten 5.0.1 source archive under system/lib/mimalloc/. These mimalloc sources
+and notices are retained as baseline/rebuild evidence; mimalloc is not compiled
+into pocketry.2.
+
+The current pocketry.2 build directly uses emmalloc and sbrk from that archive:
+system/lib/emmalloc.c (Copyright 2018 The Emscripten Authors) and
+system/lib/libc/sbrk.c (Copyright 2019 The Emscripten Authors), under
+Emscripten's MIT or University of Illinois/NCSA terms. The full Emscripten
+notice, including its Node.js notice and bundled-source exceptions, is served
+at /licenses/cad/emscripten-LICENSE. Its archive also preserves musl's MIT
+COPYRIGHT and file-specific notices, and the libc++, libc++abi and compiler-rt
+LICENSE.TXT files with Apache-2.0/LLVM exceptions and retained legacy terms.
+The CAD source manifest identifies these embedded sources and license files;
+the root Emscripten license does not relicense those components.
+
+Full notices, pinned corresponding source archives (including compiler patches,
+wrappers and build recipes), and SHA-256 manifest are served at /licenses/cad/.
+Prepare them with scripts/prepare-cad-sources.py before bundling. The compatibility
+review and exact provenance are documented in docs/cad-engine-review.md.
+Pocketry's adapter remains AGPL-3.0-only; third-party code retains its own terms.
+Public distribution requires verifying these files alongside the emitted binary.

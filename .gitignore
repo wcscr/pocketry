@@ -3,6 +3,8 @@ node_modules
 
 # Build output
 dist
+!vendor/replicad-opencascadejs/dist/
+!vendor/replicad-opencascadejs/dist/**
 server/public
 
 # Local mesh export artifacts (npm run export:bin)
