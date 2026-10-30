@@ -13,9 +13,9 @@ import type { Kernel } from "@/lib/manifold/runtime";
 export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
   cutouts: readonly CutoutPlacement[], shapes: ReadonlyMap<string, TracedShape>,
   groups: readonly { id: string; cutters: Manifold[] }[],
-  wall: Manifold | null, lip: Manifold | null,
+  wall: Manifold | null, lip: Manifold | null, binSolid: Manifold,
 ): ValidationIssue[] {
-  const needsExact = (c: CutoutPlacement) => hasRigidPocket(c) || hasPocketTilt(c);
+  const needsExact = (c: CutoutPlacement) => !!spec.wallSlant || hasRigidPocket(c) || hasPocketTilt(c);
   if (!cutouts.some(needsExact)) return [];
   const { arena, Manifold: M } = kernel;
   const top = resolvePocketDepth(spec, { mode: "through" }).cutterTopZ - 1;
@@ -34,7 +34,11 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
     return intersection.volume() > 1e-5;
   };
   for (const [i, item] of clipped.entries()) {
-    if (needsExact(item.cutout) && !(hasRigidPocket(item.cutout) && pocketDepths(item.cutout).some(d => d.mode === "through"))) {
+    if (spec.wallSlant && !overlaps(item.solid, binSolid)) {
+      issues.push({ code: "slanted-pocket-outside", severity: "error", cutoutIds: [item.cutout.id],
+        message: `“${item.label}”: The pocket does not intersect the slanted bin body. Move it into the bin.` });
+    }
+    if (needsExact(item.cutout) && !(!spec.wallSlant && hasRigidPocket(item.cutout) && pocketDepths(item.cutout).some(d => d.mode === "through"))) {
       const boundaries = [wall, lip].filter((solid): solid is Manifold => solid !== null && !solid.isEmpty());
       if (boundaries.some(boundary => overlaps(item.solid, boundary))) {
         issues.push({ code: "tilted-pocket-wall", severity: "error", cutoutIds: [item.cutout.id],
@@ -46,8 +50,8 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
     }
     for (const other of clipped.slice(i + 1)) {
       if (!needsExact(item.cutout) && !needsExact(other.cutout)) continue;
-      if (overlaps(item.solid, other.solid)) issues.push({ code: "tilted-pocket-overlap", severity: "error",
-        cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” intersect in 3D. Move their shafts farther apart.` });
+      if (overlaps(item.solid, other.solid)) issues.push({ code: "tilted-pocket-overlap", severity: "warning",
+        cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” intersect in 3D. Their cuts will be combined.` });
       else if (item.solid.minGap(other.solid, D_DIV) < D_DIV - 1e-5) issues.push({ code: "tilted-pocket-thin-material", severity: "warning",
         cutoutIds: [item.cutout.id, other.cutout.id], message: `“${item.label}” and “${other.label}” leave less than ${D_DIV} mm of material between their shafts.` });
     }

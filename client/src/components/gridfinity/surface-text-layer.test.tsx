@@ -1,5 +1,5 @@
-// These geometry/editor tests explicitly opt in. Opt-out is covered by bin-edit-transactions.
-vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => ({ enabled: true, setEnabled: vi.fn() }) }));
+// Text editing, portable fonts and history work with experimental tools off.
+vi.mock("@/state/experimental-features", () => ({ useExperimentalFeatures: () => ({ enabled: false, setEnabled: vi.fn() }) }));
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -91,7 +91,7 @@ function mountText() {
   });
   const edit = () => {
     React.act(() => path.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0 })));
-    return host.querySelector<HTMLInputElement>('[aria-label="Edit surface text wording"]')!;
+    return host.querySelector<HTMLInputElement>('[aria-label="Edit surface text"]')!;
   };
   const inputValue = (input: HTMLInputElement, value: string) => React.act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
@@ -150,7 +150,7 @@ it("validates inline wording and cancels Escape or disabled editing without undo
   const initialHistory = getStore().history.stack.length;
   let input = edit();
   inputValue(input, " "); key(input, "Enter");
-  expect(host.querySelector('[role="alert"]')?.textContent).toBe("Enter some text.");
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe("Enter some text or choose a symbol.");
   expect(getStore().spec.surfaceTexts[0]).toEqual(label);
   inputValue(input, "SAE"); key(input, "Escape");
   expect(host.querySelector("input")).toBeNull();

@@ -1,5 +1,22 @@
 # Native FreeCAD STEP editing evidence
 
+**Baseline update — 2026-10-29:** no new native test is claimed. The six-fixture
+results below remain tied to the October 7 inputs. On October 15, actual Mini
+Socket Set browser packages from A and B completed four normal File → Open
+imports in FreeCAD 26.3.0RC1 (Qt 6.11.2 / OCCT 8.0.1) without a process crash.
+Geometry, native edits, reconstruction, and disk reopen passed; default Unicode
+name decoding failed for both packages. The older FreeCAD 1.1.4 installation is
+not fixed by that result.
+
+The three requested traced examples produced no package because their 2.8 mm
+bottom fillets failed, so their native workflows remain blocked. Their later
+sharp-only diagnostic copies are not evidence of unchanged-design acceptance.
+Full refreshed native acceptance and local verification remain **pending**;
+neither backend is selected or shipped. Detailed October 15 evidence is in the
+primary checkout's `outputs/example-cad-import-2026-10-15/REPORT.md`.
+
+## Historical acceptance — 2026-10-07
+
 On **2026-10-07**, all **12 native API cases** passed in the installed **FreeCAD 1.1.4** desktop application, with Python **3.11.14** and OCCT **7.8.1**. The macro ran from the built-in Python console with a GUI and used the exact STEP inputs previously tested in Fusion. **Normal import-dialog acceptance remains unpassed:** opening either irregular bin through File → Open and confirming unchanged STEP Import Settings crashed FreeCAD on this Mac.
 
 | Fixture | A: dedicated STEP native API | B: unified CAD native API |
@@ -21,15 +38,15 @@ FreeCAD expands disconnected compounds such as raised text into an App::Part wit
 
 A separate OCCT 7.8 reader validates **32 native STEP comparisons**: twelve added-hole results, twelve baseline reconstructions and eight moved-cutter reconstructions. Every file contains valid closed CAD solids without mesh representations, and symmetric Boolean comparisons leave zero extra/missing solids. The largest absolute numerical volume-estimate difference is about **0.002078 mm³**. Mass estimates and empty differences do not prove a maximum local surface-error bound.
 
-## Unresolved desktop import issue
+## Historical desktop import failure and later bounded pass
 
-Follow-up on 2026-10-15: a geometry-free control and shipped-library inspection identify Qt accessibility defect QTBUG-134784. See [root-cause investigation](freecad-import-crash-root-cause.md). A corrected-build desktop import remains unpassed; the original results below are retained as historical evidence.
+Follow-up on 2026-10-15: a geometry-free control and shipped-library inspection identify Qt accessibility defect QTBUG-134784. See [root-cause investigation](freecad-import-crash-root-cause.md). The later RC1 Mini Socket Set import pass is summarized above; the original failures below are retained as historical evidence.
 
 The normal STEP Import Settings dialog was accepted with its existing options unchanged on macOS **26.6.2 (25G83)**. Three dedicated irregular-bin attempts crashed, including fresh sessions and keyboard confirmation; the unified irregular-bin attempt also crashed. A fifth fresh-session attempt used a simple 10 × 10 × 10 mm box STEP authored by this installed FreeCAD, containing one valid closed solid with a 1000 mm³ volume and no Pocketry geometry, and crashed at the same dialog. The macOS crash reports show SIGSEGV/EXC_BAD_ACCESS in Objective-C autorelease / Qt Cocoa accessibility/event handling. The control suggests a broader desktop/dialog runtime issue; the stack and control do not prove the root cause. Native API import/edit/save success is retained as separate evidence and does not excuse these failures.
 
-No import preferences were changed to make a check pass. The normal desktop workflow needs diagnosis and a passing rerun before release. Broader feature support, mobile and printing qualification, and backend selection remain separate gates. Neither approach became the production default.
+No import preferences were changed to make a check pass. The full desktop workflow still needs qualification on a supported corrected build, including Unicode names and the requested real examples. Broader feature support, mobile and printing qualification, and backend selection remain separate gates. Neither approach became the production default.
 
-## Local repository checks
+## Historical local repository checks
 
 Both branches passed all required local checks using Node 22.23.3: `npm run check`, `npm test` (165 files / 2778 tests), `npm run build`, and `git diff --check`. GitHub CI remained disabled. The initial dedicated-branch test run encountered the existing 5000 ms tilted split-pocket geometry timeout; its full log is preserved. The unchanged suites passed on a sequential rerun after native CAD work ended. This evidence update changes documentation and verification harnesses, not application geometry.
 

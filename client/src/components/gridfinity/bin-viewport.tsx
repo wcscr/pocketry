@@ -1,3 +1,4 @@
+import { useBinObjectContextMenu } from "./object-context-menu";
 import { SurfaceTextTransformScene, type SurfaceTextEditor } from "./surface-text-transform-scene";
 import { SurfaceTextMesh } from "./surface-text-mesh";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -9,7 +10,7 @@ import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Hand, LoaderCircle, Move3D, Rotate3d, Ruler, X } from "lucide-react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { BufferGeometry, PerspectiveCamera } from "three";
-import { Quaternion, TOUCH, Vector3, Vector4 } from "three";
+import { MOUSE, Quaternion, TOUCH, Vector3, Vector4 } from "three";
 
 import type { Outline, Point } from "@shared/geometry/types";
 import type { SurfaceText } from "@shared/gridfinity/surface-text";
@@ -80,7 +81,7 @@ export interface BinViewportProps {
   textColor?: string;
   surfaceTextEditor?: SurfaceTextEditor;
   selectedSurfaceTextId?: string | null;
-  /** Present only while experimental text editing is enabled. */
+  /** Present while a surface text label is selected. */
   onSelectSurfaceText?: (id: string) => void;
   /** The preview includes a contrasting pocket-floor material volume. */
   hasPocketFloor?: boolean;
@@ -89,7 +90,7 @@ export interface BinViewportProps {
   binColor?: string;
   pocketFloorColor?: string;
   /** Name of the shared floor material in the displayed bin. */
-  floorColorLabel?: "Pocket floor" | "Bin floor";
+  floorColorLabel?: "Pocket floor" | "Pocket interior" | "Bin floor";
   stackingRimColor?: string;
   showPocketFloorColor?: boolean;
   showStackingRimColor?: boolean;
@@ -254,7 +255,7 @@ function CameraFit({ size }: { size: FitSize }): null {
   } | null;
 
   useEffect(() => {
-    const target = new Vector3(0, 0, size.heightMm / 2);
+    const target = new Vector3(0, 0, size.heightMm / 2 + (size.bottomZMm ?? 0));
     const previousTarget = controls?.target ?? target;
     const direction = camera.position.clone().sub(previousTarget);
     if (direction.lengthSq() < 1) direction.set(150, -170, 109);
@@ -270,7 +271,7 @@ function CameraFit({ size }: { size: FitSize }): null {
     }
     // Refit on dimension changes (and once controls attach) — never on
     // orbit, which lives inside controls.
-  }, [size.widthMm, size.lengthMm, size.heightMm, camera, controls]);
+  }, [size.widthMm, size.lengthMm, size.heightMm, size.bottomZMm, camera, controls]);
 
   return null;
 }
@@ -315,10 +316,11 @@ export function BinViewport({
   const isMobile = useIsMobile();
   const hasTouchInput = useHasTouchInput();
   const touchControls = isMobile || hasTouchInput;
-  const [panTouch, setPanTouch] = useState(false);
+  const [panActive, setPanActive] = useState(false);
   const [rulerFeedback, setRulerFeedback] = useState<{ screen: Point; snapped: boolean } | null>(null);
   const laidOut = containerSize.width > 0 && containerSize.height > 0;
   const [rulerActive, setRulerActive] = useState(false);
+  const openObjectMenu = useBinObjectContextMenu();
   const inspector = useSelectionInspector();
   const toolbar = useObjectToolbar();
   const { enabled: experimentalEnabled } = useExperimentalFeatures();
@@ -414,8 +416,37 @@ export function BinViewport({
   const groundSpanMm =
     Math.ceil(Math.max(fitSize.widthMm, fitSize.lengthMm, 336) / 42) * 42 + 84;
 
+  const rulerButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn(
+        isMobile ? "h-11 w-11 shrink-0" : "h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
+        rulerActive && "bg-accent text-accent-foreground",
+      )}
+      disabled={measurementOutlines.length === 0}
+      aria-label={rulerActive ? "Stop measuring" : "Measure between contours"}
+      aria-pressed={rulerActive}
+      title={
+        measurementOutlines.length === 0
+          ? "Add a tool cutout before measuring"
+          : "Ruler: measure contours or split lines on the top plane"
+      }
+      onClick={() => {
+        const next = !rulerActive;
+        setRulerActive(next);
+        setMeasurementPoints([]);
+      }}
+      data-testid="button-3d-ruler"
+    >
+      <Ruler className="h-4 w-4" />
+    </Button>
+  );
+
   return (
-    <div ref={containerRef} className="absolute inset-0" data-testid="bin-viewport">
+    // TransformControls clears the canvas's inline touch-action on release.
+    // The stable parent must keep later pinches in OrbitControls, not page zoom.
+    <div ref={containerRef} className="absolute inset-0 touch-none" data-testid="bin-viewport">
       {laidOut ? (
         <PreviewBoundary>
         <Canvas
@@ -435,6 +466,10 @@ export function BinViewport({
               color={showPocketFloorColor ? pocketFloorColor : binColor}
               roughness={0.55}
               metalness={0.02}
+              // Keep the color above the complete preview body while orbiting.
+              polygonOffset
+              polygonOffsetFactor={-1}
+              polygonOffsetUnits={-1}
             />
           </mesh>
         ) : null}
@@ -444,6 +479,7 @@ export function BinViewport({
             rotation={[0, 0, (display.rotationDeg - part.label.rotationDeg) * Math.PI / 180]}>
           <group position={[-part.label.position.x, -part.label.position.y, 0]}>
           <SurfaceTextMesh key={part.label.id} {...part} color={textColor} selected={selectedSurfaceTextId === part.label.id}
+            onContextMenu={!rulerActive && !dragPreview && !textPreview && openObjectMenu ? (id, point) => openObjectMenu({ kind: "text", id }, point) : undefined}
             onSelect={!rulerActive && !dragPreview && !textPreview && onSelectSurfaceText ? id => {
               setObjectControlsOpen(false);
               inspector?.setTool("properties");
@@ -457,18 +493,25 @@ export function BinViewport({
               color={showStackingRimColor ? stackingRimColor : binColor}
               roughness={0.5}
               metalness={0.02}
+              // The separately triangulated material volumes meet on the
+              // same surface. Keep the accent in front at their shared edge
+              // while orbit damping moves the camera through subpixel angles.
+              polygonOffset
+              polygonOffsetFactor={-1}
+              polygonOffsetUnits={-1}
             />
           </mesh>
         ) : null}
-        {pocketEditor && <PocketSelectionPlane editor={pocketEditor} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview || !!textPreview} />}
+        {pocketEditor && <PocketSelectionPlane editor={{ ...pocketEditor, onContextMenu: openObjectMenu ?? undefined }} width={fitSize.widthMm} length={fitSize.lengthMm} disabled={rulerActive || !!dragPreview || !!textPreview} />}
         {pocketEditor && !rulerActive && displayedObjects.filter(object => showPocketOutlines || object.kind !== "pocket")
           .map(object => <ObjectTransformWire key={objectKey(objectRef(object))} object={object} spec={pocketEditor.spec} />)}
         {selectedObjects.length > 0 && pocketEditor && (inspector ? (inspector.tool === "translate" || inspector.tool === "rotate") : objectControlsOpen) && !rulerActive && <SelectionTransformScene
           key={`${selectionKey}-${transformMode}`} objects={selectedObjects} allObjects={objects} spec={pocketEditor.spec} mode={transformMode} snap={snapTransform} pivot={pivot}
+          touchTargets={touchControls} viewportHeight={containerSize.height}
           onPreview={setDragPreview} onLimit={setTransformLimited}
           onCommit={edits => commitEditorObjects(pocketEditor, edits, `${transformMode === "translate" ? "Move" : "Rotate"} ${selectedObjects.length} objects in 3D`, transformMode)} />}
         {surfaceTextEditor && (inspector ? inspector.tool === "translate" || inspector.tool === "rotate" : objectControlsOpen) && !rulerActive &&
-          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${surfaceTextEditor.tool ?? transformMode}`} editor={surfaceTextEditor} mode={surfaceTextEditor.tool ?? transformMode} snap={surfaceTextEditor.snap ?? snapTransform} onPreview={setTextPreview} />}
+          <SurfaceTextTransformScene key={`${surfaceTextEditor.label.id}-${surfaceTextEditor.tool ?? transformMode}`} editor={surfaceTextEditor} mode={surfaceTextEditor.tool ?? transformMode} snap={surfaceTextEditor.snap ?? snapTransform} onPreview={setTextPreview} touchTargets={touchControls} viewportHeight={containerSize.height} />}
         <PlanarRulerScene
           active={rulerActive}
           outlines={measurementOutlines}
@@ -485,6 +528,7 @@ export function BinViewport({
             THREE.Color rejects #rgba shorthand.) */}
           <gridHelper
             key={groundSpanMm}
+            position={[0, 0, fitSize.bottomZMm ?? 0]}
             args={[groundSpanMm, groundSpanMm / 42, "#9a9a9a", "#d4d4d4"]}
             rotation={[Math.PI / 2, 0, 0]}
           />
@@ -492,7 +536,9 @@ export function BinViewport({
             makeDefault
             target={[0, 0, 21]}
             enabled={!rulerActive}
-            touches={{ ONE: panTouch ? TOUCH.PAN : TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }}
+            // Pen and mouse drags must follow the same mode as finger drags.
+            mouseButtons={{ LEFT: panActive ? MOUSE.PAN : MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+            touches={{ ONE: panActive ? TOUCH.PAN : TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN }}
             enableDamping
             dampingFactor={0.12}
           />
@@ -501,41 +547,17 @@ export function BinViewport({
         </PreviewBoundary>
       ) : null}
 
-      <div
+      {(!isMobile || !inspector && !toolbar) && <div
         className={cn("absolute right-3 z-30 flex flex-col overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur", touchControls ? "top-16" : "top-12")}
         data-testid="bin-3d-tool-toolbar"
       >
         {touchControls && <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b"
-          aria-label={panTouch ? "Switch to orbit" : "Switch to pan"} aria-pressed={panTouch}
-          disabled={rulerActive} onClick={() => setPanTouch(value => !value)}>
-          {panTouch ? <Hand className="h-5 w-5" /> : <Rotate3d className="h-5 w-5" />}
+          aria-label={panActive ? "Switch to orbit" : "Switch to pan"} aria-pressed={panActive}
+          disabled={rulerActive} onClick={() => setPanActive(value => !value)}>
+          {panActive ? <Hand className="h-5 w-5" /> : <Rotate3d className="h-5 w-5" />}
         </Button>}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-9 w-9 rounded-none [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
-            rulerActive && "bg-accent text-accent-foreground",
-          )}
-          disabled={measurementOutlines.length === 0}
-          aria-label={rulerActive ? "Stop measuring" : "Measure between contours"}
-          aria-pressed={rulerActive}
-          title={
-            measurementOutlines.length === 0
-              ? "Add a tool cutout before measuring"
-              : "Ruler: measure contours or split lines on the top plane"
-          }
-          onClick={() => {
-            const next = !rulerActive;
-            setRulerActive(next);
-            setMeasurementPoints([]);
-          }}
-          data-testid="button-3d-ruler"
-        >
-          <Ruler className="h-4 w-4" />
-        </Button>
-        {(inspector || toolbar) && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} />}
-        {pocketEditor && !inspector && <Button variant="ghost" size="icon"
+        {rulerButton}
+        {pocketEditor && !inspector && !isMobile && <Button variant="ghost" size="icon"
           className={cn("h-9 w-9 rounded-none border-t [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && "bg-accent text-accent-foreground")}
           aria-label="Object controls" title="Move, rotate and arrange objects" aria-expanded={objectControlsOpen && !rulerActive}
           onClick={() => { setObjectControlsOpen(open => !open || rulerActive); setRulerActive(false); }}><Move3D className="h-4 w-4" /></Button>}
@@ -552,13 +574,18 @@ export function BinViewport({
             <X className="h-4 w-4" />
           </Button>
         ) : null}
-      </div>
+      </div>}
+      {(inspector || toolbar) && <SelectionToolButtons count={selectedObjects.length + (surfaceTextEditor ? 1 : 0)} inactive={rulerActive} onActivate={() => setRulerActive(false)} ruler={rulerButton}
+        navigation={[
+          { label: panActive ? "Switch to orbit" : "Switch to pan", disabled: rulerActive, onSelect: () => setPanActive(value => !value) },
+          ...(measurementPoints.length ? [{ label: "Clear measurement", testId: "button-clear-3d-measurement", onSelect: () => setMeasurementPoints([]) }] : []),
+        ]} />}
 
       {pocketEditor && !surfaceTextEditor && (objectControlsOpen || !!inspector && selectedObjects.length > 0) && !rulerActive && <ObjectTransformPanel editor={pocketEditor} objects={objects} selected={selectedObjects} displayed={displayedObjects}
         mode={transformMode} modeRequest={modeRequest} setMode={mode => { setRulerActive(false); setTransformMode(mode); }} snap={snapTransform} setSnap={setSnapTransform}
         pivot={pivot} setPivot={setPivot} limited={transformLimited} onClose={() => { setObjectControlsOpen(false); toolbar?.setTool("properties"); }} />}
 
-      {surfaceTextEditor && objectControlsOpen && !inspector && !rulerActive && <div className="property-surface property-floating absolute left-3 top-16 z-20 w-64 rounded-xl border bg-background p-3 text-xs shadow-lg md:top-12" data-property-tone="cyan" data-testid="text-3d-controls">
+      {surfaceTextEditor && objectControlsOpen && !inspector && !isMobile && !rulerActive && <div className="property-surface property-floating absolute left-3 top-16 z-20 w-64 rounded-xl border bg-background p-3 text-xs shadow-lg md:top-12" data-property-tone="cyan" data-testid="text-3d-controls">
         <div className="flex items-center justify-between"><span className="font-medium">Object controls</span><Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Close object controls" onClick={() => setObjectControlsOpen(false)}><X className="h-4 w-4" /></Button></div>
         <div className="flex gap-2">{(["translate", "rotate"] as const).map(mode => <Button key={mode} size="sm" variant={(surfaceTextEditor.tool ?? transformMode) === mode ? "secondary" : "ghost"} aria-pressed={(surfaceTextEditor.tool ?? transformMode) === mode} onClick={() => { setTransformMode(mode); surfaceTextEditor.onToolChange?.(mode); }}>{mode === "translate" ? "Move" : "Rotate"}</Button>)}
           <Button size="sm" variant={(surfaceTextEditor.snap ?? snapTransform) ? "secondary" : "ghost"} aria-pressed={surfaceTextEditor.snap ?? snapTransform} onClick={() => { setSnapTransform(value => !value); surfaceTextEditor.onSnapChange?.(!surfaceTextEditor.snap); }}>Snap</Button></div>
@@ -567,7 +594,7 @@ export function BinViewport({
       {rulerActive && rulerFeedback && <div aria-hidden className={cn("pointer-events-none absolute z-30 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2", rulerFeedback.snapped ? "border-fuchsia-600" : "border-destructive")}
         style={{ left: rulerFeedback.screen.x, top: rulerFeedback.screen.y }} />}
       {touchControls && !rulerActive && <p className="pointer-events-none absolute bottom-14 left-3 rounded bg-background/90 px-2 py-1 text-xs">
-        {panTouch ? "Drag to pan" : "Drag to orbit"} · Pinch to zoom
+        {panActive ? "Drag to pan" : "Drag to orbit"} · Pinch to zoom
       </p>}
       {rulerActive ? (
         <div

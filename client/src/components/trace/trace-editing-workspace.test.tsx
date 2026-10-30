@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TraceControlsPanel } from "./trace-controls-panel";
+import { useTraceHandoff } from "./trace-handoff";
 import { TraceEditingWorkspace } from "./trace-editing-workspace";
 
 vi.mock("@/lib/image-processor", async importOriginal => ({
@@ -29,9 +30,10 @@ function Canvas(): JSX.Element {
 }
 function Harness({ enabled = true }: { enabled?: boolean }): JSX.Element {
   trace = useTrace();
+  const handoff = useTraceHandoff();
   const [panelOpen, setPanelOpen] = React.useState(true);
   return <TraceEditingWorkspace enabled={enabled} autoSaveId="test-trace" panelOpen={panelOpen} onPanelOpenChange={setPanelOpen}
-    panel={<TraceControlsPanel active onReplaceImage={() => {}} onRotateImage={() => {}} onExport={exportTrace}
+    panel={<TraceControlsPanel handoff={handoff} active onReplaceImage={() => {}} onStartOver={() => trace.dispatch({ type: "SOURCE_CLEARED" })} onRotateImage={() => {}} onExport={exportTrace}
       onReprocess={reprocess} onDetectMarkers={() => {}} onApplyPerspective={() => {}} />}
     canvas={<Canvas />} />;
 }
@@ -81,6 +83,55 @@ afterEach(() => {
 });
 
 describe("trace workflow and properties", () => {
+  it.each([true, false])("offers a guarded Start Over as the final workflow action (workflow=%s)", async enabled => {
+    await act(() => root.render(<TooltipProvider><ShapeLibraryProvider><TraceProvider><Harness enabled={enabled} /></TraceProvider></ShapeLibraryProvider></TooltipProvider>));
+    expect(button("button-start-over").disabled).toBe(true);
+    await finishTrace();
+    expect(button("button-start-over").closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
+    expect(button("button-start-over").closest('#trace-settings-source, #objects-panel')).toBeNull();
+    expect(button("button-start-over").disabled).toBe(false);
+    expect(button("button-start-over").textContent).toBe("Start Over");
+    expect(button("button-start-over").getAttribute("data-property-tone")).toBe("rose");
+    expect(button("button-start-over").closest('[class*="shrink-0 border-t"]')).toBeNull();
+    if (enabled) {
+      const workflow = host.querySelector('[aria-label="Photo tracing workflow"]')!;
+      expect(workflow.children).toHaveLength(7);
+      expect(workflow.lastElementChild).toBe(button("button-start-over"));
+    }
+    const before = { imageUrl: trace.imageUrl, outline: trace.outline, calibration: trace.calibration, region: trace.region, history: trace.history };
+    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === text)!;
+    await act(() => button("button-start-over").click());
+    expect(document.activeElement).toBe(dialogButton("Keep working"));
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Pockets already added to Bin stay there");
+    await act(() => dialogButton("Keep working").click());
+    expect(trace).toMatchObject(before);
+    await act(() => button("button-start-over").click());
+    await act(() => dialogButton("Clear trace and start over").click());
+    expect(trace.imageUrl).toBeNull();
+    expect(trace.calibration).toBeNull();
+    expect(trace.region).toBeNull();
+    expect(trace.outline).toEqual([]);
+    expect(trace.history.stack).toHaveLength(1);
+    expect(button("button-start-over").disabled).toBe(true);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it("keeps output actions in step 6 and guards them while replacing the scale", async () => {
+    expect(button("button-add-to-bin").disabled).toBe(true);
+    expect(button("button-export-outline").disabled).toBe(true);
+    await finishTrace();
+    const actions = host.querySelector('[aria-label="6. Add or Export"]')!;
+    expect(actions.contains(button("button-add-to-bin"))).toBe(true);
+    expect(actions.contains(button("button-export-outline"))).toBe(true);
+    expect(button("button-add-to-bin").disabled).toBe(false);
+    expect(button("button-export-outline").disabled).toBe(false);
+    await act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(button("button-add-to-bin").disabled).toBe(true);
+    expect(button("button-export-outline").disabled).toBe(true);
+    await act(() => trace.dispatch({ type: "CANCEL_MANUAL_CALIBRATION" }));
+    expect(button("button-export-outline").disabled).toBe(false);
+  });
+
   it("keeps simple steps left and one copy of the selected form right", async () => {
     expect(host.querySelector('[aria-label="Photo tracing workflow"]')).not.toBeNull();
     expect(button("trace-workflow-scale").disabled).toBe(true);
@@ -156,12 +207,35 @@ describe("trace workflow and properties", () => {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
       window.dispatchEvent(new Event("resize"));
     });
-    await act(() => button("trace-workflow-export-outline").click());
-    expect(host.querySelector("#objects-panel #format")).not.toBeNull();
-    await act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(item => item.textContent?.includes("Save SVG"))!.click());
+    await act(() => button("button-export-outline").click());
+    const actions = host.querySelector('[aria-label="6. Add or Export"]')!;
+    expect(actions.querySelector('[data-testid="button-add-to-bin"]')?.textContent).toBe("Add to Bin");
+    expect(actions.querySelector('[data-testid="button-export-outline"]')?.textContent).toBe("Export Tool Outline");
+    expect(host.querySelectorAll('[data-testid="button-export-outline"]')).toHaveLength(1);
+    expect(host.querySelector("#objects-panel #format")).toBeNull();
     expect(exportTrace).toHaveBeenCalledOnce();
     expect(trace.outline).toBe(before);
     expect(canvasMounts).toBe(1);
+  });
+
+  it.each([1440, 900])("starts contour editing from Outline properties without changing the trace (width=%s)", async width => {
+    await finishTrace();
+    await act(() => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+      window.dispatchEvent(new Event("resize"));
+    });
+    await act(() => button("trace-workflow-outline").click());
+    const before = { outline: trace.outline, calibration: trace.calibration, history: trace.history };
+    expect(button("button-edit-contour").closest("#objects-panel")).not.toBeNull();
+    await act(() => button("button-edit-contour").click());
+    expect(trace.mode).toBe("edit");
+    expect(trace.selection).not.toBeNull();
+    expect(trace).toMatchObject(before);
+    expect(reprocess).not.toHaveBeenCalled();
+    expect(canvasMounts).toBe(1);
+    // On compact screens the properties sheet must yield to the editing canvas.
+    expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(width < 1100);
+    expect(button("button-edit-contour").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("keeps a compact canvas accessible during ruler placement, then shows confirmation", async () => {
@@ -225,34 +299,6 @@ describe("trace workflow and properties", () => {
     expect(host.querySelector("#include-interior-holes")).not.toBeNull();
   });
 
-  it("defaults to the paper and lets Region reveal the full corrected photo without losing edits", async () => {
-    await loadPhoto();
-    await act(() => trace.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: trace.imageUrl!, imageUrl: "corrected",
-      imageSize: { width: 800, height: 600 }, source: "template", paper: "a4", calibration,
-      paperBounds: { x: 200, y: 50, width: 300, height: 450 } }));
-    await act(() => {
-      trace.dispatch({ type: "SET_REGION", region: { x: 250, y: 100, width: 200, height: 200 } });
-      trace.dispatch({ type: "REGION_COMMITTED" });
-      trace.dispatch({ type: "OUTLINE_COMMITTED", outline });
-    });
-    await act(() => button("trace-workflow-region").click());
-    const toggle = host.querySelector<HTMLButtonElement>('[role="switch"]')!;
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
-    const before = trace;
-    await act(() => toggle.click());
-    expect(toggle.getAttribute("aria-checked")).toBe("true");
-    expect(trace.perspectiveCorrection?.showFullPhoto).toBe(true);
-    expect(trace.imageUrl).toBe(before.imageUrl);
-    expect(trace.calibration).toBe(before.calibration);
-    expect(trace.region).toBe(before.region);
-    expect(trace.outline).toBe(before.outline);
-    expect(trace.history).toBe(before.history);
-    await act(() => toggle.click());
-    expect(trace.perspectiveCorrection?.showFullPhoto).toBe(false);
-    expect(canvasMounts).toBe(1);
-    expect(reprocess).not.toHaveBeenCalled();
-  });
-
   it("gives margin its own optional properties and resets it without re-detection", async () => {
     await finishTrace();
     expect(host.querySelector("#objects-panel #margin")).toBeNull();
@@ -294,7 +340,7 @@ describe("trace workflow and properties", () => {
     await act(() => trace.dispatch({ type: "SET_MARGIN", margin }));
     const completion = () => button("trace-workflow-margin").getAttribute("aria-label");
     expect(completion()).toBe("5. Margin");
-    await act(() => button("trace-workflow-export-outline").click());
+    await act(() => button("button-export-outline").click());
     expect(completion()).toBe("5. Margin");
     await act(() => button("trace-workflow-margin").click());
     expect(completion()).toBe("5. Margin (complete)");
@@ -315,8 +361,8 @@ describe("trace workflow and properties", () => {
     await finishTrace();
     await act(() => host.querySelector<HTMLButtonElement>('[aria-label="Collapse properties panel"]')!.click());
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(true);
-    await act(() => button("trace-workflow-export-outline").click());
+    await act(() => button("trace-workflow-margin").click());
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(false);
-    expect(host.querySelector("#objects-panel #format")).not.toBeNull();
+    expect(host.querySelector("#objects-panel #margin")).not.toBeNull();
   });
 });

@@ -1,9 +1,9 @@
 # Pocketry
 
 Pocketry is an open source project that turns photographs of items or tools into
-editable outlines, shadow-board files, and printable Gridfinity bins. The
-application runs in the browser, with image processing, project storage, and
-model generation kept on the user's device.
+editable outlines, shadow-board files, and printable bins with Gridfinity or
+flat bottoms. The application runs in the browser, with image processing,
+project storage, and model generation kept on the user's device.
 
 [Try Pocketry](https://pocketry.xyz) ·
 [Sample projects](samples/README.md) ·
@@ -18,42 +18,38 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 
 - Trace and refine outlines from PNG or JPEG photos.
 - Calibrate dimensions and correct perspective with printable reference sheets.
-- Design Gridfinity or flat bins with custom pockets, finger access, and colors.
+- Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
+- Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Start a fixture (Beta)](https://pocketry.xyz/ultim8).
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.
 
 Check dimensions against the real items and print a fit test before the final bin.
 
+## About Gridfinity
+
+Gridfinity is a modular, 3D-printable storage system created by
+[Zack Freedman](https://www.youtube.com/c/ZackFreedman). Its bins and holders fit
+a shared baseplate grid, so you can rearrange and expand your storage as your
+collection grows. Pocketry builds on that system by turning tool photos into
+custom Gridfinity bins. It also supports standalone flat-bottomed bins for
+use directly in a drawer or on a worktop, with no Gridfinity baseplate needed.
+
+Watch Zack's [original Gridfinity introduction](https://www.youtube.com/watch?v=ra_9zU-mnl8)
+and browse [his original designs on Thangs](https://thangs.com/designer/ZackFreedman).
+
 ## Sample projects
 
-Browse the [sample projects](samples/README.md) for editable JSONs, 3MF print
-models, and photos of finished bins. The collection includes a Wolfbox MF70 Airduster Kit,
-DeWalt right-angle tools, a Ryobi cutter, caliper storage, a stapler, wire
-strippers, a Klein voltage tester, a Citadel mouldline remover, Wiha drivers with 40, 50, 60, and 150 mm blades, and a mini socket set.
+All of these sample projects are real designs that have been physically printed.
+Browse the [sample projects](samples/README.md) for editable designs, printable
+3MFs, and photos. Each project page includes its downloads, dimensions, and any
+fit or stacking notes.
 
-[Download the complete sample library](samples/pocketry-sample-library.json)
-to import all 13 designs at once.
-
-| **[Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/)** | **[DeWalt right-angle tools](samples/dewalt-right-angle-tools/)** |
+| [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/) | [Bessey and Gerber](samples/bessey-gerber/) |
 | :---: | :---: |
-| <a href="samples/wolfbox-mf70-airduster-kit/"><img src="samples/wolfbox-mf70-airduster-kit/photos/printed-bin-loaded.jpg" width="245" height="210" alt="Printed bin holding the Wolfbox MF70 Airduster Kit"></a> | <a href="samples/dewalt-right-angle-tools/"><img src="samples/dewalt-right-angle-tools/photos/printed-bin-loaded.jpg" width="154" height="210" alt="Printed bin holding DeWalt right-angle adapters and their handle"></a> |
-| **[Ryobi cutter](samples/ryobi-cutter/)** | **[Wire strippers](samples/wire-strippers/)** |
-| <a href="samples/ryobi-cutter/"><img src="samples/ryobi-cutter/photos/printed-bin-loaded.jpg" width="300" height="155" alt="Ryobi cutter in its non-rectangular printed bin"></a> | <a href="samples/wire-strippers/"><img src="samples/wire-strippers/photos/printed-bin-loaded.jpg" width="300" height="116" alt="Wire strippers in their fitted printed bin"></a> |
-| **[Caliper storage](samples/caliper-storage/)** | **[Stapler](samples/stapler/)** |
-| <a href="samples/caliper-storage/"><img src="samples/caliper-storage/photos/printed-bin-loaded.jpg" width="300" height="159" alt="Calipers, measurement strips, and batteries in their printed bin"></a> | <a href="samples/stapler/"><img src="samples/stapler/photos/printed-bin-loaded.jpg" width="300" height="131" alt="Stapler in its printed bin"></a> |
-| **[Klein voltage tester](samples/klein-voltage-tester/)** | **[Citadel mouldline remover](samples/mouldline-remover/)** |
-| <a href="samples/klein-voltage-tester/"><img src="samples/klein-voltage-tester/photos/printed-bin-loaded.jpg" width="300" height="91" alt="Klein voltage tester in its printed bin"></a> | <a href="samples/mouldline-remover/"><img src="samples/mouldline-remover/photos/printed-bin-loaded.jpg" width="67" height="210" alt="Citadel mouldline remover in its printed bin"></a> |
-| **[Wiha 150 mm drivers](samples/wiha-drivers/)** | **[Mini socket set](samples/mini-socket-set/)** |
-| <a href="samples/wiha-drivers/"><img src="samples/wiha-drivers/photos/printed-bin-loaded.jpg" width="99" height="210" alt="Five Wiha screwdrivers in a bin with lowered solid fill"></a> | <a href="samples/mini-socket-set/"><img src="samples/mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="160" height="210" alt="Mini socket set in a printed bin with the reused pre-cut shadowbox"></a> |
-| **[Wiha 40 mm drivers](samples/wiha-40mm-drivers/)** | **[Wiha 50 mm drivers](samples/wiha-50mm-drivers/)** |
-| <a href="samples/wiha-40mm-drivers/"><img src="samples/wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="124" height="210" alt="Four Wiha 40 mm drivers in their printed bin"></a> | <a href="samples/wiha-50mm-drivers/"><img src="samples/wiha-50mm-drivers/photos/printed-bin-loaded.jpg" width="60" height="210" alt="Two Wiha 50 mm drivers in their printed bin"></a> |
-| **[Wiha 60 mm drivers](samples/wiha-60mm-drivers/)** | **[Wiha bins stacked in a drawer](samples/README.md#print-photos)** |
-| <a href="samples/wiha-60mm-drivers/"><img src="samples/wiha-60mm-drivers/photos/printed-bin-loaded-current.jpg" width="49" height="210" alt="Two Wiha 60 mm drivers in their printed bin"></a> | <a href="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg"><img src="samples/wiha-drivers/photos/stacked-bins-in-drawer.jpg" width="131" height="210" alt="Wiha driver bins stacked with other Gridfinity bins in a drawer"></a> |
+| <a href="samples/wolfbox-mf70-airduster-kit/"><img src="samples/wolfbox-mf70-airduster-kit/photos/printed-bin-loaded.jpg" width="175" height="150" alt="Printed bin holding the Wolfbox air duster and accessories"></a> | <a href="samples/bessey-gerber/"><img src="samples/bessey-gerber/photos/printed-bin-loaded.jpg" width="133" height="150" alt="Printed bin holding a Bessey utility knife and Gerber multitool"></a> |
 
-The Wiha drivers sit slightly too high to stack the loaded bins without some
-interference. If stacking is desired, lower the driver pockets by about **1 mm**
-in the editable project before exporting a revised print model.
+**[Browse all examples and download the editable library →](samples/README.md)**
 
 We'd love to see what you make with Pocketry! If you share a design on MakerWorld,
 Printables, or elsewhere, please give Pocketry a shout-out and link to
@@ -61,114 +57,75 @@ Printables, or elsewhere, please give Pocketry a shout-out and link to
 
 ## Basic Process
 
-### 1. Trace and refine the outline
+### 1. Trace the tools
 
-Import a photograph, calibrate its scale, and edit the detected outline to follow
-the tool's shape.
+This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/).
 
-For a manual scale, place the ruler endpoints on a known feature, enter its
-length, then press Enter or **Confirm scale**. **Simplification** controls point
-count: higher values use fewer points and can lose small details. Physical Trace
-exports require a confirmed scale and show the resulting dimensions before
-download; an unscaled outline can still be exported as an SVG in pixels.
+Photograph your tools from above on a plain, contrasting background, then open
+the photo in **Trace**. Set the scale from a measurement, paper corners, or an
+optional calibration sheet or aid.
 
-The current Trace draft is saved in this browser, including its photo, scale,
-edited contours, and undo history. Wait for **Trace draft saved in this browser** before
-closing the page. This recovery copy is local to the browser; replacing the photo
-or choosing **Start over** replaces or clears it. Export a project backup for a
-portable copy of a calibrated outline and its bin settings.
+Draw a **Region** around each tool and refine its **Outline**. Add clearance with
+**Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
+there was estimated. You’ll set pocket depths in Bin.
 
-![Air-duster photograph in Trace with editable outline points around the tool](docs/images/trace-outline.jpg)
+![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
 
-Move the tool outlines into a Gridfinity bin, arrange the duster and accessories,
-and add finger access for lifting them out.
+In **Bin**, set **Bin size** (the Wolfbox example is **4 × 4 cells**, **6.5u** high).
+Use **Construction → Flat bottom** if you want a standalone bin. In **Layout**,
+drag pockets into place and add finger access where needed. Select a pocket to
+adjust its size, position, and depth.
 
-Multi-selection, Move, Rotate, alignment, and distribution are standard in both
-layouts. **Add** stays first in the canvas toolbar; narrower spaces put additional
-tools under **Tools**. Phones offer **Workflow**, **Adjust**, and **Export**.
-Selection updates the summary without opening Adjust; **All properties** opens
-the complete editor. New sessions without a saved layout use Workflow + properties
-at 1100 × 600 px or larger, and Single panel on smaller screens. Resizing adapts
-the workspace while retaining that session's choice. Choose **Single panel** or
-**Workflow + properties** in **App settings**.
-
-Turn on **App settings → Enable experimental features**, then use
-**Surface text → Add text** for raised labels on the flat interior surface
-(the floor of a hollow bin, or the top of its solid fill). Adding text opens
-Layout so you can drag the label into place, even if its starting position
-overlaps a pocket. **Position text in Layout** returns existing labels to this
-view after a preview error. Set the wording, font, size, raised height, and
-rotation; use X/Y coordinates or drag the label. Keep every letter clear of pockets, openings, other labels, and
-the perimeter. **Text color** applies to every label in the project and matches
-the edge band by default. Choose a custom color or return to **Use edge-band color**.
-
-The 11 bundled font choices are Sans and Sans Bold, Serif and Serif Bold,
-Monospace, Helvetiker and Helvetiker Bold, Optimer and Optimer Bold, and
-Gentilis and Gentilis Bold.
-
-Turning experimental features off hides text editing and disables label dragging;
-existing labels remain visible, saved, and included in exports. Loading projects
-and undo history never changes that preference. A notice offers explicit opt-in
-when the current design contains experimental features. Shared linked geometry
-requires opt-in; independent placement, naming, deletion, and independent copies
-remain available. Adjustable walls, text, fonts, and linked designs remain experimental.
-
-Numeric fields preview valid changes immediately. Enter or leaving the field
-commits once; Escape restores the whole edit, including dependent geometry.
-Invalid Enter keeps focus; invalid blur discards the edit. Batch fields still use
-**Apply**. Autosave and export use committed changes. An unnamed draft is separate
-from named Library storage; choose **Save this draft to Library** to name it.
-
-![Top-down Bin layout with pockets for the air duster, adapters, angled nozzle, and USB cable, plus finger access](docs/images/bin-layout.jpg)
+![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes
 
-Use the ruler in Layout to check each outline's length, width, and key features
-against measurements of the real tool. Adjust the outline or pocket size until
-the shape and dimensions match.
+Compare the pockets with measurements of the real tools using
+**Measure between contours** and **Size & scale**. Check depth and remaining
+floor in **3D** or **Check fit → Inspect inside**.
 
-![The ruler measures the air-duster outline in Layout beside the pocket size controls](docs/images/ruler-check.jpg)
+![The Layout ruler measures 145.31 mm along the duster contour beside its width, length, and depth controls](docs/images/ruler-check.jpg)
 
 ### 4. Print a fit check
 
-Choose **Check fit → Tool outlines** to export thin outlines of the tool pockets.
-Open the STL in your slicer at **100% scale**, print it, and try the real tools in
-the openings. Adjust the shape, size, or clearance as needed before printing the
-full bin.
+In **Check fit**, save a **Full surface** or **Tool outlines** fit test STL.
+Print it at **100% scale** (we recommend **0.6–0.8 mm** thick) and try the real
+tools. Adjust the outline or clearance if needed. This checks the openings,
+not pocket depth or baseplate fit.
 
-![Exported tool-outline fit check loaded in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
+The original slicer screenshot below shows an earlier **1.2 mm** fit check.
+
+![The original Wolfbox tool-outline fit check in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
 **CAD editing:** early [STEP CAD export](docs/step-export.md) supports simple flat trays and preserves named pocket cutter solids in a companion file.
 
 ### 5. Export and print the finished bin
 
-Once the fit is verified and pocket depths are checked, export the full bin as
-**STL or 3MF**. Open it in your slicer at **100% scale**, choose your material and
-print settings, review the layer preview, and print.
+Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.
+Open the file in your slicer at **100% scale** and review the layer preview
+before printing. **Multi-color 3MF** preserves selected colors; SVG and DXF
+layouts are available for shadow boards and CNC work.
 
-**Text labels:** 3MF exports each label as a separate named mesh part, including
-in single-color exports. Keep the bin and labels together as one multipart
-object when your slicer asks; select a label in the parts list to move, scale,
-recolor, or remove it. Choose **Multi-color 3MF** to preserve the shared text
-color; **Single-color 3MF** uses the bin color for all parts. The text color is saved
-with the project and supports undo/redo. Change wording in Pocketry and export again. STL fuses
-the text into the bin. The bundled fonts travel as mesh geometry,
-so slicers do not need them installed.
+![The original printed black-and-orange Wolfbox bin with the duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
 
-Text projects use schema 28 and require this version of Pocketry to reopen.
-Existing schema-26 projects migrate with no labels; undo history is preserved.
+![The original printed bin with the duster removed, showing its shaped pocket and orange floor](docs/images/printed-bin-pocket.jpg)
 
-![Printed black-and-orange bin with the air duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
+### Save an editable copy
 
-![Printed bin with the air duster removed, showing its shaped pocket and orange floor](docs/images/printed-bin-pocket.jpg)
+Use **Project → Save this draft to Library** to name your design, then
+**Export project** for an editable `.pocketry.json` backup. Projects live in
+this browser and do not sync between devices. The backup does not include the
+original Trace photo, so keep that separately.
 
 ## Privacy
 
 The static application processes images and generates models locally in the
 browser. Projects are stored in the browser using IndexedDB. The hosted version
-does not require uploading tool photographs to Pocketry's server.
+does not require uploading tool photographs to Pocketry's server. The local Node
+server serves the editor and static assets only; the retired `/api/images` endpoints
+return 404 and do not accept or store uploads.
 
 ## Run locally
 
@@ -179,12 +136,26 @@ npm ci
 npm run dev
 ```
 
-The development server defaults to <http://localhost:5000>. If that port is in
-use, choose another one:
+The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
+(`localhost` also works when it resolves to IPv4). It is not exposed to other
+computers on your network. Vite rejects untrusted Host names, serves only the
+client, shared source, dependencies, explicit client imports (such as version
+metadata), and public/legal assets. Vite's desktop-editor launch endpoint is disabled;
+Pocketry's Trace and Bin editors remain available. Production `npm start` keeps its
+existing all-interface listener for deliberate hosting.
+
+If the default port is in use, choose another one:
 
 ```sh
 PORT=5001 npm run dev
 ```
+
+## Self-host Pocketry
+
+Follow the [self-hosting guide](docs/self-hosting.md) for Docker, production Node,
+or static hosting, including upgrades and backup/restore instructions. Projects
+remain in each user's browser. Use **Export project** and **Export library** for
+backups—copying the container does not back up your designs.
 
 ## Verify and build
 
@@ -224,6 +195,12 @@ licenses, copyright notices, and provenance are recorded in [NOTICE](NOTICE).
 The detailed direct-source review is available in
 [docs/open-source-review.md](docs/open-source-review.md).
 
+Surface labels include 18 hardware symbols adapted from
+[GFLabel](https://github.com/ndevenish/gflabel) by Nicholas Devenish under
+[BSD-3-Clause](client/public/licenses/gflabel.txt). Choose **Add → Surface text**,
+then **Symbol** to pair one with wording or use it alone. See
+[symbol provenance and regeneration](docs/hardware-symbols.md).
+
 ## Contributors
 
 Pocketry is developed and maintained by Sugarcreek Research, LLC.
@@ -236,3 +213,12 @@ acknowledgment includes work not individually credited in the commit history.
 Issues and pull requests are welcome. Keep changes focused, add or update tests,
 run the required verification commands, and update `NOTICE` whenever adding a
 direct dependency, bundled artifact, copied component, or adapted source.
+
+### Browser and import limits
+
+Use Safari 16.4+, Chrome/Edge 111+, or Firefox 128+ for the current styling engine.
+Project imports are limited to 64 MiB and library backups to 128 MiB / 500 designs.
+Resource checks also limit ring length, total geometry, and repeated placements
+across undo history and transform sources. Over-limit imports are rejected in full;
+existing work is kept. Split large library backups or simplify unusually detailed
+designs before importing. See [import limits](docs/import-limits.md) for exact bounds.

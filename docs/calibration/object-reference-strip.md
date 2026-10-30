@@ -2,7 +2,7 @@
 
 Trace can calibrate from a reference resting on a thick object, reducing the
 apparent enlargement caused by measuring a raised edge against paper below it.
-**Download calibration aids** opens a shared dialog from the upload screen, **Scale**,
+**Download optional calibration aids** opens a shared dialog from the upload screen, **Scale**,
 or Help. The **Calibration aids** dialog has separate **Paper printable aids**
 and **3D printable aids** sections. Paper downloads include experimental A4 /
 US Letter corner-marker sheets and one sheet containing all three
@@ -145,6 +145,19 @@ references into the same working-image coordinates. A failed retry preserves
 the first pass's paper fallback. Existing usable paper references remain
 available alongside a recovered aid, and replacement photos discard stale
 results. The working canvas and export scale are unchanged.
+
+Tracing rechecks the current photo for one validated aid, even when manual or
+paper scale is selected. Its projected carrier footprint (including the 2 mm
+paper cut border) is treated as missing image evidence: surrounding foreground
+or background continues through it, suppressing printed markers and false holes.
+This works on rotated and perspective-corrected photos and after draft recovery;
+it does not alter the photograph or the selected scale. Unrecognized, incomplete,
+mixed or invalid aids are left unchanged.
+
+If the footprint crosses an object edge, Trace estimates the hidden section and
+shows **Review the edge beneath the measurement aid**. Check those contour points
+or retake the photo with the aid fully inside the silhouette. A photograph cannot
+recover the actual contour or holes hidden by the carrier.
 
 The 3MF is a Manifold-built white carrier with complementary black inlays. Both
 parts are closed indexed meshes, share a flush top plane and form one assembled

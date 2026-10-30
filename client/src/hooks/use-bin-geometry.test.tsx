@@ -69,6 +69,38 @@ describe("bin preview worker lifecycle", () => {
     React.act(() => root.unmount()); host.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
   });
 
+  it("keeps portable sources in the editor but out of preview keys and all geometry requests", async () => {
+    const source = { data: "A".repeat(1_000_000), byteLength: 750_000 };
+    const input = parseBinSpec({ ...spec(3), surfaceTexts: [{ id: "text", text: "A", position: { x: 0, y: 0 },
+      font: { kind: "local", name: "Portable", resolution: 1000, source,
+        glyphs: { A: { ha: 500, o: "m 0 0 l 500 0 l 500 500 z" } } },
+    }] });
+    const native = JSON.stringify;
+    const spy = vi.spyOn(JSON, "stringify").mockImplementation((value, replacer, space) => {
+      if (value?.spec?.surfaceTexts?.[0]?.font?.source) throw new Error("Source bytes in geometry key");
+      return native(value, replacer, space);
+    });
+    try {
+      await React.act(async () => root.render(<Probe args={[input, PREVIEW_QUALITY, layout]} />));
+      await tick();
+      const preview = worker().calls[0].payload as BuildBinRequest;
+      expect(preview.spec.surfaceTexts?.[0].font).toMatchObject({ kind: "local", glyphs: { A: { ha: 500 } } });
+      expect(preview.spec.surfaceTexts?.[0].font).not.toHaveProperty("source");
+      expect(input.surfaceTexts[0].font).toHaveProperty("source.data", source.data);
+      let exported!: Promise<BuildBinResult>;
+      let surface!: ReturnType<BinGeometryState["buildSurfaceFitCheck"]>;
+      await React.act(async () => {
+        exported = state.buildOnce(EXPORT_QUALITY);
+        surface = state.buildSurfaceFitCheck(1, EXPORT_QUALITY);
+      });
+      for (const call of detailWorker().calls) {
+        expect((call.payload as BuildBinRequest).spec.surfaceTexts?.[0].font).not.toHaveProperty("source");
+      }
+      await reply(() => { detailWorker().finish(0); detailWorker().finish(1); });
+      await Promise.all([exported, surface]);
+    } finally { spy.mockRestore(); }
+  });
+
   it("batches initial edits and keeps only the newest pending preview without cancellation", async () => {
     await render(2); await tick(16); await render(3); await tick();
     expect(worker().calls).toHaveLength(1);
@@ -127,6 +159,40 @@ describe("bin preview worker lifecycle", () => {
     await render(3); await tick(); await render(4); await tick();
     await reply(() => worker().finish(1)); expect(state!.geometry).toBe(first); expect(dispose).not.toHaveBeenCalled();
     await reply(() => worker().finish(2)); expect(dispose).toHaveBeenCalledTimes(1); expect(state!.geometry).not.toBe(first);
+  });
+
+  it("clears an obsolete bin and all material meshes when the current design fails, then recovers", async () => {
+    const label = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, surfaceTexts: [{ id: "label", text: "A", position: { x: 0, y: 0 } }] }).surfaceTexts[0];
+    const old = { ...resultFor(1), materialMeshes: { body: resultFor(2).mesh,
+      pocketFloors: resultFor(3).mesh, stackingRim: resultFor(4).mesh },
+      textMeshes: [{ label, z: 21, mesh: resultFor(5).mesh }] };
+    await render(2); await tick(); await reply(() => worker().finish(0, old));
+    const meshes = [state!.geometry!, state!.pocketFloorGeometry!, state!.stackingRimGeometry!, state!.textGeometries[0].geometry];
+    const disposals = meshes.map(mesh => vi.spyOn(mesh, "dispose"));
+    await render(3); await tick();
+    expect(state!.geometry).toBe(meshes[0]);
+    await reply(() => worker().fail(1));
+    expect(state!.geometry).toBeNull(); expect(state!.builtSpec).toBeNull();
+    expect(state!.pocketFloorGeometry).toBeNull(); expect(state!.stackingRimGeometry).toBeNull();
+    expect(state!.textGeometries).toEqual([]);
+    expect(state!.hasPocketFloor).toBe(false); expect(state!.hasStackingRim).toBe(false);
+    expect(state!.statsAreStale).toBe(true); expect(state!.error).toBe("Bad geometry");
+    disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+    await render(4); await tick(); await reply(() => worker().finish(2, resultFor(9)));
+    expect(state!.error).toBeNull(); expect(state!.builtSpec?.heightUnits).toBe(4);
+    expect(state!.geometry!.getAttribute("position").getX(0)).toBe(9);
+    disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+  });
+
+  it("clears the old design if both the new draft and detailed preview fail", async () => {
+    await render(2); await tick(); await reply(() => worker().finish(0));
+    const old = state!.geometry!; const dispose = vi.spyOn(old, "dispose");
+    await renderRounded(3); await tick(); await reply(() => worker().fail(1));
+    expect(state!.geometry).toBe(old); expect(state!.building).toBe(true);
+    await tick(268); await reply(() => detailWorker().fail(0));
+    expect(state!.geometry).toBeNull(); expect(state!.builtSpec).toBeNull();
+    expect(state!.error).toContain("Detailed preview failed");
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it("uses separate body and text previews and disposes replaced and removed labels", async () => {
@@ -203,6 +269,18 @@ describe("bin preview worker lifecycle", () => {
     expect(detailWorker().calls[0].payload).toMatchObject({ borderWidthMm: 4, stackingRimMaterialThicknessMm: 2.5, exportTopology: true });
     await reply(() => detailWorker().finish(0));
     await exported;
+  });
+
+  it("rebuilds material regions when divider coloring changes and sends it to export", async () => {
+    await render(3, false, { 4: { colorDividerTops: false } }); await tick(); await reply(() => worker().finish(0));
+    await render(3, false, { 4: { colorDividerTops: true } }); await tick();
+    expect(worker().calls).toHaveLength(2);
+    expect(worker().calls[1].payload).toMatchObject({ colorDividerTops: true });
+    await reply(() => worker().finish(1));
+    let exported!: Promise<BuildBinResult>;
+    await React.act(async () => { exported = state.buildOnce(EXPORT_QUALITY, { colorDividerTops: true, stackingRimMaterialThicknessMm: 1.25 }); });
+    expect(detailWorker().calls[0].payload).toMatchObject({ colorDividerTops: true, exportTopology: true });
+    await reply(() => detailWorker().finish(0)); await exported;
   });
 
   it("does not restart pending work after unmount or an old worker reply", async () => {
@@ -403,6 +481,16 @@ describe("bin preview worker lifecycle", () => {
     expect(state!.stats?.volumeMm3).toBe(77);
   });
 
+  it("retains the current draft if retrying the same design fails in both lanes", async () => {
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const draft = state!.geometry!; const dispose = vi.spyOn(draft, "dispose");
+    await reply(() => detailWorker().fail(0));
+    await React.act(async () => state!.retryPreview());
+    await tick(); await reply(() => worker().fail(1)); await tick(268); await reply(() => detailWorker().fail(1));
+    expect(state!.geometry).toBe(draft); expect(state!.previewIsDraft).toBe(true);
+    expect(state!.builtSpec?.heightUnits).toBe(3); expect(dispose).not.toHaveBeenCalled();
+  });
+
   it("exports full authored settings while a draft is displayed", async () => {
     await renderRounded(3); await tick(); await reply(() => worker().finish(0));
     let exported!: Promise<BuildBinResult>;
@@ -554,6 +642,34 @@ describe("bin preview worker lifecycle", () => {
     expect(state!.statsAreStale).toBe(true);
     await reply(() => worker().finish(1)); await tick(500);
     expect(detailWorker().calls).toHaveLength(1); expect(state!.statsAreStale).toBe(false);
+  });
+
+  it.each(["coverage", "axis", "thickness"])("replaces the complete material partition once for a %s edit", async edit => {
+    const withMaterials = (id: number): BuildBinResult => ({ ...resultFor(id), materialMeshes: {
+      body: resultFor(id).mesh, pocketFloors: resultFor(id + 1).mesh, stackingRim: resultFor(id + 2).mesh,
+    } });
+    await renderRounded(3); await tick(); await reply(() => worker().finish(0)); await tick(268);
+    const slow = withMaterials(20); slow.stats.buildMs = 400;
+    await reply(() => detailWorker().finish(0, slow));
+    const previous = [state!.geometry, state!.pocketFloorGeometry, state!.stackingRimGeometry];
+    const disposals = previous.map(mesh => vi.spyOn(mesh!, "dispose"));
+    const colored = { ...roundedLayout, cutouts: roundedLayout.cutouts.map(c => ({ ...c,
+      ...(edit === "coverage" ? { colorCoverage: "interior" as const } : {}),
+      ...(edit === "axis" ? { colorFloorAxis: "y" as const } : {}),
+    })) };
+    await renderArgs([spec(3), PREVIEW_QUALITY, colored, undefined,
+      edit === "thickness" ? { pocketFloorThicknessMm: 1 } : undefined]);
+    await tick();
+    expect((worker().calls[1].payload as BuildBinRequest).previewDraft).toBeUndefined();
+    expect([state!.geometry, state!.pocketFloorGeometry, state!.stackingRimGeometry]).toEqual(previous);
+    disposals.forEach(dispose => expect(dispose).not.toHaveBeenCalled());
+    await reply(() => worker().finish(1, withMaterials(30))); await tick(500);
+    expect(detailWorker().calls).toHaveLength(1);
+    expect(state!.previewIsDraft).toBe(false);
+    expect(state!.building).toBe(false);
+    expect([state!.geometry, state!.pocketFloorGeometry, state!.stackingRimGeometry]
+      .map(mesh => mesh!.getAttribute("position").getX(0))).toEqual([30, 31, 32]);
+    disposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
   });
 
 });

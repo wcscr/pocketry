@@ -1,0 +1,65 @@
+{
+  "fixture": "Synthetic 100 x 100 x 5 mm frame with an 80 x 80 mm through opening; 4 mm pegs",
+  "browser": "Local development build at 127.0.0.1:5000, 1440 x 1000 viewport",
+  "every3PositionsRetainedInEvery2": true,
+  "exports": {
+    "every2": {
+      "stl": {
+        "file": "Peg-density-frame-regression-bin-100x100x5mm-2026-10-20_15-59-50-860.stl",
+        "sha256": "355d9a6f544700735e875a2f29fbdfa204ce7da06447b7110daaf2b45619ae79",
+        "triangles": 10270,
+        "signedVolumeMm3": 19771.92691376956,
+        "allEdgesSharedByTwoTriangles": true,
+        "boundsMm": {
+          "min": [
+            -50.0,
+            -50.0,
+            0.0
+          ],
+          "max": [
+            50.0,
+            50.0,
+            9.0
+          ]
+        },
+        "pegShaftLoopsAtZ6Mm": 26
+      },
+      "svg": {
+        "file": "Peg-density-frame-regression-bin-100x100x5mm-ultim8-jig-layout-2026-10-20_16-00-00-835.svg",
+        "sha256": "78f1723b6a007232273f05acd0b97a3b136473c46b0610c3ca55df6b2894732b",
+        "width": "100mm",
+        "height": "100mm",
+        "pegCircles": 26
+      }
+    },
+    "every3": {
+      "stl": {
+        "file": "Peg-density-frame-regression-bin-100x100x5mm-2026-10-20_16-00-26-185.stl",
+        "sha256": "0668a7c3498e62d54b527c7c78f7b66ed0af172b74a763d7a1b26f58722f3f2f",
+        "triangles": 4890,
+        "signedVolumeMm3": 18776.127013255966,
+        "allEdgesSharedByTwoTriangles": true,
+        "boundsMm": {
+          "min": [
+            -50.0,
+            -50.0,
+            0.0
+          ],
+          "max": [
+            50.0,
+            50.0,
+            9.0
+          ]
+        },
+        "pegShaftLoopsAtZ6Mm": 12
+      },
+      "svg": {
+        "file": "Peg-density-frame-regression-bin-100x100x5mm-ultim8-jig-layout-2026-10-20_16-00-31-517.svg",
+        "sha256": "08f2f2b3647eaea7f7430ad8821802d1ac454cb674c9880920d6afc8e7061893",
+        "width": "100mm",
+        "height": "100mm",
+        "pegCircles": 12
+      }
+    }
+  }
+}

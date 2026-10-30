@@ -2,20 +2,31 @@
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Route, Router, useLocation } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import type { TraceControlsPanelProps } from "@/components/trace/trace-controls-panel";
+import { TraceHandoffOptions } from "@/components/trace/trace-handoff";
 import { initialTraceState, TraceProvider, useTrace } from "@/state/trace-store";
+import { BinProvider, useBin } from "@/state/bin-store";
+import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
+import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { normalizeTracedShape } from "@/lib/gridfinity/traced-shape";
 import { downloadBlob } from "@/lib/download";
 import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot } from "@/lib/trace-draft";
 import type { TraceDraft } from "@shared/trace-draft";
 import { generateSTL } from "@/lib/export/stl";
 import { parseProjectDoc } from "@shared/gridfinity/project";
-import type { Outline } from "@shared/geometry/types";
+import type { Outline, Rect } from "@shared/geometry/types";
 import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
 import type { DetectionFrame } from "@/components/trace/use-image-source";
+import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 
-import TracePage from "./trace";
+import TraceWorkspacePage from "./trace";
+import { ShapeLibraryProvider, useShapeLibrary } from "@/state/shape-library";
+
+function TracePage() { return <ShapeLibraryProvider><TraceWorkspacePage /></ShapeLibraryProvider>; }
 
 const {
   decodeImageFileMock,
@@ -59,7 +70,10 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ onExport, onApplyPerspective }: TraceControlsPanelProps) => <>
+  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver }: TraceControlsPanelProps) => <>
+    <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
+    <button data-testid="controls-add-to-bin" onClick={handoff.addToBin}>Add to bin</button>
+    <button data-testid="controls-start-over" onClick={onStartOver}>Reset confirmed trace</button>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
       points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
@@ -95,21 +109,37 @@ function SeedExportOutline({ format, calibrated = true }: { format: "svg" | "dxf
   return null;
 }
 
+async function chooseExportFormat(format: "dxf" | "stl"): Promise<void> {
+  await React.act(async () => document.querySelector<HTMLButtonElement>("#trace-export-format")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  await React.act(async () => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent?.startsWith(format.toUpperCase()))!.click());
+}
+
 vi.mock("@/components/trace/trace-canvas", () => ({
   TraceCanvas: ({
     emptyState,
     onReprocess,
+    estimatedEdgeFocusRequest = 0,
   }: {
     emptyState?: React.ReactNode;
-    onReprocess: () => void;
-  }) => (
+    onReprocess: (region?: Rect) => void;
+    estimatedEdgeFocusRequest?: number;
+  }) => {
+    const { dispatch, imageUrl } = useTrace();
+    return (
     <>
-      {emptyState}
-      <button data-testid="run-detection" onClick={onReprocess}>
+      {!imageUrl && emptyState}
+      <output data-testid="estimated-focus-request">{estimatedEdgeFocusRequest}</output>
+      <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
       </button>
+      <button data-testid="commit-new-region" onClick={() => {
+        const region = { x: 80, y: 90, width: 200, height: 100 };
+        dispatch({ type: "SET_REGION", region });
+        onReprocess(region);
+      }}>Commit new region</button>
     </>
-  ),
+    );
+  },
 }));
 
 vi.mock("@/components/trace/use-image-source", () => {
@@ -205,9 +235,13 @@ function SourceStateProbe(): JSX.Element {
 describe("Trace detection workflow", () => {
   let host: HTMLDivElement;
   let root: Root;
+  let previousScrollIntoView: PropertyDescriptor | undefined;
 
   beforeEach(() => {
+    previousScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
     vi.mocked(generateSTL).mockResolvedValue(new ArrayBuffer(100));
     vi.mocked(loadTraceDraft).mockResolvedValue(null);
@@ -229,6 +263,52 @@ describe("Trace detection workflow", () => {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
+  });
+
+  it.each([false, true])("keeps estimated-edge guidance visible after editing and recovery (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+    const areas = [[{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 30, y: 50 }]];
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    const recovered = traceDraftSnapshot({ ...initialTraceState, imageUrl: "data:image/png;base64,source", fileName: "Tool",
+      imageSize: { width: 800, height: 600 }, outline: exportOutline, estimatedEdgeRegions: areas })!;
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    await React.act(async () => current.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: recovered }));
+    const notice = () => host.querySelector('[data-testid="estimated-edge-notice"]')!;
+    expect(notice().textContent).toContain("An edge hidden by the measurement aid is estimated");
+    React.act(() => notice().querySelector('button')!.click());
+    expect(host.querySelector('[data-testid="estimated-focus-request"]')?.textContent).toBe("1");
+    React.act(() => current.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline] }));
+    expect(notice()).not.toBeNull();
+    React.act(() => current.dispatch({ type: "SET_REGION", region: null }));
+    expect(host.querySelector('[data-testid="estimated-edge-notice"]')).toBeNull();
+    await React.act(async () => current.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: recovered }));
+    expect(notice()).not.toBeNull();
+    React.act(() => current.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,new", fileName: "New" }));
+    expect(host.querySelector('[data-testid="estimated-edge-notice"]')).toBeNull();
+  });
+
+  it.each([
+    ["Trace a Photo", false, "/"],
+    ["Design a Bin", false, "/bin"],
+    ["Open Sample Projects", true, "/bin"],
+  ])("uses %s from the initial screen (browse samples=%s)", async (label, browseSamples, destination) => {
+    const route = memoryLocation({ path: "/" });
+    let requested = false;
+    let location = "/";
+    function SampleRequestProbe() {
+      requested = usePanelState().sampleLibraryRequested;
+      [location] = useLocation();
+      return null;
+    }
+    await React.act(async () => root.render(<Router hook={route.hook}><PanelProvider><TraceProvider><SampleRequestProbe /><TracePage /></TraceProvider></PanelProvider></Router>));
+    expect(document.querySelector('[aria-label="Get started"] [aria-current="page"]')?.textContent).toBe("Trace a Photo");
+    const button = [...document.querySelectorAll("button")].find(button => button.textContent === label)!;
+    expect(button).toBeDefined();
+    await React.act(async () => button.click());
+    expect(requested).toBe(browseSamples);
+    expect(location).toBe(destination);
   });
 
   const detectionFrame = (retry = false): DetectionFrame => ({
@@ -335,6 +415,49 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
+  it.each([true, false])("keeps full-photo access beside the canvas with controls closed and preserves edits (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
+    Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+    let current!: ReturnType<typeof useTrace>;
+    let panel!: ReturnType<typeof usePanelState>;
+    function Probe(): null { current = useTrace(); panel = usePanelState(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    const boundsControl = () => host.querySelector('[data-testid="trace-photo-bounds-control"]');
+    expect(boundsControl()).toBeNull();
+    await React.act(async () => {
+      current.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Large tool" });
+      current.dispatch({ type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+      current.dispatch({ type: "PERSPECTIVE_APPLIED", sourceImageUrl: "photo", imageUrl: "corrected",
+        imageSize: { width: 800, height: 600 }, source: "template", paper: "a4",
+        calibration: { startX: 200, startY: 50, endX: 500, endY: 50, lengthMm: 210 },
+        paperBounds: { x: 200, y: 50, width: 300, height: 450 } });
+      panel.setPanelOpen(false);
+    });
+    expect(host.querySelectorAll('[data-testid="trace-photo-bounds-control"]')).toHaveLength(1);
+    expect(boundsControl()!.textContent).toContain("Show full photo");
+    const toggle = boundsControl()!.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await React.act(async () => toggle.click());
+    expect(current.perspectiveCorrection?.showFullPhoto).toBe(true);
+    await React.act(async () => {
+      current.dispatch({ type: "SET_REGION", region: { x: 100, y: 10, width: 500, height: 580 } });
+      current.dispatch({ type: "REGION_COMMITTED" });
+      current.dispatch({ type: "OUTLINE_COMMITTED", outline: exportOutline });
+    });
+    const before = current;
+    await React.act(async () => toggle.click());
+    expect(current.perspectiveCorrection?.showFullPhoto).toBe(false);
+    await React.act(async () => toggle.click());
+    expect(current.perspectiveCorrection?.showFullPhoto).toBe(true);
+    expect(current.imageUrl).toBe(before.imageUrl);
+    expect(current.calibration).toBe(before.calibration);
+    expect(current.region).toBe(before.region);
+    expect(current.outline).toBe(before.outline);
+    expect(current.history).toBe(before.history);
+    await React.act(async () => current.dispatch({ type: "SOURCE_CLEARED" }));
+    expect(boundsControl()).toBeNull();
+  });
+
   it.each([true, false])("closes the mobile drawer only after successful perspective-only correction (success=%s)", async (success) => {
     vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
@@ -352,6 +475,7 @@ describe("Trace detection workflow", () => {
     expect(correctPerspectiveMock).not.toHaveBeenCalled();
     await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Correct and clear trace")!.click());
     expect(panel.panelOpen).toBe(!success);
+    expect(getDetectionFrameMock).toHaveBeenLastCalledWith({ width: 4096, height: 4096, maxPixels: 6_000_000 });
     expect(current.calibration).toBeNull();
     if (success) {
       expect(current.mode).toBe("calibrate");
@@ -380,7 +504,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
     expect(current!.processing).toBe(true);
     await React.act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === "Start over")!.click());
-    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
     expect(current!.imageUrl).toBeNull();
     await React.act(async () => {
       finishDetection({ outline: exportOutline, rawOutline: exportOutline, svg: "<svg/>" });
@@ -391,9 +515,109 @@ describe("Trace detection workflow", () => {
     expect(current!.processing).toBe(false);
   });
 
+  it.each([false, true].flatMap(mobile => ["controls-start-over", "controls-add-to-bin"].map(action => ({ mobile, action }))))(
+    "keeps the desktop workflow open after $action and the mobile canvas clear (mobile=$mobile)", async ({ mobile, action }) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+      Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+      let panel!: ReturnType<typeof usePanelState>;
+      function Probe() { panel = usePanelState(); return null; }
+      await React.act(async () => root.render(<Router hook={memoryLocation({ path: "/" }).hook}><PanelProvider><TraceProvider>
+        <Probe /><SeedExportOutline format="svg" /><TracePage />
+      </TraceProvider></PanelProvider></Router>));
+      React.act(() => panel.setPanelOpen(true));
+      await React.act(async () => host.querySelector<HTMLButtonElement>(`[data-testid="${action}"]`)!.click());
+      expect(panel.panelOpen).toBe(!mobile);
+    },
+  );
+
+  it.each([false, true].flatMap(mobile => ["Done", "Set later"].map(action => ({ mobile, action }))))(
+    "starts another photo at the empty drop zone after $action (mobile=$mobile)", async ({ mobile, action }) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+      Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
+      const route = memoryLocation({ path: "/bin" });
+      let trace!: ReturnType<typeof useTrace>, bin!: ReturnType<typeof useBin>;
+      let library!: ReturnType<typeof useShapeLibrary>, panel!: ReturnType<typeof usePanelState>;
+      let location = "/bin";
+      function Probe() { trace = useTrace(); bin = useBin(); library = useShapeLibrary(); panel = usePanelState(); [location] = useLocation(); return null; }
+      await React.act(async () => root.render(<Router hook={route.hook}><PanelProvider><ShapeLibraryProvider><TraceProvider persist><BinProvider>
+        <Probe /><SeedExportOutline format="svg" />
+        <Route path="/bin"><PendingPocketDepthPrompt request={0} /></Route>
+        <Route path="/"><TraceWorkspacePage /></Route>
+      </BinProvider></TraceProvider></ShapeLibraryProvider></PanelProvider></Router>));
+      const shape = normalizeTracedShape(exportOutline, { mmPerPx: 0.5, imageHeight: 600 }, "Tool 1")!;
+      React.act(() => {
+        library.storeShape(shape);
+        bin.dispatch({ type: "ADD_PLACED", gridX: 2, gridY: 2,
+          cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depthPending: true })] });
+        bin.dispatch({ type: "SELECT_CUTOUT", id: "pocket" });
+      });
+      // Ordinary workspace navigation still resumes the existing photo.
+      await React.act(async () => route.navigate("/"));
+      expect(trace.imageUrl).toBe("data:image/png;base64,source");
+      expect(host.querySelector('[role="button"][aria-label="Choose a photo"]')).toBeNull();
+      await React.act(async () => route.navigate("/bin"));
+      const button = (label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+      if (action === "Done") React.act(() => button("To bin floor").click());
+      React.act(() => button(action).click());
+      const placed = bin.cutouts, history = bin.history, shapes = library.shapes;
+      React.act(() => panel.setPanelOpen(true));
+      vi.mocked(saveTraceDraft).mockClear();
+      await React.act(async () => button("Trace another photo").click());
+      expect(location).toBe("/");
+      expect(panel.panelOpen).toBe(!mobile);
+      expect(trace.imageUrl).toBeNull();
+      expect(trace.outline).toEqual([]);
+      expect(trace.calibration).toBeNull();
+      expect(trace.region).toBeNull();
+      expect(trace.canUndo).toBe(false);
+      expect(saveTraceDraft).toHaveBeenLastCalledWith(null);
+      expect(host.querySelector('[role="button"][aria-label="Choose a photo"]')?.textContent).toContain("drop a photo here");
+      expect(bin.cutouts).toBe(placed);
+      expect(bin.history).toBe(history);
+      expect(library.shapes).toBe(shapes);
+      // Choosing the next photo starts immediately, without replacing old work.
+      decodeImageFileMock.mockResolvedValueOnce({ imageUrl: "data:image/png;base64,next", naturalSize: { width: 800, height: 600 } });
+      const input = host.querySelector<HTMLInputElement>('[role="button"][aria-label="Choose a photo"] input')!;
+      Object.defineProperty(input, "files", { configurable: true, value: [new File(["next"], "next.png", { type: "image/png" })] });
+      await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+      expect(trace.imageUrl).toBe("data:image/png;base64,next");
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(bin.cutouts).toBe(placed);
+    },
+  );
+
+  it("preserves separate photo-relative pockets when adding from the mobile action bar", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
+    let trace!: ReturnType<typeof useTrace>, panel!: ReturnType<typeof usePanelState>, library!: ReturnType<typeof useShapeLibrary>;
+    function Probe() { trace = useTrace(); panel = usePanelState(); library = useShapeLibrary(); return null; }
+    await React.act(async () => root.render(<Router hook={memoryLocation({ path: "/" }).hook}><PanelProvider><ShapeLibraryProvider><TraceProvider>
+      <Probe /><SeedExportOutline format="svg" /><TraceWorkspacePage />
+    </TraceProvider></ShapeLibraryProvider></PanelProvider></Router>));
+    React.act(() => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline, {
+        outer: exportOutline[0].outer.map(p => ({ x: p.x + 24, y: p.y + 12 })), holes: [],
+      }] });
+      panel.setPanelOpen(true);
+    });
+    expect(host.querySelector('[data-testid="controls-handoff"] input[type="checkbox"]')).toBeNull();
+    React.act(() => panel.setPanelOpen(false));
+    expect(host.textContent).not.toContain("Keep these outlines together");
+    React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Add to bin")!.click());
+    expect(library.shapes).toHaveLength(2);
+    expect(library.shapes.every(shape => shape.outlineMm.length === 1)).toBe(true);
+    const [first, second] = library.shapes.map(shape => library.pendingPlacements[shape.id]);
+    expect(second.batchId).toBe(first.batchId);
+    expect(second.center.x - first.center.x).toBe(12);
+    expect(second.center.y - first.center.y).toBe(-6);
+  });
+
   afterEach(() => {
     React.act(() => root.unmount());
     host.remove();
+    if (previousScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScrollIntoView);
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    sessionStorage.clear();
     vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -405,6 +629,8 @@ describe("Trace detection workflow", () => {
     async ({ format, includeProject }) => {
       await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} /><TracePage /></TraceProvider></PanelProvider>));
       React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+      expect(document.querySelector("#trace-export-format")?.textContent).toBe("SVG — vector outline");
+      if (format !== "svg") await chooseExportFormat(format);
       const checkbox = document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!;
       expect(checkbox.getAttribute("aria-checked")).toBe("false");
       expect(downloadBlob).not.toHaveBeenCalled();
@@ -441,12 +667,33 @@ describe("Trace detection workflow", () => {
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toMatch(/\.svg$/);
   });
 
-  it.each(["stl", "dxf"] as const)("blocks uncalibrated %s even when a caller bypasses the disabled UI", async (format) => {
+  it.each(["stl", "dxf"] as const)("opens with SVG for an uncalibrated draft last exported as %s", async (format) => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format={format} calibrated={false} /><TracePage /></TraceProvider></PanelProvider>));
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
-    expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
+    expect(document.querySelector("#trace-export-format")?.textContent).toBe("SVG — image pixels (unscaled)");
+    await React.act(async () => document.querySelector<HTMLButtonElement>("#trace-export-format")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const physicalOptions = [...document.querySelectorAll('[role="option"]')].filter(option => /^(STL|DXF)/.test(option.textContent ?? ""));
+    expect(physicalOptions).toHaveLength(2);
+    expect(physicalOptions.every(option => option.getAttribute("aria-disabled") === "true")).toBe(true);
+    await React.act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(generateSTL).not.toHaveBeenCalled();
     expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("cancels without downloading and starts each export with SVG", async () => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    const before = { outline: current.outline, calibration: current.calibration, history: current.history };
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    await chooseExportFormat("stl");
+    expect(document.querySelector('[role="slider"][aria-label="Extrusion height"]')).not.toBeNull();
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(current).toMatchObject(before);
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    expect(document.querySelector("#trace-export-format")?.textContent).toBe("SVG — vector outline");
   });
 
   it("rechecks physical scale when confirming an already-open export", async () => {
@@ -454,8 +701,25 @@ describe("Trace detection workflow", () => {
     function Probe(): null { current = useTrace(); return null; }
     await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    await chooseExportFormat("stl");
     React.act(() => current.dispatch({ type: "SET_CALIBRATION", calibration: null }));
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    expect(generateSTL).not.toHaveBeenCalled();
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("blocks a pending replacement ruler when export is already open: %s", async alreadyOpen => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
+    if (alreadyOpen) React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+    React.act(() => current.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(current.calibration).not.toBeNull();
+    if (alreadyOpen) await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
+    else {
+      React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
+      expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
+    }
     expect(generateSTL).not.toHaveBeenCalled();
     expect(downloadBlob).not.toHaveBeenCalled();
   });
@@ -513,10 +777,35 @@ describe("Trace detection workflow", () => {
     expect(current.history.stack).toHaveLength(1);
   });
 
-  it("leaves edited work untouched when a replacement cannot be decoded", async () => {
+  it.each(["unsupported", "oversized"])("rejects a %s replacement before decoding and preserves the trace", async kind => {
     let current!: ReturnType<typeof useTrace>;
     function Probe(): null { current = useTrace(); return null; }
     await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
+    const before = { imageUrl: current.imageUrl, outline: current.outline, history: current.history, calibration: current.calibration };
+    const file = kind === "unsupported" ? new File(["text"], "notes.txt", { type: "text/plain" }) : new File(["photo"], "large.png", { type: "image/png" });
+    if (kind === "oversized") Object.defineProperty(file, "size", { value: TRACE_PHOTO_MAX_BYTES + 1 });
+    const input = host.querySelector<HTMLInputElement>('input[aria-label="Choose another photo"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(decodeImageFileMock).not.toHaveBeenCalled();
+    expect(current).toMatchObject(before);
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).toContain(kind === "unsupported" ? "Choose a PNG, JPG, or WebP photo" : "Choose a photo up to 10 MB");
+    decodeImageFileMock.mockResolvedValueOnce({ imageUrl: "replacement", naturalSize: { width: 800, height: 600 } });
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["photo"], "valid.webp", { type: "image/webp" })] });
+    await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(host.querySelector('[data-testid="trace-photo-error"]')).toBeNull();
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Replace this photo");
+    expect(current).toMatchObject(before);
+  });
+
+  it.each([false, true])("shows a photo decode error without changing edited work (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+    let current!: ReturnType<typeof useTrace>;
+    let panel!: ReturnType<typeof usePanelState>;
+    function Probe(): null { current = useTrace(); panel = usePanelState(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => panel.setPanelOpen(true));
     const before = { outline: current.outline, history: current.history, calibration: current.calibration };
     decodeImageFileMock.mockRejectedValueOnce(new Error("Unsupported image"));
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
@@ -526,6 +815,11 @@ describe("Trace detection workflow", () => {
     expect(current.outline).toBe(before.outline);
     expect(current.history).toBe(before.history);
     expect(current.calibration).toBe(before.calibration);
+    expect(panel.panelOpen).toBe(!mobile);
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).toContain("Save it as PNG, JPG, or WebP and try again");
+    expect(host.querySelector('[data-testid="trace-photo-error"]')?.textContent).not.toContain("Unsupported image");
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="trace-photo-error"] button')!.click());
+    expect(host.querySelector('[data-testid="trace-photo-error"]')).toBeNull();
   });
 
   it.each([true, false])("waits for recovery before reviewing a chosen photo (valid=%s)", async (valid) => {
@@ -574,20 +868,33 @@ describe("Trace detection workflow", () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedExportOutline format="stl" /><TracePage /></TraceProvider></PanelProvider>));
     React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="export-trace"]')!.click());
     React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!.click());
+    await chooseExportFormat("stl");
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-export"]')!.click());
     expect(generateSTL).toHaveBeenCalledTimes(1);
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
-  it("keeps downloads behind one link above the empty drop zone", async () => {
+  it("keeps photo and scale tips collapsed with calibration downloads available inside", async () => {
     await React.act(async () => {
       root.render(<PanelProvider><TraceProvider><TracePage /></TraceProvider></PanelProvider>);
     });
-    expect(host.textContent).toContain("Photograph the tool on a calibration sheet or a plain, contrasting background");
+    const tips = host.querySelector<HTMLDetailsElement>("details")!;
+    expect(tips.open).toBe(false);
+    expect(tips.querySelector("summary")?.textContent).toBe("Photo & scale tips");
+    await React.act(async () => tips.querySelector("summary")!.click());
+    expect(tips.open).toBe(true);
+    expect(tips.textContent).toContain("Put your tool on a plain, contrasting background and photograph it from above.");
+    expect(host.textContent).toContain("Set the scale using:");
+    expect(host.textContent).toContain("A measurement");
+    expect(host.textContent).toContain("The corners of a sheet of paper");
+    expect(host.textContent).toContain("A calibration sheet or aid (optional)");
+    expect(host.textContent).not.toContain("You don’t need a photo");
     expect(host.textContent).not.toContain("Paper sheets and");
     expect(host.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
     expect(host.textContent).not.toContain("A4 PDF");
-    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download calibration aids")).toHaveLength(1);
+    expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Download optional calibration aids")).toHaveLength(1);
+    await React.act(async () => tips.querySelector("summary")!.click());
+    expect(tips.open).toBe(false);
   });
 
   it("keeps the current photo visible until its replacement is decoded", async () => {
@@ -648,6 +955,14 @@ describe("Trace detection workflow", () => {
     );
   });
 
+  it("detects in the newly committed region instead of a stale region from the previous render", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getImageDataMock).toHaveBeenCalledExactlyOnceWith({ x: 80, y: 90, width: 200, height: 100 });
+    expect(processImageMock).toHaveBeenCalledOnce();
+  });
+
   it("waits for a detection region instead of tracing immediately on image load", async () => {
     await React.act(async () => {
       root.render(
@@ -682,5 +997,17 @@ describe("Trace detection workflow", () => {
       height: 200,
     });
     expect(processImageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("recognizes an aid independently of the accepted ruler and maps it into the cropped trace", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    getDetectionFrameMock.mockReturnValue({ imageData: getImageDataMock(), toWorking: { x: .5, y: .25 }, sourceImageUrl: "data:image/png;base64,source" });
+    vi.mocked(autoCalibrate).mockResolvedValue({ kind: "calibrated-strip",
+      calibration: { startX: 200, startY: 400, endX: 200, endY: 500, lengthMm: 35 },
+      solution: { mmPerPx: .35, markerIds: [22, 23], pairCount: 1, maxDeviation: 0, ruler: { a: { x: 200, y: 400 }, b: { x: 200, y: 500 }, lengthMm: 35 } },
+      aidOutline: [{ x: 200, y: 400 }, { x: 240, y: 400 }, { x: 240, y: 600 }, { x: 200, y: 600 }],
+    });
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(processImageMock.mock.lastCall![1].detect.occlusions).toEqual([[{ x: 20, y: 10 }, { x: 40, y: 10 }, { x: 40, y: 60 }, { x: 20, y: 60 }]]);
   });
 });

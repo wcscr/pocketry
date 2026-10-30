@@ -40,7 +40,7 @@ export interface ResolvePocketGeometryRequest {
 }
 export const SURFACE_FIT_CHECK_MIN_THICKNESS_MM = 0.4;
 export const SURFACE_FIT_CHECK_MAX_THICKNESS_MM = 3;
-export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 0.8;
+export const SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM = 0.6;
 
 export interface BuildBinLayoutRequest {
   /**
@@ -78,6 +78,8 @@ export interface BuildBinRequest {
   stackingRimMaterialThicknessMm?: number;
   /** Inward width of the flush top border. Ignored when the bin has a lip. */
   borderWidthMm?: number;
+  /** Include internal divider caps in the existing rim material. */
+  colorDividerTops?: boolean;
 }
 
 export interface BuildBinStats {

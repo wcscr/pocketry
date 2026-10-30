@@ -44,6 +44,41 @@ describe("placementInsetMm", () => {
 });
 
 describe("autoPlaceFresh", () => {
+  it.each([false, true])("retains photo spacing including overlap when adding to an occupied bin: %s", occupied => {
+    const shapes = [rectShape("a", 30, 20), rectShape("b", 20, 15), rectShape("c", 10, 8)];
+    const placements = {
+      a: { batchId: "photo", center: { x: 100, y: 60 } },
+      b: { batchId: "photo", center: { x: 110, y: 55 } },
+      c: { batchId: "photo", center: { x: 150, y: 85 } },
+    };
+    const existingShape = rectShape("existing", 25, 25);
+    const existing = parseCutoutPlacement({ id: "existing", shapeId: "existing", position: { x: 0, y: 0 } });
+    const shapesById = new Map([...shapes, existingShape].map(s => [s.id, s]));
+    const result = occupied
+      ? autoPlaceIncremental(shapes, { lip: "standard", gridX: 2, gridY: 2, existing: [existing], shapesById, placements })
+      : autoPlaceFresh(shapes, "standard", "full", placements);
+    expect(result.overflow).toBe(false);
+    const a = result.cutouts.find(c => c.shapeId === "a")!;
+    const b = result.cutouts.find(c => c.shapeId === "b")!;
+    const c = result.cutouts.find(c => c.shapeId === "c")!;
+    expect({ x: b.position.x - a.position.x, y: b.position.y - a.position.y }).toEqual({ x: 10, y: -5 });
+    expect({ x: c.position.x - a.position.x, y: c.position.y - a.position.y }).toEqual({ x: 50, y: 25 });
+    expect(result.cutouts.every(c => c.rotationDeg === 0)).toBe(true);
+    expect(existing.position).toEqual({ x: 0, y: 0 });
+  });
+
+  it.each([false, true])("keeps an oversized arrangement intact instead of repacking it, fixed size: %s", fixed => {
+    const shapes = [rectShape("a", 10, 10), rectShape("b", 10, 10)];
+    const placements = { a: { batchId: "photo", center: { x: 0, y: 0 } }, b: { batchId: "photo", center: { x: 1000, y: 25 } } };
+    const result = fixed
+      ? autoPlaceIncremental(shapes, { lip: "none", gridX: 2, gridY: 2, existing: [], shapesById: new Map(), keepBinSize: true, placements })
+      : autoPlaceFresh(shapes, "none", "full", placements);
+    expect(result.overflow).toBe(true);
+    expect(result.cutouts[1].position.x - result.cutouts[0].position.x).toBe(1000);
+    expect(result.cutouts[1].position.y - result.cutouts[0].position.y).toBe(25);
+    if (fixed) expect([result.gridX, result.gridY]).toEqual([2, 2]);
+  });
+
   it("preserves inward clearance and valid packing bounds for a very narrow pocket", () => {
     const shape = rectShape("thin", 30, 0.8);
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, clearanceMm: -2 });
@@ -576,4 +611,17 @@ describe("autoArrangeLayout", () => {
     const fresh = autoPlaceFresh(shapes, "standard");
     expect(autoArrangeLayout(fresh.cutouts, new Map(), "standard")).toBeNull();
   });
+});
+
+it("packs new pockets and arranges inside actual arbitrary bounds even with a much smaller retained grid", () => {
+  const spec = parseBinSpec({ gridX: 1, gridY: 1, gridPitch: "quarter", heightUnits: 2, lip: "none", flatBottom: true, arbitrarySizeMm: { width: 123.2, length: 37.8 } });
+  const shape = rectShape("wide", 90, 15);
+  const byId = new Map([[shape.id, shape]]);
+  const placed = autoPlaceIncremental([shape], { spec, gridX: 1, gridY: 1, gridPitch: "quarter", lip: "none", existing: [], shapesById: byId });
+  expect(placed.overflow).toBe(false); expect(placed.gridX).toBe(1); expect(placed.gridY).toBe(1);
+  const arranged = autoArrangeLayout(placed.cutouts, byId, spec.lip, spec.gridPitch, [], spec, spec)!;
+  expect(arranged.overflow).toBe(false);
+  const fitted = fitRectangularBinToPlacements(placed.cutouts, byId, spec);
+  expect(fitted.specPatch!.arbitrarySizeMm!.width).toBeGreaterThan(90);
+  expect(fitted.specPatch!.arbitrarySizeMm!.width).toBeLessThan(110);
 });

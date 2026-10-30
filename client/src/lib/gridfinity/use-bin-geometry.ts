@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { withoutFontSources } from "@shared/gridfinity/project-font-sources";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { BufferGeometry } from "three";
@@ -96,6 +97,7 @@ export interface BinGeometryState {
       pocketFloorMaterialThicknessMm?: number;
       stackingRimMaterialThicknessMm?: number;
       borderWidthMm?: number;
+      colorDividerTops?: boolean;
     },
   ) => Promise<BuildBinResult>;
   /** Builds a standalone filled outline for an inexpensive print-fit check. */
@@ -129,6 +131,7 @@ export function useBinGeometry(
     pocketFloorThicknessMm?: number;
     stackingRimThicknessMm?: number;
     borderWidthMm?: number;
+    colorDividerTops?: boolean;
   } = {},
   /** Live gesture values for preview only; exports still use the committed arguments above. */
   livePreview?: {
@@ -147,7 +150,8 @@ export function useBinGeometry(
   const inputRef = useRef({ key: "", gesture: undefined as object | undefined, epoch: 0 });
   const sequenceRef = useRef(0);
   const displayedSequenceRef = useRef(0);
-  const previousKeysRef = useRef<{ model: string; unrounded: string } | null>(null);
+  const displayedRequestKeyRef = useRef<string | null>(null);
+  const previousKeysRef = useRef<{ model: string; unrounded: string; cavity: string } | null>(null);
   const detailedCostsRef = useRef(new Map<string, number>());
   const geometryRef = useRef<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
@@ -199,7 +203,7 @@ export function useBinGeometry(
   const modelInputs = useMemo(
     () =>
       ({
-        spec: previewSpec,
+        spec: withoutFontSources(previewSpec),
         segments: quality.circularSegments,
         fingerHoleChordTolerance: quality.fingerHoleChordToleranceMm,
         budget: quality.cutoutVertexBudget,
@@ -214,6 +218,7 @@ export function useBinGeometry(
           previewMaterials.stackingRimThicknessMm ??
           MULTICOLOR_RIM_THICKNESS_MM,
         borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
+        colorDividerTops: previewMaterials.colorDividerTops ?? false,
       }),
     [
       previewSpec,
@@ -225,6 +230,7 @@ export function useBinGeometry(
       previewMaterials.pocketFloorThicknessMm,
       previewMaterials.stackingRimThicknessMm,
       previewMaterials.borderWidthMm,
+      previewMaterials.colorDividerTops,
     ],
   );
 
@@ -253,15 +259,23 @@ export function useBinGeometry(
     const epoch = inputRef.current.epoch;
     const unroundedKey = JSON.stringify({ ...modelInputs,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, topFilletMm: 0, bottomFilletMm: 0 })) ?? [] });
+    const cavityKey = JSON.stringify({ ...modelInputs,
+      pocketFloorThicknessMm: undefined, stackingRimThicknessMm: undefined, borderWidthMm: undefined, colorDividerTops: undefined,
+      cutouts: previewLayout?.cutouts.map(c => ({ ...c, colorCoverage: undefined, colorFloorAxis: undefined })) ?? [] });
     const previous = previousKeysRef.current;
     const sectionOnly = previous?.model === modelKey;
+    const materialOnly = previous?.cavity === cavityKey && previous.model !== modelKey;
     const roundingOnly = previous?.unrounded === unroundedKey && previous.model !== modelKey;
-    previousKeysRef.current = { model: modelKey, unrounded: unroundedKey };
+    previousKeysRef.current = { model: modelKey, unrounded: unroundedKey, cavity: cavityKey };
     // Cost is reused for positional edits, but not across changed dimensions,
     // depth/rounding settings, materials, quality, or shape identities.
     const costKey = JSON.stringify({ ...modelInputs,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, position: undefined, rotationDeg: undefined })) ?? [] });
-    const needsRefinement = !sectionOnly && needsProgressivePreview(
+    // A color-only edit does not need an unrounded cavity preview. Keep the
+    // complete previous partition visible, then replace every material once.
+    // Building/publishing a draft here repaints the same faces twice and also
+    // makes unchanged edges jump between sharp and rounded geometry.
+    const needsRefinement = !sectionOnly && !materialOnly && needsProgressivePreview(
       previewSpec, previewLayout, quality, detailedCostsRef.current.get(costKey),
     );
     setBuilding(true);
@@ -272,7 +286,7 @@ export function useBinGeometry(
     setValidationIssues([]);
 
     const request: BuildBinRequest = {
-      spec: previewSpec,
+      spec: withoutFontSources(previewSpec),
       quality,
       layout:
         previewLayout && (previewLayout.cutouts.length > 0 || previewLayout.fingerHoles.length > 0)
@@ -284,6 +298,7 @@ export function useBinGeometry(
       stackingRimMaterialThicknessMm:
         previewMaterials.stackingRimThicknessMm ?? MULTICOLOR_RIM_THICKNESS_MM,
       borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
+      colorDividerTops: previewMaterials.colorDividerTops ?? false,
     };
 
     const publish = (result: BuildBinResult, draft: boolean, interactive = false) => {
@@ -293,6 +308,7 @@ export function useBinGeometry(
         current.gesture === gesture && current.epoch === epoch;
       if ((obsolete && !intermediate) || sequence < displayedSequenceRef.current || (draft && detailedPublished)) return;
       displayedSequenceRef.current = sequence;
+      displayedRequestKeyRef.current = requestKey;
       const next = toBufferGeometry(result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh);
       const nextPocketFloor = result.materialMeshes?.pocketFloors
         ? toBufferGeometry(result.materialMeshes.pocketFloors) : null;
@@ -331,6 +347,29 @@ export function useBinGeometry(
       if (!draft) detailedPublished = true;
     };
 
+    const clearObsoleteGeometry = () => {
+      // A current draft remains useful after refinement fails. An older bin
+      // beside the current selection outline looks like a misplaced duplicate.
+      if (displayedRequestKeyRef.current === requestKey) return;
+      displayedRequestKeyRef.current = null;
+      geometryRef.current?.dispose();
+      pocketFloorGeometryRef.current?.dispose();
+      stackingRimGeometryRef.current?.dispose();
+      textGeometryRef.current.forEach(part => part.dispose());
+      geometryRef.current = null;
+      pocketFloorGeometryRef.current = null;
+      stackingRimGeometryRef.current = null;
+      textGeometryRef.current = [];
+      setGeometry(null);
+      setPocketFloorGeometry(null);
+      setStackingRimGeometry(null);
+      setTextGeometries([]);
+      setHasPocketFloor(false);
+      setHasStackingRim(false);
+      setBuiltSpec(null);
+      setPreviewIsDraft(false);
+    };
+
     const rememberCost = (result: BuildBinResult) => {
       if (section) return;
       const costs = detailedCostsRef.current;
@@ -358,6 +397,7 @@ export function useBinGeometry(
         publish(result, false);
       } catch (cause: unknown) {
         if (stale || cause instanceof WorkerCancelledError) return;
+        clearObsoleteGeometry();
         setError(`Detailed preview failed: ${cause instanceof Error ? cause.message : String(cause)}`);
         setBuilding(false);
       } finally {
@@ -387,6 +427,7 @@ export function useBinGeometry(
         // A draft is optional. If it fails, try the authored detailed geometry
         // before reporting an error; a failed simple build has no fallback.
         if (!needsRefinement) {
+          clearObsoleteGeometry();
           setError(cause instanceof Error ? cause.message : String(cause));
           setBuilding(false);
         }
@@ -428,6 +469,7 @@ export function useBinGeometry(
     () => () => {
       inputRef.current = { key: "", gesture: undefined, epoch: inputRef.current.epoch + 1 };
       previousKeysRef.current = null;
+      displayedRequestKeyRef.current = null;
       previewQueueRef.current.pending = null;
       clearTimeout(previewQueueRef.current.timer);
       previewQueueRef.current = newPreviewQueue();
@@ -456,10 +498,11 @@ export function useBinGeometry(
         pocketFloorMaterialThicknessMm?: number;
         stackingRimMaterialThicknessMm?: number;
         borderWidthMm?: number;
+        colorDividerTops?: boolean;
       } = {},
     ): Promise<BuildBinResult> => {
       const request: BuildBinRequest = {
-        spec,
+        spec: withoutFontSources(spec),
         quality: exportQuality,
         exportTopology: true,
         layout:
@@ -475,6 +518,7 @@ export function useBinGeometry(
         stackingRimMaterialThicknessMm:
           options.stackingRimMaterialThicknessMm,
         borderWidthMm: options.borderWidthMm,
+        colorDividerTops: options.colorDividerTops,
       };
       return ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
         channel: "export",
@@ -519,7 +563,7 @@ export function useBinGeometry(
         );
       }
       const request: BuildSurfaceFitCheckRequest = {
-        spec,
+        spec: withoutFontSources(spec),
         layout: {
           shapes: layout.shapes,
           cutouts: layout.cutouts,

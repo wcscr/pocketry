@@ -30,20 +30,49 @@ problem or identify another generator's lip geometry.
 
 ## Current behavior and implementation status
 
-**Construction → Wall thickness** appears when **Enable experimental features**
-is on in Settings and **Solid fill** is off. The
-0.95–3.00 mm setting defaults to Rebuilt's 0.95 mm wall and grows the main walls
-inward, reducing cavity space while preserving outside dimensions and base
+Returning from **Arbitrary** sizes to a Gridfinity pitch restores Gridfinity feet
+only when Arbitrary applied the flat bottom automatically. Explicit **Flat bottom**
+and **ULTIM8 jig pegs** choices stay selected, whether chosen before or during
+Arbitrary sizing. The Bottom menu labels an automatically applied base as
+**Flat bottom (automatic)**; choosing **Flat bottom** makes it an explicit preference.
+Dimensions must fit the selected pitch exactly. Schema v50 saves this distinction
+through reopening and undo/redo. Older saved flat bottoms retain their base because
+their original selection intent is unknown.
+
+**Construction → Wall thickness** is a standard control, visible when
+**Solid fill** is off. The
+0.95–3.00 mm setting grows the main walls inward, reducing cavity space while preserving outside dimensions and base
 geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
 top, preserving the original mating region. Without a lip, the thicker wall
 reaches the top. A 1u bin has no straight wall above the base to thicken.
 The setting applies to rectangular and custom footprints, including flat bottoms;
 preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
 the preference but uses the original solid-bin geometry, including at partial
-fill heights. Schema v32 defaults older designs and undo history to 0.95 mm.
-Turning experimental features off hides the control without changing the saved
-thickness or geometry. Loading a project with a custom thickness, including in
-undo/redo history, enables experimental features with the usual notification.
+fill heights.
+
+Bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.ostat.com/gridfinity_basic_cup):
+
+| Bin height | Hollow-wall thickness |
+| --- | --- |
+| Below 8U | 0.95 mm |
+| 8U to below 16U (including 15.5U) | 1.2 mm |
+| 16U and above | 1.6 mm |
+
+The displayed thickness updates automatically with height. Edit the slider or
+number directly to keep a custom value across height changes; **Use recommended**
+restores automatic sizing. A warning pops up after committing a value below the
+height recommendation, or increasing height into a band that makes a custom wall
+too thin. The chosen value remains applied. Drafts and slider drags do not warn
+until committed. Custom values, including 0.95 mm, survive saving, reopening, and
+undo/redo. Neither automatic nor custom wall thickness requires Experimental.
+
+Automatic mode is stored as a null wall preference. Schema v49 corrects older
+projects whose default 0.95 mm had been preserved as a fixed value, including
+v48 drafts, undo/redo history, and transform references. Legacy missing or
+0.95 mm preferences become automatic; other custom values stay fixed. Older
+0.95 mm values cannot distinguish an explicit choice from the original default,
+so those also adopt automatic mode. These are design defaults; physical tall-bin
+print quality and stiffness remain unqualified.
 
 The help button beside **Outer size** explains height units and the inherited
 rounded lip. With the lip off, it explains the flush height instead. The detailed
@@ -240,7 +269,7 @@ so a failed write cannot leave the restored document attached to the wrong entry
 Opening another design, opening a project file, and New Project all save the outgoing named
 design's latest edits before changing the autosave target. A failed save keeps
 the current design open. Library import/export also lives in Manage; the main
-Project section places New project, Open project, and Export project in one
+Project section places New project, Import Project, and Export project in one
 compact action row without a separate backup section. Both library opens
 (Open, Enter, and double-click) and opening a project file share a confirmation
 before replacing a nonempty unnamed draft, with Keep working as the safe choice.
@@ -288,7 +317,7 @@ by validation, cutters, fit checks, auto-placement bounds, and DXF/SVG export.
 
 The Bin Layout view also supports **selected-pocket contour editing** without a
 round trip through Trace: drag vertices, click an edge to insert a point, and
-right-click a point to remove it. Each committed gesture creates an immutable
+right-click a point to remove it immediately. Each committed gesture creates an immutable
 shape revision and updates only the selected pocket, so the worker cache is
 invalidated correctly and Bin undo/redo can switch between contour revisions.
 The pocket list now explicitly prompts selection before showing these controls;
@@ -375,6 +404,26 @@ depths are independently selectable from 0.2–3.0 mm for pocket floors and
 0.2–7.35 mm for the stacking rim (0.6 mm pocket-floor and 1.25 mm rim
 defaults). The rim limit is the full
 modeled lip depth and does not extend into the bin wall when a lip is enabled.
+Each pocket's **Pocket color** properties choose **Floor only** or **Entire
+interior**. Floor-only coverage can follow the insertion axis, stay aligned with
+the bin's vertical direction, or use object X/Y/Z. With no insertion clearance,
+Follow insertion axis uses object Z. This reference changes the material split,
+not the cavity or insertion clearance. Entire interior colors a lining around
+the walls and floor below the fill surface; its thickness is measured laterally
+and axially in the object's frame. For every coverage mode, top-edge rounding
+keeps the bin color, and pocket color starts below the actual rounding depth.
+All masks replace existing material and keep retained holes and through openings
+intact. Color and thickness remain shared
+under **Materials & Colors**, while coverage and reference are independent for
+each placement, including linked copies. New pockets follow insertion; schema
+40 preserves the bin-vertical appearance of older saved projects.
+Axis-based floor masks use only the layer behind the finite object's supporting
+surface. Extra insertion-clearance walls and surfaces introduced by the remaining
+floor limit keep the bin color; **Bin vertical** colors the bin's bottom surface.
+Native extrusion bands define the lining before posing the object. A 0.01 mm
+setback from parallel faces and a 0.01 mm overlap into the cavity prevent
+coincident material sheets, without changing the cavity. Color-only edits retain
+the complete previous preview until one fully rounded replacement is ready.
 With Solid fill off, the pocket-floor color and thickness apply to the hollow
 bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
 This layer extends down from the base top without changing the floor height,
@@ -383,8 +432,8 @@ Without a lip, Materials & Colors offers **Top border** with independent color
 width (0.2–20 mm inward, default 0.95 mm) and depth settings. Wider borders extend
 into the filled top or label shelf; hollow bins color only existing wall material.
 The band follows the perimeter, including custom bins, and also supports 1u bins,
-with the requested depth clipped to existing bin material. Both accents are cut
-downward from the original surfaces, never added above them; STL warns before
+with the requested depth clipped to existing bin material. Accents replace
+existing material behind their selected surfaces; STL warns before
 dropping those color assignments. Pocket controls, Materials, and export show a
 nonblocking warning when a pocket's colored floor layer reaches the underside
 recesses. This uses the resolved depth and selected color thickness: ordinary
@@ -558,11 +607,16 @@ at the rim), `cutout-overlap`, a thin-material warning below `d_div = 1.2`, `too
 photo is the single most likely way a user wastes six hours of print time. Errors block
 export; warnings do not.
 
+Pocket-to-pocket overlaps are warnings, including overlaps caused by clearance or
+top-edge rounding and exact 3D intersections between tilted or submerged pockets.
+Their cuts combine in the printable bin, while each pocket remains independently
+editable. Merging several pockets into one editable pocket object is future work.
+Other validation errors continue to block export.
+
 ## Persistence: none server-side in v1
 
-`server/storage.ts` has only `MemStorage` (a `Map`, wiped on restart), there is no Drizzle
-implementation and no `migrations/`, and the client never reads anything back. Instead,
-the landed client implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
+The unused image API, in-memory storage, and database scaffold have been removed.
+The original browser-local implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
 hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
 traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
 Library with active-project autosave, and explicit `.pocketry.json` backup
@@ -581,8 +635,9 @@ server-side queries individual rings.
 
 Separately: the fire-and-forget `POST /api/images` was removed from the client
 (2026-08-15) — nothing ever read the copies back, and silently uploading every
-trace was the wrong default. The server routes remain for a future explicit
-opt-in; `images.svgData` must not become the de facto geometry store.
+trace was the wrong default. The unused server routes were removed on 2026-10-16
+to eliminate their authorization and unbounded-storage risks. Any future server
+persistence needs an explicit opt-in and a new security design.
 
 ## Export
 
@@ -725,3 +780,25 @@ statistics remain labeled as updating, and brief builds no longer flash a
 percentage indicator. Full detail and export mesh comparisons across 14 designs
 remain identical to the baseline. See `preview-performance.md` for evidence and
 remaining complex-fillet/section latency limitations.
+
+### Flexible jig prototypes
+
+ULTIM8 flat backing attaches straight pegs directly to the existing body, removing
+root height. Preview and Layout keep the installed coordinate frame; STL and all
+3MF colour/text parts rotate together to print pocket-side down, pegs up. Corners
+only and every 2–5 holes apply in both staggered lattice directions and retain
+corner anchors. Through openings omit whole intersected shafts before sparse
+anchor selection. Sparse choices require flat backing; changing to upright roots
+restores every-hole pegs. Pocket roofs, hollow interiors, lips and raised text can
+introduce bridges, overhangs or reduced bed contact in this orientation. Warnings
+do not block export; inspect the slice and print a small fit/strength test.
+
+Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
+body height (2–420 mm). It supports rectangular flat and ULTIM8 bases; bodies below
+7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
+coordinates; grid pitches are available again only when dimensions exactly fit,
+so switching never silently snaps a design. Cell footprint editing and Gridfinity
+feet require returning to a grid. Layout, geometry, fit templates, placement,
+validation, undo and project exports share the exact dimensions. Arbitrary sizes
+stay fixed during automatic placement; Fit bin to contents resizes in millimetres.
+Schema 39 defaults older projects to their prior grid and full peg lattice.

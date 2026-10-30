@@ -15,6 +15,8 @@ import {
   binHeightMm,
   binTotalHeightMm,
   binWallHeightMm,
+  binWallThicknessMm,
+  defaultBinWallThicknessMm,
   D_WALL,
   GRID_PITCH_DIVISOR,
   gridPitchMm,
@@ -44,6 +46,17 @@ import {
  * the derived identities go red.
  */
 describe("gridfinity standard constants", () => {
+  it.each([[7.5, 0.95], [8, 1.2], [15, 1.2], [15.5, 1.2], [16, 1.6], [60, 1.6]])(
+    "uses %sU height to choose a %s mm hollow wall unless explicitly fixed", (heightUnits, thickness) => {
+      expect(defaultBinWallThicknessMm(heightUnits)).toBe(thickness);
+      expect(binWallThicknessMm({ heightUnits, fill: "none", wallThicknessMm: null })).toBe(thickness);
+      expect(binWallThicknessMm({ heightUnits, fill: "none" })).toBe(thickness);
+      expect(binWallThicknessMm({ heightUnits, fill: "none", wallThicknessMm: 0.95 })).toBe(0.95);
+      expect(binWallThicknessMm({ heightUnits, fill: "none", wallThicknessMm: 2.4 })).toBe(2.4);
+      expect(binWallThicknessMm({ heightUnits, fill: "solid", wallThicknessMm: null })).toBe(D_WALL);
+    },
+  );
+
   it("preserves physical dimensions through pitch changes and refuses incompatible coarsening", () => {
     const original = { gridX: 4, gridY: 3, gridPitch: "full" as const };
     const half = changeGridPitchPreservingSize(original, "half")!;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { Point } from "@shared/geometry/types";
 
 /** Reuses the rendered SVG scene, so photo, contour and zoom stay registered. */
@@ -49,9 +49,19 @@ function ActiveContourMagnifier({ sceneId, point, canvasWidth, canvasHeight, com
     className="pointer-events-none absolute z-40 overflow-hidden rounded-lg border-2 border-primary bg-background shadow-lg"
     style={{ left: corner.right ? Math.max(8, canvasWidth - outerSize - 8) : 8,
       top: corner.bottom ? Math.max(8, canvasHeight - outerSize - 64) : Math.min(64, maxTop) }}>
-    <svg width={size} height={size} viewBox={`${point.x - viewSize / 2} ${point.y - viewSize / 2} ${viewSize} ${viewSize}`}>
+    <svg width={size} height={size} viewBox={`${point.x - viewSize / 2} ${point.y - viewSize / 2} ${viewSize} ${viewSize}`}
+      style={{ "--contour-handle-visibility": "hidden" } as CSSProperties}>
       <use href={`#${sceneId}`} />
-      <circle cx={point.x} cy={point.y} r="2.5" fill="none" stroke="currentColor" strokeWidth="0.5" />
+      {/* Hide the scene's enlarged hit handles, then mark the exact point with
+          a 6px hollow ring and separated crosshair arms at fixed lens size. */}
+      <g transform={`translate(${point.x} ${point.y})`} fill="none" data-testid="magnifier-reticle">
+        {[{ color: "white", width: 1 }, { color: "#18181b", width: 1 / 3 }].map(({ color, width }) => (
+          <g key={color} stroke={color} strokeWidth={width}>
+            <circle r="1" />
+            <path d="M-4 0H-2 M2 0H4 M0-4V-2 M0 2V4" />
+          </g>
+        ))}
+      </g>
     </svg>
     <div className="absolute bottom-0 inset-x-0 bg-background/90 text-center text-[10px]">3× precision view</div>
   </div>;

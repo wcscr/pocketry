@@ -24,8 +24,23 @@ function legalFilesPlugin(): Plugin {
   };
 }
 
+/** Disable Vite's desktop-editor shortcut; Pocketry's browser editors are unaffected. */
+function disableEditorLaunchPlugin(): Plugin {
+  return {
+    name: "pocketry-disable-editor-launch",
+    configureServer(server) {
+      // Mount before Vite's launcher using the same Connect path matching. Parsing
+      // with new URL would normalize dot segments that Connect still routes here.
+      server.middlewares.use("/__open-in-editor", (_req, res) => {
+        res.statusCode = 404;
+        res.end("Not Found");
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), legalFilesPlugin()],
+  plugins: [react(), legalFilesPlugin(), disableEditorLaunchPlugin()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
@@ -51,8 +66,13 @@ export default defineConfig({
     format: "es",
   },
   server: {
+    host: "127.0.0.1",
+    allowedHosts: [],
     fs: {
-      allow: [".."],
+      strict: true,
+      // Shared source and dependencies are imported by the client and its workers.
+      // Other repository files are denied unless explicitly imported by client code.
+      allow: ["client", "shared", "node_modules"].map(directory => path.resolve(__dirname, directory)),
     },
   },
   assetsInclude: ["**/*.wasm"],

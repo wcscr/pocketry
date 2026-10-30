@@ -1,7 +1,9 @@
+import "@/lib/project/mock-storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 import { PROJECT_SCHEMA_VERSION, parseProjectDoc } from "@shared/gridfinity/project";
 import { type LibraryBackup } from "@shared/gridfinity/library";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import {
@@ -26,9 +28,28 @@ const backup = (docs: Record<string, unknown>[] = [DOC]): LibraryBackup => ({
   })),
 });
 
-beforeEach(() => { memory.clear(); vi.clearAllMocks(); });
+beforeEach(async () => { memory.clear(); await loadProjectDoc(); vi.clearAllMocks(); });
 
 describe("library JSON transfer", () => {
+  it("keeps independent colors through library backup, import, switches and reload", async () => {
+    const first = { ...DOC, materials: { ...DEFAULT_BIN_MATERIALS,
+      binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
+      colorPocketFloors: false, borderWidthMm: 4,
+    } };
+    const second = { ...DOC, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#aabbcc" } };
+    const a = await saveProjectToLibrary(first, "A", null);
+    const b = await saveProjectToLibrary(second, "B", null);
+    const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
+    memory.clear(); await loadProjectDoc();
+    await importProjectLibrary(exported);
+    for (const [id, materials] of [
+      [a.activeProjectId!, first.materials], [b.activeProjectId!, second.materials],
+      [a.activeProjectId!, first.materials],
+    ] as const) {
+      expect((await openProjectFromLibrary(id)).doc.materials).toEqual(materials);
+      expect((await loadProjectDoc())!.materials).toEqual(materials);
+    }
+  });
   it("preserves the Ryobi split through repeated project switches, reloads and library exports", async () => {
     const cutter = parseProjectDoc(ryobiReloadFixture)!;
     const imported = await importProjectLibrary(backup([cutter, DOC]));
@@ -42,7 +63,7 @@ describe("library JSON transfer", () => {
       expect((await loadProjectDoc())!.cutouts).toEqual(cutter.cutouts);
     }
     const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     await importProjectLibrary(exported);
     const restored = await openProjectFromLibrary(cutterEntry.id);
     expect(restored.doc.cutouts).toEqual(cutter.cutouts);
@@ -53,7 +74,7 @@ describe("library JSON transfer", () => {
     await saveProjectToLibrary(DOC, "Tools", null);
     await saveProjectToLibrary({ ...DOC, keepBinSize: true }, "Fixed tools", null);
     const exported = JSON.parse(JSON.stringify(await exportProjectLibrary()));
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     const result = await importProjectLibrary(exported);
     expect(result).toMatchObject({ imported: 2, upgraded: 0, renamed: 0 });
     expect(result.library.activeProjectId).toBeNull();
@@ -69,7 +90,7 @@ describe("library JSON transfer", () => {
     const exported = await exportProjectLibrary(updated);
     expect(exported.projects[0]).toMatchObject({ id: library.activeProjectId, doc: { ...updated, name: "Tools" } });
     expect((await loadProjectDoc())!.keepBinSize).toBeUndefined();
-    memory.clear();
+    memory.clear(); await loadProjectDoc();
     await saveProjectDoc(updated);
     expect((await exportProjectLibrary(updated)).projects).toEqual([]);
   });
@@ -147,6 +168,7 @@ describe("library JSON transfer", () => {
   it("preserves unreadable stored designs in exports and on merge", async () => {
     const future = { schemaVersion: 999, important: [1, 2, 3] };
     memory.set(LIBRARY_KEY, { schemaVersion: 1, activeProjectId: null, projects: backup([future]).projects });
+    await loadProjectDoc();
     expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
     await importProjectLibrary(backup());
     expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
@@ -224,9 +246,19 @@ describe("library JSON transfer", () => {
   it("does not replace a library when its current working copy is unreadable", async () => {
     await saveProjectToLibrary(DOC, "Existing", null);
     memory.set("tooltrace:project:v1", { schemaVersion: 999 });
+    await expect(loadProjectDoc()).rejects.toThrow("kept intact");
     const before = structuredClone([...memory]);
     await expect(importProjectLibrary(backup(), "replace")).rejects.toThrow("current design is unreadable");
     expect([...memory]).toEqual(before);
   });
 
+});
+
+it.each(["merge", "replace"] as const)("rejects an over-budget final document atomically during %s", async mode => {
+  await saveProjectToLibrary(DOC, "Keep me", null);
+  const before = JSON.stringify([...memory]);
+  const oversized = structuredClone(DOC);
+  oversized.shapes[0].outlineMm[0].outer = Array(10_001).fill({ x: 0, y: 0 });
+  await expect(importProjectLibrary(backup([DOC, oversized]), mode)).rejects.toThrow();
+  expect(JSON.stringify([...memory])).toBe(before);
 });

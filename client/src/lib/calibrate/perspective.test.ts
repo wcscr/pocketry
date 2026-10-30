@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   perspectiveLayout,
+  RECTIFIED_IMAGE_MAX,
   projectMarkersThroughTemplate,
   proposalFromTemplateMarkers,
   runPerspectiveCorrection,
@@ -268,8 +269,9 @@ describe("perspective correction with the shipped OpenCV build", () => {
         "a4",
       );
 
-      expect(corrected.width).toBeLessThanOrEqual(1200);
-      expect(corrected.height).toBeLessThanOrEqual(1200);
+      expect(corrected.width).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.width);
+      expect(corrected.height).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.height);
+      expect(corrected.width * corrected.height).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.maxPixels);
       const paper = corrected.paperBounds!;
       expect(paper.x).toBeGreaterThan(0);
       expect(paper.y).toBeGreaterThan(0);
@@ -322,8 +324,9 @@ describe("perspective correction with the shipped OpenCV build", () => {
     const photo = imageData(1000, 800);
     const corrected = runPerspectiveCorrection(cv, photo, proposal, "a4");
     const rulerScale = mmPerPixel(corrected.calibration)!;
-    expect(corrected.width).toBeLessThanOrEqual(1200);
-    expect(corrected.height).toBeLessThanOrEqual(1200);
+    expect(corrected.width).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.width);
+    expect(corrected.height).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.height);
+    expect(corrected.width * corrected.height).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.maxPixels);
     expect(corrected.paperBounds!.x).toBeGreaterThan(0);
     expect(corrected.fullPhotoUnavailableReason).toBeUndefined();
     const photoScale = corrected.pxPerMm / 2;
@@ -348,6 +351,28 @@ describe("perspective correction with the shipped OpenCV build", () => {
     expect(corrected.paperBounds).toBeUndefined();
     expect(corrected.fullPhotoUnavailableReason).toMatch(/too tilted/);
     expect(mmPerPixel(corrected.calibration)).toBeCloseTo(0.25, 9);
+  });
+
+  it("preserves fine source details outside the sheet instead of shrinking the whole photo to 1200 pixels", () => {
+    const photo = imageData(2800, 1800);
+    for (let y = 400; y < 700; y++) {
+      const at = (y * photo.width + 2202) * 4;
+      photo.data[at] = photo.data[at + 1] = photo.data[at + 2] = 0;
+    }
+    const proposal: PerspectiveProposal = { source: "manual", points: [
+      { x: 800, y: 200 }, { x: 1640, y: 200 }, { x: 1640, y: 1388 }, { x: 800, y: 1388 },
+    ] };
+    const corrected = runPerspectiveCorrection(cv, photo, proposal, "a4");
+    expect(corrected.width).toBe(2800); expect(corrected.height).toBe(1800);
+    expect(pixel(corrected.imageData, 2202, 500)).toEqual([0, 0, 0, 255]);
+    expect(pixel(corrected.imageData, 2201, 500)).toEqual([255, 255, 255, 255]);
+    expect(mmPerPixel(corrected.calibration)).toBeCloseTo(.25, 9);
+    const old = runPerspectiveCorrection(cv, photo, proposal, "a4", { width: 1200, height: 1200 });
+    const oldScale = old.pxPerMm / corrected.pxPerMm;
+    // The old raster loses more than half the contrast of the one-pixel edge.
+    expect(pixel(old.imageData, 2202 * oldScale, 500 * oldScale)[0]).toBeGreaterThan(127);
+    expect((corrected.paperBounds!.width - 1) * mmPerPixel(corrected.calibration)!).toBeCloseTo(
+      (old.paperBounds!.width - 1) * mmPerPixel(old.calibration)!, 8);
   });
 
   it("rejects an invalid or out-of-frame aid instead of substituting paper scale", () => {

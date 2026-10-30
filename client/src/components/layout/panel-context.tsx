@@ -16,9 +16,20 @@ interface PanelState {
   togglePanel: () => void;
   traceRestart: (() => void) | null;
   registerTraceRestart: (action: (() => void) | null) => void;
+  /** Survives navigation from Welcome or Trace until Bin can show the samples. */
+  sampleLibraryRequested: boolean;
+  setSampleLibraryRequested: (requested: boolean) => void;
   /** Survives navigation from Trace until Bin can open the library manager. */
   libraryRequested: boolean;
   setLibraryRequested: (requested: boolean) => void;
+  /** Opens Bin's existing new-project confirmation after navigating from Trace. */
+  newProjectRequested: boolean;
+  setNewProjectRequested: (requested: boolean) => void;
+  /** The workspace can supply its editable identity in the shared status bar. */
+  projectStatusHost: HTMLDivElement | null;
+  setProjectStatusHost: (host: HTMLDivElement | null) => void;
+  hasWorkspaceProjectStatus: boolean;
+  setHasWorkspaceProjectStatus: (active: boolean) => void;
 }
 
 const PanelContext = createContext<PanelState | null>(null);
@@ -27,6 +38,10 @@ export function PanelProvider({ children }: { children: ReactNode }): JSX.Elemen
   const [panelOpen, setPanelOpen] = useState(() => !getMobileLayoutSnapshot());
   const [traceRestart, setTraceRestart] = useState<(() => void) | null>(null);
   const [libraryRequested, setLibraryRequested] = useState(false);
+  const [newProjectRequested, setNewProjectRequested] = useState(false);
+  const [sampleLibraryRequested, setSampleLibraryRequested] = useState(false);
+  const [projectStatusHost, setProjectStatusHost] = useState<HTMLDivElement | null>(null);
+  const [hasWorkspaceProjectStatus, setHasWorkspaceProjectStatus] = useState(false);
   const registerTraceRestart = useCallback((action: (() => void) | null) => setTraceRestart(() => action), []);
 
   const value = useMemo<PanelState>(
@@ -36,10 +51,18 @@ export function PanelProvider({ children }: { children: ReactNode }): JSX.Elemen
       togglePanel: () => setPanelOpen((open) => !open),
       traceRestart,
       registerTraceRestart,
+      sampleLibraryRequested,
+      setSampleLibraryRequested,
       libraryRequested,
       setLibraryRequested,
+      newProjectRequested,
+      setNewProjectRequested,
+      projectStatusHost,
+      setProjectStatusHost,
+      hasWorkspaceProjectStatus,
+      setHasWorkspaceProjectStatus,
     }),
-    [panelOpen, traceRestart, registerTraceRestart, libraryRequested],
+    [panelOpen, traceRestart, registerTraceRestart, libraryRequested, newProjectRequested, sampleLibraryRequested, projectStatusHost, hasWorkspaceProjectStatus],
   );
 
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;
@@ -52,6 +75,16 @@ export function useTraceRestartAction(action: (() => void) | null): void {
     register?.(action);
     return () => register?.(null);
   }, [action, register]);
+}
+
+/** Use one identity row in the app shell, retaining a local fallback without it. */
+export function useProjectStatusHost(): HTMLDivElement | null {
+  const { projectStatusHost, setHasWorkspaceProjectStatus } = usePanelState();
+  useEffect(() => {
+    setHasWorkspaceProjectStatus(!!projectStatusHost);
+    return () => setHasWorkspaceProjectStatus(false);
+  }, [projectStatusHost, setHasWorkspaceProjectStatus]);
+  return projectStatusHost;
 }
 
 export function usePanelState(): PanelState {

@@ -1,0 +1,70 @@
+[
+  {
+    "profile": "desktop",
+    "triangles": 2222,
+    "bounds_mm": [
+      [
+        -41.75,
+        41.75
+      ],
+      [
+        -41.75,
+        41.75
+      ],
+      [
+        0.0,
+        12.5
+      ]
+    ],
+    "volume_mm3": 55672.04,
+    "non_two_manifold_edges": 0,
+    "svg_dimensions": {
+      "width": "83.5mm",
+      "height": "83.5mm",
+      "viewBox": "0 0 83.5 83.5"
+    },
+    "svg_circle_count": 4,
+    "svg_groups": [
+      "bin-outline",
+      "pocket-openings",
+      "finger-access",
+      "peg-locations"
+    ],
+    "stl_sha256": "de12bb90bb7c18091919474efb9bbd65b1f945b969fa3d0a1713282f47d4ed0e",
+    "svg_sha256": "48d3895109f3fd1c5519afa7c8fcfa3f5230403e531eb56f9f5e782cc8157dce"
+  },
+  {
+    "profile": "mobile",
+    "triangles": 2462,
+    "bounds_mm": [
+      [
+        -41.75,
+        41.75
+      ],
+      [
+        -41.75,
+        41.75
+      ],
+      [
+        0.0,
+        12.5
+      ]
+    ],
+    "volume_mm3": 54839.013,
+    "non_two_manifold_edges": 0,
+    "svg_dimensions": {
+      "width": "83.5mm",
+      "height": "83.5mm",
+      "viewBox": "0 0 83.5 83.5"
+    },
+    "svg_circle_count": 4,
+    "svg_groups": [
+      "bin-outline",
+      "pocket-openings",
+      "finger-access",
+      "peg-locations"
+    ],
+    "stl_sha256": "cd6039cd8cb0ce84140ed4e22d0227f5f1bf57be390bc64e676ce27d66f884a1",
+    "svg_sha256": "13894309db9a63249190fce9a6c6764c647e76a5635fbbbe84dc52f1ef1da1e5"
+  }
+]

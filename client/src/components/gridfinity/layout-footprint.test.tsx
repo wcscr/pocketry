@@ -92,6 +92,13 @@ it.each(cases.flatMap(value => (["full", "half", "quarter"] as const).map(pitch 
     expect({ spec: store.spec, cutouts: store.cutouts, fingerHoles: store.fingerHoles }).toEqual(expanded);
   },
 );
+it("shows row and column divider footprints only while hollow", () => {
+  React.act(() => store.dispatch({ type: "PATCH_SPEC", patch: { fill: "none", compartments: { rows: 2, columns: 3, dividerThicknessMm: 1.2, scoop: true } } }));
+  expect(host.querySelectorAll('[data-testid="layout-dividers"] path')).toHaveLength(3);
+  React.act(() => store.dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } }));
+  expect(host.querySelectorAll('[data-testid="layout-dividers"] path')).toHaveLength(0);
+});
+
 it("keeps all object coordinates unchanged for an edit that retains the grid bounds", () => {
   const original = load();
   clickCell({ x: 1, y: 1 });

@@ -51,7 +51,7 @@ async function parse(bytes: ArrayBuffer): Promise<Font> {
 function glyphsFor(font: Font, text: string, name: string): LocalFont["glyphs"] {
   const characters = [...new Set(text)];
   const missing = characters.filter(char => !font.charToGlyphIndex(char));
-  if (missing.length) throw new Error(`“${name}” does not include ${missing.map(char => `“${char}”`).join(", ")}. Choose a font that contains these characters or change the wording.`);
+  if (missing.length) throw new Error(`“${name}” does not include ${missing.map(char => `“${char}”`).join(", ")}. Choose a font that contains these characters or change the text.`);
   return Object.fromEntries(characters.map(char => {
     const glyph = font.charToGlyph(char);
     const o = glyph.path.commands.map(command => {
@@ -69,7 +69,7 @@ export async function inspectSystemFont(blob: Blob, name: string, text: string):
   if (!blob.size || blob.size > 20 * 1024 * 1024) throw new Error("Too large to save with this project");
   const font = await parse(await blob.arrayBuffer());
   const glyphs = glyphsFor(font, text, name);
-  if (!Object.values(glyphs).some(glyph => glyph.o.includes("m"))) throw new Error("No printable outlines for this wording");
+  if (!Object.values(glyphs).some(glyph => glyph.o.includes("m"))) throw new Error("No printable outlines for this text");
 }
 
 /** Store the compact source and only used glyph outlines, not an entire expanded character set. */

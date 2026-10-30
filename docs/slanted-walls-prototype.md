@@ -1,0 +1,18 @@
+# Slanted walls prototype
+
+Pocketry can tilt both opposing bin walls or just one along either the X or Y axis while leaving the Gridfinity base flat. This supports tilted pockets and separate support wedges under angled bins. Angles range from −89° to +89°, measured from vertical. The selected wall moves by `(height above the 7 mm base) × tan(angle)`. Positive angles move it toward the positive end of the selected axis; negative angles move it the other way. With both walls selected, the body leans uniformly. With one wall selected, the opposite wall stays vertical and the connecting side walls taper between them.
+
+An inward wall may meet the vertical wall before reaching the requested height. This produces a **warning**, while preview and export remain available. The body is clipped at the vertical wall instead of folding through it, forming a support wedge. Its actual height is the lower of the requested height and `7 mm + outer span ÷ abs(tan(angle))`; the displayed dimensions and rim outline use that height. The opening can close before the ridge, including an enclosed cavity when Solid fill is off. Solid fill is suitable for a solid support. Tabs and other geometry above the intersection are clipped with the body. The base remains unchanged. A 90° wall is excluded because its horizontal displacement is undefined.
+
+Enable **App settings → Enable experimental features**, then in **Bin → Construction**, enable **Slanted walls (prototype)**, choose Width (X) or Length (Y), and set the angle. **Walls to tilt** offers Both walls, Left only (−X), or Right only (+X) for X; for Y it offers Front only (−Y) or Back only (+Y). Older designs retain Both walls. With a pocket selected, **Match selected pocket angle** copies its single-axis lean while preserving the selected wall. The 2D layout shows the fixed base footprint with a dashed outline for the rim. The displayed outer dimensions include the body overhang. Turning experimental features off hides the slant controls while preserving saved geometry, previews, exports, and undo/redo history.
+
+This prototype uses a flush rim. Rim color stays at the requested bin height; a wedge ending below it has no colored ridge. Label tabs follow the slanted wall and can be placed on any boundary edge; their top remains at the requested rim height and is clipped with a closing wedge. On bins below 3u, the tab becomes shallower so its sloped support stays above the fixed base. It rejects a stacking lip, surface text, separate finger access, and a 1u body. Existing pocket depth and tilt controls still apply. The 3D build checks pocket shafts against the actual slanted wall and label tab, and blocks export on a collision. The upper body can extend over adjacent Gridfinity cells, so a slanted bin may depend on neighboring bins or a drawer wall for support. Stacking, drawer clearance and physical fit have not been qualified; slicer checks cover only the cases documented below.
+
+Label undersides compensate for slant to retain their nominal support angle;
+shallow supports can extend down to the floor. Very steep slants retain the
+existing shelf and warn when that angle cannot be achieved. The specific
+30° compartment-label regression has been checked in PrusaSlicer and Bambu Studio
+at 0.2 mm; see [label support verification](label-tab-support.md) for the settings,
+remaining bridge warning and physical-print limits.
+
+The geometry is original to Pocketry. The concept was informed by [cdslug's slanted Gridfinity bin](https://github.com/cdslug/slanted-gridfinity) and the [IKEA Alex example](https://www.reddit.com/r/gridfinity/comments/1x8j3zi/slanted_gridfinity_bin_for_the_ikea_alex_top/).

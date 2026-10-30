@@ -1,6 +1,18 @@
 # FreeCAD macOS import-dialog crash: root cause
 
-Investigated 2026-10-15. **The reproduced crash is Qt's macOS accessibility cache ownership defect, QTBUG-134784.** It affects the installed FreeCAD 1.1.4 bundle using Qt 6.8.3 on macOS 26.6.2 arm64. A normal import on a corrected runtime still needs a passing local test; identifying this defect does not close that release gate.
+**Baseline update — 2026-10-29:** the ownership-defect diagnosis below is retained.
+Later on October 15, FreeCAD 26.3.0RC1 / Qt 6.11.2 completed four normal imports
+of actual A/B Mini Socket Set packages with no process crash; geometry/edit/save/
+reopen checks passed. Unicode cutter-name decoding failed under default import
+settings. This bounded RC1 result supersedes the earlier startup-only status
+below, not the failure of FreeCAD 1.1.4 or the need for full application
+qualification. No new native test is claimed in the current refresh. See
+[FreeCAD acceptance](freecad-step-acceptance.md); raw later evidence is in the
+primary checkout's `outputs/example-cad-import-2026-10-15/REPORT.md`.
+
+## Historical diagnosis — 2026-10-15
+
+Investigated 2026-10-15. **The reproduced crash is Qt's macOS accessibility cache ownership defect, QTBUG-134784.** It affects the installed FreeCAD 1.1.4 bundle using Qt 6.8.3 on macOS 26.6.2 arm64. At this diagnosis checkpoint, a normal import on a corrected runtime had not yet passed; the later bounded result is recorded above and does not close every release gate.
 
 ## Local proof
 
@@ -18,17 +30,17 @@ The upstream [Qt fix b1ed5f6](https://github.com/qt/qtbase/commit/b1ed5f656f064e
 
 The observed trigger includes our automated accessibility controls. This is not evidence that every unobserved human import fails, nor evidence that accessibility users can be excluded from support. No accessibility services, import dialogs, security protections or preferences were disabled as a workaround. Detailed ownership attribution comes from the upstream fix and binary comparison; this investigation did not record allocation/free traces or NSZombie output.
 
-## Corrected-build status and cleanup
+## Earlier corrected-build startup attempt and cleanup
 
 An official [FreeCAD 26.3rc1](https://github.com/FreeCAD/FreeCAD/releases/tag/26.3rc1) macOS15 arm64 image was downloaded into the local investigation folder. Its 604144480 bytes match GitHub's SHA-256 `593a25880b5e8aef815db8e04e6d728cb5f13e3faee7170f490d4d72058b028f`. The copied app passed deep code-signature verification and macOS Gatekeeper as a notarized Developer ID application. Its shipped Qt is 6.11.2 and the corrected cache retains are present.
 
-**No patched-runtime STEP import/edit/reopen pass is claimed.** Startup reached the initial configuration-migration dialog. Attaching computer-use controls after the CLI launch inadvertently started a second instance of this same test copy. Both test instances were closed with no CAD documents open, and the test disk image was unmounted. The installed `/Applications/FreeCAD.app` was not replaced or modified. The test copy remains only in the local output folder.
+**At this earlier checkpoint, no patched-runtime STEP import/edit/reopen pass was claimed.** Startup reached the initial configuration-migration dialog. Attaching computer-use controls after the CLI launch inadvertently started a second instance of this same test copy. Both test instances were closed with no CAD documents open, and the test disk image was unmounted. The installed `/Applications/FreeCAD.app` was not replaced or modified. The test copy remains only in the local output folder.
 
 The migration dialog did not respond to our controls, and it was not accepted. That observation is not classified as the previous Qt crash and is not evidence of a successful import. The release candidate is a test build, not a qualified production workaround.
 
 ## Consequence for Pocketry
 
-Do not alter the authored CAD geometry, flatten names, convert to triangles, or suppress the import dialog to mask this crash. A normal supported build containing the Qt fix must pass both `bin.step` and `design-objects.step` from A and B, then edit, save and reopen them before the FreeCAD workflow gate can close. Existing twelve-case FreeCAD API and 32-comparison independent STEP evidence remains historical and separate.
+Do not alter the authored CAD geometry, flatten names, convert to triangles, or suppress the import dialog to mask this crash. A supported build containing the Qt fix must pass the complete required corpus with names intact before the FreeCAD workflow gate can close. The later RC1 Mini Socket Set geometry pass covers both STEP files from A and B, editing, saving, and reopening, but its Unicode failure remains open. Existing twelve-case FreeCAD API and 32-comparison independent STEP evidence remains historical and separate.
 
 Both unchanged branches were re-exported from authored fixtures for this follow-up, with revision, package and snapshot hashes retained locally. Their files differ from the older retained fixture exports, so no byte-identical comparison to the October 7 input corpus is claimed.
 

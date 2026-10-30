@@ -2,6 +2,7 @@
 import type { Manifold } from "manifold-3d";
 
 import type { Kernel } from "@/lib/manifold/runtime";
+import { preparePrintableMesh } from "./printable-mesh";
 
 /**
  * Extraction of renderable/exportable mesh data from a manifold solid — the
@@ -35,19 +36,24 @@ export interface MeshDataOptions {
   sharpAngleDeg?: number;
 }
 
-/** Rebuild in the precision used by STL/3MF before extracting printable faces.
- * CSG can leave distinct double-precision vertices at identical Float32
- * positions. The resulting zero-area faces survive ordinary index-only
- * topology checks. A 0.1 micrometre simplification removes those seams while
- * preserving dimensions far below the application's modelling resolution. */
-export function preparePrintableSolid(kernel: Kernel, solid: Manifold): Manifold {
-  if (solid.isEmpty()) return solid;
-  const floatMesh = solid.getMesh();
-  floatMesh.merge();
-  const rebuilt = kernel.arena.track(new kernel.Manifold(floatMesh));
-  const printable = kernel.arena.track(rebuilt.simplify(0.0001));
-  if (printable.status() !== "NoError") throw new Error("Could not prepare printable mesh topology.");
-  return printable;
+/**
+ * The one-way boundary from native solids to printable Float32 geometry.
+ * Keep all CSG and material partitioning in the kernel before this call:
+ * rebuilding a rounded mesh in Manifold can change its occupied volume.
+ * Only explicit kernel merge pairs identify property seams; coincident
+ * coordinates alone do not make two vertices topologically identical.
+ */
+export function extractPrintableMeshData(_kernel: Kernel, solid: Manifold): MeshData {
+  const mesh = solid.getMesh();
+  return {
+    ...preparePrintableMesh({
+      positions: copyChannel(mesh, 0, 3),
+      indices: new Uint32Array(mesh.triVerts),
+      mergeFromVert: mesh.mergeFromVert,
+      mergeToVert: mesh.mergeToVert,
+    }),
+    normals: null,
+  };
 }
 
 /**
@@ -95,11 +101,63 @@ export function extractMeshData(
       `extractMeshData: expected ≥ 6 properties after calculateNormals, got ${mesh.numProp}`,
     );
   }
-  return {
-    positions: copyChannel(mesh, 0, 3),
-    normals: copyChannel(mesh, 3, 3),
-    indices: new Uint32Array(mesh.triVerts),
+  const positions = copyChannel(mesh, 0, 3);
+  const normals = copyChannel(mesh, 3, 3);
+  const indices = new Uint32Array(mesh.triVerts);
+  weightPreviewNormals(positions, normals, indices, mesh.mergeFromVert, mesh.mergeToVert);
+  return { positions, normals, indices };
+}
+
+/**
+ * Respect the kernel's crease groups, but weight their normals by face area.
+ * Microscopic CSG seam triangles must not bend the shading of a broad planar
+ * floor. Explicit merge pairs preserve topology across property seams; equal
+ * coordinates alone are deliberately insufficient to join separate surfaces.
+ * This changes only preview normals, never positions or printable geometry.
+ */
+function weightPreviewNormals(
+  positions: Float32Array,
+  normals: Float32Array,
+  indices: Uint32Array,
+  mergeFrom: Uint32Array,
+  mergeTo: Uint32Array,
+): void {
+  const count = positions.length / 3;
+  const parent = Uint32Array.from({ length: count }, (_, i) => i);
+  const root = (i: number): number => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
   };
+  for (let i = 0; i < mergeFrom.length; i++) parent[root(mergeFrom[i])] = root(mergeTo[i]);
+  const groups = new Map<string, number>();
+  const group = new Uint32Array(count);
+  for (let i = 0; i < count; i++) {
+    const j = i * 3;
+    const key = `${root(i)}:${normals[j]},${normals[j + 1]},${normals[j + 2]}`;
+    let id = groups.get(key);
+    if (id === undefined) { id = groups.size; groups.set(key, id); }
+    group[i] = id;
+  }
+  const sums = new Float64Array(groups.size * 3);
+  for (let i = 0; i < indices.length; i += 3) {
+    const a = indices[i] * 3, b = indices[i + 1] * 3, c = indices[i + 2] * 3;
+    const ux = positions[b] - positions[a], uy = positions[b + 1] - positions[a + 1], uz = positions[b + 2] - positions[a + 2];
+    const vx = positions[c] - positions[a], vy = positions[c + 1] - positions[a + 1], vz = positions[c + 2] - positions[a + 2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    for (let corner = 0; corner < 3; corner++) {
+      const j = group[indices[i + corner]] * 3;
+      sums[j] += nx; sums[j + 1] += ny; sums[j + 2] += nz;
+    }
+  }
+  for (let i = 0; i < count; i++) {
+    const j = group[i] * 3, length = Math.hypot(sums[j], sums[j + 1], sums[j + 2]);
+    if (length > 0 && Number.isFinite(length)) {
+      for (let axis = 0; axis < 3; axis++) normals[i * 3 + axis] = sums[j + axis] / length;
+    }
+  }
 }
 
 /** De-interleaves `count` floats per vertex starting at `first`. */

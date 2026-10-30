@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 50,
+  "shapes": [
+    {
+      "id": "density-frame",
+      "name": "Rectangle pocket",
+      "outlineMm": [
+        {
+          "outer": [
+            {
+              "x": -40,
+              "y": -40
+            },
+            {
+              "x": 40,
+              "y": -40
+            },
+            {
+              "x": 40,
+              "y": 40
+            },
+            {
+              "x": -40,
+              "y": 40
+            }
+          ],
+          "holes": []
+        }
+      ],
+      "bboxMm": {
+        "minX": -40,
+        "minY": -40,
+        "maxX": 40,
+        "maxY": 40
+      },
+      "pointCount": 4,
+      "sourceMmPerPx": null,
+      "source": "basic-shape"
+    }
+  ],
+  "spec": {
+    "gridX": 2,
+    "gridY": 2,
+    "gridPitch": "full",
+    "arbitrarySizeMm": {
+      "width": 100,
+      "length": 100
+    },
+    "footprint": {
+      "kind": "rectangle"
+    },
+    "heightUnits": 0.7142857142857143,
+    "lip": "none",
+    "fill": "solid",
+    "wallThicknessMm": null,
+    "wallSlant": null,
+    "fillHeightPercent": 100,
+    "adjustFixedPocketDepths": true,
+    "flatBottom": false,
+    "autoFlatBottom": false,
+    "pegBottom": {
+      "diameterMm": 4.8,
+      "lengthMm": 4,
+      "underside": "flat",
+      "density": 2
+    },
+    "magnetHoles": false,
+    "magnetCrushRibs": false,
+    "screwHoles": false,
+    "labelTab": null,
+    "textColor": null,
+    "surfaceTexts": []
+  },
+  "cutouts": [
+    {
+      "id": "cutout-density-frame",
+      "shapeId": "density-frame",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "rotationDeg": 0,
+      "mirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "aspectRatioLocked": false,
+      "depth": {
+        "mode": "through"
+      },
+      "clearanceMm": 0,
+      "cornerRoundMm": 0,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "fingerHoles": []
+    }
+  ],
+  "fingerHoles": [],
+  "name": "Peg density frame regression",
+  "keepBinSize": true
+}

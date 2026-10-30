@@ -1,3 +1,6 @@
+import { withinImportLimits } from "./import-limits";
+import { sameJsonData } from "../json-data-equal";
+import { withFontSourceValidationCache } from "./local-font";
 import { z } from "zod";
 import { promoteLegacyAnalyticShape } from "./analytic-profile";
 
@@ -15,12 +18,17 @@ import {
   type DepthSpec,
 } from "./cutout";
 import { binSpecSchema, type BinSpec } from "./types";
+import { binMaterialsSchema } from "./materials";
 import { designLinkErrors } from "./design-links";
+import { objectGroupErrors } from "./object-groups";
 import { transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
-import { migrateProfilePocket } from "./rigid-pocket";
+import { hasRigidPocket, migrateProfilePocket } from "./rigid-pocket";
+import { hasPocketTilt } from "./pocket-orientation";
+import { pocketDepthChangePatch } from "./pocket-depth-change";
 import { resolvePocketSplit } from "./pocket-split";
 import { expandProjectFontSources } from "./project-font-sources";
+import { D_WALL } from "./standard";
 export { serializeProjectDoc } from "./project-font-sources";
 
 /**
@@ -64,10 +72,36 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 33 adds optional pocket insertion clearance; older pockets stay finite.
  * Version 34 retains unclipped source depth for rigid minimum-floor pockets.
  * Version 35 retains finite through-pocket objects during rigid movement.
- * Version 36 retains authored analytic profiles for CAD construction.
+ * Version 36 was used by two branches: ULTIM8 peg bottoms and saved project
+ * colors/material regions. Both fields are optional, so either variant migrates.
+ * Version 37 was used by two branches: optional peg density and traced pockets
+ * that still need a depth before printing.
+ * Version 38 restores every-hole pegs and repairs unraised surface-through pockets;
+ * main also used it for independent retained-material hole objects.
+ * Version 39 adds pegs-up flat backing, sparse pegs and arbitrary millimetre sizes;
+ * main also used it for local X/Y/Z insertion axes.
+ * Version 40 combines ULTIM8 sizes and bottoms with saved project colors.
+ * Version 41 combines ULTIM8 projects with main's pending-depth pockets.
+ * Version 42 retains appearance changes made by compound commands in undo history.
+ * Version 43 combines ULTIM8 settings with independent holes and insertion axes.
+ * Version 44 adds pocket color coverage and floor axes (also saved by an earlier
+ * version-40 preview branch); both optional-field variants migrate unchanged.
+ * Version 45 preserves optional one-axis slanted bin walls.
+ * Version 46 adds selection of one opposing wall while leaving the other vertical.
+ * Version 47 supports slants up to 89 degrees and clipped support wedges.
+ * Version 48 adds automatic hollow-wall thickness; older designs keep fixed walls.
+ * A preview branch also used version 48 for placement groups and geometry-only links.
+ * Version 49 restores automatic walls for legacy 0.95 mm defaults.
+ * Version 50 remembers flat bottoms applied automatically by arbitrary sizing.
+ * Version 51 combines placement groups with automatic walls and flat-bottom provenance.
+ * Version 52 adds hollow compartments, scoop bottoms, and repeated label tabs.
+ * Version 53 adds a retained hollow-bin bottom edge fillet radius.
+ * Version 54 adds optional bundled hardware symbols with independent size, rotation, and text gap.
+ * Version 55 retains authored analytic profiles for CAD construction. The earlier
+ * CAD investigation used version 36; preserve its explicit or absent metadata.
  */
 
-export const PROJECT_SCHEMA_VERSION = 36 as const;
+export const PROJECT_SCHEMA_VERSION = 55 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -131,16 +165,19 @@ const version24ProjectSchema = version23ProjectSchema.extend({
 const version25ProjectSchema = version24ProjectSchema.extend({ schemaVersion: z.literal(25) });
 
 /** History and the visible design must describe one consistent saved snapshot. */
-export const projectDocSchema = version16ProjectSchema.extend({
+const validatedProjectDocSchema = version16ProjectSchema.extend({
   schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+  /** Absent in older designs; the editor applies DEFAULT_BIN_MATERIALS. */
+  materials: binMaterialsSchema.optional(),
   transformOrigins: transformOriginsSchema.optional(),
   history: binHistorySchema.optional(),
 }).superRefine((project, ctx) => {
   for (const message of designLinkErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  for (const message of objectGroupErrors(project)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   if (!project.history) return;
   const current = project.history.stack[project.history.index]?.doc;
   const material = { spec: project.spec, cutouts: project.cutouts, fingerHoles: project.fingerHoles };
-  if (JSON.stringify(current) !== JSON.stringify(material)) {
+  if (!sameJsonData(current, material)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History does not match the saved design" });
   }
   // Shapes are immutable by id. Store one shared collection, including shapes
@@ -151,6 +188,15 @@ export const projectDocSchema = version16ProjectSchema.extend({
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["history"], message: "History requires unique, available shapes" });
   }
 });
+
+// Direct schema callers also need bounded font validation, including exports
+// and destination checks on the expanded in-memory editing representation.
+export const projectDocSchema = z.unknown().transform((input, ctx) => withFontSourceValidationCache(() => {
+  const result = validatedProjectDocSchema.safeParse(input);
+  if (result.success) return result.data;
+  for (const issue of result.error.issues) ctx.addIssue(issue);
+  return z.NEVER;
+}));
 
 const version14ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(14) });
 const version15ProjectSchema = version16ProjectSchema.extend({ schemaVersion: z.literal(15) });
@@ -266,26 +312,113 @@ function migrateLegacyProject(doc: LegacyProjectDoc): ProjectDoc {
   });
 }
 
+/** Remove only the validated density field from the short-lived v37 preview.
+ * Preserve all other fields for strict validation, including malformed data. */
+function removePreviewPegDensity(input: Record<string, unknown>): Record<string, unknown> {
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+  const spec = (value: unknown): unknown => {
+    if (!record(value) || !record(value.pegBottom)) return value;
+    const { density, ...pegBottom } = value.pegBottom;
+    if (density !== undefined && density !== "corners" && !(typeof density === "number" && Number.isInteger(density) && density >= 1 && density <= 5)) return value;
+    return { ...value, pegBottom };
+  };
+  const history = input.history;
+  const origins = input.transformOrigins;
+  return { ...input, spec: spec(input.spec),
+    ...(record(history) && Array.isArray(history.stack) ? { history: { ...history, stack: history.stack.map(entry =>
+      record(entry) && record(entry.doc) ? { ...entry, doc: { ...entry.doc, spec: spec(entry.doc.spec) } } : entry) } } : {}),
+    ...(record(origins) && Array.isArray(origins.pockets) ? { transformOrigins: { ...origins, pockets: origins.pockets.map(origin =>
+      record(origin) ? { ...origin, spec: spec(origin.spec) } : origin) } } : {}),
+  };
+}
+
+/** Legacy 0.95 mm values cannot distinguish defaults from overrides. Treat them
+ * as automatic, including v48 drafts migrated from older defaults. Keep custom values. */
+function migrateLegacyWallThickness(input: Record<string, unknown>): Record<string, unknown> {
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+  const spec = (value: unknown): unknown => record(value) && (value.wallThicknessMm === undefined || value.wallThicknessMm === D_WALL)
+    ? { ...value, wallThicknessMm: null } : value;
+  const history = input.history;
+  const origins = input.transformOrigins;
+  return { ...input, spec: spec(input.spec),
+    ...(record(history) && Array.isArray(history.stack) ? { history: { ...history, stack: history.stack.map(entry =>
+      record(entry) && record(entry.doc) ? { ...entry, doc: { ...entry.doc, spec: spec(entry.doc.spec) } } : entry) } } : {}),
+    ...(record(origins) && Array.isArray(origins.pockets) ? { transformOrigins: { ...origins, pockets: origins.pockets.map(origin =>
+      record(origin) ? { ...origin, spec: spec(origin.spec) } : origin) } } : {}),
+  };
+}
+
+/** Earlier depth controls froze ordinary through pockets at their blind floor.
+ * Repair only a proven, unchanged floor/depth from retained creation or history
+ * data. Raised/tilted finite pockets and documents without evidence stay intact. */
+function restoreLegacySurfaceThrough(doc: ProjectDoc): ProjectDoc {
+  const shapes = new Map(doc.shapes.map(shape => [shape.id, shape]));
+  type Reference = { cutout: CutoutPlacement; spec: BinSpec };
+  let references = new Map<string, Reference>();
+  const remember = (cutout: CutoutPlacement, spec: BinSpec) => {
+    if (!hasRigidPocket(cutout) && !hasPocketTilt(cutout) && !cutout.split && !cutout.profileBottom
+      && !(cutout.zOffsetMm ?? 0) && cutout.depth.mode !== "through") references.set(cutout.id, { cutout, spec });
+  };
+  for (const origin of doc.transformOrigins?.pockets ?? []) remember(origin.cutout, origin.spec);
+  const repair = (cutouts: CutoutPlacement[], spec: BinSpec): CutoutPlacement[] => cutouts.map(cutout => {
+    const reference = references.get(cutout.id), shape = shapes.get(cutout.shapeId);
+    if (cutout.depth.mode === "through" && hasRigidPocket(cutout) && !hasPocketTilt(cutout) && !cutout.split
+      && !cutout.profileBottom && reference && shape && reference.cutout.shapeId === cutout.shapeId) {
+      const previous = resolvePlacedPocketDepth(reference.spec, reference.cutout.depth, shape, reference.cutout);
+      if (previous.floorZ !== null && previous.floorZ > 0
+        && Math.abs(cutout.elevationMm! - previous.floorZ) < 1e-8
+        && Math.abs((cutout.depth.sourceDepthMm ?? -1) - (previous.axialDepthMm ?? -2)) < 1e-8) {
+        return { ...cutout, ...pocketDepthChangePatch(spec, shape, { ...cutout, elevationMm: undefined, zOffsetMm: undefined }, { mode: "through" }) };
+      }
+    }
+    remember(cutout, spec);
+    return cutout;
+  });
+  let currentReferences = references;
+  const history = doc.history ? { ...doc.history, stack: doc.history.stack.map((entry, index) => {
+    const cutouts = repair(entry.doc.cutouts, entry.doc.spec);
+    if (index === doc.history!.index) currentReferences = new Map(references);
+    return { ...entry, doc: { ...entry.doc, cutouts } };
+  }) } : undefined;
+  references = currentReferences;
+  return projectDocSchema.parse({ ...doc, cutouts: repair(doc.cutouts, doc.spec), history });
+}
+
 /**
  * Parses a stored document, returning null on any mismatch — a corrupt or
  * future-versioned doc must never clobber the in-memory state, and rendering
  * an empty designer beats crashing the workspace.
  */
 export function parseProjectDoc(input: unknown): ProjectDoc | null {
+  return withFontSourceValidationCache(() => parseProjectInput(input));
+}
+
+function parseProjectInput(input: unknown): ProjectDoc | null {
+  if (!withinImportLimits(input)) return null;
   if (input && typeof input === "object" && !Array.isArray(input)) {
     const legacy = input as Record<string, unknown>;
-    if (typeof legacy.schemaVersion === "number" && legacy.schemaVersion >= 1 && legacy.schemaVersion <= 35 && Array.isArray(legacy.shapes)) {
-      // Work on new records; the same shared shapes also serve retained history.
+    if (typeof legacy.schemaVersion === "number" && legacy.schemaVersion >= 1
+        && legacy.schemaVersion <= 35 && Array.isArray(legacy.shapes)) {
+      // The early CAD prototype used version 36. Its polygon-only revisions
+      // can be resaved by later main versions, so absence from 36 onward must
+      // remain authoritative. Only pre-CAD basic construction is recognized.
       input = { ...legacy, shapes: legacy.shapes.map(promoteLegacyAnalyticShape) };
     }
+  }
+  if (input && typeof input === "object" && !Array.isArray(input) && "schemaVersion" in input
+      && typeof input.schemaVersion === "number" && input.schemaVersion < 49) {
+    input = migrateLegacyWallThickness(input as Record<string, unknown>);
   }
   if (input && typeof input === "object" && "schemaVersion" in input && input.schemaVersion === PROJECT_SCHEMA_VERSION) {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
-    return parseProjectDoc({ ...input, schemaVersion: PROJECT_SCHEMA_VERSION });
+    const legacy = input as Record<string, unknown>;
+    const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;
+    const migrated = parseProjectDoc({ ...cleaned, schemaVersion: PROJECT_SCHEMA_VERSION });
+    return migrated && (legacy.schemaVersion as number) >= 35 && (legacy.schemaVersion as number) <= 37 ? restoreLegacySurfaceThrough(migrated) : migrated;
   }
   const result = projectDocSchema.safeParse(input);
   if (result.success) {

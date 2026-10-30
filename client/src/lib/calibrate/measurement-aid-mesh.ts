@@ -1,6 +1,6 @@
 import type { Kernel } from "@/lib/manifold/runtime";
 import { roundedRectPolygon } from "@/lib/gridfinity/profiles";
-import { extractMeshData } from "@/lib/mesh/mesh-data";
+import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { MEASUREMENT_AIDS, type MeasurementAidLength } from "./reference-strip";
@@ -37,8 +37,8 @@ export function measurementAidMeshes(kernel: Kernel, length: MeasurementAidLengt
   const black = arena.track(blank.intersect(ink));
   const white = arena.track(blank.subtract(black));
   return [
-    { name: `${length} mm white carrier`, mesh: extractMeshData(kernel, white), material: { name: "Opaque white", displayColor: "#FFFFFF" } },
-    { name: "Black markers, label and graduations", mesh: extractMeshData(kernel, black), material: { name: "Opaque black", displayColor: "#000000" } },
+    { name: `${length} mm white carrier`, mesh: extractPrintableMeshData(kernel, white), material: { name: "Opaque white", displayColor: "#FFFFFF" } },
+    { name: "Black markers, label and graduations", mesh: extractPrintableMeshData(kernel, black), material: { name: "Opaque black", displayColor: "#000000" } },
   ];
 }
 

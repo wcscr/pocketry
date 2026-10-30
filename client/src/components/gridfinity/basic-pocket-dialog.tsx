@@ -11,7 +11,7 @@ import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport";
  * as drawing. Nothing is added to the library until the user submits.
  */
 export function BasicPocketDialog({ kind, onClose, onDraw }: {
-  kind: BasicPocketShape; onClose: () => void; onDraw: () => void;
+  kind: BasicPocketShape; onClose: () => void; onDraw: (depthMm: number) => void;
 }) {
   const { spec, dispatch } = useBin();
   const { storeShape } = useShapeLibrary();
@@ -22,8 +22,8 @@ export function BasicPocketDialog({ kind, onClose, onDraw }: {
   const number = (value: string) => Number(value.trim().replace(",", "."));
   const w = number(width), l = kind === "rectangle" ? number(length) : w, d = number(depth);
   // Bound the input before generating a circle's tessellated contour.
-  const valid = [w, l].every(value => Number.isFinite(value) && value >= 1 && value <= 2000)
-    && Number.isFinite(d) && d > 0 && d <= spec.heightUnits * 7;
+  const validDepth = Number.isFinite(d) && d > 0 && d <= spec.heightUnits * 7;
+  const valid = [w, l].every(value => Number.isFinite(value) && value >= 1 && value <= 2000) && validDepth;
   const add = () => {
     if (!valid) return;
     const pocket = createBasicPocket(kind, kind === "circle" ? { x: 0, y: 0 } : { x: -w / 2, y: -l / 2 },
@@ -50,7 +50,7 @@ export function BasicPocketDialog({ kind, onClose, onDraw }: {
           <Input inputMode="decimal" enterKeyHint="done" value={depth} onChange={event => setDepth(event.target.value)} /></label>
         {!valid && <p role="status" className="text-xs text-destructive">Use dimensions from 1 to 2000 mm and a positive depth up to {spec.heightUnits * 7} mm.</p>}
         <Button type="submit" className="min-h-11 w-full" disabled={!valid}>Place in center</Button>
-        <Button type="button" variant="outline" className="min-h-11 w-full" onClick={onDraw}>Draw on canvas</Button>
+        <Button type="button" variant="outline" className="min-h-11 w-full" disabled={!validDepth} onClick={() => { if (validDepth) onDraw(d); }}>Draw on canvas</Button>
       </form>
     </DialogContent>
   </Dialog>;

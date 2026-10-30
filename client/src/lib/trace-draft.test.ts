@@ -11,7 +11,7 @@ vi.mock("idb-keyval", () => ({
 import { set } from "idb-keyval";
 import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot, TRACE_DRAFT_KEY } from "./trace-draft";
 
-const image = "data:image/png;base64,AA==";
+const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
 const outline = [{ outer: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 0, y: 30 }], holes: [] }];
 const calibrated = () => {
   let state = traceReducer(initialTraceState, { type: "SOURCE_LOADED", imageUrl: image, fileName: "Driver" });
@@ -26,6 +26,57 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("recovers an added contour, its selected corners, and creation history", async () => {
+    const before = { ...calibrated(), processing: false };
+    const added = traceReducer(before, { type: "ADD_CONTOUR" });
+    await saveTraceDraft(traceDraftSnapshot(added));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.outline).toEqual(added.outline);
+    expect(restored.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    expect(restored.mode).toBe("edit");
+    expect(restored.calibration).toEqual(before.calibration);
+    expect(traceReducer(restored, { type: "UNDO" }).outline).toEqual(before.outline);
+    expect(traceReducer(traceReducer(restored, { type: "UNDO" }), { type: "REDO" }).outline).toEqual(added.outline);
+  });
+  it.each([false, true])("recovers a replacement ruler without losing accepted scale (complete: %s)", async complete => {
+    const before = calibrated();
+    let pending = traceReducer(before, { type: "SET_MODE", mode: "calibrate" });
+    pending = traceReducer(pending, { type: "SET_DRAFT_CALIBRATION", draftCalibration: complete
+      ? { startX: 20, startY: 30, endX: 120, endY: 30 } : { startX: 20, startY: 30 } });
+    if (complete) pending = traceReducer(pending, { type: "SET_MODE", mode: "pan" });
+    pending = traceReducer(pending, { type: "SET_RULER_LENGTH_INPUT", value: "75" });
+    await saveTraceDraft(traceDraftSnapshot(pending));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.calibration).toEqual(before.calibration);
+    expect(restored.draftCalibration).toEqual(pending.draftCalibration);
+    expect(restored.rulerLengthInput).toBe("75");
+    const cancelled = traceReducer(restored, { type: "CANCEL_MANUAL_CALIBRATION" });
+    expect(cancelled.calibration).toEqual(before.calibration);
+    expect(cancelled.draftCalibration).toBeNull();
+    expect(cancelled.rulerLengthInput).toBe("182");
+    expect(cancelled.outline).toEqual(before.outline);
+    expect(cancelled.history).toEqual(before.history);
+  });
+
+  it("persists aligned photos and restores their matching contours, crop, and scale with Undo", async () => {
+    const before = { ...calibrated(), processing: false, region: { x: 10, y: 20, width: 40, height: 60 } };
+    const aligned = traceReducer(before, { type: "ALIGN_UPRIGHT", outline: before.outline, expectedOutline: before.outline, radians: .5 });
+    await saveTraceDraft(traceDraftSnapshot(aligned));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.imageAlignment).toEqual(aligned.imageAlignment);
+    expect(restored.imageUrl).toBe(before.imageUrl);
+    const undone = traceReducer(restored, { type: "UNDO" });
+    expect(undone.imageAlignment).toBeNull(); expect(undone.region).toEqual(before.region);
+    expect(undone.outline).toEqual(before.outline); expect(undone.calibration).toEqual(before.calibration);
+    expect(traceReducer(undone, { type: "REDO" }).imageAlignment).toEqual(aligned.imageAlignment);
+  });
+
+  it("accepts older drafts without photo alignment", () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const { imageAlignment: _alignment, ...legacy } = snapshot.state;
+    expect(traceDraftSchema.parse({ ...snapshot, state: legacy }).state.imageAlignment).toBeNull();
+  });
+
   it("recovers the photo, physical scale, edits, original source and undo history without a running job", async () => {
     const state = calibrated();
     const snapshot = traceDraftSnapshot(state)!;
@@ -109,4 +160,45 @@ describe("browser-local Trace recovery", () => {
     await saveTraceDraft(traceDraftSnapshot(calibrated()));
     expect((await loadTraceDraft())?.state.fileName).toBe("Driver");
   });
+});
+
+it.each(["imageUrl", "perspectiveOriginalImageUrl"] as const)("rejects unsafe recovered %s before publishing either image", async field => {
+  const snapshot = traceDraftSnapshot(calibrated())!;
+  const bytes = Uint8Array.from(atob(image.split(",")[1]), c => c.charCodeAt(0));
+  new DataView(bytes.buffer).setUint32(16, 100_000);
+  const unsafe = `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`;
+  const stored = { ...snapshot, state: { ...snapshot.state, [field]: unsafe } };
+  storage.set(TRACE_DRAFT_KEY, stored);
+  await expect(loadTraceDraft()).rejects.toThrow("too large to decode");
+  expect(storage.get(TRACE_DRAFT_KEY)).toBe(stored);
+});
+
+it("retains estimated-edge review regions through edits, recovery, rotation and undo", async () => {
+  const region = [{ x: 10, y: 15 }, { x: 20, y: 15 }, { x: 20, y: 25 }, { x: 10, y: 25 }];
+  const before = { ...calibrated(), processing: false, region: null };
+  const detected = traceReducer(before, { type: "DETECTED", imageUrl: image, region: null,
+    outline, rawOutline: outline, svg: "", estimatedEdgeRegions: [region] });
+  const edited = traceReducer(detected, { type: "OUTLINE_COMMITTED", outline: outline.map(s => ({ ...s, outer: [...s.outer] })) });
+  const aligned = traceReducer(edited, { type: "ALIGN_UPRIGHT", outline: edited.outline, expectedOutline: edited.outline, radians: 0.5 });
+  expect(aligned.estimatedEdgeRegions).not.toEqual([region]);
+  await saveTraceDraft(traceDraftSnapshot(aligned));
+  const recovered = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+  expect(recovered.estimatedEdgeRegions).toEqual(aligned.estimatedEdgeRegions);
+  const undone = traceReducer(recovered, { type: "UNDO" });
+  expect(undone.estimatedEdgeRegions).toEqual([region]);
+  expect(traceReducer(undone, { type: "REDO" }).estimatedEdgeRegions).toEqual(aligned.estimatedEdgeRegions);
+  const redetected = traceReducer(undone, { type: "DETECTED", imageUrl: image, region: null, outline, rawOutline: outline, svg: "" });
+  expect(redetected.estimatedEdgeRegions).toEqual([]);
+  expect(traceReducer(redetected, { type: "UNDO" }).estimatedEdgeRegions).toEqual([region]);
+  expect(traceReducer(undone, { type: "SOURCE_LOADED", imageUrl: image, fileName: "New photo" }).estimatedEdgeRegions).toEqual([]);
+  const { estimatedEdgeRegions: _areas, ...legacy } = traceDraftSnapshot(detected)!.state;
+  expect(traceDraftSchema.parse({ ...traceDraftSnapshot(detected), state: legacy }).state.estimatedEdgeRegions).toEqual([]);
+});
+
+it("rotates estimated areas together with a quarter-turned photo and history", () => {
+  const state = { ...calibrated(), processing: false, estimatedEdgeRegions: [outline[0].outer],
+    history: { stack: [{ outline, margin: 0, label: "Detected", estimatedEdgeRegions: [outline[0].outer] }], index: 0 } };
+  const rotated = traceReducer(state, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: state.imageSize, maxSize: { width: 800, height: 800 } });
+  expect(rotated.estimatedEdgeRegions).toEqual([rotated.outline[0].outer]);
+  expect(rotated.history.stack[0].estimatedEdgeRegions).toEqual(rotated.estimatedEdgeRegions);
 });

@@ -13,6 +13,7 @@ import {
   type LabColor,
 } from "./background";
 import { applySensitivity, otsuThreshold } from "./otsu";
+import { restoreThinFeatures } from "./thin-features";
 import { DETECT_DEFAULTS, type DetectOptions, type ImageLike, type ScoreField } from "./types";
 
 /**
@@ -61,6 +62,7 @@ export function buildScoreFieldJS(
     morphOpen(mask, width, height, kernel);
     morphClose(mask, width, height, kernel);
   }
+  restoreThinFeatures(score, mask, width, height, iso, kernel);
   gateByMask(score, mask);
 
   return {

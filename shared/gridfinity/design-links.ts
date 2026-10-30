@@ -4,16 +4,28 @@ import type { BinSpec } from "./types";
 export type DesignObjectKind = "pocket" | "finger";
 export interface DesignObjects { cutouts: CutoutPlacement[]; fingerHoles: FingerHole[] }
 
+/** Link like objects, or manage an existing link from any selected member. */
+export function canManageDesignLinks(objects: DesignObjects, selection: readonly { kind: DesignObjectKind; id: string }[]): boolean {
+  return (["pocket", "finger"] as const).some(kind => {
+    const selected = (kind === "pocket" ? objects.cutouts : objects.fingerHoles)
+      .filter(item => selection.some(ref => ref.kind === kind && ref.id === item.id));
+    return selected.length > 1 || selected.some(item => item.designLink);
+  });
+}
+
 // Copies retain complete geometry for the existing worker/export paths. The
 // explicit link id, validated in every saved snapshot, makes these fields one
 // shared design. Shape revisions remain immutable and update all references.
-const pocketFields = ["shapeId", "scaleX", "scaleY", "aspectRatioLocked", "depth", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm", "insertionMode"] as const;
+const pocketFields = ["shapeId", "role", "scaleX", "scaleY", "aspectRatioLocked", "depth", "depthPending", "split", "profileBottom", "clearanceMm", "cornerRoundMm", "topFilletMm", "bottomFilletMm", "insertionMode", "insertionAxis"] as const;
 const fingerFields = ["kind", "diameterMm", "lengthMm", "depthMm", "topFilletMm", "bottomFilletMm", "cornerRoundMm", "slotEnds"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// Finite source depths cache a legacy placement's solid, and profile elevation
+// is placement too. Neither is an authored shared dimension.
+const designSignature = (design: unknown) => JSON.stringify(design, (key, value: unknown) =>
+  key === "sourceDepthMm" || key === "elevationMm" ? undefined : value);
 
 export function pocketDesign(pocket: CutoutPlacement): Partial<CutoutPlacement> {
-  return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])),
-    ...(pocket.designLink?.tilt ? { tilt: pocket.tilt ?? { xDeg: 0, yDeg: 0 }, profileRotation: pocket.profileRotation ?? { xDeg: 0, yDeg: 0 } } : {}) };
+  return { ...Object.fromEntries(pocketFields.map(key => [key, pocket[key]])), insertionAxis: pocket.insertionAxis ?? "z" };
 }
 export function fingerDesign(hole: FingerHole): Partial<FingerHole> {
   return Object.fromEntries(fingerFields.map(key => [key, hole[key]]));
@@ -41,8 +53,31 @@ function propagate<T extends LinkedObject>(before: T[], edits: T[], design: (ite
 }
 
 /** Conflicting simultaneous edits reject the entire command, without picking a winner. */
-export function applyLinkedEdits(before: DesignObjects, edits: DesignObjects): DesignObjects | null {
-  const cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign);
+export function applyLinkedEdits(before: DesignObjects, edits: DesignObjects,
+  { placementOnly = false }: { placementOnly?: boolean } = {},
+): DesignObjects | null {
+  // Pose edits may materialize legacy finite depths, but never change other
+  // copies. Geometry commands remain explicit and propagate their design.
+  if (placementOnly) {
+    const preservesDesign = <T extends LinkedObject>(originals: T[], updates: T[], design: (item: T) => Partial<T>) =>
+      updates.every(next => {
+        const original = originals.find(item => item.id === next.id);
+        return !original || (!original.designLink && !next.designLink) ||
+          (equal(original.designLink, next.designLink) && designSignature(design(original)) === designSignature(design(next)));
+      });
+    if (!preservesDesign(before.cutouts, edits.cutouts, pocketDesign) ||
+        !preservesDesign(before.fingerHoles, edits.fingerHoles, fingerDesign)) return null;
+    const result = {
+      cutouts: before.cutouts.map(c => edits.cutouts.find(next => next.id === c.id) ?? c),
+      fingerHoles: before.fingerHoles.map(h => edits.fingerHoles.find(next => next.id === h.id) ?? h),
+    };
+    return designLinkErrors(result).length ? null : result;
+  }
+  const cutouts = propagate(before.cutouts, edits.cutouts, pocketDesign)?.map(pocket => {
+    const own = edits.cutouts.find(c => c.id === pocket.id) ?? before.cutouts.find(c => c.id === pocket.id)!;
+    return pocket.profileBottom && own.profileBottom
+      ? { ...pocket, profileBottom: { ...pocket.profileBottom, elevationMm: own.profileBottom.elevationMm } } : pocket;
+  }) ?? null;
   const fingerHoles = propagate(before.fingerHoles, edits.fingerHoles, fingerDesign);
   return cutouts && fingerHoles ? { cutouts, fingerHoles } : null;
 }
@@ -55,7 +90,7 @@ export function designLinkErrors(objects: DesignObjects): string[] {
     for (const item of items) {
       if (!item.designLink) continue;
       const first = groups.get(item.designLink.id);
-      if (first && (!equal(first.designLink, item.designLink) || !equal(design(first), design(item)))) {
+      if (first && (!equal(first.designLink, item.designLink) || designSignature(design(first)) !== designSignature(design(item)))) {
         errors.push(`Linked ${kind} designs must agree`); break;
       }
       groups.set(item.designLink.id, item);

@@ -21,7 +21,7 @@ import { binDimensionsMm, buildBin, EXPORT_QUALITY } from "../client/src/lib/gri
 import { writeBinarySTL } from "../client/src/lib/export/stl-writer";
 import { Arena } from "../client/src/lib/manifold/arena";
 import type { Kernel } from "../client/src/lib/manifold/runtime";
-import { extractMeshData } from "../client/src/lib/mesh/mesh-data";
+import { extractPrintableMeshData } from "../client/src/lib/mesh/mesh-data";
 import { writeThreeMf } from "../client/src/lib/mesh/threemf";
 import { parseBinSpec, type BinSpecInput } from "../shared/gridfinity/types";
 import { validateBinSpec } from "../shared/gridfinity/validate";
@@ -123,7 +123,7 @@ async function main(): Promise<void> {
 
     const started = performance.now();
     const { solid } = buildBin(kernel, spec, EXPORT_QUALITY);
-    const mesh = extractMeshData(kernel, solid);
+    const mesh = extractPrintableMeshData(kernel, solid);
     const builtMs = performance.now() - started;
 
     const volumeCm3 = solid.volume() / 1000;

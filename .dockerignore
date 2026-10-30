@@ -1,0 +1,23 @@
+# Send only build inputs; exclude local projects, secrets, Git, and node_modules.
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!vite.config.ts
+!tsconfig.json
+!tailwind.config.ts
+!postcss.config.js
+!LICENSE
+!NOTICE
+!client/
+!client/**
+!shared/
+!shared/**
+!samples/
+!samples/pocketry-sample-library.json
+!deploy/
+!deploy/nginx.conf
+**/.env
+**/.env.*
+**/node_modules
+**/.DS_Store

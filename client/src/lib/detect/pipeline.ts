@@ -1,4 +1,4 @@
-import type { Outline, Point } from "@shared/geometry/types";
+import type { Outline, Point, Ring } from "@shared/geometry/types";
 
 import { buildOutline, normalizeOutline } from "../geometry/outline";
 import {
@@ -10,6 +10,7 @@ import { traceIsoRings } from "../geometry/trace";
 import { loadOpenCV } from "../opencv";
 import { buildScoreFieldJS, maskFromScore } from "./segment-js";
 import { buildScoreFieldOpenCV } from "./segment-opencv";
+import { restoreOccludedScore } from "./occlusions";
 import {
   DETECT_DEFAULTS,
   type DetectEngine,
@@ -38,6 +39,9 @@ export async function detectOutline(
 
   const { field, engine } = await segment(image, options, timings);
   throwIfAborted(options.signal);
+  const estimatedEdgeRegions: Ring[] = [];
+  const inferredOccludedEdge = options.occlusions?.length
+    ? time(timings, "occlusions", () => restoreOccludedScore(field, options.occlusions!, estimatedEdgeRegions)) : false;
 
   const rawOutline = time(timings, "trace", () => traceToOutline(field, options));
   throwIfAborted(options.signal);
@@ -45,6 +49,8 @@ export async function detectOutline(
   const outline = time(timings, "refine", () => refineOutline(rawOutline, options, field));
 
   return {
+    inferredOccludedEdge,
+    estimatedEdgeRegions,
     outline,
     rawOutline,
     threshold: field.iso,

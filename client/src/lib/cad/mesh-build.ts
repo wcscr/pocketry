@@ -1,3 +1,5 @@
+import { pocketName } from "@shared/gridfinity/cutout";
+import { pocketColorLocalAxis } from "@shared/gridfinity/pocket-color";
 import type { OpenCascadeInstance } from "replicad-opencascadejs";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import type { BuildBinRequest, BuildBinResult } from "@/lib/gridfinity/worker-api";
@@ -16,6 +18,14 @@ export function buildCadBinMesh(request:BuildBinRequest,oc:OpenCascadeInstance,p
   if(!project)throw new Error("Invalid CAD bin request");
   for(const [value,maximum,name] of [[request.pocketFloorMaterialThicknessMm,MULTICOLOR_FLOOR_MAX_THICKNESS_MM,"Floor material"],[request.stackingRimMaterialThicknessMm,MULTICOLOR_RIM_MAX_THICKNESS_MM,"Rim material"],[request.borderWidthMm,MULTICOLOR_BORDER_MAX_WIDTH_MM,"Border width"]] as const) {
     if(value!==undefined&&(!Number.isFinite(value)||value<MULTICOLOR_MIN_THICKNESS_MM||value>maximum))throw new Error(`${name}: choose a thickness from ${MULTICOLOR_MIN_THICKNESS_MM} to ${maximum} mm`);
+  }
+  if (request.pocketFloorMaterialThicknessMm !== undefined) {
+    const shapes = new Map(project.shapes.map(shape => [shape.id, shape]));
+    for (const pocket of project.cutouts) {
+      if (pocket.colorCoverage === "interior" || pocketColorLocalAxis(pocket) !== null) {
+        throw new Error(`${pocketName(pocket, shapes.get(pocket.shapeId))} (${pocket.id}): pocket material coverage: interior and object-axis colors are not implemented in this CAD investigation`);
+      }
+    }
   }
   const design=resolveCadDesign(project);
   const c=new CadContext(oc,operation=>{if(performance.now()-started>CAD_LIMITS.modelingMs)throw new Error(`${operation}: modeling exceeded 120 seconds`);});

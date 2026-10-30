@@ -123,6 +123,34 @@ describe("App", () => {
     act(() => toggle.click());
     expect(localStorage.getItem("pocketry:experimental-features")).toBe("true");
   });
+  it.each(["desktop", "mobile"])("offers email and GitHub feedback from the %s header", mode => {
+    const matchMedia = window.matchMedia;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      ...matchMedia(query),
+      matches: mode === "mobile" && query.includes("max-width"),
+    }));
+    renderApp();
+    expect(document.querySelector('a[href="mailto:feedback@pocketry.xyz"]')).toBeNull();
+    const trigger = container.querySelector<HTMLButtonElement>(
+      mode === "desktop"
+        ? '[aria-label="Report an Issue / Provide Feedback"]'
+        : '[aria-label="More options"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger!.closest("header")).not.toBeNull();
+    expect(trigger!.parentElement?.classList.contains("hidden")).toBe(false);
+    act(() => trigger!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const menu = document.querySelector('[role="menu"]');
+    const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:feedback@pocketry.xyz"]');
+    expect(email?.textContent).toContain("Email feedback@pocketry.xyz");
+    const github = menu?.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]');
+    expect(github?.textContent).toContain("Open a GitHub issue");
+    expect(github?.target).toBe("_blank");
+    expect(github?.rel).toBe("noopener noreferrer");
+    act(() => menu!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
   it("mounts without throwing", () => {
     expect(() => renderApp()).not.toThrow();
   });
@@ -180,6 +208,10 @@ describe("App", () => {
     expect(openSourceStatement?.textContent).toContain("Fully open source under");
     expect(openSourceStatement?.getAttribute("href")).toBe("/LICENSE.txt");
     expect(container.textContent).toContain("OpenCV/OpenCV.js");
+    const slantedAttribution = container.querySelector<HTMLAnchorElement>('a[href="https://github.com/cdslug/slanted-gridfinity"]');
+    expect(slantedAttribution?.textContent).toBe("slanted-gridfinity project");
+    expect(slantedAttribution?.parentElement?.textContent).toContain("Slanted bin walls were inspired by");
+    expect(slantedAttribution?.target).toBe("_blank");
     expect(container.textContent).toContain("Gridfinity Rebuilt OpenSCAD");
     expect(container.textContent).toContain("Gridfinity Extended");
     expect(container.textContent).toContain("Gridfinity Layout Tool");
@@ -207,6 +239,7 @@ describe("App", () => {
     expect(closedSourceTools?.textContent).toContain("Perplexing Labs");
     expect(closedSourceTools?.textContent).toContain("ToolTrace.ai");
     expect(closedSourceTools?.textContent).toContain("Systemax DIY");
+    expect(closedSourceTools?.querySelector('a[href="https://formfitprint.com/"]')?.textContent).toContain("Form Fit Print");
     for (const href of [
       "https://www.tooltrace.ai",
       "https://www.systemax.no/diy",
@@ -223,6 +256,7 @@ describe("App", () => {
     expect(container.textContent).not.toContain("Visit open-source project");
     expect(container.textContent).not.toContain("Visit service");
     for (const [name, href] of [
+      ["Form Fit Print", "https://formfitprint.com/"],
       ["GridFlock", "https://github.com/yawkat/GridFlock"],
       [
         "Perplexing Labs Gridfinity Generator",
@@ -256,12 +290,13 @@ describe("App", () => {
   it("shows the empty state before an image is loaded", () => {
     renderApp();
     // The dropzone belongs in the empty canvas, not in the controls panel.
-    expect(container.textContent).toContain("Trace a tool from a photo");
+    expect(container.querySelector('[aria-label="Get started"] [aria-current="page"]')?.textContent).toBe("Trace a Photo");
     expect(container.textContent).toContain(
-      "Photograph the tool on a calibration sheet or a plain, contrasting background",
+      "Put your tool on a plain, contrasting background and photograph it from above.",
     );
     expect(container.textContent).toContain("Choose a photo");
-    expect(container.textContent).not.toContain("Untitled");
+    expect(container.querySelector('[data-testid="global-project-status"]')?.textContent).toContain("Untitled project");
+    expect(container.querySelector('#trace-settings-source')?.textContent).not.toContain("Untitled");
     expect(container.textContent).not.toContain("0 × 0 px");
     expect(
       container.querySelector('[data-testid="button-source-image"]'),
@@ -275,16 +310,20 @@ describe("App", () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Help"]')!.click();
     });
     const help = document.querySelector<HTMLElement>('[role="dialog"]');
-    expect(help?.querySelectorAll("ol > li")).toHaveLength(5);
+    expect(help?.querySelectorAll("ol > li")).toHaveLength(7);
+    expect(help?.textContent).toContain("Workflow + properties");
     expect(help?.textContent).toContain("Confirm scale");
-    expect(help?.textContent).toContain("Add to bin");
-    expect(help?.textContent).toContain("Surface fit test");
+    expect(help?.textContent).toContain("Add to Bin");
+    expect(help?.textContent).toContain("Export Tool Outline");
+    expect(help?.textContent).toContain("Back to Canvas");
+    expect(help?.textContent).toContain("Save surface fit test STL");
     expect(help?.textContent).toContain("Save 3MF");
-    expect(help?.textContent).toContain("Download calibration aids");
+    expect(help?.textContent).toContain("Download optional calibration aids");
     expect(help?.querySelector('[aria-label="Download a measurement aid as 3MF"]')).toBeNull();
-    expect(help?.textContent).toContain("More options → All settings");
-    expect(help?.textContent).toContain("Save to library");
-    expect(help?.textContent).toContain("Open project");
+    expect(help?.textContent).toContain("All properties");
+    expect(help?.textContent).not.toContain("All settings");
+    expect(help?.textContent).toContain("Save this draft to Library");
+    expect(help?.textContent).toContain("Import Project");
   });
 
   it("fills the viewport instead of a fixed-width column", () => {
@@ -315,7 +354,7 @@ describe("App", () => {
       "Scale",
       "Region",
       "Margin",
-      "Export Outline",
+      "Export Tool Outline",
     ]) {
       expect(text).toContain(section);
     }
@@ -334,7 +373,7 @@ describe("App", () => {
       ["trace-settings-detect", "blue", "closed"],
       ["trace-settings-crop", "rose", "closed"],
       ["trace-settings-margin", "violet", "closed"],
-      ["trace-settings-output", "emerald", "closed"],
+      ["trace-settings-output", "emerald", "open"],
     ] as const) {
       const section = container.querySelector<HTMLElement>(`#${id}`);
       expect(section?.dataset.tone).toBe(tone);
@@ -364,7 +403,7 @@ describe("App", () => {
     expect(
       container.querySelector<HTMLElement>("#trace-settings-output")?.dataset
         .state,
-    ).toBe("closed");
+    ).toBe("open");
   });
 
   it("does not expose detection controls before source and scale", () => {
@@ -380,7 +419,7 @@ describe("App", () => {
   it("disables export until something has been traced", () => {
     renderApp();
     const buttons = [...container.querySelectorAll("button")];
-    const save = buttons.find((b) => b.textContent?.includes("Save"));
+    const save = buttons.find((b) => b.textContent === "Export Tool Outline");
     expect(save).toBeDefined();
     expect(save?.disabled).toBe(true);
   });
@@ -412,7 +451,7 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/bin");
     clickWorkspace("Trace");
     expect(window.location.pathname).toBe("/");
-    expect(container.textContent).toContain("Trace a tool from a photo");
+    expect(container.querySelector('[aria-label="Get started"] [aria-current="page"]')?.textContent).toBe("Trace a Photo");
     expect(
       container.querySelector("#trace-settings-source")?.getAttribute("data-state"),
     ).toBe("open");
