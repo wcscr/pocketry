@@ -14,6 +14,7 @@ let overlay: HTMLDivElement;
 let root: Root;
 const openSettings = vi.fn();
 const addToBin = vi.fn();
+const exportOutline = vi.fn();
 const choosePhoto = vi.fn();
 const applyPerspective = vi.fn();
 const startOver = vi.fn();
@@ -23,7 +24,7 @@ const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
 function Harness(): JSX.Element {
   trace = useTrace();
   const { traceRestart } = usePanelState();
-  return <><button onClick={() => traceRestart?.()}>Start over</button><MobileTraceActions onAddToBin={addToBin} onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
+  return <><button onClick={() => traceRestart?.()}>Start over</button><MobileTraceActions onExport={exportOutline} onAddToBin={addToBin} onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
     onReprocess={reprocess} onDetectMarkers={detectMarkers} onStartOver={() => { startOver(); trace.dispatch({ type: "SOURCE_CLEARED" }); }} /></>;
 }
 function button(text: string): HTMLButtonElement {
@@ -84,6 +85,35 @@ describe("Mobile trace progression", () => {
     expect(openSettings).not.toHaveBeenCalled();
   });
 
+  it("cancels or confirms a replacement ruler without offering the old scale as the new one", () => {
+    readyOutline();
+    const before = trace;
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    expect(button("Cancel ruler")).toBeDefined();
+    expect(host.textContent).not.toContain("Use this scale");
+    expect(host.textContent).not.toContain("Add to bin");
+    const completeRuler = () => React.act(() => {
+      trace.dispatch({ type: "SET_DRAFT_CALIBRATION", draftCalibration: { startX: 10, startY: 20, endX: 70, endY: 20 } });
+      trace.dispatch({ type: "SET_MODE", mode: "pan" });
+      trace.dispatch({ type: "SET_RULER_LENGTH_INPUT", value: "75" });
+    });
+    completeRuler();
+    expect(trace.calibration).toBe(before.calibration);
+    expect(button("Confirm scale").disabled).toBe(false);
+    React.act(() => button("Cancel ruler").click());
+    expect(trace.calibration).toBe(before.calibration);
+    expect(trace.draftCalibration).toBeNull();
+    expect(trace.outline).toBe(before.outline);
+    expect(trace.history).toBe(before.history);
+    expect(button("Add to bin")).toBeDefined();
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    completeRuler();
+    React.act(() => button("Confirm scale").click());
+    expect(trace.calibration).toEqual({ startX: 10, startY: 20, endX: 70, endY: 20, lengthMm: 75 });
+    expect(trace.draftCalibration).toBeNull();
+    expect(trace.outline).toBe(before.outline);
+  });
+
   it.each([false, true])("keeps completed corners available for review (existing scale: %s)", existingScale => {
     load();
     if (existingScale) React.act(() => trace.dispatch({ type: "SET_CALIBRATION", calibration }));
@@ -103,7 +133,7 @@ describe("Mobile trace progression", () => {
   it("confirms Start over and keeps the trace untouched when cancelled", () => {
     readyOutline();
     const outline = trace.outline;
-    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === text)!;
+    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === text)!;
     React.act(() => button("Start over").click());
     expect(startOver).not.toHaveBeenCalled();
     React.act(() => dialogButton("Keep working").click());
@@ -123,7 +153,7 @@ describe("Mobile trace progression", () => {
     });
     React.act(() => button("Adjust").click());
     await adjust("mobile-sensitivity");
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 129, includeInteriorHoles: false });
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
     await adjust("mobile-detail");
     expect(trace.tolerancePx).toBeCloseTo(1.3);
     expect(reprocess).toHaveBeenCalledOnce();
@@ -132,7 +162,7 @@ describe("Mobile trace progression", () => {
     await adjust("mobile-sensitivity");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Re-detect from the photo?");
     React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Keep my edits")!.click());
-    expect(trace.sensitivity).toBe(129);
+    expect(trace.sensitivity).toBe(127);
     expect(trace.outline).toBe(edited);
     expect(openSettings).not.toHaveBeenCalled();
   });
@@ -280,6 +310,14 @@ describe("Mobile trace progression", () => {
     expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
     React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
     expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
+  });
+  it("opens the shared export prompt from outline adjustments", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    React.act(() => button("Export Tool Outline").click());
+    expect(exportOutline).toHaveBeenCalledOnce();
+    expect(openSettings).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-testid="mobile-adjustment-tray"]')).toBeNull();
   });
   it("opens naming directly once a calibrated outline is available", () => {
     load();

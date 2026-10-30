@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,10 +25,12 @@ export function ProjectBackupOption({ checked, onChange, description = "Keep a c
 }
 
 /** Mount for each export request so including a project is always an explicit choice. */
-export function ExportConfirmationDialog({ title, description, confirmLabel = "Download", backupDescription, backupDisabledReason, onConfirm, onCancel }: {
+export function ExportConfirmationDialog({ title, description, confirmLabel = "Download", backupDescription, backupDisabledReason, children, onConfirm, onCancel }: {
   title: string;
   description: string;
   confirmLabel?: string;
+  /** Optional format-specific settings, kept beside the final download action. */
+  children?: ReactNode;
   backupDescription?: string;
   backupDisabledReason?: string;
   onConfirm: (includeProject: boolean) => void;
@@ -42,6 +44,7 @@ export function ExportConfirmationDialog({ title, description, confirmLabel = "D
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <ProjectBackupOption checked={includeProject} onChange={setIncludeProject} description={backupDescription} disabledReason={backupDisabledReason} />
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>

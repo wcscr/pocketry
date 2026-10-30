@@ -85,4 +85,18 @@ describe("pocket floor material warnings", () => {
       shapes, 0.6,
     )).toEqual([]);
   });
+
+  it("uses the chosen color axis instead of assuming every layer extends downward", () => {
+    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5, fill: "solid" });
+    const pocket = parseCutoutPlacement({ id: "p", shapeId: shape.id, position: { x: 0, y: 0 }, depth: fixedDepth });
+    expect(validatePocketFloorMaterials(spec, [pocket], shapes, .6)).toHaveLength(1);
+    expect(validatePocketFloorMaterials(spec, [{ ...pocket, colorFloorAxis: "x" }], shapes, .6)).toEqual([]);
+  });
+
+  it("warns when an interior lining reaches the underside beside a through opening", () => {
+    const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5, fill: "solid" });
+    const pocket = parseCutoutPlacement({ id: "p", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "through" }, colorCoverage: "interior" });
+    expect(validatePocketFloorMaterials(spec, [pocket], shapes, .6)).toHaveLength(1);
+    expect(validatePocketFloorMaterials(spec, [{ ...pocket, colorCoverage: "floor" }], shapes, .6)).toEqual([]);
+  });
 });

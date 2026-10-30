@@ -141,3 +141,13 @@ export function polygonArea(points: readonly Point[]): number {
   }
   return Math.abs(sum / 2);
 }
+
+/** Syringe-like body with an asymmetric hooked grip and an open recess. */
+export function hookedToolRing(): Ring {
+  return [
+    { x: -2, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 60 },
+    { x: 10, y: 60 }, { x: 10, y: 85 }, { x: 20, y: 85 },
+    { x: 20, y: 75 }, { x: 30, y: 75 }, { x: 30, y: 100 },
+    { x: -15, y: 100 }, { x: -15, y: 60 }, { x: -2, y: 60 },
+  ];
+}

@@ -1,8 +1,11 @@
+import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 import { buildSurfaceTexts } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
+import { validateRetainedMaterial } from "./validate-retained-material";
+import { validateInsertionPaths, type PocketInsertionPath } from "./validate-insertion-paths";
 // Type-only import: the kernel is injected (see `Kernel` in ../manifold/runtime).
-import type { Manifold } from "manifold-3d";
+import type { CrossSection, Manifold } from "manifold-3d";
 
 import type {
   CutoutPlacement,
@@ -16,20 +19,22 @@ import {
 import {
   BASE_HEIGHT,
   BASE_TOP_RADIUS,
-  binFootprintMm,
   binHeightMm,
   binTotalHeightMm,
   D_WALL,
-  STACKING_LIP_HEIGHT_ACTUAL,
-  STACKING_LIP_SUPPORT_HEIGHT_MM,
+  binWallThicknessMm,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { wallSlantExtraSizeMm, wallSlantPointMm, wallSlantCloses, wallSlantHeightMm } from "@shared/gridfinity/wall-slant";
 import { infillHeightMm } from "@shared/gridfinity/fill";
 export { infillHeightMm } from "@shared/gridfinity/fill";
 
 import type { Kernel } from "@/lib/manifold/runtime";
 
+import { buildBottomFillet, buildCompartments, buildClosingWallFillet, buildDividerTopRegion } from "./compartments";
 import { buildBase } from "./base";
+import { buildPegBottom } from "./peg-bottom";
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import {
   buildCutoutCutters,
   buildFingerHoleCutters,
@@ -91,29 +96,72 @@ export const EXPORT_QUALITY: BuildQuality = {
   filletProfileStepMm: 0.1,
 };
 
-/** Default: three nominal 0.2 mm layers below each pocket-floor surface. */
-export const MULTICOLOR_FLOOR_THICKNESS_MM = 0.6;
-/** Default material depth down from the stacking-lip summit or flush wall top. */
-export const MULTICOLOR_RIM_THICKNESS_MM = 1.25;
-/** Default inward border width matches the plain wall thickness. */
-export const MULTICOLOR_BORDER_WIDTH_MM = D_WALL;
-export const MULTICOLOR_BORDER_MAX_WIDTH_MM = 20;
-export const MULTICOLOR_MIN_THICKNESS_MM = 0.2;
-export const MULTICOLOR_FLOOR_MAX_THICKNESS_MM = 3;
-/** Rim/border depth limit: full modeled lip depth, rounded down to 0.01 mm. */
-export const MULTICOLOR_RIM_MAX_THICKNESS_MM = Math.floor(
-  (STACKING_LIP_HEIGHT_ACTUAL + STACKING_LIP_SUPPORT_HEIGHT_MM) * 100,
-) / 100;
+import { MULTICOLOR_BORDER_WIDTH_MM } from "@shared/gridfinity/materials";
+export {
+  MULTICOLOR_FLOOR_THICKNESS_MM, MULTICOLOR_RIM_THICKNESS_MM,
+  MULTICOLOR_BORDER_WIDTH_MM, MULTICOLOR_BORDER_MAX_WIDTH_MM,
+  MULTICOLOR_MIN_THICKNESS_MM, MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
+  MULTICOLOR_RIM_MAX_THICKNESS_MM,
+} from "@shared/gridfinity/materials";
 
 export interface BinParts {
-  /** Sockets plus bridge, or a flat slab, z ∈ [0, 7]. */
+  /** Integral hollow-bin dividers and scoop ramps, in the bin material. */
+  compartments: Manifold | null;
+  /** Sockets/flat slab at z ∈ [0, 7]; peg roots and shafts extend below zero. */
   base: Manifold;
-  /** Plain wall ring, z ∈ [7, units·7]. `null` for 1u bins (zero height). */
+  /** Wall ring and optional floor fillet, z ∈ [7, units·7]. `null` for 1u bins. */
   wall: Manifold | null;
   /** Stacking lip swept around the rim. `null` when `spec.lip` is "none". */
   lip: Manifold | null;
   /** Solid interior fill. `null` unless `spec.fill` is "solid" with room. */
   infill: Manifold | null;
+}
+
+/** Deform a body part above the fixed base along the selected bin axis. */
+function slantBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold {
+  if (!spec.wallSlant || spec.wallSlant.angleDeg === 0) return solid;
+  if (wallSlantCloses(spec)) return clipClosingSlant(kernel, shearBodyPart(kernel, solid, spec), spec, 0);
+  if (spec.wallSlant.side && spec.wallSlant.side !== "both") {
+    return kernel.arena.track(solid.warp(vertex => {
+      const point = wallSlantPointMm(spec, { x: vertex[0], y: vertex[1] }, vertex[2]);
+      vertex[0] = point.x;
+      vertex[1] = point.y;
+    }));
+  }
+  return shearBodyPart(kernel, solid, spec);
+}
+
+function shearBodyPart(kernel: Kernel, solid: Manifold, spec: BinSpec): Manifold {
+  const slope = Math.tan(spec.wallSlant!.angleDeg * Math.PI / 180);
+  const x = spec.wallSlant!.axis === "x" ? slope : 0;
+  const y = spec.wallSlant!.axis === "y" ? slope : 0;
+  return kernel.arena.track(solid.transform([
+    1, 0, 0, 0, 0, 1, 0, 0, x, y, 1, 0,
+    -x * BASE_HEIGHT, -y * BASE_HEIGHT, 0, 1,
+  ]));
+}
+
+/** Keep the inward-leaning envelope on the material side of the upright wall. */
+function clipClosingSlant(kernel: Kernel, solid: Manifold, spec: BinSpec, insetMm: number): Manifold {
+  const slant = spec.wallSlant!;
+  const sign = slant.side === "positive" ? 1 : -1;
+  const half = (slant.axis === "x" ? binWidthMm(spec) : binLengthMm(spec)) / 2;
+  const normal: [number, number, number] = slant.axis === "x" ? [sign, 0, 0] : [0, sign, 0];
+  return kernel.arena.track(solid.trimByPlane(normal, -half + insetMm));
+}
+
+/** Separate outer and cavity envelopes close cleanly; no inverted warp or crossing faces. */
+function closingWallPart(kernel: Kernel, spec: BinSpec, quality: BuildQuality,
+  widthMm = binWallThicknessMm(spec), overhangMm = 0): Manifold {
+  const { arena } = kernel;
+  const section = footprintOuterSection(kernel, spec, quality.circularSegments);
+  const outer = overhangMm > 0
+    ? arena.track(section.offset(overhangMm, "Round", 2, quality.circularSegments)) : section;
+  const inner = arena.track(outer.subtract(buildWallSection(kernel, spec, quality.circularSegments, widthMm, overhangMm)));
+  const envelope = (profile: CrossSection, inset: number) => clipClosingSlant(kernel,
+    shearBodyPart(kernel, arena.track(arena.track(profile.extrude(binHeightMm(spec.heightUnits) - BASE_HEIGHT))
+      .translate([0, 0, BASE_HEIGHT])), spec), spec, inset);
+  return arena.track(envelope(outer, -overhangMm).subtract(envelope(inner, widthMm)));
 }
 
 /** Outer dimensions of the bin a spec describes, without building it. */
@@ -123,11 +171,14 @@ export function binDimensionsMm(spec: BinSpec): {
   heightToRimMm: number;
   totalHeightMm: number;
 } {
+  const slant = wallSlantExtraSizeMm(spec);
+  const heightToRimMm = wallSlantHeightMm(spec);
   return {
-    widthMm: binFootprintMm(spec.gridX, spec.gridPitch),
-    lengthMm: binFootprintMm(spec.gridY, spec.gridPitch),
-    heightToRimMm: binHeightMm(spec.heightUnits),
-    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard"),
+    widthMm: binWidthMm(spec) + Math.abs(slant.x),
+    lengthMm: binLengthMm(spec) + Math.abs(slant.y),
+    heightToRimMm,
+    totalHeightMm: binTotalHeightMm(spec.heightUnits, spec.lip === "standard") -
+      (binHeightMm(spec.heightUnits) - heightToRimMm) + pegBottomExtensionMm(spec),
   };
 }
 
@@ -136,19 +187,23 @@ export function buildBinParts(
   kernel: Kernel,
   spec: BinSpec,
   quality: BuildQuality,
+  throughCutters: readonly Manifold[] = [],
 ): BinParts {
   const { CrossSection, arena } = kernel;
   const segments = quality.circularSegments;
 
-  const base = spec.flatBottom
-    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(BASE_HEIGHT))
+  const base = spec.pegBottom
+    ? buildPegBottom(kernel, spec, segments, throughCutters)
+    : spec.flatBottom
+    ? arena.track(footprintOuterSection(kernel, spec, segments).extrude(Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits))))
     : buildBase(
         kernel,
         spec,
         segments,
         spec.gridPitch === "full" ? holeOptionsFromSpec(spec) : undefined,
       );
-  let wall = buildWallRing(kernel, spec, segments);
+  const closes = wallSlantCloses(spec);
+  let wall = closes ? closingWallPart(kernel, spec, quality) : buildWallRing(kernel, spec, segments);
   const lip = spec.lip === "standard"
     ? buildStackingLip(kernel, spec, segments, quality.filletProfileStepMm)
     : null;
@@ -157,7 +212,8 @@ export function buildBinParts(
   // BinParts' tag set stable preserves the multicolor hook unchanged.
   const tab = buildLabelTab(kernel, spec, segments);
   if (tab) {
-    wall = wall ? arena.track(wall.add(tab)) : tab;
+    const placedTab = closes ? slantBodyPart(kernel, tab, spec) : tab;
+    wall = wall ? arena.track(wall.add(placedTab)) : placedTab;
   }
 
   let infill: Manifold | null = null;
@@ -170,8 +226,8 @@ export function buildBinParts(
       : arena.track(
           new CrossSection([
             roundedRectPolygon(
-              binFootprintMm(spec.gridX, spec.gridPitch),
-              binFootprintMm(spec.gridY, spec.gridPitch),
+              binWidthMm(spec),
+              binLengthMm(spec),
               BASE_TOP_RADIUS,
               segments,
             ),
@@ -182,7 +238,31 @@ export function buildBinParts(
     );
   }
 
-  return { base, wall, lip, infill };
+  const floorFillet = buildBottomFillet(kernel, spec, segments, quality.filletProfileStepMm);
+  const compartmentPart = buildCompartments(kernel, spec, segments, closes ? floorFillet : null);
+  if (floorFillet && !closes) {
+    // Fuse before the single-wall warp so curved wall/fillet joins share
+    // triangulation. Warping them separately can leave edge-only contact.
+    wall = wall ? arena.track(wall.add(floorFillet)) : floorFillet;
+  }
+  let compartments = compartmentPart ? slantBodyPart(kernel, compartmentPart, spec) : null;
+  if (closes) {
+    const fixedWallFillet = buildClosingWallFillet(kernel, spec, segments, quality.filletProfileStepMm);
+    if (fixedWallFillet) compartments = compartments ? arena.track(compartments.add(fixedWallFillet)) : fixedWallFillet;
+  }
+  if (compartments && spec.wallSlant) {
+    // Single-wall warps are piecewise linear. Clip independently tessellated
+    // scoop corners to the same body envelope used by full infill.
+    const envelope = slantBodyPart(kernel, arena.track(arena.track(
+      footprintOuterSection(kernel, spec, segments).extrude(binHeightMm(spec.heightUnits) - BASE_HEIGHT),
+    ).translate([0, 0, BASE_HEIGHT])), spec);
+    compartments = arena.track(compartments.intersect(envelope));
+  }
+  if (wall && !closes) wall = slantBodyPart(kernel, wall, spec);
+  if (infill) infill = slantBodyPart(kernel, infill, spec);
+  const slantedLip = lip ? slantBodyPart(kernel, lip, spec) : null;
+
+  return { base, wall, lip: slantedLip, infill, compartments };
 }
 
 export interface BinLayout {
@@ -209,7 +289,12 @@ export interface BuildBinWithCutoutsOptions {
   rimInsertThicknessMm?: number;
   /** Inward color width for bins without a stacking lip; never adds material. */
   borderWidthMm?: number;
+  /** Share the rim material and depth with internal divider tops. */
+  colorDividerTops?: boolean;
 }
+
+/** Keep the color cutter clear of coincident wall and tab faces during CSG. */
+const SLANTED_BORDER_MASK_OVERHANG_MM = 0.02;
 
 /**
  * Builds a bin and subtracts the layout's pocket cutters from the fused
@@ -234,31 +319,31 @@ export function buildBinWithCutouts(
   validationIssues: ValidationIssue[];
 } {
   const { Manifold, arena } = kernel;
-  const base = buildBin(kernel, spec, quality);
+  const builtCutouts = layout?.cutouts.length ? buildCutoutCutters(
+    kernel, layout.shapesById, layout.cutouts, spec, quality,
+    { floorInsertThicknessMm: options.floorInsertThicknessMm },
+  ) : null;
+  const base = buildBin(kernel, spec, quality, builtCutouts?.throughCutters);
   let solid = base.solid;
   let floorInserts: Manifold[] = [], floorRegions: Manifold[] = [];
   let reports: CutoutBuildReport[] = [];
   let validationIssues: ValidationIssue[] = [];
+  let insertionPaths: PocketInsertionPath[] = [];
   if (layout && (layout.cutouts.length > 0 || layout.fingerHoles.length > 0)) {
-    const builtCutouts = buildCutoutCutters(
-      kernel,
-      layout.shapesById,
-      layout.cutouts,
-      spec,
-      quality,
-      { floorInsertThicknessMm: options.floorInsertThicknessMm },
-    );
-    validationIssues = [
-      ...(builtCutouts.validationIssues ?? []),
-      ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
-        .filter(issue => issue.code === "invalid-pocket-insertion"),
-      ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip),
-    ];
-    floorInserts = builtCutouts.floorInserts;
-    floorRegions = builtCutouts.floorRegions ?? floorInserts;
-    reports = builtCutouts.reports;
+    if (builtCutouts) {
+      validationIssues = [
+        ...(builtCutouts.validationIssues ?? []),
+        ...validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
+          .filter(issue => issue.code === "invalid-pocket-insertion" || issue.code === "pocket-depth-needed"),
+        ...validateTiltedSolids(kernel, spec, layout.cutouts, layout.shapesById, builtCutouts.cutterGroups ?? [], base.parts.wall, base.parts.lip, base.solid),
+      ];
+      floorInserts = builtCutouts.floorInserts;
+      floorRegions = builtCutouts.floorRegions ?? floorInserts;
+      reports = builtCutouts.reports;
+      insertionPaths = builtCutouts.insertionPaths ?? [];
+    }
     const allCutters = [
-      ...builtCutouts.cutters,
+      ...(builtCutouts?.cutters ?? []),
       ...buildFingerHoleCutters(kernel, layout.fingerHoles, spec, quality),
     ];
     if (allCutters.length > 0) {
@@ -268,6 +353,7 @@ export function buildBinWithCutouts(
           : arena.track(Manifold.union(allCutters));
       solid = arena.track(base.solid.subtract(cutter));
     }
+    validationIssues.push(...validateRetainedMaterial(kernel, solid, builtCutouts?.retainedGroups ?? [], layout.cutouts, layout.shapesById));
   }
   const status = solid.status();
   if (status !== "NoError") {
@@ -285,10 +371,21 @@ export function buildBinWithCutouts(
     // so screw holes, base recesses, and layout cuts remain open.
     const outer = footprintOuterSection(kernel, spec, quality.circularSegments);
     const wall = buildWallSection(kernel, spec, quality.circularSegments);
-    const interior = arena.track(outer.subtract(wall));
+    let interior = arena.track(outer.subtract(wall));
+    if ((spec.bottomFilletRadiusMm > 0 || spec.labelTab) && base.parts.wall) {
+      // Slanted label supports can reach the floor even without a fillet.
+      interior = arena.track(interior.subtract(arena.track(base.parts.wall.slice(BASE_HEIGHT))));
+    }
+    if (base.parts.compartments) {
+      // Color only exposed floor, leaving the material under dividers and
+      // scoop ramps in the body. This also avoids coincident color faces at
+      // the ramps' tangent contact with the base.
+      const occupiedFloor = arena.track(base.parts.compartments.slice(BASE_HEIGHT));
+      interior = arena.track(interior.subtract(occupiedFloor));
+    }
     const floorRegion = arena.track(
       arena.track(interior.extrude(options.floorInsertThicknessMm))
-        .translate([0, 0, BASE_HEIGHT - options.floorInsertThicknessMm]),
+        .translate([0, 0, Math.min(BASE_HEIGHT, binHeightMm(spec.heightUnits)) - options.floorInsertThicknessMm]),
     );
     floorInserts = [...floorInserts, floorRegion];
     floorRegions = [...floorRegions, floorRegion];
@@ -309,20 +406,31 @@ export function buildBinWithCutouts(
   if (
     options.rimInsertThicknessMm !== undefined &&
     Number.isFinite(options.rimInsertThicknessMm) &&
-    options.rimInsertThicknessMm > 0
+    options.rimInsertThicknessMm > 0 &&
+    wallSlantHeightMm(spec) >= binHeightMm(spec.heightUnits)
   ) {
     const topZ = binTotalHeightMm(spec.heightUnits, spec.lip === "standard");
     // Without a lip, extend the color inward from the outer perimeter.
     // Extending the mask below the wall also supports 1u bins;
     // intersecting the finished solid preserves base profiles and all cutouts.
-    const requestedRim = base.parts.lip
+    let requestedRim = base.parts.lip
       ? arena.track(base.parts.lip.trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
-      : arena.track(
+      : wallSlantCloses(spec)
+      ? arena.track(closingWallPart(kernel, spec, quality,
+          (options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM) + SLANTED_BORDER_MASK_OVERHANG_MM,
+          SLANTED_BORDER_MASK_OVERHANG_MM).trimByPlane([0, 0, 1], topZ - options.rimInsertThicknessMm))
+      : slantBodyPart(kernel, arena.track(
           arena.track(buildWallSection(kernel, spec, quality.circularSegments,
-            options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM)
+            (options.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM) +
+              (spec.wallSlant ? SLANTED_BORDER_MASK_OVERHANG_MM : 0),
+            spec.wallSlant ? SLANTED_BORDER_MASK_OVERHANG_MM : 0)
             .extrude(options.rimInsertThicknessMm))
             .translate([0, 0, topZ - options.rimInsertThicknessMm]),
-        );
+        ), spec);
+    if (options.colorDividerTops) {
+      const dividerTops = buildDividerTopRegion(kernel, spec, quality.circularSegments, options.rimInsertThicknessMm);
+      if (dividerTops) requestedRim = arena.track(requestedRim.add(slantBodyPart(kernel, dividerTops, spec)));
+    }
     let clippedRim = arena.track(requestedRim.intersect(solid));
     if (pocketFloors) {
       clippedRim = arena.track(clippedRim.subtract(pocketFloors));
@@ -348,6 +456,8 @@ export function buildBinWithCutouts(
   const bodySolid = solid;
   const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
   if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
+  if (layout) validationIssues.push(...validateInsertionPaths(kernel, solid, insertionPaths, layout.cutouts, layout.shapesById,
+    textParts.map(part => part.solid)));
   return { parts: base.parts, solid, bodySolid, textParts, materialParts, cutoutReports: reports, validationIssues };
 }
 
@@ -372,10 +482,11 @@ export function buildBin(
   kernel: Kernel,
   spec: BinSpec,
   quality: BuildQuality,
+  throughCutters: readonly Manifold[] = [],
 ): { parts: BinParts; solid: Manifold } {
   const { Manifold, arena } = kernel;
-  const parts = buildBinParts(kernel, spec, quality);
-  const present = [parts.base, parts.wall, parts.lip, parts.infill].filter(
+  const parts = buildBinParts(kernel, spec, quality, throughCutters);
+  const present = [parts.base, parts.wall, parts.lip, parts.infill, parts.compartments].filter(
     (part): part is Manifold => part !== null,
   );
   const solid = arena.track(Manifold.union(present));

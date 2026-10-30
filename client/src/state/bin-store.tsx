@@ -1,8 +1,15 @@
+import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
+import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
+import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { sameJsonData } from "@shared/json-data-equal";
+import { binMaterialsSchema, DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
 import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
+import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
+import { expandGroupSelection, groupForRef, objectGroupSchema, pruneObjectGroups, rebaseLayoutGroups, type ObjectGroup } from "@shared/gridfinity/object-groups";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
 import { useExperimentalFeatures } from "./experimental-features";
 
@@ -18,7 +25,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex } from "@shared/gridfinity/cutout";
+import { clampFingerHoleToBin, defaultPocketFloorThicknessMm, pocketName, type CutoutPlacement, type DepthSpec, type FingerHole, type PocketSectionIndex, type TracedShape } from "@shared/gridfinity/cutout";
 import { BIN_HISTORY_LIMIT, type BinDoc, type BinHistory, type BinHistoryEntry } from "@shared/gridfinity/history";
 export type { BinDoc, BinHistoryEntry } from "@shared/gridfinity/history";
 
@@ -28,8 +35,9 @@ import { parseBinSpec, type BinSpec, type BinSpecInput } from "@shared/gridfinit
  * The bin designer's state: spec + placed cutouts + editor selection. Same
  * reducer-provider shape as the trace store, scoped to the /bin page.
  *
- * Undo/redo covers the **material document** — `{spec, cutouts, fingerHoles}` — and
- * nothing else: selection, view mode and hydration are transient UI state
+ * Undo/redo covers the **material document** — `{spec, cutouts, fingerHoles}`.
+ * Compound commands can also retain their appearance changes. Selection,
+ * view mode and hydration are transient UI state
  * that undoing should not yank around. The stack holds full snapshots with
  * `index` pointing at the present; drag frames dispatch with
  * `transient: true` so a whole gesture collapses into one undo step (the
@@ -41,7 +49,16 @@ export type BinViewMode = "3d" | "2d";
 export type BinEditorMode = "placement" | "contour" | "footprint" | "label-edge" | "split"
   | "draw-rectangle" | "draw-square" | "draw-circle";
 
-const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "heightUnits", "lip", "fillHeightPercent"] as const;
+const BIN_SIZE_KEYS = ["gridX", "gridY", "gridPitch", "arbitrarySizeMm", "heightUnits", "lip", "fillHeightPercent"] as const;
+
+export interface PendingPocketClearance { cutoutIds: string[]; checkpoint: BinHistory }
+
+/** Uncommitted recovery input; kept per pocket, outside saved geometry/history. */
+export interface PendingPocketDepthDraft {
+  value: string;
+  mode: DepthSpec["mode"];
+  all: boolean;
+}
 
 export interface BinState {
   /** Session-only permissions and field ownership; never serialized. */
@@ -51,6 +68,7 @@ export interface BinState {
   textSnap: boolean;
   fieldEdit: { owner: string; token: string; checkpoint: BinHistory; valid: boolean } | null;
   transformOrigins: TransformOrigins;
+  materials: BinMaterials;
   spec: BinSpec;
   cutouts: CutoutPlacement[];
   fingerHoles: FingerHole[];
@@ -63,9 +81,15 @@ export interface BinState {
   selectedSurfaceTextId: string | null;
   /** Pocket awaiting the user's remove/resize decision. */
   pendingRemovalId: string | null;
+  /** Session-only guidance after a committed rotation; never part of project history. */
+  pendingPocketClearance: PendingPocketClearance | null;
+  pendingDepthDrafts: Record<string, PendingPocketDepthDraft>;
+  clearancePromptedIds: string[];
   viewMode: BinViewMode;
   /** Active interaction grammar in the 2D layout view. */
   editorMode: BinEditorMode;
+  /** Session-only depth from the dimension dialog; cleared when leaving drawing. */
+  drawDepthMm?: number;
   /** True once persistence has had its chance to restore a project. */
   hydrated: boolean;
   history: BinHistory;
@@ -85,15 +109,21 @@ export function getCommittedBinDoc(
 }
 
 export type BinAction = (
+  | { type: "GROUP_SELECTION"; group: ObjectGroup }
+  | { type: "UNGROUP_SELECTION" }
+  | { type: "SET_PENDING_DEPTH_DRAFT"; id: string; draft: PendingPocketDepthDraft }
   | { type: "SET_EDITING_CAPABILITY"; enabled: boolean }
   | { type: "SET_TEXT_TOOL"; tool: "translate" | "rotate" }
   | { type: "SET_TEXT_SNAP"; snap: boolean }
   | { type: "CANCEL_PREVIEW"; expectedHistory: BinHistory }
+  | { type: "DISMISS_POCKET_CLEARANCE"; checkpoint: BinHistory }
+  | { type: "APPLY_POCKET_CLEARANCE"; checkpoint: BinHistory; edits: ObjectEdits }
   | { type: "BEGIN_FIELD_EDIT"; owner: string; token: string }
   | { type: "FIELD_VALIDITY"; valid: boolean }
   | { type: "FINISH_FIELD_EDIT"; cancel?: boolean }
   | {
       type: "HYDRATE";
+      materials?: BinMaterials;
       spec: BinSpec;
       cutouts: CutoutPlacement[];
       fingerHoles?: FingerHole[];
@@ -102,10 +132,13 @@ export type BinAction = (
       transformOrigins?: TransformOrigins;
     }
   | { type: "MARK_HYDRATED" }
+  | { type: "PATCH_MATERIALS"; patch: Partial<BinMaterials> }
   | { type: "SET_ADJUST_FIXED_POCKET_DEPTHS"; enabled: boolean }
   | {
       type: "PATCH_SPEC";
       patch: Partial<BinSpecInput>;
+      /** Applied and undone atomically with this construction change. */
+      materialPatch?: Partial<BinMaterials>;
       transient?: boolean;
       historyLabel?: string;
     }
@@ -133,6 +166,8 @@ export type BinAction = (
       expectedText: string;
       text: string;
       font: SurfaceText["font"];
+      /** Present (including undefined) when a content edit also replaces the symbol. */
+      symbol?: SurfaceText["symbol"];
     }
   | { type: "ADD_FINGER_HOLE"; hole: FingerHole }
   | {
@@ -148,11 +183,13 @@ export type BinAction = (
   | { type: "REMOVE_CUTOUT"; id: string }
   | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
   | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
-  | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean }
-  | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind; ids: string[] }
+  | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean; shapes?: readonly TracedShape[] }
+  | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind | "selection"; ids: string[] }
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
   | {
       type: "REPLACE_LAYOUT";
+      /** Packing changes individual poses; resizing/recentering preserves groups. */
+      operation?: "auto-arrange";
       cutouts: CutoutPlacement[];
       fingerHoles?: FingerHole[];
       gridX: number;
@@ -170,7 +207,7 @@ export type BinAction = (
   | { type: "DUPLICATE_SELECTION"; ids: { source: ObjectRef; id: string }[]; labels?: ReadonlyMap<string, string> }
   | { type: "UPDATE_OBJECTS"; edits: ObjectEdits; historyLabel: string; transient?: boolean }
   | { type: "SET_VIEW_MODE"; viewMode: BinViewMode }
-  | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode }
+  | { type: "SET_EDITOR_MODE"; editorMode: BinEditorMode; drawDepthMm?: number }
   | { type: "SET_GRID"; gridX: number; gridY: number; historyLabel?: string }
   | { type: "UNDO" }
   | { type: "REDO" }
@@ -189,6 +226,7 @@ const INITIAL: BinState = {
   textSnap: false,
   fieldEdit: null,
   transformOrigins: { pockets: [], fingerHoles: [] },
+  materials: DEFAULT_BIN_MATERIALS,
   spec: INITIAL_BIN_SPEC,
   cutouts: [],
   fingerHoles: [],
@@ -199,6 +237,9 @@ const INITIAL: BinState = {
   selectedFingerHoleId: null,
   selectedSurfaceTextId: null,
   pendingRemovalId: null,
+  pendingPocketClearance: null,
+  pendingDepthDrafts: {},
+  clearancePromptedIds: [],
   viewMode: "3d",
   editorMode: "placement",
   hydrated: false,
@@ -232,30 +273,60 @@ function copyNameAllocator(state: BinDoc, labels?: ReadonlyMap<string, string>):
   };
 }
 
+/** Inclination ignores bin Z heading and equivalent full-turn Euler values. */
+function pocketInclination(cutout: CutoutPlacement): number[] {
+  return [{ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 }]
+    .map(axis => rotatePocketVector(axis, cutout).z);
+}
+function isInclinedPocket(cutout: CutoutPlacement): boolean {
+  return !cutout.profileBottom && pocketInclination(cutout).some((value, i) => Math.abs(value - (i === 2 ? 1 : 0)) > 1e-9);
+}
+function clearancePromptIds(state: BinState, doc: BinDoc): string[] {
+  const previous = new Map(getCommittedBinDoc(state).cutouts.map(c => [c.id, c]));
+  const prompted = new Set(state.clearancePromptedIds);
+  return doc.cutouts.filter(next => {
+    const before = previous.get(next.id);
+    if (!before || before.profileBottom || next.profileBottom) return false;
+    const inclination = pocketInclination(before);
+    if (!pocketInclination(next).some((value, i) => Math.abs(value - inclination[i]) > 1e-9)) return false;
+    return !prompted.has(next.id) && !isInclinedPocket(before) && isInclinedPocket(next)
+      || before.insertionMode === "axis" && !pocketInsertionError(before) && !!pocketInsertionError(next);
+  }).map(c => c.id);
+}
+
 /** Applies a material change: new doc becomes present, redo tail is cut. */
 function commit(
   state: BinState,
   doc: BinDoc,
   label: string,
   rest: Partial<BinState> = {},
+  materialPatch?: Partial<BinMaterials>,
 ): BinState {
+  const materials = materialPatch ? binMaterialsSchema.parse({ ...state.materials, ...materialPatch }) : state.materials;
+  const materialChange = sameJsonData(materials, state.materials) ? undefined : { before: state.materials, after: materials };
   doc = reconcileFillHeightReferences(state, doc);
   doc = limitFingerAccessForBinChange(state, doc);
+  doc = pruneObjectGroups(doc);
   const stack = [
     ...state.history.stack.slice(0, state.history.index + 1),
-    { doc, label },
+    { doc, label, ...(materialChange ? { materialChange } : {}) },
   ];
   const overflow = Math.max(0, stack.length - BIN_HISTORY_LIMIT);
+  const history = { stack: stack.slice(overflow), index: stack.length - 1 - overflow };
+  const cutoutIds = clearancePromptIds(state, doc);
   return {
     ...state,
     ...rest,
+    materials,
     editError: null,
     pendingHistoryLabel: null,
-    ...selectionState(existingSelection(rest.selection ?? state.selection, doc)),
+    ...selectionState(expandGroupSelection(doc, existingSelection(rest.selection ?? state.selection, doc))),
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
-    history: { stack: stack.slice(overflow), index: stack.length - 1 - overflow },
+    history,
+    pendingPocketClearance: cutoutIds.length ? { cutoutIds, checkpoint: history } : null,
+    clearancePromptedIds: [...new Set([...state.clearancePromptedIds, ...doc.cutouts.filter(isInclinedPocket).map(c => c.id)])],
   };
 }
 
@@ -274,6 +345,7 @@ function specPatchLabel(patch: Partial<BinSpecInput>): string {
   if ("gridPitch" in patch) return "Change grid pitch";
   if ("lip" in patch) return "Change stacking lip";
   if ("fill" in patch) return "Change solid fill";
+  if ("compartments" in patch) return "Change compartments";
   if ("wallThicknessMm" in patch) return "Change wall thickness";
   if ("fillHeightPercent" in patch) return "Change fill height";
   if ("labelTab" in patch) return "Change label tab";
@@ -312,11 +384,11 @@ function preview(state: BinState, doc: BinDoc, pendingHistoryLabel: string | nul
 /** A focused field may unmount before native blur when selection changes on
  * pointer-down. Finish its already validated preview before changing owners. */
 function changeSelection(state: BinState, selection: ObjectRef[], section: PocketSectionIndex, textId: string | null = null): BinState {
-  selection = existingSelection(selection, state);
+  selection = expandGroupSelection(state, existingSelection(selection, state));
   const changed = textId !== state.selectedSurfaceTextId || section !== state.selectedPocketSection || JSON.stringify(selection) !== JSON.stringify(state.selection);
   if (changed && state.pendingHistoryLabel) {
     const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
-    state = JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))
+    state = sameJsonData(doc, getCommittedBinDoc(state))
       ? { ...state, pendingHistoryLabel: null }
       : commit(state, doc, state.pendingHistoryLabel);
   }
@@ -358,7 +430,7 @@ function finishFieldEdit(state: BinState, cancel = false): BinState {
   if (!state.fieldEdit) return state;
   const baseline = getCommittedBinDoc(state);
   const doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: state.fingerHoles };
-  const changed = JSON.stringify(doc) !== JSON.stringify(baseline);
+  const changed = !sameJsonData(doc, baseline);
   const valid = state.fieldEdit.valid;
   const label = state.pendingHistoryLabel ?? "Edit dimensions";
   state = { ...state, fieldEdit: null, pendingHistoryLabel: null };
@@ -368,7 +440,7 @@ function finishFieldEdit(state: BinState, cancel = false): BinState {
 }
 
 /** Compare material design fields after all linked propagation and bin clamps.
- * Placement, names, independent copies and removal remain available. */
+ * X/Y placement, names, independent copies and removal remain available. */
 function changesLinkedDesign(before: BinDoc, after: BinDoc): boolean {
   return before.cutouts.some(old => {
     const next = after.cutouts.find(item => item.id === old.id);
@@ -382,6 +454,19 @@ function changesLinkedDesign(before: BinDoc, after: BinDoc): boolean {
 }
 
 export function binReducer(state: BinState, action: BinAction): BinState {
+  if (action.type === "SET_PENDING_DEPTH_DRAFT") {
+    if (!state.cutouts.some(cutout => cutout.id === action.id && cutout.depthPending)) return state;
+    return { ...state, pendingDepthDrafts: { ...state.pendingDepthDrafts, [action.id]: action.draft } };
+  }
+  if (action.type === "DISMISS_POCKET_CLEARANCE" || action.type === "APPLY_POCKET_CLEARANCE") {
+    if (state.pendingPocketClearance?.checkpoint !== action.checkpoint || state.history !== action.checkpoint) return state;
+    if (action.type === "DISMISS_POCKET_CLEARANCE") return { ...state, pendingPocketClearance: null };
+    // A response belongs only to this committed rotation, never to a live field
+    // preview or a document changed while the dialog was open.
+    if (state.fieldEdit || state.pendingHistoryLabel) return state;
+    const next = binReducer(state, { type: "UPDATE_OBJECTS", edits: action.edits, historyLabel: "Confirm pocket depth and clearance" });
+    return next.editError ? next : { ...next, pendingPocketClearance: null };
+  }
   if (action.fieldEditToken && (state.fieldEdit?.token !== action.fieldEditToken || state.fieldEdit.checkpoint !== state.history)) return state;
   if (action.type === "BEGIN_FIELD_EDIT") {
     state = finishFieldEdit(state);
@@ -396,21 +481,26 @@ export function binReducer(state: BinState, action: BinAction): BinState {
       pendingHistoryLabel: null, editError: null, ...(!action.enabled ? { editorMode: "placement" as const } : {}) };
   }
   const restoring = ["HYDRATE", "UNDO", "REDO", "JUMP_TO_HISTORY"].includes(action.type);
+  if (restoring && state.pendingPocketClearance) state = { ...state, pendingPocketClearance: null };
   if (!action.fieldEditToken) state = finishFieldEdit(state, restoring);
   else state = { ...state, ...getCommittedBinDoc(state) };
-  if (!state.experimentalEditing && ["LINK_DESIGNS", "UNLINK_DESIGNS", "SET_LINKED_TILT", "DUPLICATE_LINKED", "COMMIT_SURFACE_TEXT_WORDING"].includes(action.type)) {
-    return { ...state, editError: "Enable experimental tools to edit this shared design or surface text. Your change was not applied." };
+  if (!state.experimentalEditing && ["LINK_DESIGNS", "UNLINK_DESIGNS", "SET_LINKED_TILT", "DUPLICATE_LINKED"].includes(action.type)) {
+    return { ...state, editError: "Enable experimental tools to edit this shared design. Your change was not applied." };
+  }
+  if (!state.experimentalEditing && ["GROUP_SELECTION", "UNGROUP_SELECTION"].includes(action.type)) {
+    return { ...state, editError: "Enable experimental tools to group or ungroup objects. Your change was not applied." };
   }
   let next = reduceBin(state, action);
-  if (!state.experimentalEditing && !restoring && (JSON.stringify(next.spec.surfaceTexts) !== JSON.stringify(state.spec.surfaceTexts)
-    || next.spec.wallThicknessMm !== state.spec.wallThicknessMm)) {
-    return { ...state, editError: "Enable experimental tools to edit surface text or wall thickness. Your change was not applied." };
-  }
-  if (!state.experimentalEditing && !restoring && changesLinkedDesign(state, next)) {
+  if (!state.experimentalEditing && !restoring && !(action.type === "UPDATE_OBJECTS" && action.edits.placementOnly) && changesLinkedDesign(state, next)) {
     return { ...state, editError: "Enable experimental tools to change a linked design. This change affects linked copies and was not applied." };
   }
   if (next.selectedSurfaceTextId && (next.selection.length > 0 || !next.spec.surfaceTexts.some(label => label.id === next.selectedSurfaceTextId))) {
     next = { ...next, selectedSurfaceTextId: null };
+  }
+  // Resolved/deleted pockets must not recover stale input after undo or reuse.
+  if (next.cutouts !== state.cutouts && Object.keys(next.pendingDepthDrafts).length) {
+    const pendingIds = new Set(next.cutouts.filter(cutout => cutout.depthPending).map(cutout => cutout.id));
+    next = { ...next, pendingDepthDrafts: Object.fromEntries(Object.entries(next.pendingDepthDrafts).filter(([id]) => pendingIds.has(id))) };
   }
   const origins = action.type === "HYDRATE" ? action.transformOrigins ?? { pockets: [], fingerHoles: [] } : state.transformOrigins;
   const docs = action.type === "HYDRATE" ? [...next.history.stack.map(e => e.doc), next] : [getCommittedBinDoc(next)];
@@ -420,11 +510,32 @@ export function binReducer(state: BinState, action: BinAction): BinState {
 
 function reduceBin(state: BinState, action: BinAction): BinState {
   switch (action.type) {
+    case "GROUP_SELECTION": {
+      const group = objectGroupSchema.safeParse(action.group);
+      const selection = expandGroupSelection(state, state.selection);
+      if (!group.success || selection.length < 2) return state;
+      const member = (kind: ObjectRef["kind"], id: string) => selection.some(ref => ref.kind === kind && ref.id === id);
+      return commit(state, { spec: state.spec,
+        cutouts: state.cutouts.map(c => member("pocket", c.id) ? { ...c, placementGroup: group.data } : c),
+        fingerHoles: state.fingerHoles.map(h => member("finger", h.id) ? { ...h, placementGroup: group.data } : h),
+      }, "Group objects", { selection });
+    }
+    case "UNGROUP_SELECTION": {
+      const ids = new Set(state.selection.flatMap(ref => { const g = groupForRef(state, ref); return g ? [g.id] : []; }));
+      if (!ids.size) return state;
+      return commit(state, { spec: state.spec,
+        cutouts: state.cutouts.map(c => c.placementGroup && ids.has(c.placementGroup.id) ? { ...c, placementGroup: undefined } : c),
+        fingerHoles: state.fingerHoles.map(h => h.placementGroup && ids.has(h.placementGroup.id) ? { ...h, placementGroup: undefined } : h),
+      }, "Ungroup objects");
+    }
     case "CANCEL_PREVIEW": return state.history === action.expectedHistory
       ? { ...state, ...getCommittedBinDoc(state), pendingHistoryLabel: null } : state;
     case "SET_TEXT_TOOL": return { ...state, textTool: action.tool };
     case "SET_TEXT_SNAP": return { ...state, textSnap: action.snap };
-    case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY": return state;
+    case "BEGIN_FIELD_EDIT": case "FIELD_VALIDITY": case "FINISH_FIELD_EDIT": case "SET_EDITING_CAPABILITY":
+    case "SET_PENDING_DEPTH_DRAFT":
+    case "DISMISS_POCKET_CLEARANCE": case "APPLY_POCKET_CLEARANCE": return state;
+    case "PATCH_MATERIALS": return { ...state, materials: binMaterialsSchema.parse({ ...state.materials, ...action.patch }) };
     case "HYDRATE": {
       // Replace the outgoing project's entire history. Legacy projects start
       // at one baseline; saved histories retain their undo and redo branches.
@@ -435,6 +546,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       };
       return {
         ...state,
+        materials: action.materials ?? DEFAULT_BIN_MATERIALS,
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
@@ -445,7 +557,14 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         selectedFingerHoleId: null,
         selectedSurfaceTextId: null,
         pendingRemovalId: null,
+        pendingPocketClearance: null,
+        pendingDepthDrafts: {},
+        clearancePromptedIds: [...new Set([
+          ...doc.cutouts, ...(action.history?.stack.flatMap(entry => entry.doc.cutouts) ?? []),
+          ...(action.transformOrigins?.pockets.map(origin => origin.cutout) ?? []),
+        ].filter(isInclinedPocket).map(c => c.id))],
         editorMode: "placement",
+        drawDepthMm: undefined,
         hydrated: true,
         pendingHistoryLabel: null,
         history: action.history ?? {
@@ -470,6 +589,10 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         spec: parseBinSpec({
           ...state.spec,
           ...action.patch,
+          // Bottom edits express a user choice unless a sizing transition
+          // explicitly supplies the automatic-bottom provenance.
+          ...(("flatBottom" in action.patch || "pegBottom" in action.patch) && action.patch.autoFlatBottom === undefined
+            ? { autoFlatBottom: false } : {}),
           ...(changesGrid && state.spec.footprint.kind === "custom" && !("footprint" in action.patch)
             ? { footprint: { kind: "rectangle" as const } }
             : {}),
@@ -479,13 +602,16 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         fingerHoles: BIN_SIZE_KEYS.some(key => key in action.patch)
           ? getCommittedBinDoc(state).fingerHoles : state.fingerHoles,
       };
+      if (doc.spec.labelTab?.autoWall && !doc.spec.labelTab.edge) {
+        doc.spec.labelTab = { ...doc.spec.labelTab, wall: defaultLabelTabWall(doc.spec) };
+      }
       if ("fillHeightPercent" in action.patch) {
         const previous = getCommittedBinDoc(state);
         const adjusted = adjustPocketsForFillHeight(previous.cutouts, previous.spec, doc.spec, doc.spec.adjustFixedPocketDepths);
         if (adjusted.error !== undefined) return { ...state, ...(!action.transient ? previous : {}), editError: adjusted.error };
         doc.cutouts = adjusted.cutouts;
       }
-      if (doc.spec.flatBottom !== state.spec.flatBottom) {
+      if (defaultPocketFloorThicknessMm(doc.spec) !== defaultPocketFloorThicknessMm(state.spec)) {
         const previousFloor = defaultPocketFloorThicknessMm(state.spec);
         const nextFloor = defaultPocketFloorThicknessMm(doc.spec);
         doc.cutouts = doc.cutouts.map((cutout) =>
@@ -494,7 +620,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       }
       return action.transient
         ? preview(state, doc, action.historyLabel ?? specPatchLabel(action.patch))
-        : commit(state, doc, action.historyLabel ?? specPatchLabel(action.patch));
+        : commit(state, doc, action.historyLabel ?? specPatchLabel(action.patch), {}, action.materialPatch);
     }
     case "ADD_PLACED":
       return commit(
@@ -506,15 +632,16 @@ function reduceBin(state: BinState, action: BinAction): BinState {
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
-          cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement =>
-            state.spec.flatBottom
-              ? changeDefaultFloor(cutout, defaultPocketFloorThicknessMm({ flatBottom: false }), defaultPocketFloorThicknessMm(state.spec))
-              : cutout,
-          )],
+          cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement => {
+            const colored: CutoutPlacement = { ...cutout, colorFloorAxis: cutout.colorFloorAxis ?? "insertion" };
+            return defaultPocketFloorThicknessMm(state.spec) !== defaultPocketFloorThicknessMm({ flatBottom: false })
+              ? changeDefaultFloor(colored, defaultPocketFloorThicknessMm({ flatBottom: false }), defaultPocketFloorThicknessMm(state.spec))
+              : colored;
+          })],
           fingerHoles: state.fingerHoles,
         },
         action.historyLabel ??
-          `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`,
+          (action.cutouts.some(c => c.role === "hole") ? `Add ${action.cutouts.length} traced object${action.cutouts.length === 1 ? "" : "s"}` : `Add ${action.cutouts.length === 1 ? "tool pocket" : `${action.cutouts.length} tool pockets`}`),
         {
           selection: action.cutouts.at(-1) ? [{ kind: "pocket", id: action.cutouts.at(-1)!.id }] : state.selection,
           selectedCutoutId: action.cutouts.at(-1)?.id ?? state.selectedCutoutId,
@@ -522,6 +649,15 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         },
       );
     case "UPDATE_CUTOUT": {
+      const original = state.cutouts.find(c => c.id === action.id);
+      // Depth-mode changes may materialize the existing floor or clear a
+      // legacy anchor. Those are geometry edits, not independent group moves.
+      const depthEdit = action.patch.depth !== undefined || action.patch.split !== undefined;
+      const poseKeys: (keyof CutoutPlacement)[] = ["position", "rotationDeg", "tilt", "profileRotation", "placementGroup",
+        ...(!depthEdit ? ["elevationMm", "zOffsetMm"] as const : [])];
+      if (original?.placementGroup && poseKeys.some(key => key in action.patch && !sameJsonData(original[key], action.patch[key]))) {
+        return { ...state, editError: "Use the group Move and Rotate tools, or ungroup to move this object independently." };
+      }
       const edits = applyLinkedEdits(state, { cutouts: patchCutouts(state.cutouts, action.id, action.patch), fingerHoles: [] });
       if (!edits) return linkedEditError(state);
       const doc = { spec: state.spec, ...edits };
@@ -541,6 +677,10 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         { ...selectionState([{ kind: "finger", id: action.hole.id }]) },
       );
     case "UPDATE_FINGER_HOLE": {
+      const original = state.fingerHoles.find(h => h.id === action.id);
+      if (original?.placementGroup && (["center", "rotationDeg", "placementGroup"] as const).some(key => key in action.patch && !sameJsonData(original[key], action.patch[key]))) {
+        return { ...state, editError: "Use the group Move and Rotate tools, or ungroup to move this object independently." };
+      }
       const source = state.fingerHoles.find(h => h.id === action.id);
       if (!source) return state;
       const edits = applyLinkedEdits(state, { cutouts: [], fingerHoles: [{ ...source, ...action.patch, id: source.id }] });
@@ -585,7 +725,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           cutouts: state.cutouts.filter((cutout) => cutout.id !== action.id),
           fingerHoles: state.fingerHoles,
         },
-        "Remove tool pocket",
+        state.cutouts.find(c => c.id === action.id)?.role === "hole" ? "Remove hole" : "Remove tool pocket",
         {
           selectedCutoutId:
             state.selectedCutoutId === action.id ? null : state.selectedCutoutId,
@@ -599,6 +739,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         ...source,
         name: copyNameAllocator(state, action.labels)(source.id),
         designLink: undefined,
+        placementGroup: undefined,
         id: action.newId,
         // Offset so the twin is visibly a twin, not a mystery no-op.
         position: { x: source.position.x + 10, y: source.position.y - 10 },
@@ -618,10 +759,24 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const ids = new Set(action.ids);
       const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.sourceId) : state.fingerHoles.find(h => h.id === action.sourceId);
       if (!source || ids.size < 2 || !ids.has(source.id)) return state;
-      const designLink = { id: action.linkId, tilt: action.kind === "pocket" && action.tilt };
+      const designLink = { id: action.linkId, tilt: false };
+      let cutouts = state.cutouts;
+      if (action.kind === "pocket" && (source as CutoutPlacement).insertionMode) {
+        const legacy = cutouts.filter(c => ids.has(c.id) && !hasRigidPocket(c));
+        const shapes = new Map(action.shapes?.map(shape => [shape.id, shape]));
+        if (legacy.some(c => !shapes.has(c.shapeId))) {
+          return { ...state, editError: "Cannot link this insertion path because a pocket outline is unavailable. Your change was not applied." };
+        }
+        // Insertion clearance requires a rigid pose. Resolve each old floor in
+        // its original outline and orientation before adopting the shared design.
+        cutouts = cutouts.map(c => legacy.includes(c) ? rigidPocket(c, shapes.get(c.shapeId)!, state.spec) : c);
+      }
       const doc = action.kind === "pocket"
-        ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => ids.has(c.id)
-          ? { ...c, ...pocketDesign({ ...source as CutoutPlacement, designLink }), designLink } : c) }
+        ? { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: cutouts.map(c => ids.has(c.id)
+          ? { ...c, ...pocketDesign({ ...source as CutoutPlacement, designLink }), designLink,
+            // The visible fallback belongs to this placement, not its new outline.
+            ...(action.shapes?.some(shape => shape.id === c.shapeId) ? { name: pocketName(c, action.shapes.find(shape => shape.id === c.shapeId)) } : {}),
+            ...((source as CutoutPlacement).profileBottom && c.profileBottom ? { profileBottom: { ...(source as CutoutPlacement).profileBottom!, elevationMm: c.profileBottom.elevationMm } } : {}) } : c) }
         : { spec: state.spec, cutouts: state.cutouts, fingerHoles: clampLinkedFingerHoles(state.fingerHoles.map(h => ids.has(h.id)
           ? { ...h, ...fingerDesign(source as FingerHole), designLink } : h), state.spec, ids) };
       return commit(state, doc, `Link ${action.kind === "pocket" ? "pocket" : "thumb-access"} designs`);
@@ -631,16 +786,12 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const clear = <T extends { id: string; designLink?: { id: string; tilt: boolean } }>(items: T[]) =>
         items.map(item => ids.has(item.id) ? { ...item, designLink: undefined } : item);
       return commit(state, { spec: state.spec,
-        cutouts: action.kind === "pocket" ? clear(state.cutouts) : state.cutouts,
-        fingerHoles: action.kind === "finger" ? clear(state.fingerHoles) : state.fingerHoles }, "Make designs independent");
+        cutouts: action.kind !== "finger" ? clear(state.cutouts) : state.cutouts,
+        fingerHoles: action.kind !== "pocket" ? clear(state.fingerHoles) : state.fingerHoles }, "Make designs independent");
     }
     case "SET_LINKED_TILT": {
-      const source = state.cutouts.find(c => c.id === action.id);
-      if (!source?.designLink) return state;
-      return commit(state, { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: state.cutouts.map(c => c.designLink?.id === source.designLink!.id
-        ? { ...c, designLink: { ...source.designLink!, tilt: action.enabled }, ...(action.enabled ? {
-          tilt: source.tilt ?? { xDeg: 0, yDeg: 0 }, profileRotation: source.profileRotation ?? { xDeg: 0, yDeg: 0 },
-        } : {}) } : c) }, action.enabled ? "Link pocket tilt" : "Unlink pocket tilt");
+      // Legacy command: geometry links no longer share any orientation.
+      return state;
     }
     case "DUPLICATE_LINKED": {
       const source = action.kind === "pocket" ? state.cutouts.find(c => c.id === action.id) : state.fingerHoles.find(h => h.id === action.id);
@@ -652,18 +803,23 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         const pocket = source as CutoutPlacement;
         doc = { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: [
           ...state.cutouts.map(c => c.id === source.id ? { ...c, designLink } : c),
-          { ...pocket, name, id: action.newId, designLink, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
+          { ...pocket, name, id: action.newId, designLink, placementGroup: undefined, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
         ] };
       } else {
         const hole = source as FingerHole;
         doc = { spec: state.spec, cutouts: state.cutouts, fingerHoles: [
           ...state.fingerHoles.map(h => h.id === source.id ? { ...h, designLink } : h),
-          { ...hole, name, id: action.newId, designLink, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
+          { ...hole, name, id: action.newId, designLink, placementGroup: undefined, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
         ] };
       }
       return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
     }
-    case "REPLACE_LAYOUT":
+    case "REPLACE_LAYOUT": {
+      if (action.operation === "auto-arrange" && [...state.cutouts, ...state.fingerHoles].some(object => object.placementGroup)) {
+        return { ...state, editError: "Ungroup objects before auto-arranging the layout." };
+      }
+      const objects = rebaseLayoutGroups(state, { cutouts: action.cutouts, fingerHoles: action.fingerHoles ?? state.fingerHoles });
+      if (!objects) return { ...state, editError: "Move grouped objects together when changing the layout." };
       return commit(
         state,
         {
@@ -674,8 +830,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
           }),
-          cutouts: action.cutouts,
-          fingerHoles: action.fingerHoles ?? state.fingerHoles,
+          ...objects,
         },
         action.historyLabel ?? "Arrange tool pockets",
         {
@@ -692,11 +847,12 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           pendingRemovalId: null,
         },
       );
+    }
     case "UPDATE_OBJECTS": {
-      const edits = applyLinkedEdits(state, action.edits);
+      const edits = applyLinkedEdits(state, action.edits, { placementOnly: action.edits.placementOnly });
       if (!edits) return linkedEditError(state);
       const doc = { spec: state.spec, ...edits };
-      if (JSON.stringify(doc) === JSON.stringify(getCommittedBinDoc(state))) return preview(state, doc);
+      if (sameJsonData(doc, getCommittedBinDoc(state))) return preview(state, doc);
       return action.transient ? preview(state, doc, action.historyLabel) : commit(state, doc, action.historyLabel);
     }
     case "REMOVE_SELECTION": {
@@ -711,16 +867,24 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const selection: ObjectRef[] = [];
       const used = new Set([...state.cutouts, ...state.fingerHoles].map(o => o.id));
       const copyName = copyNameAllocator(state, action.labels);
+      const frames = new Map<string, ObjectGroup>();
+      const copiedGroup = (group: ObjectGroup | undefined) => {
+        if (!group) return undefined;
+        if (!frames.has(group.id)) frames.set(group.id, { ...group, id: crypto.randomUUID(),
+          pivot: { ...group.pivot, x: group.pivot.x + 10, y: group.pivot.y - 10 },
+          origin: { ...group.origin, x: group.origin.x + 10, y: group.origin.y - 10 } });
+        return frames.get(group.id);
+      };
       for (const { source, id } of action.ids) {
         if (used.has(id) || !state.selection.some(ref => sameObject(ref, source))) continue;
         if (source.kind === "pocket") {
           const original = state.cutouts.find(c => c.id === source.id);
           if (!original) continue;
-          cutouts.push({ ...original, name: copyName(original.id), id, designLink: undefined, position: { x: original.position.x + 10, y: original.position.y - 10 } });
+          cutouts.push({ ...original, name: copyName(original.id), id, designLink: undefined, placementGroup: copiedGroup(original.placementGroup), position: { x: original.position.x + 10, y: original.position.y - 10 } });
         } else {
           const original = state.fingerHoles.find(h => h.id === source.id);
           if (!original) continue;
-          fingerHoles.push({ ...original, name: copyName(original.id), id, designLink: undefined, center: { x: original.center.x + 10, y: original.center.y - 10 } });
+          fingerHoles.push({ ...original, name: copyName(original.id), id, designLink: undefined, placementGroup: copiedGroup(original.placementGroup), center: { x: original.center.x + 10, y: original.center.y - 10 } });
         }
         used.add(id); selection.push({ kind: source.kind, id });
       }
@@ -733,8 +897,9 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       // Selection is UI-only. Any intervening document commit, undo, redo, or
       // project replacement changes this checkpoint and supersedes the edit.
       if (state.history !== action.expectedHistory || (action.expectedEditingEpoch !== undefined && state.editingEpoch !== action.expectedEditingEpoch) || state.pendingHistoryLabel || !current || current.text !== action.expectedText) return state;
-      const parsed = surfaceTextSchema.safeParse({ ...current, text: action.text, font: action.font });
-      if (!parsed.success || parsed.data.text === current.text) return state;
+      const parsed = surfaceTextSchema.safeParse({ ...current, text: action.text, font: action.font,
+        ...("symbol" in action ? { symbol: action.symbol } : {}) });
+      if (!parsed.success || (parsed.data.text === current.text && parsed.data.symbol === current.symbol)) return state;
       return commit(state, {
         spec: { ...state.spec, surfaceTexts: state.spec.surfaceTexts.map(label => label.id === action.id ? parsed.data : label) },
         cutouts: state.cutouts, fingerHoles: state.fingerHoles,
@@ -748,6 +913,10 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     case "SELECT_FINGER_HOLE": {
       const kind = action.type === "SELECT_CUTOUT" ? "pocket" : "finger";
       const ref: ObjectRef | null = action.id ? { kind, id: action.id } : null;
+      if (ref && action.additive && state.selection.some(r => sameObject(r, ref))) {
+        const group = groupForRef(state, ref);
+        return changeSelection(state, state.selection.filter(r => !sameObject(r, ref) && (!group || groupForRef(state, r)?.id !== group.id)), 0);
+      }
       const selection = ref ? action.additive
         ? state.selection.some(r => sameObject(r, ref)) ? state.selection.filter(r => !sameObject(r, ref)) : [...state.selection, ref]
         : [ref] : state.selection.filter(r => r.kind !== kind);
@@ -759,9 +928,11 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         ...state,
         viewMode: action.viewMode,
         editorMode: action.viewMode === "3d" ? "placement" : state.editorMode,
+        drawDepthMm: action.viewMode === "3d" ? undefined : state.drawDepthMm,
       };
     case "SET_EDITOR_MODE":
-      return { ...state, editorMode: action.editorMode };
+      return { ...state, editorMode: action.editorMode,
+        drawDepthMm: action.editorMode.startsWith("draw-") ? action.drawDepthMm : undefined };
     case "SET_GRID":
       return commit(
         state,
@@ -802,15 +973,28 @@ function reduceBin(state: BinState, action: BinAction): BinState {
 
 function restore(state: BinState, entry: BinHistoryEntry, index: number): BinState {
   const { doc } = entry;
+  let materials = state.materials;
+  const backwards = index < state.history.index;
+  for (let step = state.history.index; step !== index; step += backwards ? -1 : 1) {
+    const change = state.history.stack[backwards ? step : step + 1].materialChange;
+    if (!change) continue;
+    // Only restore fields changed by the command. Later independent color edits
+    // to other regions must survive unrelated geometry undo/redo.
+    const patch = Object.fromEntries((Object.keys(change.before) as (keyof BinMaterials)[])
+      .filter(key => change.before[key] !== change.after[key])
+      .map(key => [key, (backwards ? change.before : change.after)[key]]));
+    materials = binMaterialsSchema.parse({ ...materials, ...patch });
+  }
   return {
     ...state,
+    materials,
     editError: null,
     pendingHistoryLabel: null,
     spec: doc.spec,
     cutouts: doc.cutouts,
     fingerHoles: doc.fingerHoles,
     history: { ...state.history, index },
-    ...selectionState(existingSelection(state.selection, doc)),
+    ...selectionState(expandGroupSelection(doc, existingSelection(state.selection, doc))),
     pendingRemovalId: null,
   };
 }

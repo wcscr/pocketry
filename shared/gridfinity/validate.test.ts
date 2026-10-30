@@ -1,21 +1,32 @@
 import { describe, expect, it } from "vitest";
 
-import { parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
-import { validateBinSpec } from "./validate";
-import { binFootprintMm } from "./standard";
+import { MAX_HEIGHT_UNITS, parseBinSpec, binSpecSchema, type BinSpecInput } from "./types";
+import { labelTabStripMm, validateBinSpec } from "./validate";
+import { wallSlantOffsetMm, wallSlantTopOffsetMm } from "./wall-slant";
+import { boundaryLabelTabProfileMm, labelTabProfileMm } from "./label-tab";
+import { binFootprintMm, binHeightMm, TAB_DEPTH_MM } from "./standard";
 
 function spec(partial: Partial<BinSpecInput> = {}) {
   return parseBinSpec({ gridX: 2, gridY: 3, heightUnits: 6, ...partial });
 }
 
 describe("binSpecSchema", () => {
+  it("accepts only a single slant axis and a bounded angle", () => {
+    expect(spec({ wallSlant: { axis: "y", angleDeg: -45 } }).wallSlant).toEqual({ axis: "y", angleDeg: -45 });
+    expect(() => spec({ wallSlant: { axis: "z", angleDeg: 20 } as never })).toThrow();
+    for (const angleDeg of [-89, -75, 61, 75, 89]) {
+      expect(spec({ wallSlant: { axis: "x", angleDeg } }).wallSlant!.angleDeg).toBe(angleDeg);
+    }
+    for (const angleDeg of [-90, 90]) expect(() => spec({ wallSlant: { axis: "x", angleDeg } })).toThrow();
+    expect(() => spec({ wallSlant: { axis: "x", angleDeg: 20, yDeg: 10 } as never })).toThrow();
+  });
   it("applies defaults for lip, fill, and grid pitch", () => {
     const parsed = spec();
     expect(parsed.lip).toBe("standard");
     // Solid by default: this tool's bins exist to have pockets cut into them.
     expect(parsed.fill).toBe("solid");
     expect(parsed.fillHeightPercent).toBe(100);
-    expect(parsed.wallThicknessMm).toBe(0.95);
+    expect(parsed.wallThicknessMm).toBeNull();
     expect(parsed.gridPitch).toBe("full");
   });
 
@@ -29,7 +40,8 @@ describe("binSpecSchema", () => {
     for (const wallThicknessMm of [0.95, 1.2, 2, 3]) {
       expect(spec({ fill: "none", wallThicknessMm }).wallThicknessMm).toBe(wallThicknessMm);
     }
-    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2", null]) {
+    expect(spec({ wallThicknessMm: null }).wallThicknessMm).toBeNull();
+    for (const wallThicknessMm of [0, 0.94, 3.01, NaN, Infinity, "2"]) {
       expect(() => spec({ wallThicknessMm: wallThicknessMm as number })).toThrow();
     }
   });
@@ -61,12 +73,14 @@ describe("binSpecSchema", () => {
 
   it("accepts half-unit heights and rejects unsupported or out-of-range sizes", () => {
     expect(spec({ heightUnits: 6.5 }).heightUnits).toBe(6.5);
+    expect(spec({ heightUnits: 50.5 }).heightUnits).toBe(50.5);
+    expect(spec({ heightUnits: MAX_HEIGHT_UNITS }).heightUnits).toBe(MAX_HEIGHT_UNITS);
     expect(() => spec({ gridX: 0 })).toThrow();
     expect(() => spec({ gridX: 2.5 })).toThrow();
     expect(() => spec({ gridY: 17 })).toThrow();
     expect(() => spec({ heightUnits: 6.25 })).toThrow();
     expect(() => spec({ heightUnits: 0 })).toThrow();
-    expect(() => spec({ heightUnits: 43 })).toThrow();
+    expect(() => spec({ heightUnits: MAX_HEIGHT_UNITS + 0.5 })).toThrow();
   });
 
   it("rejects unknown keys so typos cannot pass silently", () => {
@@ -77,6 +91,12 @@ describe("binSpecSchema", () => {
 });
 
 describe("validateBinSpec", () => {
+  it("warns but allows an inward slant that meets the vertical wall", () => {
+    const result = validateBinSpec(spec({ gridX: 1, heightUnits: 12, lip: "none",
+      wallSlant: { axis: "x", angleDeg: 45, side: "negative" } }));
+    expect(result.ok).toBe(true);
+    expect(result.issues.find(issue => issue.code === "slanted-wall-closure")).toMatchObject({ severity: "warning" });
+  });
   it("accepts the reference 2×3×6 bin without issues", () => {
     const result = validateBinSpec(spec());
     expect(result.issues).toEqual([]);
@@ -111,9 +131,35 @@ describe("validateBinSpec", () => {
     const result = validateBinSpec(spec({ gridX: 7 }));
     expect(result.issues.map((issue) => issue.code)).toContain("large-footprint");
   });
+
+  it("includes the shifted rim when checking print-bed span", () => {
+    const result = validateBinSpec(spec({ gridX: 5, heightUnits: 10, lip: "none",
+      wallSlant: { axis: "x", angleDeg: 45 } }));
+    expect(result.issues.some(issue => issue.code === "large-footprint" && issue.message.includes("slanted body"))).toBe(true);
+  });
 });
 
 describe("label tab spec rule (G5)", () => {
+  it("allows a label tab on a slanted bin while preserving the flush-rim rule", () => {
+    const slanted = spec({ lip: "none", wallSlant: { axis: "y", angleDeg: 45 },
+      labelTab: { wall: "north", width: "full" } });
+    expect(validateBinSpec(slanted).ok).toBe(true);
+    expect(validateBinSpec({ ...slanted, lip: "standard" }).issues.map(issue => issue.code))
+      .toContain("slanted-wall-lip");
+  });
+
+  it.each([45, -45])("includes the swept tab position in pocket-shadow bounds at %i°", angleDeg => {
+    const flat = spec({ lip: "none", labelTab: { wall: "north", width: "center" } });
+    const slanted = spec({ lip: "none", labelTab: flat.labelTab,
+      wallSlant: { axis: "y", angleDeg } });
+    const original = labelTabStripMm(flat)!;
+    const swept = labelTabStripMm(slanted)!;
+    const lower = wallSlantOffsetMm(slanted, binHeightMm(slanted.heightUnits) - boundaryLabelTabProfileMm(slanted)!.heightMm).y;
+    const upper = wallSlantTopOffsetMm(slanted).y;
+    expect(swept.minY).toBeCloseTo(original.minY + Math.min(lower, upper), 6);
+    expect(swept.maxY).toBeCloseTo(original.maxY + Math.max(lower, upper), 6);
+  });
+
   it("warns when the bin is shorter than the tab", () => {
     const stubby = validateBinSpec(
       parseBinSpec({
@@ -136,6 +182,16 @@ describe("label tab spec rule (G5)", () => {
       }),
     );
     expect(tall.issues.map((issue) => issue.code)).not.toContain("label-tab-clipped");
+  });
+
+  it("reduces slanted tab depth to fit a 2.5u wall", () => {
+    const short = spec({ heightUnits: 2.5, lip: "none",
+      wallSlant: { axis: "y", angleDeg: 45 }, labelTab: { wall: "north", width: "full" } });
+    const profile = labelTabProfileMm(short)!;
+    expect(profile.heightMm).toBeCloseTo(2.5 * 7 - 7, 6);
+    expect(profile.depthMm).toBeLessThan(TAB_DEPTH_MM);
+    expect(validateBinSpec(short).issues.find(issue => issue.code === "label-tab-clipped")?.message)
+      .toContain("depth is reduced");
   });
 });
 

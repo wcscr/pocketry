@@ -1,17 +1,22 @@
+import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
+import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
-import type { Rect } from "@shared/geometry/types";
+import type { Rect, Ring } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
+import { StartDesignActions } from "@/components/layout/start-design-actions";
 import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
 import { useExperimentalFeatures } from "@/state/experimental-features";
-import { TraceHandoffDialog } from "@/components/trace/trace-handoff-dialog";
+import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-handoff";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TraceCanvas } from "@/components/trace/trace-canvas";
+import { TracePhotoBoundsControl } from "@/components/trace/trace-photo-bounds-control";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
+import { TraceExportOptions } from "@/components/trace/trace-export-options";
 import { TraceControlsPanel } from "@/components/trace/trace-controls-panel";
 import { ExportConfirmationDialog } from "@/components/gridfinity/export-confirmation-dialog";
 import {
@@ -32,6 +37,8 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { FileUpload } from "@/components/ui/file-upload";
+import { tracePhotoError } from "@/lib/trace-photo";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
 import {
@@ -52,17 +59,17 @@ import { projectFromTrace } from "@/lib/project/trace-export";
 import { generateDXF } from "@/lib/export/dxf";
 import { exportScale } from "@/lib/export/scale";
 import { generateSTL } from "@/lib/export/stl";
+import { traceMaterialOutline } from "@/lib/geometry/contour-role";
+import { withKernel } from "@/lib/manifold/runtime";
 import { generateOutlineSVG } from "@/lib/export/svg";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
-import { useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 
 /** The tracing workspace. */
 export default function TracePage(): JSX.Element {
   return <TraceWorkspace />;
 }
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 /** Change image coordinates only; the physical reference length is unchanged. */
 function resizeCalibration(calibration: Calibration, x: number, y: number): Calibration {
@@ -93,11 +100,12 @@ function TraceWorkspace(): JSX.Element {
     if (store.draftSaveStatus !== "loading") recoveryWaiters.current.splice(0).forEach(resolve => resolve());
   }, [store.draftSaveStatus]);
   const { toast } = useToast();
-  const { panelOpen, setPanelOpen } = usePanelState();
+  const [, navigate] = useLocation();
+  const { panelOpen, setPanelOpen, setSampleLibraryRequested } = usePanelState();
   const isMobile = useIsMobile();
   const { inspectorEnabled } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
-  const [handoffOpen, setHandoffOpen] = useState(false);
+  const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
@@ -117,6 +125,7 @@ function TraceWorkspace(): JSX.Element {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [perspectiveReplacement, setPerspectiveReplacement] = useState<{
     proposal: PerspectiveProposal; template: TemplateVariant; scale: boolean | Calibration; sourceRevision: number;
@@ -141,9 +150,10 @@ function TraceWorkspace(): JSX.Element {
     detectionRequest.current += 1;
     activeImageUrlRef.current = null;
     setUploadOpen(false);
+    setPhotoError(null);
     setPhotoReplacement(null);
     setPerspectiveReplacement(null);
-    setPanelOpen(false);
+    setPanelOpen(!isMobile);
     dispatch({ type: "SOURCE_CLEARED" });
   };
 
@@ -155,6 +165,7 @@ function TraceWorkspace(): JSX.Element {
     store.fileName,
     workingImageMax,
     store.imageRotation,
+    store.imageAlignment,
   );
   useOutlineRefinement();
 
@@ -172,6 +183,8 @@ function TraceWorkspace(): JSX.Element {
     }
   }, [source, dispatch, toast]);
 
+  const [estimatedEdgeFocusRequest, setEstimatedEdgeFocusRequest] = useState(0);
+
   const notice = useCallback(
     (title: string, description: string) => {
       toast({ title, description });
@@ -182,15 +195,16 @@ function TraceWorkspace(): JSX.Element {
   const runDetection = useCallback(async (settings?: {
     sensitivity: number;
     includeInteriorHoles: boolean;
-  }) => {
+  }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
     // Tool detection is deliberately gated on an explicit region. Image load
     // may auto-detect scale markers, but it must never trace the calibration
     // sheet, its labels, or the surrounding table as candidate tool geometry.
+    const candidateRegion = requestedRegion ?? store.region;
     const region: Rect | null =
-      store.region && store.region.width > 5 && store.region.height > 5
-        ? store.region
+      candidateRegion && candidateRegion.width > 5 && candidateRegion.height > 5
+        ? candidateRegion
         : null;
     if (!region) return;
 
@@ -198,8 +212,32 @@ function TraceWorkspace(): JSX.Element {
     if (!imageData) return;
 
     const request = ++detectionRequest.current;
+    const sourceRevision = store.sourceRevision;
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
+      // Re-read the current photo, including any rotation/perspective warp.
+      // This also works after draft recovery or choosing a manual/paper scale;
+      // the carrier footprint is independent of the accepted scale ruler.
+      let occlusions: Ring[] = [];
+      try {
+        for (const limit of [undefined, AID_RETRY_CANVAS_MAX]) {
+          const frame = getDetectionFrame(limit);
+          if (frame?.sourceImageUrl !== source.url) break;
+          const reference = await autoCalibrate(frame.imageData);
+          if (reference.kind === "calibrated-strip" && reference.aidOutline) {
+            occlusions = [reference.aidOutline.map(p => ({
+              x: p.x * frame.toWorking.x - Math.max(0, Math.round(region.x)),
+              y: p.y * frame.toWorking.y - Math.max(0, Math.round(region.y)),
+            }))];
+            break;
+          }
+          if (!(reference.kind === "invalid-strip" ||
+            (reference.kind === "calibrated" && reference.stripFallbackReason))) break;
+        }
+      } catch {
+        // Optional reference recognition must not disable ordinary tracing.
+      }
+      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       const result = await processImage(imageData, {
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
@@ -208,6 +246,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
+          occlusions,
           sensitivity: settings?.sensitivity ?? store.sensitivity,
           tolerancePx: store.tolerancePx,
           smoothing: store.smoothing,
@@ -215,13 +254,14 @@ function TraceWorkspace(): JSX.Element {
         onNotice: notice,
       });
 
-      if (request !== detectionRequest.current) return;
+      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       dispatch({
         type: "DETECTED",
         expectedOutline: store.outline,
         imageUrl: source.url,
         outline: result.outline,
         rawOutline: result.rawOutline,
+        estimatedEdgeRegions: result.estimatedEdgeRegions,
         svg: result.svg,
         region,
       });
@@ -243,6 +283,7 @@ function TraceWorkspace(): JSX.Element {
   }, [
     source,
     getImageData,
+    getDetectionFrame,
     dispatch,
     notice,
     toast,
@@ -255,6 +296,7 @@ function TraceWorkspace(): JSX.Element {
     store.tolerancePx,
     store.smoothing,
     store.fileName,
+    store.sourceRevision,
   ]);
 
   /**
@@ -425,7 +467,7 @@ function TraceWorkspace(): JSX.Element {
   const performPerspectiveCorrection = useCallback(
     async (proposal: PerspectiveProposal, template: TemplateVariant, usePaperScale: boolean | Calibration = true) => {
       const sourceRevision = latestStore.current.sourceRevision;
-      const frame = getDetectionFrame();
+      const frame = getDetectionFrame(RECTIFIED_IMAGE_MAX);
       if (
         !frame ||
         frame.toWorking.x <= 0 ||
@@ -442,7 +484,8 @@ function TraceWorkspace(): JSX.Element {
       dispatch({ type: "SET_PROCESSING", processing: true });
       try {
         // Canvas points live in working-image coordinates. Correct from the
-        // larger marker-detection raster so the warp preserves source detail.
+        // original photo at the correction budget, not the smaller marker
+        // detection copy. Map the detected coordinates into this frame once.
         const detectionProposal = scalePerspectiveProposal(
           proposal,
           1 / frame.toWorking.x,
@@ -526,13 +569,23 @@ function TraceWorkspace(): JSX.Element {
     dispatch({ type: "SOURCE_READY", imageSize: photo.imageSize });
   };
 
+  const handleFileRejected = (message: string) => {
+    fileSelectionRevisionRef.current += 1;
+    setPhotoReplacement(null);
+    setUploadOpen(false);
+    setPhotoError(message);
+    showCanvas();
+  };
+
   const handleFileSelected = async (file: File) => {
     const selectionRevision = ++fileSelectionRevisionRef.current;
     setPhotoReplacement(null);
-    if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "File too large", description: "Please choose an image under 10MB.", variant: "destructive" });
+    const validationError = tracePhotoError(file);
+    if (validationError) {
+      handleFileRejected(validationError);
       return;
     }
+    setPhotoError(null);
     setUploadOpen(false);
     // Opening an invalid file must not suppress recovery or erase its stored
     // copy. Wait for recovery, then compare a decoded candidate to that draft.
@@ -550,9 +603,10 @@ function TraceWorkspace(): JSX.Element {
       if (current.imageUrl && (current.calibration || current.draftCalibration || current.region || current.outline.length > 0 || current.history.stack.length > 1)) {
         setPhotoReplacement(photo);
       } else replacePhoto(photo);
-    } catch (error) {
+    } catch {
       if (selectionRevision !== fileSelectionRevisionRef.current || sourceRevision !== latestStore.current.sourceRevision) return;
-      toast({ title: "Could not open that image", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      setPhotoError("Could not open that photo. It may be damaged or use an unsupported format. Save it as PNG, JPG, or WebP and try again. Your current trace is unchanged.");
+      showCanvas();
     }
   };
 
@@ -569,6 +623,10 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const handleExport = async (includeProject: boolean) => {
+    if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
+      openSettings("trace-settings-scale");
+      return;
+    }
     const { outline, imageSize, exportFormat, extrusionHeight, fileName, calibration, margin } = store;
     if (outline.length === 0) {
       toast({ title: "Nothing to export", description: "Trace an image first.", variant: "destructive" });
@@ -588,18 +646,20 @@ function TraceWorkspace(): JSX.Element {
       const backup = includeProject
         ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
         : null;
+      const exportOutline = outline.some(part => part.holes.length)
+        ? await withKernel(kernel => traceMaterialOutline(kernel, outline)) : outline;
       let model: Blob;
       if (exportFormat === "svg") {
-        model = new Blob([generateOutlineSVG(outline, {
+        model = new Blob([generateOutlineSVG(exportOutline, {
           width: imageSize.width,
           height: imageSize.height,
           mmPerPx: scale.mmPerPx,
           calibration,
         })], { type: "image/svg+xml" });
       } else if (exportFormat === "dxf") {
-        model = new Blob([generateDXF(outline, scale)], { type: "application/dxf" });
+        model = new Blob([generateDXF(exportOutline, scale)], { type: "application/dxf" });
       } else {
-        const stl = await generateSTL(outline, { heightMm: extrusionHeight, scale });
+        const stl = await generateSTL(exportOutline, { heightMm: extrusionHeight, scale });
         model = new Blob([stl], { type: "application/octet-stream" });
       }
       if (backup) downloadBlob(backup, `${stem}.pocketry.json`);
@@ -615,11 +675,11 @@ function TraceWorkspace(): JSX.Element {
   };
 
   const requestExport = () => {
-    if (mmPerPixel(store.calibration) === null && store.exportFormat !== "svg") {
+    if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
       openSettings("trace-settings-scale");
-      toast({ title: "Set scale before exporting", description: "STL and DXF need a physical scale. Set scale, or choose SVG to save image pixels.", variant: "destructive" });
       return;
     }
+    dispatch({ type: "SET_EXPORT_FORMAT", exportFormat: "svg" });
     setExportDialogOpen(true);
   };
   const exportMmPerPx = mmPerPixel(store.calibration);
@@ -633,21 +693,24 @@ function TraceWorkspace(): JSX.Element {
     : `Outline size: ${exportDimensions} mm (width × height)${store.exportFormat === "stl" ? `; extrusion ${formatDimension(store.extrusionHeight)} mm` : ""}. Scale: ${scaleSource}. Verify a known tool dimension before printing.`;
 
   const dropzone = (
-    <FileUpload onFileSelected={handleFileSelected} className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
+    <FileUpload onFileSelected={handleFileSelected} onFileRejected={handleFileRejected}
+      className="flex min-h-64 w-full flex-1 flex-col items-center justify-center" />
   );
 
   return (
-    <>
+    <ContourMenuProvider onProperties={() => openSettings("trace-settings-detect")} onEdit={showCanvas}>
       {exportDialogOpen && (
         <ExportConfirmationDialog
-          title={`Save outline ${store.exportFormat.toUpperCase()}?`}
+          title="Export Tool Outline"
           description={exportDescription}
           confirmLabel={exportMmPerPx === null && store.exportFormat !== "svg" ? "Set scale" : `Download ${store.exportFormat.toUpperCase()}${exportMmPerPx === null ? " (pixels)" : ""}`}
           backupDescription="Reopen this calibrated outline as an editable pocket in Bin."
           backupDisabledReason={mmPerPixel(store.calibration) === null ? "Set the scale to include an editable Pocketry project." : undefined}
           onCancel={() => setExportDialogOpen(false)}
           onConfirm={(includeProject) => { setExportDialogOpen(false); void handleExport(includeProject); }}
-        />
+        >
+          <TraceExportOptions />
+        </ExportConfirmationDialog>
       )}
       <AlertDialog open={perspectiveReplacement !== null && perspectiveReplacement.sourceRevision === store.sourceRevision}
         onOpenChange={(open) => { if (!open) setPerspectiveReplacement(null); }}>
@@ -677,8 +740,7 @@ function TraceWorkspace(): JSX.Element {
       </AlertDialog>
       <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Choose another photo"
         onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file); event.target.value = ""; }} />
-      {handoffOpen && <TraceHandoffDialog onClose={() => setHandoffOpen(false)}
-        onChoosePhoto={() => photoInputRef.current?.click()} onCanvasInteraction={showCanvas} />}
+
       <TraceEditingWorkspace
         enabled={workflowLayout}
         autoSaveId="tooltrace:trace"
@@ -687,7 +749,10 @@ function TraceWorkspace(): JSX.Element {
         panelTitle="Trace controls"
         mobileActionsLayout="landscape-side"
         mobileActions={<MobileTraceActions
-          onAddToBin={() => setHandoffOpen(true)}
+          onAddToBin={handoff.addToBin}
+          onExport={requestExport}
+          addToBinReady={handoff.ready}
+          addToBinHint={<TraceHandoffOptions handoff={handoff} />}
           onChoosePhoto={() => photoInputRef.current?.click()}
           onStartOver={startOver}
           onReprocess={(settings) => void runDetection(settings)}
@@ -697,10 +762,12 @@ function TraceWorkspace(): JSX.Element {
         />}
         panel={
           <TraceControlsPanel
+            handoff={handoff}
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
             onReplaceImage={() => photoInputRef.current?.click()}
+            onStartOver={startOver}
             onRotateImage={handleRotateImage}
             onExport={requestExport}
             onReprocess={(settings) => void runDetection(settings)}
@@ -712,20 +779,53 @@ function TraceWorkspace(): JSX.Element {
         }
         canvas={
           <div className="flex h-full min-h-0 flex-col">
+            <TracePhotoBoundsControl />
+            {photoError && <div role="alert" data-testid="trace-photo-error"
+              className={`flex shrink-0 items-start gap-2 bg-destructive/10 px-3 py-2 text-sm ${isMobile ? "order-last border-t" : "border-b"}`}>
+              <p className="min-w-0 flex-1">{photoError}</p>
+              <Button variant="ghost" size="sm" onClick={() => setPhotoError(null)}>Dismiss</Button>
+            </div>}
             {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
             </p>}
+            {store.estimatedEdgeRegions.length > 0 && <div role="status" data-testid="estimated-edge-notice"
+              className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-amber-500/10 px-3 py-2 text-xs">
+              <p className="min-w-0 flex-1">An edge hidden by the measurement aid is estimated. Review the contour in the amber area before using it.</p>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
+                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
+                setEstimatedEdgeFocusRequest(value => value + 1);
+              }}>Show estimated area</Button>
+            </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
-                  onReprocess={() => void runDetection()}
+                  estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
+                  onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
-                      <h2 className="text-lg font-medium">Trace a tool from a photo</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Photograph the tool on a calibration sheet <strong className="font-semibold italic">or</strong>{" "}
-                        a plain, contrasting background. Keep the whole tool in frame.
-                      </p>
-                      <CalibrationDownloads />
+                      <div className="w-full max-w-2xl self-center">
+                        <StartDesignActions traceActive
+                          onTracePhoto={showCanvas}
+                          onDesignBin={() => navigate("/bin")}
+                          onOpenSamples={() => {
+                            setSampleLibraryRequested(true);
+                            navigate("/bin");
+                          }} />
+                      </div>
+                      <details className="text-sm text-muted-foreground">
+                        <summary className="mx-auto w-fit cursor-pointer rounded px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Photo &amp; scale tips</summary>
+                        <div className="space-y-3 pb-2 pt-1">
+                          <p>Put your tool on a plain, contrasting background and photograph it from above.</p>
+                          <div className="space-y-1">
+                            <p>Set the scale using:</p>
+                            <ul className="flex list-inside list-disc flex-wrap justify-center gap-x-4 gap-y-1">
+                              <li>A measurement</li>
+                              <li>The corners of a sheet of paper</li>
+                              <li>A calibration sheet or aid (optional)</li>
+                            </ul>
+                          </div>
+                          <CalibrationDownloads />
+                        </div>
+                      </details>
                       {(store.draftSaveStatus === "loading" || store.draftSaveStatus === "error") && <p role="status" className={`text-sm ${store.draftSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}>
                         {store.draftSaveStatus === "loading" ? "Restoring trace draft…" : "Couldn’t restore the saved trace. Choose a photo to start again."}
                       </p>}
@@ -749,6 +849,6 @@ function TraceWorkspace(): JSX.Element {
           {dropzone}
         </DialogContent>
       </Dialog>
-    </>
+    </ContourMenuProvider>
   );
 }

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import * as React from "react";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
+import { PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TracedShape } from "@shared/gridfinity/cutout";
-import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
-import { PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 
 import { ShapeLibraryProvider, useShapeLibrary, type ShapeLibrary } from "./shape-library";
 
@@ -69,18 +69,39 @@ function mountLibrary(): { library: () => ShapeLibrary; act: (fn: () => void) =>
 }
 
 describe("shape library", () => {
-  it("migrates only unambiguous basic shapes in the legacy recovery queue", () => {
+  it("preserves absent primitive metadata in unversioned recovery queues", () => {
     const { analyticProfile: _primitive, ...basic } = createBasicPocket("circle", { x: 0, y: 0 }, { x: 6, y: 0 }, "old-circle")!.shape;
     const trace = { ...basic, id: "trace", source: "trace" as const };
     const edited = structuredClone(basic); edited.id = "edited"; edited.outlineMm[0].outer[1].x += 0.1;
     sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([basic, trace, edited]));
     const { library } = mountLibrary();
-    expect(library().shapes[0].analyticProfile).toEqual({ kind: "circle", radiusMm: 6 });
+    expect(library().shapes[0].analyticProfile).toBeUndefined();
     expect(library().shapes[0].outlineMm).toEqual(basic.outlineMm);
     expect(library().shapes.slice(1).every(shape => shape.analyticProfile === undefined)).toBe(true);
     expect(JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!).schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
   });
 
+  it("migrates main's queued tools without losing depth, destination or retained-hole placement", () => {
+    const { analyticProfile: _primitive, ...basic } = createBasicPocket("circle", { x: 0, y: 0 }, { x: 8, y: 0 }, "queued-hole")!.shape;
+    const pendingDepth = { mode: "mm" as const, value: 12 };
+    const pendingDestination = { key: "project:tools", name: "Tools" };
+    const pendingPlacement = { batchId: "photo", role: "hole" as const, center: { x: 23, y: -14 } };
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...basic, pendingDepth, pendingDestination, pendingPlacement }]));
+    const first = mountLibrary().library();
+    expect(first.shapes[0].analyticProfile).toBeUndefined();
+    const reloaded = mountLibrary().library();
+    expect(reloaded.shapes).toEqual(first.shapes);
+    expect(reloaded.pendingDepths).toEqual({ [basic.id]: pendingDepth });
+    expect(reloaded.pendingDestinations).toEqual({ [basic.id]: pendingDestination });
+    expect(reloaded.pendingPlacements).toEqual({ [basic.id]: pendingPlacement });
+  });
+
+  it("preserves polygon intent in the old schema-36 CAD recovery queue", () => {
+    const { analyticProfile: _primitive, ...polygon } = createBasicPocket("circle", { x: 0, y: 0 }, { x: 8, y: 0 }, "old-revised")!.shape;
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify({ schemaVersion: 36, shapes: [polygon] }));
+    expect(mountLibrary().library().shapes).toEqual([polygon]);
+    expect(JSON.parse(sessionStorage.getItem("pocketry:queued-tools")!).schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  });
   it("does not infer primitive intent from current polygon-only queued shapes", () => {
     const { analyticProfile: _primitive, ...polygon } = createBasicPocket("rectangle", { x: -10, y: -5 }, { x: 10, y: 5 }, "revised")!.shape;
     const first = mountLibrary();
@@ -98,6 +119,56 @@ describe("shape library", () => {
     expect(mountLibrary().library().shapes).toEqual([basic]);
     first.act(() => first.library().removeShape(basic.id));
     expect(mountLibrary().library().pendingIds).toEqual([]);
+  });
+
+  it("keeps photo arrangements through reload, hydration and retargeting without altering library geometry", () => {
+    const first = mountLibrary();
+    const placement = { batchId: "photo-a", center: { x: 24, y: -18 } };
+    first.act(() => first.library().addShape(makeShape("a"), { mode: "unset" }, undefined, placement));
+    first.act(() => first.library().replaceShapes([makeShape("stored")], true));
+    first.act(() => first.library().retargetPending({ key: "project:b", name: "B" }));
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingPlacements).toEqual({ a: placement });
+    expect(reloaded.library().shapes).toEqual([makeShape("a")]);
+    reloaded.act(() => reloaded.library().removeShape("a"));
+    expect(reloaded.library().pendingPlacements).toEqual({});
+    expect(mountLibrary().library().pendingPlacements).toEqual({});
+  });
+
+  it("retains destination-bound tools when opening a project and through reload", () => {
+    const first = mountLibrary();
+    const destination = { key: "project:a", name: "Project A" };
+    first.act(() => first.library().addShape(makeShape("queued"), { mode: "to-floor" }, destination));
+    first.act(() => first.library().replaceShapes([makeShape("stored-b")], true));
+    expect(first.library().pendingIds).toEqual(["queued"]);
+    expect(first.library().pendingDestinations).toEqual({ queued: destination });
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingDestinations).toEqual({ queued: destination });
+    expect(reloaded.library().shapes).toEqual([makeShape("queued")]);
+    reloaded.act(() => reloaded.library().retargetPending({ key: "project:b", name: "Project B" }));
+    expect(mountLibrary().library().pendingDestinations).toEqual({ queued: { key: "project:b", name: "Project B" } });
+  });
+
+  it("recovers each chosen depth without adding placement metadata to reusable shapes", () => {
+    const first = mountLibrary();
+    first.act(() => {
+      first.library().addShape(makeShape("shallow"), { mode: "mm", value: 7.5 });
+      first.library().addShape(makeShape("jig"), { mode: "through" });
+      first.library().addShape(makeShape("floor"), { mode: "to-floor" });
+    });
+    first.act(() => first.library().consumePending());
+    const reloaded = mountLibrary();
+    expect(reloaded.library().pendingDepths).toEqual({ shallow: { mode: "mm", value: 7.5 }, jig: { mode: "through" }, floor: { mode: "to-floor" } });
+    expect(reloaded.library().shapes).toEqual([makeShape("shallow"), makeShape("jig"), makeShape("floor")]);
+    reloaded.act(() => reloaded.library().removeShape("shallow"));
+    expect(mountLibrary().library().pendingDepths).toEqual({ jig: { mode: "through" }, floor: { mode: "to-floor" } });
+  });
+
+  it("still restores the older shape-only session queue", () => {
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([makeShape("legacy")]));
+    const restored = mountLibrary().library();
+    expect(restored.shapes).toEqual([makeShape("legacy")]);
+    expect(restored.pendingDepths).toEqual({});
   });
 
   it("recovers queued geometry after reload and keeps it until placement is durable", () => {

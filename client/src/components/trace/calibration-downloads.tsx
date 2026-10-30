@@ -23,7 +23,7 @@ export function CalibrationDownloads({ onPaperSelected, open: controlledOpen, on
         <p className="text-xs text-muted-foreground">
           <DialogTrigger asChild>
             <button type="button" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
-              Download calibration aids
+              Download optional calibration aids
             </button>
           </DialogTrigger>
         </p>
@@ -40,7 +40,7 @@ export function CalibrationDownloads({ onPaperSelected, open: controlledOpen, on
           <h3 className="text-sm font-medium">Paper printable aids</h3>
           <div className="space-y-2">
             <p className="text-xs font-medium">Calibration sheets</p>
-            <p className="text-xs text-muted-foreground">Experimental corner-marker layout. Keep all four markers visible. For tools larger than the paper, enable Show full corrected photo in Region after correction.</p>
+            <p className="text-xs text-muted-foreground">Experimental corner-marker layout. Keep all four markers visible. For tools larger than the paper, enable Show full photo beside the canvas after correction.</p>
             <div className="flex flex-wrap gap-2">
               {(["a4", "letter"] as const).map((paper) => (
                 <Button key={paper} variant="outline" size="sm"

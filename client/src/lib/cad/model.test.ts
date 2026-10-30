@@ -1,3 +1,4 @@
+import type { ProjectDoc } from "@shared/gridfinity/project";
 import { describe, expect, it } from "vitest";
 import { cadInvestigationFixtures } from "./fixtures";
 import { CAD_LIMITS, getStepExportStatus, resolveCadDesign } from "./model";
@@ -43,5 +44,49 @@ describe("CAD construction model and inexpensive preflight",()=>{
     doc.spec.magnetHoles=true;doc.spec.labelTab={wall:"north",edge:null,width:"full"};
     expect(getStepExportStatus(doc).issues.map(i=>i.operation)).toContain("hardware");
     expect(getStepExportStatus(doc).issues.map(i=>i.operation)).toContain("label tab");
+  });
+});
+
+// These are valid current-main designs, not malformed input. Unsupported CAD
+// operations must be surfaced before either backend can return altered solids.
+describe("current-main CAD compatibility", () => {
+  it.each<[string, (doc: ProjectDoc) => void]>([
+    ["arbitrary bin size", doc => { doc.spec.arbitrarySizeMm = { width: 90, length: 70 }; }],
+    ["peg bottom", doc => { doc.spec.pegBottom = { diameterMm: 6, lengthMm: 5, underside: "flat", density: "corners" }; }],
+    ["wall slant", doc => { doc.spec.wallSlant = { axis: "x", angleDeg: 15 }; }],
+    ["compartments", doc => { doc.spec.fill = "none"; doc.cutouts = []; doc.spec.compartments.rows = 2; }],
+    ["compartments", doc => { doc.spec.fill = "none"; doc.cutouts = []; doc.spec.compartments.scoop = true; }],
+    ["hollow floor rounding", doc => { doc.spec.fill = "none"; doc.cutouts = []; doc.spec.bottomFilletRadiusMm = 2.8; }],
+    ["legacy depth offset", doc => { doc.cutouts[0].zOffsetMm = 3; }],
+    ["insertion anchor", doc => { doc.cutouts[0].insertionMode = "axis"; }],
+    ["protected insertion floor", doc => { doc.cutouts[0].insertionMode = "vertical"; doc.cutouts[0].elevationMm = 2; doc.cutouts[0].depth = {mode: "remaining", floorThicknessMm: 5}; }],
+    ["retained material", doc => { doc.cutouts[0].role = "hole"; }],
+    ["pocket depth", doc => { doc.cutouts[0].depthPending = true; }],
+    ["insertion", doc => { doc.cutouts[0].insertionMode = "axis"; doc.cutouts[0].insertionAxis = "x"; doc.cutouts[0].tilt = {xDeg: 0, yDeg: -45}; doc.cutouts[0].topFilletMm = 0; }],
+    ["insertion", doc => { doc.cutouts[0].insertionMode = "axis"; doc.cutouts[0].insertionAxis = "y"; doc.cutouts[0].tilt = {xDeg: 45, yDeg: 0}; doc.cutouts[0].topFilletMm = 0; }],
+  ])("rejects unsupported %s without changing the snapshot", (operation, configure) => {
+    const doc = cadInvestigationFixtures().mixed;
+    configure(doc);
+    const snapshot = structuredClone(doc);
+    expect(getStepExportStatus(doc).issues.map(issue => issue.operation)).toContain(operation);
+    expect(() => resolveCadDesign(doc)).toThrow();
+    expect(doc).toEqual(snapshot);
+  });
+  it("identifies the label whose hardware symbol cannot be exported", () => {
+    const doc = cadInvestigationFixtures().irregular;
+    doc.spec.surfaceTexts[0].symbol = "hex-nut";
+    expect(getStepExportStatus(doc).issues).toContainEqual(expect.objectContaining({objectId: "text", objectName: "CAD label", operation: "hardware symbol"}));
+  });
+  it("accepts inactive retained settings and the ordinary local Z insertion path", () => {
+    const doc = cadInvestigationFixtures().mixed;
+    doc.spec.bottomFilletRadiusMm = 2.8;
+    doc.spec.compartments.rows = 3;
+    doc.spec.wallSlant = {axis: "x", angleDeg: 0};
+    doc.cutouts[0].insertionAxis = "x"; // Inactive without axial insertion mode.
+    expect(getStepExportStatus(doc).supported).toBe(true);
+    const hollow = cadInvestigationFixtures()["standard-hollow"];
+    hollow.spec.compartments = {rows: 3, columns: 2, enabled: false, scoop: false, dividerThicknessMm: 1.2};
+    expect(getStepExportStatus(hollow).supported).toBe(true);
+    expect(getStepExportStatus(cadInvestigationFixtures().tilted).supported).toBe(true);
   });
 });

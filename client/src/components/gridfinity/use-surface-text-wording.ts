@@ -4,7 +4,6 @@ import type { BinHistory } from "@shared/gridfinity/history";
 import { extendLocalFont } from "@/lib/gridfinity/local-font";
 import { surfaceTextOutline } from "@/lib/gridfinity/surface-text";
 import { useBin, type BinAction } from "@/state/bin-store";
-import { useExperimentalFeatures } from "@/state/experimental-features";
 
 // A new draft supersedes pending work even if the user selected another label
 // and returned, mounting a fresh editor before the old font conversion finished.
@@ -27,7 +26,6 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
   commitOnUnmount?: () => boolean;
 } = {}) {
   const { dispatch, history, editingEpoch } = useBin();
-  const { enabled } = useExperimentalFeatures();
   const [draft, setDraft] = useState(label.text);
   const [error, setError] = useState<string | null>(null);
   const staged = useRef<WordingDraft | null>(null);
@@ -67,7 +65,7 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
       edit.finished = true;
       latestRequests.delete(edit.label.id);
       dispatch({ type: "COMMIT_SURFACE_TEXT_WORDING", id: edit.label.id,
-        expectedHistory: edit.history, expectedEditingEpoch: edit.editingEpoch, expectedText: edit.label.text, text: edit.text, font });
+        expectedHistory: edit.history, expectedEditingEpoch: edit.editingEpoch, expectedText: edit.label.text, text: edit.text, font, symbol: parsed.data.symbol });
       if (mounted.current) { setError(null); current.current.options.onDone?.(); }
     };
     const font = edit.label.font;
@@ -76,13 +74,21 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
       void extendLocalFont(font, edit.text).then(save).catch(cause => fail(cause instanceof Error ? cause.message : String(cause)));
     } else save(font);
   };
+  // Selecting a symbol commits it together with the current wording draft. This
+  // also supersedes an in-flight font extension, without discarding typed text.
+  const changeSymbol = (symbol: SurfaceText["symbol"]) => {
+    const token = Symbol();
+    latestRequests.set(label.id, token);
+    staged.current = { label: { ...label, symbol }, history, editingEpoch, text: draft, token, pending: false, finished: false };
+    commit();
+  };
   const commitRef = useRef(commit);
   commitRef.current = commit;
   // A document change invalidates the old draft; a pure selection change does
   // not change history and instead commits the outgoing editor in cleanup.
   useEffect(() => {
     cancel(); setDraft(label.text); setError(null);
-  }, [label.text, label.font, history, enabled]);
+  }, [label.text, label.font, history]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -91,5 +97,5 @@ export function useSurfaceTextWording(label: SurfaceText, options: {
       else cancel();
     };
   }, []);
-  return { draft, error, change, commit, cancel };
+  return { draft, error, change, commit, cancel, changeSymbol };
 }

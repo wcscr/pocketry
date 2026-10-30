@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
-import { parseBinSpec } from "./types";
+import { parseProjectDoc, serializeProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
+import { MAX_HEIGHT_UNITS, parseBinSpec } from "./types";
+import { rigidPocket } from "./rigid-pocket";
+import { DEFAULT_PEG_BOTTOM } from "./peg-bottom";
+import { DEFAULT_BIN_MATERIALS } from "./materials";
+import { binWallThicknessMm } from "./standard";
+import { arbitrarySizePatch, gridSizeFromArbitrary } from "./bin-size";
 import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
 
 const VALID = {
@@ -44,19 +49,67 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
-  it("migrates v31 wall thickness through the design, history, and transform references", () => {
+  it.each([undefined, false, true])("round-trips automatic label placement (%s) and history", autoWall => {
+    const spec = { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 }, labelTab: { wall: "west", autoWall, width: "full" } };
+    const parsed = parseProjectDoc({ ...VALID, spec, cutouts: [], history: { index: 0, stack: [
+      { label: "Label placement", doc: { spec, cutouts: [], fingerHoles: [] } },
+    ] } });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.spec.labelTab!.autoWall).toBe(autoWall);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed!))))).toEqual(parsed);
+  });
+
+  it.each([12, 42, 50.5, 51, MAX_HEIGHT_UNITS])("round-trips a %sU bin and its saved history", heightUnits => {
+    const parsed = parseProjectDoc({
+      ...VALID, cutouts: [], spec: { ...VALID.spec, heightUnits },
+      history: { index: 1, stack: [
+        { label: "Before", doc: { spec: VALID.spec, cutouts: [], fingerHoles: [] } },
+        { label: "Change bin height", doc: { spec: { ...VALID.spec, heightUnits }, cutouts: [], fingerHoles: [] } },
+      ] },
+    });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.spec.heightUnits).toBe(heightUnits);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed!))))).toEqual(parsed);
+  });
+
+  it("rejects heights above the design ceiling and preserves half-unit grid increments", () => {
+    for (const heightUnits of [MAX_HEIGHT_UNITS + 0.5, 50.25]) {
+      expect(parseProjectDoc({ ...VALID, spec: { ...VALID.spec, heightUnits } })).toBeNull();
+    }
+  });
+
+  it.each([37, 38, 39, 40, 44, 45, 46])("migrates v%s projects and saves a slanted wall through history", schemaVersion => {
+    const old = { ...VALID, schemaVersion };
+    const migrated = parseProjectDoc(old)!;
+    expect(migrated.spec.wallSlant).toBeNull();
+    const slanted = { ...migrated.spec, lip: "none" as const, wallSlant: { axis: "y" as const, angleDeg: -75, side: "positive" as const } };
+    const saved = { ...migrated, spec: slanted, history: { index: 1, stack: [
+      { doc: { spec: migrated.spec, cutouts: migrated.cutouts, fingerHoles: migrated.fingerHoles }, label: "Before" },
+      { doc: { spec: slanted, cutouts: migrated.cutouts, fingerHoles: migrated.fingerHoles }, label: "Slant walls" },
+    ] } };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
+  it.each([40, 45])("keeps v%s slanted projects tilting both walls", schemaVersion => {
+    const doc = parseProjectDoc({ ...VALID, schemaVersion,
+      spec: { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 } } })!;
+    expect(doc.spec.wallSlant).toEqual({ axis: "x", angleDeg: 20 });
+  });
+  it.each([31, 47, 48])("migrates v%s wall defaults through the design, history, and transform references", schemaVersion => {
     const { wallThicknessMm: _removed, ...spec } = VALID.spec;
     const cutouts = [parseProjectDoc(VALID)!.cutouts[0]];
-    const doc = { spec: { ...spec, fill: "none" }, cutouts, fingerHoles: [] };
-    const legacy = { ...VALID, ...doc, schemaVersion: 31,
+    const legacySpec = { ...spec, fill: "none", heightUnits: 20, ...(schemaVersion >= 32 ? { wallThicknessMm: 0.95 } : {}) };
+    const doc = { spec: legacySpec, cutouts, fingerHoles: [] };
+    const legacy = { ...VALID, ...doc, schemaVersion,
       history: { stack: [{ doc, label: "Opened" }], index: 0 },
-      transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
+      transformOrigins: { pockets: [{ cutout: cutouts[0], spec: legacySpec }], fingerHoles: [] } };
     const original = JSON.stringify(legacy);
     const migrated = parseProjectDoc(legacy)!;
     expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
-    expect(migrated.spec.wallThicknessMm).toBe(0.95);
-    expect(migrated.history!.stack[0].doc.spec.wallThicknessMm).toBe(0.95);
-    expect(migrated.transformOrigins!.pockets[0].spec.wallThicknessMm).toBe(0.95);
+    expect(migrated.spec.wallThicknessMm).toBeNull();
+    expect(migrated.history!.stack[0].doc.spec.wallThicknessMm).toBeNull();
+    expect(migrated.transformOrigins!.pockets[0].spec.wallThicknessMm).toBeNull();
+    expect(binWallThicknessMm(migrated.spec)).toBe(1.6);
+    expect(binWallThicknessMm({ ...migrated.spec, heightUnits: 8 })).toBe(1.2);
     expect(JSON.stringify(legacy)).toBe(original);
     const thick = { ...migrated.spec, wallThicknessMm: 2.4 };
     const saved = { ...migrated, spec: thick, history: { index: 1, stack: [
@@ -64,6 +117,52 @@ describe("parseProjectDoc", () => {
       { doc: { ...migrated.history!.stack[0].doc, spec: thick }, label: "Change wall thickness" },
     ] } };
     expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  });
+  it.each([null, 0.95, 1.2, 1.6, 2.4])("round-trips automatic or fixed %s mm walls through history and transform origins", wallThicknessMm => {
+    const source = parseProjectDoc(VALID)!;
+    const spec = parseBinSpec({ ...source.spec, fill: "none", heightUnits: 20, wallThicknessMm });
+    const doc = { spec, cutouts: source.cutouts, fingerHoles: [] };
+    const saved = { ...source, ...doc,
+      history: { index: 1, stack: [
+        { label: "Before", doc: { ...doc, spec: { ...spec, heightUnits: 7.5 } } },
+        { label: "Change bin height", doc },
+      ] },
+      transformOrigins: { pockets: [{ spec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))));
+    expect(restored).toEqual(saved);
+    expect(parseProjectDoc({ ...saved, schemaVersion: 49 })).toEqual(saved);
+    expect(parseProjectDoc({ ...saved, schemaVersion: 50 })).toEqual(saved);
+    if (wallThicknessMm !== 0.95) {
+      expect(parseProjectDoc({ ...saved, schemaVersion: 47 })).toEqual(saved);
+      expect(parseProjectDoc({ ...saved, schemaVersion: 48 })).toEqual(saved);
+    }
+  });
+  it.each([true, false])("preserves automatic flat-bottom provenance=%s through saving, history and transform references", autoFlatBottom => {
+    const source = parseProjectDoc(VALID)!;
+    const spec = parseBinSpec({ ...source.spec, ...arbitrarySizePatch(source.spec), autoFlatBottom });
+    const doc = { spec, cutouts: source.cutouts, fingerHoles: [] };
+    const saved = { ...source, ...doc,
+      history: { index: 1, stack: [
+        { label: "Before", doc: { ...doc, spec: source.spec } },
+        { label: "Arbitrary", doc },
+      ] },
+      transformOrigins: { pockets: [{ spec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(saved))))!;
+    expect(restored).toEqual(saved);
+    expect(gridSizeFromArbitrary(restored.spec, "full")?.flatBottom).toBe(!autoFlatBottom);
+    expect(gridSizeFromArbitrary(restored.history!.stack[1].doc.spec, "full")?.flatBottom).toBe(!autoFlatBottom);
+    const { autoFlatBottom: _removed, ...legacySpec } = spec;
+    const legacy = { ...saved, schemaVersion: 49, spec: legacySpec,
+      history: { index: 0, stack: [{ label: "Legacy", doc: { ...doc, spec: legacySpec } }] },
+      transformOrigins: { pockets: [{ spec: legacySpec, cutout: source.cutouts[0] }], fingerHoles: [] },
+    };
+    const migrated = parseProjectDoc(legacy)!;
+    expect(migrated.spec.autoFlatBottom).toBe(false);
+    expect(migrated.history!.stack[0].doc.spec.autoFlatBottom).toBe(false);
+    expect(migrated.transformOrigins!.pockets[0].spec.autoFlatBottom).toBe(false);
+    expect(gridSizeFromArbitrary(migrated.spec, "full")?.flatBottom).toBe(true);
   });
   it("migrates released v25 fill-depth references and settings without changing history", () => {
     const original = parseProjectDoc(VALID)!;
@@ -201,7 +300,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, flatBottom: false, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: 0.95 }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, bottomFilletRadiusMm: 0, compartments: { rows: 1, columns: 1, dividerThicknessMm: 1.2, scoop: false }, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
@@ -670,4 +769,90 @@ it("keeps migrated linked through designs consistent even when creation depths d
   expect(migrated).not.toBeNull();
   expect(migrated.cutouts[0].depth).toEqual({mode:"through",sourceDepthMm:16});
   expect(migrated.cutouts[1].depth).toEqual(migrated.cutouts[0].depth);
+});
+
+
+it.each(["corners", 1, 2, 3, 4, 5])("restores every-hole pegs from v37 density %s throughout saved projects", density => {
+  const base = parseProjectDoc(VALID)!;
+  const legacyPegs = { ...DEFAULT_PEG_BOTTOM, underside: "sloped" as const, density: 1 as const };
+  const spec = { ...base.spec, pegBottom: { ...legacyPegs, density } };
+  const snapshot = { spec, cutouts: base.cutouts, fingerHoles: base.fingerHoles };
+  const legacy = { ...base, ...snapshot, schemaVersion: 37,
+    history: { index: 0, stack: [{ label: "Start", doc: snapshot }] },
+    transformOrigins: { pockets: [{ cutout: base.cutouts[0], spec }], fingerHoles: [] } };
+  const original = JSON.stringify(legacy);
+  const migrated = parseProjectDoc(legacy)!;
+  expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.spec.pegBottom).toEqual(legacyPegs);
+  expect(migrated.history!.stack[0].doc.spec.pegBottom).toEqual(legacyPegs);
+  expect(migrated.transformOrigins!.pockets[0].spec.pegBottom).toEqual(legacyPegs);
+  expect(migrated.cutouts).toEqual(base.cutouts);
+  expect(JSON.stringify(legacy)).toBe(original);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+});
+
+it.each([0, 6, 1.5, "everywhere", null])("rejects malformed v37 density %s", density => {
+  expect(parseProjectDoc({ ...VALID, schemaVersion: 37, spec: { ...VALID.spec, pegBottom: { ...DEFAULT_PEG_BOTTOM, density } } })).toBeNull();
+});
+
+it.each([35, 36, 37])("repairs proven unraised surface Through conversions in v%s history and current design", schemaVersion => {
+  const base = parseProjectDoc(VALID)!;
+  const original = base.cutouts[0];
+  const frozen = rigidPocket(original, base.shapes[0], base.spec);
+  const through = { ...frozen, depth: { mode: "through" as const, sourceDepthMm: frozen.depth.mode === "mm" ? frozen.depth.value : frozen.depth.sourceDepthMm } };
+  const snapshot = (cutout: typeof original) => ({ spec: base.spec, cutouts: [cutout], fingerHoles: [] });
+  const legacy = { ...base, ...snapshot(through), schemaVersion,
+    transformOrigins: { pockets: [{ cutout: original, spec: base.spec }], fingerHoles: [] },
+    history: { index: 1, stack: [{ label: "Draw", doc: snapshot(original) }, { label: "Through", doc: snapshot(through) },
+      { label: "Raise", doc: snapshot({ ...through, elevationMm: through.elevationMm! + 3 }) }] } };
+  const text = JSON.stringify(legacy);
+  const migrated = parseProjectDoc(legacy)!;
+  expect(migrated.cutouts[0].depth).toEqual({ mode: "through" });
+  expect(migrated.cutouts[0].elevationMm).toBeUndefined();
+  expect(migrated.history!.stack[0].doc.cutouts[0]).toEqual(original);
+  expect(migrated.history!.stack[1].doc.cutouts).toEqual(migrated.cutouts);
+  expect(migrated.history!.stack[2].doc.cutouts[0]).toEqual(legacy.history.stack[2].doc.cutouts[0]);
+  expect(migrated.transformOrigins).toEqual(legacy.transformOrigins);
+  expect(JSON.stringify(legacy)).toBe(text);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+});
+
+it("preserves tilted, raised, and unproven finite Through pockets on upgrade", () => {
+  const base = parseProjectDoc(VALID)!;
+  const original = base.cutouts[0];
+  const frozen = rigidPocket(original, base.shapes[0], base.spec);
+  const through = { ...frozen, depth: { mode: "through" as const, sourceDepthMm: 16 } };
+  for (const cutout of [through, { ...through, elevationMm: 20 }, { ...through, tilt: { xDeg: 20, yDeg: 0 } }]) {
+    expect(parseProjectDoc({ ...base, schemaVersion: 36, cutouts: [cutout] })!.cutouts[0]).toEqual(cutout);
+  }
+});
+
+it("migrates main v37 pending pocket depths, colors, history and creation references", () => {
+  const parsed = parseProjectDoc(VALID)!;
+  const cutout = { ...parsed.cutouts[0], depthPending: true };
+  const snapshot = { spec: parsed.spec, cutouts: [cutout], fingerHoles: parsed.fingerHoles };
+  const legacy = { ...parsed, ...snapshot, schemaVersion: 37,
+    materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#1256ab" },
+    history: { index: 0, stack: [{ label: "Add traced tool", doc: snapshot }] },
+    transformOrigins: { pockets: [{ cutout, spec: snapshot.spec }], fingerHoles: [] } };
+  const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
+  expect(migrated).not.toBeNull();expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+  expect(migrated.cutouts).toEqual(snapshot.cutouts);
+  expect(migrated.history!.stack[0].doc).toEqual(snapshot);
+  expect(migrated.transformOrigins).toEqual(legacy.transformOrigins);
+  expect(migrated.materials).toEqual(legacy.materials);
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(migrated))))).toEqual(migrated);
+});
+
+it("migrates v40 ULTIM8 sizes, sparse pegs and colors without changing history", () => {
+  const parsed = parseProjectDoc(VALID)!;
+  const spec = parseBinSpec({ ...parsed.spec, arbitrarySizeMm: { width: 159.4, length: 75 }, heightUnits: 8.5 / 7,
+    pegBottom: { underside: "flat", density: "corners", lengthMm: 3.5 } });
+  const snapshot = { spec, cutouts: parsed.cutouts, fingerHoles: parsed.fingerHoles };
+  const legacy = { ...parsed, ...snapshot, schemaVersion: 40, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#abcd12" },
+    history: { index: 0, stack: [{ label: "Raise jig", doc: snapshot }] },
+    transformOrigins: { pockets: [{ cutout: parsed.cutouts[0], spec }], fingerHoles: [] } };
+  const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
+  expect(migrated).toEqual({ ...legacy, schemaVersion: PROJECT_SCHEMA_VERSION });
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(migrated))))).toEqual(migrated);
 });

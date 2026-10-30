@@ -1,0 +1,346 @@
+// @vitest-environment jsdom
+import * as React from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { OUTER_RING, type Outline } from "@shared/geometry/types";
+import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
+import { hookedToolRing, rectRing } from "@/lib/geometry/fixtures";
+import { outlineToPathData } from "@/lib/export/svg";
+import { suggestSymmetryAxis } from "@/lib/geometry/symmetry";
+import { transformImagePoint } from "@shared/geometry/image-alignment";
+import { mmPerPixel } from "@shared/geometry/scale";
+import { TraceSymmetryTool } from "./trace-symmetry-tool";
+
+let trace: TraceStore;
+let root: Root;
+let host: HTMLDivElement;
+const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
+const outline: Outline = [
+  { outer: rectRing(20, 0, 15, 100), holes: [] },
+  { outer: [{ x: 80, y: 10 }, { x: 90, y: 10 }, { x: 94, y: 30 }, { x: 90, y: 90 }, { x: 80, y: 90 }], holes: [] },
+];
+function Harness() { trace = useTrace(); return <TraceSymmetryTool />; }
+function button(text: string) {
+  const result = [...document.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === text);
+  expect(result, `Missing ${text}`).toBeDefined(); return result!;
+}
+const click = (text: string) => React.act(() => button(text).click());
+const preview = () => document.querySelector('[data-testid="symmetry-result"]')!.getAttribute("d");
+const toggleUpright = () => React.act(() => document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());
+const uprightPreview = () => document.querySelector('[data-testid="symmetry-upright-result"]')?.getAttribute("d");
+function ready() {
+  React.act(() => {
+    trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "driver" });
+    trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 200, height: 150 } });
+    trace.dispatch({ type: "SET_CALIBRATION", calibration });
+    trace.dispatch({ type: "DETECTED", imageUrl: "photo", outline, rawOutline: outline, svg: "", region: null });
+    trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: OUTER_RING } });
+  });
+}
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  React.act(() => root.render(<TraceProvider><Harness /></TraceProvider>));
+});
+afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
+
+describe("symmetry preview", () => {
+  it("disables the tool until an outline is available", () => {
+    expect(button("Symmetry & straighten").disabled).toBe(true);
+  });
+
+  it("defaults to straightening a branched contour on every open, even after choosing symmetry", () => {
+    ready();
+    // A tilted U-shaped tool has separate cross-sections that cannot be averaged.
+    const branched = { outer: [{ x: -8, y: 0 }, { x: -4, y: 0 }, { x: -4, y: 80 }, { x: 4, y: 80 },
+      { x: 4, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 100 }, { x: -8, y: 100 }].map(p => ({
+        x: 80 + .8 * p.x - .6 * p.y, y: 20 + .6 * p.x + .8 * p.y,
+      })), holes: [] };
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [outline[0], branched] }));
+    click("Symmetry & straighten");
+    expect(button("Straighten only").getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    expect(button("Apply").disabled).toBe(false);
+    click("Symmetry"); click("Average"); toggleUpright();
+    expect(document.querySelector('[role="status"]')?.textContent).toContain("Choose Left or Right");
+    expect(button("Apply").disabled).toBe(true);
+    click("Cancel"); click("Symmetry & straighten");
+    expect(button("Straighten only").getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    expect(preview()).toBe(outlineToPathData([branched]));
+    click("Apply");
+    expect(trace.outline[1].outer).toEqual(branched.outer.map(p => transformImagePoint(p, trace.imageAlignment!.matrix)));
+  });
+
+  it("keeps contextual guidance behind help hints and shows side choices only for symmetry", () => {
+    ready(); click("Symmetry & straighten");
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(document.querySelector('[aria-labelledby="symmetry-side-label"]')).toBeNull();
+    const help = document.querySelector<HTMLButtonElement>('[aria-label="About straightening and symmetry"]')!;
+    React.act(() => help.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("without changing their shape or scale");
+    React.act(() => help.click());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    click("Symmetry");
+    expect(document.querySelector('[aria-labelledby="symmetry-side-label"]')).not.toBeNull();
+    expect(button("Average").getAttribute("aria-checked")).toBe("true");
+    expect(button("Apply").disabled).toBe(false);
+    click("Cancel");
+  });
+
+  it("previews either side and keyboard axis changes without altering the trace on Cancel", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); click("Symmetry"); click("Average"); const average = preview();
+    click("Left"); const left = preview();
+    expect(left).not.toEqual(average);
+    click("Right"); expect(preview()).not.toEqual(left);
+    click("Average");
+    React.act(() => document.querySelector('[aria-label="First axis handle"]')!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    ));
+    expect(preview()).not.toEqual(average);
+    click("Reset axis"); expect(preview()).toEqual(average);
+    expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
+    click("Cancel"); expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
+  });
+
+  it("changes only the selected shape in one undoable edit and preserves calibration", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); click("Symmetry"); click("Left"); click("Apply");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(trace.outline[0]).toBe(original[0]); expect(trace.outline[1]).not.toEqual(original[1]);
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(trace.history.stack[trace.history.index]).toMatchObject({ label: "Make contour symmetric", hasManualEdits: true });
+    expect(trace.history.stack[trace.history.index].refinementBase).toBe(trace.outline);
+    expect(trace.calibration).toBe(calibration); expect(trace.imageSize).toEqual({ width: 200, height: 150 });
+    const changed = trace.outline;
+    React.act(() => trace.undo()); expect(trace.outline).toBe(original);
+    React.act(() => trace.redo()); expect(trace.outline).toBe(changed);
+  });
+
+  it("previews upright rotation without moving the photo comparison or committing on Cancel", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); click("Symmetry"); click("Average"); const originalPreview = preview();
+    expect(uprightPreview()).toBeUndefined();
+    toggleUpright();
+    expect(uprightPreview()).toBeTruthy(); expect(uprightPreview()).not.toEqual(originalPreview);
+    expect(preview()).toEqual(originalPreview);
+    toggleUpright(); expect(uprightPreview()).toBeUndefined(); expect(preview()).toEqual(originalPreview);
+    toggleUpright(); click("Cancel");
+    expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
+  });
+
+  it("applies the upright preview and matching photo rotation as one undoable edit", () => {
+    ready(); const original = trace.outline, history = trace.history, image = trace.imageUrl;
+    click("Symmetry & straighten"); click("Symmetry"); click("Average"); toggleUpright(); const expected = uprightPreview();
+    const previewMatrix = document.querySelector('[data-testid="trace-image-alignment"]')!.getAttribute("transform");
+    click("Apply");
+    expect(outlineToPathData([trace.outline[1]])).toEqual(expected);
+    const uprightAxis = suggestSymmetryAxis(trace.outline[1].outer);
+    expect(uprightAxis.start.x).toBeCloseTo(uprightAxis.end.x, 8);
+    expect(uprightAxis.end.y).toBeGreaterThan(uprightAxis.start.y);
+    expect(`matrix(${trace.imageAlignment!.matrix.join(" ")})`).toBe(previewMatrix);
+    expect(trace.outline[0].outer).toEqual(original[0].outer.map(p => transformImagePoint(p, trace.imageAlignment!.matrix)));
+    expect(mmPerPixel(trace.calibration)).toBeCloseTo(mmPerPixel(calibration)!, 8);
+    expect(trace.imageUrl).toBe(image); expect(trace.imageSize).toEqual(trace.imageAlignment!.size);
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(trace.history.stack[trace.history.index].label).toBe("Make contour symmetric and upright");
+    const changed = trace.outline;
+    React.act(() => trace.undo()); expect(trace.outline).toBe(original);
+    expect(trace.imageAlignment).toBeNull(); expect(trace.calibration).toBe(calibration);
+    expect(trace.imageSize).toEqual({ width: 200, height: 150 });
+    React.act(() => trace.redo()); expect(trace.outline).toBe(changed);
+    expect(`matrix(${trace.imageAlignment!.matrix.join(" ")})`).toBe(previewMatrix);
+  });
+
+  it("zooms with buttons and wheel without changing the axis or committing the preview", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); const path = preview();
+    const viewport = document.querySelector('[data-testid="symmetry-viewport"]')!;
+    const initial = viewport.getAttribute("transform");
+    React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Zoom in symmetry preview"]')!.click());
+    expect(viewport.getAttribute("transform")).not.toEqual(initial);
+    expect(preview()).toEqual(path);
+    const zoomed = viewport.getAttribute("transform");
+    React.act(() => document.querySelector('[data-testid="symmetry-preview"]')!.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: -120, clientX: 100, clientY: 100, bubbles: true, cancelable: true })));
+    expect(viewport.getAttribute("transform")).not.toEqual(zoomed);
+    click("Fit"); expect(viewport.getAttribute("transform")).toEqual(initial);
+    expect(preview()).toEqual(path); expect(trace.outline).toBe(original); expect(trace.history).toBe(history);
+  });
+
+  it("straightens asymmetric shapes with holes without mirroring, and restores photo and scale on undo", () => {
+    ready();
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [outline[0],
+      { ...outline[1], holes: [rectRing(83, 20, 2, 5).reverse()] }] }));
+    const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten");
+    expect(button("Straighten only").getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    expect(document.querySelector('[role="checkbox"]')).toBeNull();
+    expect(preview()).toBe(outlineToPathData([original[1]]));
+    const expected = uprightPreview();
+    expect(button("Apply").disabled).toBe(false);
+    click("Apply");
+    expect(outlineToPathData([trace.outline[1]])).toBe(expected);
+    const matrix = trace.imageAlignment!.matrix;
+    for (let i = 0; i < original.length; i++) {
+      expect(trace.outline[i].outer).toEqual(original[i].outer.map(p => transformImagePoint(p, matrix)));
+      expect(trace.outline[i].holes).toEqual(original[i].holes.map(ring => ring.map(p => transformImagePoint(p, matrix))));
+    }
+    const axis = suggestSymmetryAxis(trace.outline[1].outer);
+    expect(axis.start.x).toBeCloseTo(axis.end.x, 8);
+    expect(mmPerPixel(trace.calibration)).toBeCloseTo(mmPerPixel(calibration)!, 8);
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(trace.history.stack[trace.history.index].label).toBe("Straighten photo");
+    const changed = trace.outline;
+    React.act(() => trace.undo());
+    expect(trace.outline).toBe(original); expect(trace.imageAlignment).toBeNull(); expect(trace.calibration).toBe(calibration);
+    React.act(() => trace.redo()); expect(trace.outline).toBe(changed);
+  });
+
+  it("keeps straightening previews local and restores the selected symmetry behavior when switching modes", () => {
+    ready(); const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten"); click("Symmetry"); click("Left"); const symmetric = preview();
+    click("Straighten only");
+    expect(uprightPreview()).toBeTruthy();
+    expect(preview()).toBe(outlineToPathData([original[1]]));
+    React.act(() => document.querySelector('[aria-label="First axis handle"]')!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(preview()).toBe(outlineToPathData([original[1]]));
+    click("Reset axis"); click("Symmetry");
+    expect(button("Left").getAttribute("aria-checked")).toBe("true");
+    expect(preview()).toBe(symmetric); expect(uprightPreview()).toBeUndefined();
+    click("Straighten only"); click("Cancel");
+    expect(trace.outline).toBe(original); expect(trace.history).toBe(history); expect(trace.imageAlignment).toBeNull();
+  });
+
+
+  it("maps axis dragging through the zoomed and panned scene", () => {
+    ready(); const history = trace.history;
+    click("Symmetry & straighten"); click("Symmetry"); click("Average");
+    React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Zoom in symmetry preview"]')!.click());
+    const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
+    const scene = document.querySelector('[data-testid="symmetry-scene"]')!;
+    const viewport = document.querySelector('[data-testid="symmetry-viewport"]')!;
+    const handle = document.querySelector('[aria-label="First axis handle"]')!;
+    Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });
+    const pointer = (element: Element, type: string, x: number, y: number, pointerId = 1, pointerType = "mouse") => React.act(() => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, { pointerId: { value: pointerId }, pointerType: { value: pointerType },
+        button: { value: 0 }, clientX: { value: x }, clientY: { value: y } });
+      element.dispatchEvent(event);
+    });
+    // Pan the photograph without touching the draft axis.
+    const original = preview(), zoomed = viewport.getAttribute("transform");
+    pointer(canvas, "pointerdown", 10, 20); pointer(canvas, "pointermove", 70, 50); pointer(canvas, "pointerup", 70, 50);
+    expect(viewport.getAttribute("transform")).not.toBe(zoomed); expect(preview()).toBe(original);
+    const [tx, ty, scale] = viewport.getAttribute("transform")!.match(/-?[\d.]+/g)!.map(Number);
+    const [sx, sy] = scene.getAttribute("transform")!.match(/-?[\d.]+/g)!.map(Number);
+    Object.defineProperty(scene, "getScreenCTM", { value: () => ({ inverse: () => ({ scale, tx: tx + sx * scale, ty: ty + sy * scale }) }) });
+    Object.defineProperty(canvas, "createSVGPoint", { value: () => ({ x: 0, y: 0,
+      matrixTransform(m: { scale: number; tx: number; ty: number }) { return { x: (this.x - m.tx) / m.scale, y: (this.y - m.ty) / m.scale }; } }) });
+    pointer(handle, "pointerdown", 0, 0);
+    pointer(canvas, "pointermove", tx + (sx + 82) * scale, ty + (sy + 15) * scale);
+    pointer(canvas, "pointerup", 0, 0);
+    expect(Number(handle.getAttribute("cx"))).toBeCloseTo(82); expect(Number(handle.getAttribute("cy"))).toBeCloseTo(15);
+    expect(trace.history).toBe(history);
+
+    // A second finger switches an in-progress axis edit to pinch zoom, restoring that draft edit.
+    const axisBeforePinch = preview(), viewBeforePinch = viewport.getAttribute("transform");
+    pointer(handle, "pointerdown", 100, 100, 2, "touch");
+    pointer(canvas, "pointermove", tx + (sx + 84) * scale, ty + (sy + 15) * scale, 2, "touch");
+    expect(preview()).not.toBe(axisBeforePinch);
+    pointer(canvas, "pointerdown", 300, 300, 3, "touch");
+    expect(preview()).toBe(axisBeforePinch);
+    pointer(canvas, "pointermove", 400, 400, 3, "touch");
+    expect(viewport.getAttribute("transform")).not.toBe(viewBeforePinch); expect(preview()).toBe(axisBeforePinch);
+    pointer(canvas, "pointerup", 400, 400, 3, "touch"); pointer(canvas, "pointerup", 100, 100, 2, "touch");
+    click("Cancel"); expect(trace.history).toBe(history);
+  });
+
+  it("dismisses a stale preview after another edit or source replacement", () => {
+    ready(); click("Symmetry & straighten");
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [...trace.outline] }));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    click("Symmetry & straighten");
+    React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "replacement", fileName: "new" }));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it.each(["mouse", "touch"])("lets a branched grip switch to either mirror and apply upright with undo/redo using %s", pointerType => {
+    ready();
+    const hooked = { outer: hookedToolRing().map(p => ({ x: 40 + p.y, y: 70 - p.x })), holes: [] };
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [outline[0], hooked] }));
+    const original = trace.outline, history = trace.history;
+    click("Symmetry & straighten");
+    expect(button("Straighten only").getAttribute("aria-checked")).toBe("true");
+    expect(button("Apply").disabled).toBe(false);
+    click("Symmetry");
+    // Place both handles on the barrel centerline, as in the photo workflow.
+    const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
+    Object.defineProperty(document.querySelector('[data-testid="symmetry-scene"]')!, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(canvas, "createSVGPoint", { value: () => ({ x: 0, y: 0,
+      matrixTransform() { return { x: this.x, y: this.y }; } }) });
+    for (const [label, x] of [["First", 40], ["Second", 140]] as const) {
+      const handle = document.querySelector(`[aria-label="${label} axis handle"]`)!;
+      Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });
+      for (const type of ["pointerdown", "pointermove", "pointerup"]) React.act(() => {
+        const event = new Event(type, { bubbles: true });
+        Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: pointerType },
+          button: { value: 0 }, clientX: { value: x }, clientY: { value: 70 } });
+        (type === "pointerdown" ? handle : canvas).dispatchEvent(event);
+      });
+    }
+    expect(button("Apply").disabled).toBe(true);
+    expect(document.querySelector('[role="status"]')?.textContent).toContain("Choose Left or Right");
+    click("Left");
+    expect(preview()).toBeTruthy(); expect(button("Apply").disabled).toBe(false);
+    const left = preview();
+    click("Right");
+    expect(preview()).toBeTruthy(); expect(preview()).not.toBe(left);
+    expect(button("Apply").disabled).toBe(false);
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    toggleUpright(); const expected = uprightPreview();
+    click("Apply");
+    expect(trace.outline.some(shape => outlineToPathData([shape]) === expected)).toBe(true);
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(mmPerPixel(trace.calibration)).toBeCloseTo(mmPerPixel(calibration)!, 8);
+    const changed = trace.outline, alignment = trace.imageAlignment;
+    React.act(() => trace.undo()); expect(trace.outline).toBe(original);
+    expect(trace.imageAlignment).toBeNull();
+    React.act(() => trace.redo()); expect(trace.outline).toBe(changed);
+    expect(trace.imageAlignment).toBe(alignment);
+  });
+
+  it("blocks unsupported holes instead of removing them", () => {
+    ready();
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [
+      outline[0], { ...outline[1], holes: [rectRing(83, 20, 2, 5)] },
+    ] }));
+    click("Symmetry & straighten"); click("Symmetry"); click("Average");
+    expect(document.querySelector('[role="status"]')?.textContent).toContain("interior holes");
+    expect(button("Apply").disabled).toBe(true);
+  });
+
+  it("rolls back a cancelled pointer drag without committing anything", () => {
+    ready(); const history = trace.history;
+    click("Symmetry & straighten"); click("Symmetry"); click("Average"); const initial = preview();
+    const canvas = document.querySelector<SVGSVGElement>('[data-testid="symmetry-preview"]')!;
+    const handle = document.querySelector('[aria-label="First axis handle"]')!;
+    Object.defineProperty(handle, "setPointerCapture", { value: vi.fn() });
+    Object.defineProperty(document.querySelector('[data-testid="symmetry-scene"]')!, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(canvas, "createSVGPoint", { value: () => ({ x: 0, y: 0,
+      matrixTransform() { return { x: this.x, y: this.y }; } }) });
+    const pointer = (element: Element, type: string, x = 82, y = 15) => React.act(() => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } });
+      element.dispatchEvent(event);
+    });
+    pointer(handle, "pointerdown"); pointer(canvas, "pointermove");
+    expect(preview()).not.toEqual(initial);
+    pointer(canvas, "pointercancel");
+    expect(preview()).toEqual(initial); expect(trace.history).toBe(history);
+  });
+});

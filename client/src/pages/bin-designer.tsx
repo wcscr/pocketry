@@ -1,16 +1,30 @@
+import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
+import { DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_ULTIM8_FOOTPRINT_MM, ultim8Defaults } from "@shared/gridfinity/ultim8-defaults";
+import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { parseBinSpec } from "@shared/gridfinity/types";
+import { useLocation } from "wouter";
+import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
+import { surfaceTextName } from "@shared/gridfinity/surface-text";
+import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
+import { ObjectGroupControls } from "@/components/gridfinity/object-group-controls";
 import { retainTransformOrigins } from "@shared/gridfinity/transform-origins";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { ToastAction } from "@/components/ui/toast";
 import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
-import { pocketDepths, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
+import { binWallThicknessMm, defaultBinWallThicknessMm } from "@shared/gridfinity/standard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
+import { PocketClearanceDialog } from "@/components/gridfinity/pocket-clearance-dialog";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
@@ -19,6 +33,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { BinEditingWorkspace } from "@/components/gridfinity/selection-inspector";
 import { Button } from "@/components/ui/button";
+import { Ultim8Link } from "@/components/ui/ultim8-link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
@@ -39,31 +54,25 @@ import {
 import {
   binDimensionsMm,
   EXPORT_QUALITY,
-  MULTICOLOR_FLOOR_THICKNESS_MM,
-  MULTICOLOR_RIM_THICKNESS_MM,
-  MULTICOLOR_BORDER_WIDTH_MM,
   PREVIEW_QUALITY,
 } from "@/lib/gridfinity/bin";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { placedPocketSplitBoundaries } from "@/lib/gridfinity/layout-measure";
 import type { BuildBinSection } from "@/lib/gridfinity/worker-api";
 import { downloadBlob } from "@/lib/download";
+import { useProjectActivityActions } from "@/state/project-activity";
+import { projectDestinationKey } from "@/lib/project/destination";
 import {
   binSizeLabel,
   downloadModelWithProject,
   exportFilePart,
   prepareProjectExport,
 } from "@/lib/project/export";
-import { generateLayoutDXF, generateLayoutSVG } from "@/lib/export/layout";
+import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
 import { exportStepInBrowser } from "@/lib/cad/client";
 import { getStepExportStatus } from "@/lib/cad/model";
 import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
-import {
-  BIN_BODY_COLOR,
-  POCKET_FLOOR_COLOR,
-  STACKING_RIM_COLOR,
-} from "@/lib/gridfinity/pocket-floor-mesh";
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
@@ -107,23 +116,28 @@ export default function BinDesignerPage(): JSX.Element {
   return (
     <BinProvider>
       <BinDesignerWorkspace />
+      <PocketClearanceDialog />
     </BinProvider>
   );
 }
 
 function BinDesignerWorkspace(): JSX.Element {
-  const { inspectorEnabled: inspectorPrototype, enabled: experimentalEnabled, setEnabled: setExperimentalEnabled, setSettingsOpen } = useExperimentalFeatures();
-  const { panelOpen, setPanelOpen, libraryRequested } = usePanelState();
+  const [location, navigate] = useLocation();
+  const ultim8Entry = location.replace(/\/$/, "") === "/ultim8";
+  const projectActivity = useProjectActivityActions();
+  const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
+  const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
+  const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested, newProjectRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
+  const [depthRequest, setDepthRequest] = useState(0);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
   useEffect(() => {
-    if (!libraryRequested) return;
+    if (!libraryRequested && !sampleLibraryRequested && !newProjectRequested) return;
     setSettingsSectionRequest({ id: "bin-settings-project" });
     setPanelOpen(true);
-  }, [libraryRequested, setPanelOpen]);
+  }, [libraryRequested, sampleLibraryRequested, newProjectRequested, setPanelOpen]);
   const editMaterialColor = (target: MaterialColorTarget) => {
-    if (target === "text" && !experimentalEnabled) { setSettingsOpen(true); return; }
     setSettingsSectionRequest({ id: "bin-settings-materials", focusId: `input-${target}-color` });
     setPanelOpen(true);
   };
@@ -141,10 +155,14 @@ function BinDesignerWorkspace(): JSX.Element {
       action: <ToastAction altText="Enable experimental tools" onClick={() => setExperimentalEnabled(true)}>Enable tools</ToastAction> });
   }, [bin.editError, setExperimentalEnabled, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
+  const isJig = !!spec.pegBottom;
+  const editBinHeight = () => {
+    setSettingsSectionRequest({ id: "bin-settings-size", focusId: isJig || spec.arbitrarySizeMm ? "arbitrary-height" : "bin-height-units" });
+    setPanelOpen(true);
+  };
   const isMobile = useIsMobile();
   const [textPositionRequest, setTextPositionRequest] = useState(0);
   const editSurfaceText = (id: string, inline = false) => {
-    if (!experimentalEnabled) return;
     dispatch({ type: "SELECT_SURFACE_TEXT", id });
     if (!isMobile && inspectorPrototype) setPocketEditorRequest(request => request + 1);
     if (!isMobile || panelOpen) setSettingsSectionRequest({ id: "bin-settings-text" });
@@ -186,28 +204,42 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => () => stepAbortRef.current?.abort(), []);
   const [section, setSection] = useState<BuildBinSection | null>(null);
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
-  const [colorPocketFloors, setColorPocketFloors] = useState(true);
-  const [binColor, setBinColor] = useState<string>(BIN_BODY_COLOR);
-  const [pocketFloorColor, setPocketFloorColor] =
-    useState<string>(POCKET_FLOOR_COLOR);
-  const [pocketFloorThicknessMm, setPocketFloorThicknessMm] = useState(
-    MULTICOLOR_FLOOR_THICKNESS_MM,
-  );
-  const [colorStackingRim, setColorStackingRim] = useState(true);
-  const [stackingRimColor, setStackingRimColor] =
-    useState<string>(STACKING_RIM_COLOR);
+  const { materials } = bin;
+  const { binColor, pocketFloorColor, stackingRimColor, colorPocketFloors,
+    colorStackingRim, colorDividerTops, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
+  const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
-  const [stackingRimThicknessMm, setStackingRimThicknessMm] = useState(
-    MULTICOLOR_RIM_THICKNESS_MM,
-  );
-  const [borderWidthMm, setBorderWidthMm] = useState(MULTICOLOR_BORDER_WIDTH_MM);
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
   const [projectBusy, setProjectBusy] = useState(false);
+  const previousWallSpec = useRef<typeof committedSpec | null>(null);
+  useEffect(() => {
+    if (!bin.hydrated || projectBusy) { previousWallSpec.current = null; return; }
+    const previous = previousWallSpec.current;
+    previousWallSpec.current = committedSpec;
+    const recommended = defaultBinWallThicknessMm(committedSpec.heightUnits);
+    const thickness = binWallThicknessMm(committedSpec);
+    // Warn once per committed wall edit or newly entered height band, never
+    // during a numeric draft/slider drag or when initially restoring a project.
+    if (previous && committedSpec.fill === "none" && thickness < recommended
+        && (previous.wallThicknessMm !== committedSpec.wallThicknessMm
+          || previous.fill !== committedSpec.fill
+          || defaultBinWallThicknessMm(previous.heightUnits) !== recommended)) {
+      toast({
+        title: "Wall thickness below recommendation",
+        description: `${thickness} mm is below the recommended ${recommended} mm for this ${committedSpec.heightUnits}U bin. Thin walls may flex or warp. Your chosen thickness has been kept.`,
+        duration: 8000,
+      });
+    }
+  }, [committedSpec, bin.hydrated, projectBusy, toast]);
   const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "error">("saving");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
+  const fixedBinSize = keepBinSize || !!spec.arbitrarySizeMm;
+  const [restoredDestination, setRestoredDestination] = useState<string | null>(null);
 
   // One validation result drives both the canvas feedback and export gates,
   // including when the controls are collapsed or the mobile drawer is closed.
@@ -221,10 +253,19 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
   const revealIssue = (issue: ValidationIssue) => {
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
+    const settings = issueSettingsTarget(issue.code);
+    if (settings) {
+      setPanelOpen(true);
+      setSettingsSectionRequest(settings);
+      return;
+    }
     if (issue.cutoutIds?.length) {
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
-      editSelectedPocket();
+      if (issue.code === "pocket-depth-needed") {
+        if (isMobile) setPanelOpen(false);
+        setDepthRequest(request => request + 1);
+      } else editSelectedPocket();
     } else {
       setPanelOpen(true);
       if (issue.fingerHoleIds?.length) {
@@ -248,10 +289,17 @@ function BinDesignerWorkspace(): JSX.Element {
         saved = await loadProjectLibrary(doc);
       } catch (cause) {
         if (cancelled) return;
-        saved = await loadProjectLibrary();
+        saved = await loadProjectLibrary().catch(error => {
+          if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The browser library could not be read.");
+          return EMPTY_PROJECT_LIBRARY;
+        });
+        // A failed restore must never bind this older in-memory document to
+        // another tab's current autosave target.
+        saved = { ...saved, activeProjectId: null };
         if (cancelled) return;
         setProjectRestoreFailed(true);
         setSaveStatus("error");
+        setSaveError(cause instanceof Error ? cause.message : "The saved project could not be recovered. Keep this page open and download a backup.");
         toast({ title: "Could not restore project to library",
           description: `${cause instanceof Error ? cause.message : String(cause)} Your current design is still open. Export it or save it with a new name to keep your work.`,
           variant: "destructive" });
@@ -259,6 +307,7 @@ function BinDesignerWorkspace(): JSX.Element {
       if (cancelled) return;
       setProjectLibrary(saved);
       setProjectLibraryReady(true);
+      setRestoredDestination(projectDestinationKey(doc, saved.activeProjectId));
       const restoredName = saved.projects.find((project) => project.id === saved.activeProjectId)?.name;
       if (doc?.name && restoredName && restoredName !== doc.name) {
         toast({ title: "Project recovered",
@@ -270,6 +319,7 @@ function BinDesignerWorkspace(): JSX.Element {
         library.mergeShapes(doc.shapes);
         dispatch({
           type: "HYDRATE",
+          materials: doc.materials,
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
@@ -279,6 +329,20 @@ function BinDesignerWorkspace(): JSX.Element {
       } else {
         dispatch({ type: "MARK_HYDRATED" });
       }
+    }).catch(async cause => {
+      if (cancelled) return;
+      setProjectRestoreFailed(true);
+      setSaveStatus("error");
+      setSaveError(cause instanceof Error ? cause.message : "The saved project could not be read. Reload to retry; stored work has been kept intact.");
+      // Keep the saved library available for backup even when the working copy
+      // cannot be opened. Never hydrate or autosave the empty fallback design.
+      try {
+        const saved = await loadProjectLibrary();
+        if (!cancelled) setProjectLibrary({ ...saved, activeProjectId: null });
+      } catch (error) {
+        if (!cancelled) setProjectLibraryError(error instanceof Error ? error.message : "The browser library could not be read.");
+      }
+      if (!cancelled) setProjectLibraryReady(true);
     });
     return () => {
       cancelled = true;
@@ -297,24 +361,41 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Autosave everything the doc covers, debounced; suppressed until
   // hydration so the empty default never overwrites a real project.
-  const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success) => setSaveStatus(success ? "saved" : "error")), []);
+  const saveProject = useMemo(() => createDebouncedProjectSaver(500, (success, error) => {
+    const message = success ? null : error?.name === "QuotaExceededError"
+      ? "Browser storage is full. Keep this page open and download a backup of your edits."
+      : error?.message ?? "Could not save in this browser. Keep this page open and download a backup of your edits.";
+    projectActivity?.saved(success, message ? new Error(message) : undefined, activityVisit);
+    setSaveStatus(success ? "saved" : "error");
+    setSaveError(message);
+  }), [projectActivity, activityVisit]);
   const currentProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
       ...(currentProjectName ? { name: currentProjectName } : {}),
       keepBinSize,
-      shapes: library.shapes,
+      materials,
+      // A rejected arrival remains in the queue, outside the current project.
+      shapes: library.shapes.filter(shape => !library.pendingIds.includes(shape.id)
+        || bin.history.stack.some(entry => entry.doc.cutouts.some(cutout => cutout.shapeId === shape.id))),
       ...committedDoc,
       history: bin.history,
       transformOrigins: retainTransformOrigins(bin.transformOrigins, bin.history.stack.map(e => e.doc)),
     }),
-    [library.shapes, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize],
+    [library.shapes, library.pendingIds, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize, materials],
   );
+  const destinationKey = useMemo(() => projectDestinationKey(currentProjectDoc, projectLibrary.activeProjectId), [currentProjectDoc, projectLibrary.activeProjectId]);
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
     saveProject(currentProjectDoc, projectLibrary.activeProjectId);
   }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
+
+  useEffect(() => {
+    projectActivity?.publish({ name: currentProjectName, activeProjectId: projectLibrary.activeProjectId,
+      status: projectRestoreFailed ? "error" : !bin.hydrated ? "loading" : projectBusy ? "saving" : saveStatus,
+      error: saveError, hasDocument: bin.hydrated, destinationKey }, bin.hydrated ? currentProjectDoc : null, activityVisit);
+  }, [projectActivity, currentProjectName, projectLibrary.activeProjectId, projectRestoreFailed, bin.hydrated, projectBusy, saveStatus, saveError, currentProjectDoc, activityVisit, destinationKey]);
 
   useEffect(() => {
     const flush = () => { void saveProject.flush(); };
@@ -335,12 +416,16 @@ function BinDesignerWorkspace(): JSX.Element {
     const issue = status.issues[0];
     return issue ? `${issue.objectName ? `${issue.objectName}: ` : ""}${issue.message}` : undefined;
   }, [exportProjectDoc]);
+  const pendingDestinationChanged = library.pendingIds.some(id => {
+    const target = library.pendingDestinations[id];
+    return target && target.key !== restoredDestination;
+  });
 
   // Consume shapes freshly arrived from the trace workspace: auto-place them
   // (incrementally when the bin already has arranged pockets) and make sure
   // the bin is solid — pockets need material.
   useEffect(() => {
-    if (!bin.hydrated) return;
+    if (!bin.hydrated || projectRestoreFailed || projectBusy || pendingDestinationChanged) return;
     const pendingIds = library.consumePending();
     if (pendingIds.length === 0) return;
     const newShapes = library.shapes.filter((shape) => pendingIds.includes(shape.id) && !cutouts.some((cutout) => cutout.shapeId === shape.id));
@@ -348,8 +433,8 @@ function BinDesignerWorkspace(): JSX.Element {
 
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result =
-      cutouts.length === 0 && !keepBinSize
-        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch)
+      cutouts.length === 0 && !fixedBinSize
+        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch, library.pendingPlacements)
         : autoPlaceIncremental(newShapes, {
             spec,
             lip: spec.lip,
@@ -357,20 +442,30 @@ function BinDesignerWorkspace(): JSX.Element {
             gridX: spec.gridX,
             gridY: spec.gridY,
             existing: cutouts,
-            keepBinSize,
+            keepBinSize: fixedBinSize,
             shapesById,
+            placements: library.pendingPlacements,
           });
 
-    const gridX = keepBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
-    const gridY = keepBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
+    const gridX = fixedBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
+    const gridY = fixedBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
     dispatch({
       type: "ADD_PLACED",
-      cutouts: result.cutouts,
+      cutouts: result.cutouts.map(cutout => {
+        const chosen = library.pendingDepths[cutout.shapeId];
+        if (library.pendingPlacements[cutout.shapeId]?.role === "hole") return { ...cutout, role: "hole" as const,
+          depth: { mode: "through" as const }, cornerRoundMm: 0, topFilletMm: 0, bottomFilletMm: 0 };
+        // Resolve defaults against the loaded bin, including older queued tools
+        // that have no depth choice yet.
+        return { ...cutout, depth: !chosen || chosen.mode === "unset" || chosen.mode === "to-floor"
+          ? { mode: "remaining" as const, floorThicknessMm: defaultPocketFloorThicknessMm(spec) }
+          : chosen };
+      }),
       gridX,
       gridY,
       // Automatic placement chooses the smallest rectangular Gridfinity bin.
       // Irregular footprints require the explicit footprint editor.
-      footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
+      footprint: fixedBinSize ? spec.footprint : { kind: "rectangle" },
     });
     if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
     if (spec.fill !== "solid") {
@@ -380,13 +475,13 @@ function BinDesignerWorkspace(): JSX.Element {
       toast({
         title: "Tool does not fit",
         description:
-          keepBinSize ? "The bin size is fixed. Move the highlighted tools, reduce their size, or enlarge the bin." : "Even the largest bin cannot hold this layout — check the trace's scale.",
+          fixedBinSize ? "The bin size is fixed. Move the highlighted tools, reduce their size, or enlarge the bin." : "Even the largest bin cannot hold this layout — check the trace's scale.",
         variant: "destructive",
       });
     }
     // Pending arrivals and hydration are the triggers; the rest reads fresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [library.pendingIds, bin.hydrated]);
+  }, [library.pendingIds, library.pendingDestinations, bin.hydrated, projectRestoreFailed, projectBusy, pendingDestinationChanged]);
 
   // Only the shapes the layout references ride along to the worker.
   const layout = useMemo(() => {
@@ -452,7 +547,7 @@ function BinDesignerWorkspace(): JSX.Element {
     PREVIEW_QUALITY,
     committedLayout,
     section,
-    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm },
+    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, colorDividerTops },
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
@@ -477,8 +572,9 @@ function BinDesignerWorkspace(): JSX.Element {
       widthMm: builtDimensions.widthMm,
       lengthMm: builtDimensions.lengthMm,
       heightMm: builtDimensions.totalHeightMm,
+      bottomZMm: -pegBottomExtensionMm(builtSpec ?? committedSpec),
     };
-  }, [builtDimensions]);
+  }, [builtDimensions, builtSpec, committedSpec]);
 
   // Surface collapsed cutouts once per occurrence, not once per rebuild.
   const emptiedSeenRef = useRef<Set<string>>(new Set());
@@ -499,6 +595,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [cutoutReports, cutouts, layout.shapes, toast]);
 
   const handleAutoArrange = useCallback(() => {
+    if ([...cutouts, ...fingerHoles].some(object => object.placementGroup)) return;
     const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
     const result = autoArrangeLayout(
       cutouts,
@@ -506,40 +603,46 @@ function BinDesignerWorkspace(): JSX.Element {
       spec.lip,
       spec.gridPitch,
       fingerHoles,
-      undefined,
-      keepBinSize ? spec : undefined,
+      spec,
+      fixedBinSize ? spec : undefined,
     );
     if (!result) return;
     dispatch({
       type: "REPLACE_LAYOUT",
+      operation: "auto-arrange",
       cutouts: result.cutouts,
       gridX: result.gridX,
       gridY: result.gridY,
       // Rearranging tools must not silently convert the bin into an irregular
       // footprint. That remains an explicit Layout editing operation.
-      footprint: keepBinSize ? spec.footprint : { kind: "rectangle" },
+      footprint: fixedBinSize ? spec.footprint : { kind: "rectangle" },
       historyLabel: "Auto-arrange tool pockets",
     });
     if (result.overflow) {
       toast({
         title: "Does not fit",
-        description: keepBinSize ? "The bin size is fixed. Adjust the highlighted pockets or increase the bin size." : "Even the largest bin cannot hold this arrangement.",
+        description: fixedBinSize ? "The bin size is fixed. Adjust the highlighted pockets or increase the bin size." : "Even the largest bin cannot hold this arrangement.",
         variant: "destructive",
       });
     }
-  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, keepBinSize, spec]);
+  }, [cutouts, fingerHoles, library.shapes, spec.lip, spec.gridPitch, dispatch, toast, fixedBinSize, spec]);
 
   const handleExportLayout = useCallback(
     async (format: "dxf" | "svg", includeProject: boolean) => {
-      const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
-      const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
-      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "layout");
-      const model = format === "dxf"
-        ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
-        : new Blob([await generateLayoutSVG(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
-      downloadModelWithProject(model, format, project, includeProject);
+      try {
+        const { spec, cutouts, fingerHoles, shapes } = exportProjectDoc;
+        const shapesById = new Map(shapes.map((shape) => [shape.id, shape]));
+        const jig = format === "svg" && Boolean(spec.pegBottom);
+        const project = prepareProjectExport(exportProjectDoc, currentProjectName, jig ? "ultim8-jig-layout" : "layout");
+        const model = format === "dxf"
+          ? new Blob([await generateLayoutDXF(spec, cutouts, shapesById, fingerHoles)], { type: "application/dxf" })
+          : new Blob([await (jig ? generateUltim8JigSVG : generateLayoutSVG)(spec, cutouts, shapesById, fingerHoles)], { type: "image/svg+xml" });
+        downloadModelWithProject(model, format, project, includeProject);
+      } catch (error) {
+        toast({ title: "Layout export failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      }
     },
-    [exportProjectDoc, currentProjectName],
+    [exportProjectDoc, currentProjectName, toast],
   );
 
   const handleExportProject = useCallback(() => {
@@ -557,7 +660,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const handleExportLibrary = useCallback(async () => {
     setProjectBusy(true);
     try {
-      const backup = await exportProjectLibrary(currentProjectDoc);
+      const backup = await exportProjectLibrary(bin.hydrated ? currentProjectDoc : undefined);
       downloadBlob(
         new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
         `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
@@ -568,7 +671,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, toast]);
+  }, [currentProjectDoc, bin.hydrated, toast]);
 
   const handleImportLibrary = useCallback(async (file: File, mode: LibraryImportMode): Promise<boolean> => {
     setProjectBusy(true);
@@ -576,8 +679,9 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       let input: unknown;
       try {
-        input = JSON.parse(await file.text());
-      } catch {
+        input = await readImportJson(file, true);
+      } catch (cause) {
+        if (cause instanceof Error && cause.message === IMPORT_LIMIT_ERROR) throw cause;
         throw new Error("The file could not be read as JSON. No designs were imported.");
       }
       const result = await importProjectLibrary(input, mode, mode === "replace" ? currentProjectDoc : undefined);
@@ -604,6 +708,7 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!projectLibrary.activeProjectId) return;
     const saved = await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId);
     setSaveStatus(saved ? "saved" : "error");
+    if (!saved) setSaveError("Your current changes could not be saved. Keep this page open and download a backup before switching projects.");
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
   }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
 
@@ -614,11 +719,16 @@ function BinDesignerWorkspace(): JSX.Element {
         await saveBeforeReplacingProject();
         const opened = await importProjectToLibrary(input);
         const { doc } = opened;
+        setActivityVisit(Symbol("Imported project"));
+        setSaveStatus("saved");
+        setSaveError(null);
         setDraftName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
-        library.replaceShapes(doc.shapes);
+        library.replaceShapes(doc.shapes, true);
+        setRestoredDestination(projectDestinationKey(doc, opened.library.activeProjectId));
         dispatch({
           type: "HYDRATE",
+          materials: doc.materials,
           spec: doc.spec,
           cutouts: doc.cutouts,
           fingerHoles: doc.fingerHoles,
@@ -647,23 +757,31 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast],
   );
 
-  const handleNewProject = useCallback(async () => {
+  const handleNewProject = useCallback(async (saveDraftName?: string, fixture = false): Promise<boolean> => {
+    const defaults = ultim8Defaults(INITIAL_BIN_SPEC, DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_BIN_MATERIALS.binColor, DEFAULT_ULTIM8_FOOTPRINT_MM);
     const doc: ProjectDoc = {
       schemaVersion: PROJECT_SCHEMA_VERSION,
       shapes: [],
-      spec: INITIAL_BIN_SPEC,
+      spec: fixture ? parseBinSpec({ ...INITIAL_BIN_SPEC, ...defaults.patch }) : INITIAL_BIN_SPEC,
+      ...(fixture ? { materials: { ...DEFAULT_BIN_MATERIALS, ...defaults.materialPatch } } : {}),
       cutouts: [],
       fingerHoles: [],
     };
     setProjectBusy(true);
     try {
       await saveBeforeReplacingProject();
-      const saved = await startNewProject(doc);
+      const saved = saveDraftName === undefined ? await startNewProject(doc)
+        : await startNewProject(doc, { doc: currentProjectDoc, name: saveDraftName });
+      setActivityVisit(Symbol("New project"));
+      setSaveStatus("saved");
+      setSaveError(null);
       setDraftName(null);
       setKeepBinSize(false);
-      library.replaceShapes([]);
+      library.replaceShapes([], true);
+      setRestoredDestination(projectDestinationKey(doc, saved.activeProjectId));
       dispatch({
         type: "HYDRATE",
+        materials: doc.materials,
         spec: doc.spec,
         cutouts: doc.cutouts,
         fingerHoles: doc.fingerHoles,
@@ -675,18 +793,33 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectRestoreFailed(false);
       toast({
         title: "New project ready",
-        description: "Ready for a new design.",
+        description: saveDraftName === undefined ? "Ready for a new design." : `Your draft was saved as “${saveDraftName.trim()}” in this browser’s library.`,
       });
+      return true;
     } catch (cause) {
       toast({
         title: "Could not start project",
         description: cause instanceof Error ? cause.message : String(cause),
         variant: "destructive",
       });
+      return false;
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast]);
+
+  /** Persist the exact fixture destination before Trace unmounts the designer. */
+  const traceFixture = async (): Promise<void> => {
+    if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
+    setProjectBusy(true);
+    saveProject.cancel();
+    try {
+      if (!await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId)) throw new Error("Could not save this fixture. Keep it open and try again.");
+      navigate("/");
+    } catch (cause) {
+      toast({ title: "Could not open Trace", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+    } finally { setProjectBusy(false); }
+  };
 
   const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
     setProjectBusy(true);
@@ -698,6 +831,7 @@ function BinDesignerWorkspace(): JSX.Element {
         projectLibrary.activeProjectId,
       );
       setProjectLibrary(saved);
+      setRestoredDestination(projectDestinationKey(currentProjectDoc, saved.activeProjectId));
       setProjectRestoreFailed(false);
       toast({
         title: "Project saved",
@@ -764,11 +898,16 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       await saveBeforeReplacingProject();
       const opened = await openProjectFromLibrary(projectId);
+      setActivityVisit(Symbol("Opened project"));
+      setSaveStatus("saved");
+      setSaveError(null);
       setDraftName(opened.project.name);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
-      library.replaceShapes(opened.doc.shapes);
+      library.replaceShapes(opened.doc.shapes, true);
+      setRestoredDestination(projectDestinationKey(opened.doc, opened.library.activeProjectId));
       dispatch({
         type: "HYDRATE",
+        materials: opened.doc.materials,
         spec: opened.doc.spec,
         cutouts: opened.doc.cutouts,
         fingerHoles: opened.doc.fingerHoles,
@@ -822,7 +961,11 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleRefreshProjects = useCallback(() => {
-    void loadProjectLibrary().then(setProjectLibrary);
+    void loadProjectLibrary().then(saved => {
+      // Listing saved entries must not switch this tab's open document.
+      setProjectLibrary(current => ({ ...saved, activeProjectId: current.activeProjectId }));
+      setProjectLibraryError(null);
+    }).catch(cause => setProjectLibraryError(cause instanceof Error ? cause.message : "The browser library could not be read. Try again."));
   }, []);
 
   // Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z (or Ctrl+Y) redoes — guarded against
@@ -831,7 +974,7 @@ function BinDesignerWorkspace(): JSX.Element {
     const onKeyDown = (event: KeyboardEvent) => {
       if (viewMode === "3d" && canHandleCanvasShortcut(event)
         && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Delete" || event.key === "Backspace")) {
-        if (experimentalEnabled && bin.selectedSurfaceTextId) {
+        if (bin.selectedSurfaceTextId) {
           event.preventDefault();
           dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.filter(label => label.id !== bin.selectedSurfaceTextId) }, historyLabel: "Remove surface text" });
           return;
@@ -857,7 +1000,7 @@ function BinDesignerWorkspace(): JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, experimentalEnabled, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
+  }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
     async (format: "3mf" | "3mf-multicolor" | "stl" | "step", includeProject: boolean) => {
@@ -883,7 +1026,7 @@ function BinDesignerWorkspace(): JSX.Element {
           multicolor &&
           colorPocketFloors &&
           (exportProjectDoc.spec.fill === "none" ||
-            exportProjectDoc.cutouts.some((cutout) => pocketDepths(cutout).some(depth => depth.mode !== "through")));
+            exportProjectDoc.cutouts.some(hasColorablePocketSurfaces));
         const includeStackingRim =
           multicolor && colorStackingRim;
         const result = await buildOnce(EXPORT_QUALITY, {
@@ -893,11 +1036,12 @@ function BinDesignerWorkspace(): JSX.Element {
           stackingRimMaterialThicknessMm: includeStackingRim
             ? stackingRimThicknessMm
             : undefined,
+          ...(includeStackingRim && colorDividerTops ? { colorDividerTops: true } : {}),
           borderWidthMm: includeStackingRim && exportProjectDoc.spec.lip === "none"
             ? borderWidthMm : undefined,
         });
         const textObjects: ThreeMfObject[] = (result.textMeshes ?? []).map(part => ({
-          name: part.label.name ?? `Text: ${part.label.text}`,
+          name: part.label.name ?? `Text: ${surfaceTextName(part.label)}`,
           mesh: part.mesh,
           material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
         }));
@@ -918,7 +1062,7 @@ function BinDesignerWorkspace(): JSX.Element {
             },
           ];
           if (includePocketFloors && result.materialMeshes?.pocketFloors) {
-            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : "Pocket floors";
+            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : exportProjectDoc.cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
             objects.push({
               name: `Gridfinity bin ${label} ${floorName.toLowerCase()}`,
               mesh: result.materialMeshes.pocketFloors,
@@ -990,7 +1134,7 @@ function BinDesignerWorkspace(): JSX.Element {
         }
         toast({
           title: "Saved",
-          description: `Exported bin ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -1012,6 +1156,7 @@ function BinDesignerWorkspace(): JSX.Element {
       buildOnce,
       colorPocketFloors,
       colorStackingRim,
+      colorDividerTops,
       binColor,
       pocketFloorColor,
       pocketFloorThicknessMm,
@@ -1120,25 +1265,35 @@ function BinDesignerWorkspace(): JSX.Element {
 
   return (
     <BinEditingWorkspace
+      onObjectProperties={kind => {
+        if (!inspectorPrototype || isMobile) setSettingsSectionRequest({ id: (kind === "pocket" || kind === "hole") ? "bin-settings-pockets" : kind === "finger" ? "bin-settings-finger-holes" : "bin-settings-text" });
+        setPanelOpen(true);
+        setPocketEditorRequest(request => request + 1);
+      }}
       enabled={inspectorPrototype}
       inspectorRequest={pocketEditorRequest}
       controlsRequest={settingsSectionRequest}
       autoSaveId="tooltrace:bin"
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
-      panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? "Export bin" : "Bin designer"}
+      panelTitle={isMobile && settingsSectionRequest?.id === "bin-settings-export" ? isJig ? "Export fixture" : "Export bin" : isJig ? "Wham Bam Systems ULTIM8-compatible fixture · Beta" : "Bin designer"}
       mobileActionsLayout="landscape-side"
-      mobileActions={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
+      mobileActions={<PendingPocketDepthPrompt request={depthRequest} onEditBinHeight={editBinHeight} fallback={<MobileBinActions open={quickAdjustOpen} onOpenChange={setQuickAdjustOpen}
         onWorkflow={() => { setSettingsSectionRequest(undefined); setPanelOpen(!panelOpen); }}
         onMore={id => { setSettingsSectionRequest({ id }); setPanelOpen(true); }}
-        onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />}
+        onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />} />}
       panel={
         <BinControlsPanel
+          ultim8Entry={ultim8Entry}
+          onUltim8EntryComplete={() => navigate("/bin", { replace: true })}
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
+          onShowFitCheck={() => { setSettingsSectionRequest({ id: "bin-settings-fit" }); setPanelOpen(true); }}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
+          onRevealIssue={revealIssue}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
+          projectLibraryError={projectLibraryError}
           keepBinSize={keepBinSize}
           onKeepBinSizeChange={setKeepBinSize}
           stats={stats}
@@ -1175,40 +1330,65 @@ function BinDesignerWorkspace(): JSX.Element {
           onRefreshProjects={handleRefreshProjects}
           onExportLibrary={() => void handleExportLibrary()}
           onImportLibrary={handleImportLibrary}
-          onNewProject={() => void handleNewProject()}
+          onNewProject={handleNewProject}
           section={section}
           onSectionChange={setSection}
           colorPocketFloors={colorPocketFloors}
-          onColorPocketFloorsChange={setColorPocketFloors}
+          onColorPocketFloorsChange={colorPocketFloors => patchMaterials({ colorPocketFloors })}
           binColor={binColor}
-          onBinColorChange={setBinColor}
+          onBinColorChange={binColor => patchMaterials({ binColor })}
           pocketFloorColor={pocketFloorColor}
-          onPocketFloorColorChange={setPocketFloorColor}
+          onPocketFloorColorChange={pocketFloorColor => patchMaterials({ pocketFloorColor })}
           pocketFloorThicknessMm={pocketFloorThicknessMm}
-          onPocketFloorThicknessChange={setPocketFloorThicknessMm}
+          onPocketFloorThicknessChange={pocketFloorThicknessMm => patchMaterials({ pocketFloorThicknessMm })}
+          colorDividerTops={colorDividerTops}
+          onColorDividerTopsChange={colorDividerTops => patchMaterials({ colorDividerTops })}
           colorStackingRim={colorStackingRim}
-          onColorStackingRimChange={setColorStackingRim}
+          onColorStackingRimChange={colorStackingRim => patchMaterials({ colorStackingRim })}
           stackingRimColor={stackingRimColor}
-          onStackingRimColorChange={setStackingRimColor}
+          onStackingRimColorChange={stackingRimColor => patchMaterials({ stackingRimColor })}
           stackingRimThicknessMm={stackingRimThicknessMm}
-          onStackingRimThicknessChange={setStackingRimThicknessMm}
+          onStackingRimThicknessChange={stackingRimThicknessMm => patchMaterials({ stackingRimThicknessMm })}
           borderWidthMm={borderWidthMm}
-          onBorderWidthChange={setBorderWidthMm}
+          onBorderWidthChange={borderWidthMm => patchMaterials({ borderWidthMm })}
         />
       }
       canvas={
-        <div className="absolute inset-0" data-testid="bin-canvas">
+        <div className="absolute inset-0 flex flex-col" data-testid="bin-canvas">
+          {bin.hydrated && isJig && cutouts.length === 0 && <section className="z-30 shrink-0 space-y-2 border-b bg-background px-3 py-3 sm:px-4" aria-label="Start your fixture" data-testid="jig-empty-state">
+            <p className="text-sm font-medium">Wham Bam Systems <Ultim8Link />-compatible fixture <span className="ml-1 rounded border px-1.5 py-0.5 text-[10px] font-normal">Beta</span></p>
+            <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <li>1. Add an object</li><li>2. Set body thickness</li><li>3. Export fixture + alignment SVG</li>
+            </ol>
+            <Button size="sm" className="h-auto min-h-11 whitespace-normal" disabled={projectBusy || projectRestoreFailed} onClick={() => void traceFixture()}>Trace an object from a photo</Button>
+            <p className="text-xs text-muted-foreground">Or use Add pocket for a basic shape. Locating pegs fit Wham Bam Systems <Ultim8Link /> mat spacing.</p>
+          </section>}
+          {bin.hydrated && pendingDestinationChanged && <div role="alert" className="z-40 flex shrink-0 flex-col items-stretch gap-2 border-b bg-background px-3 py-2 text-sm sm:flex-row sm:items-center" data-testid="queued-destination-changed">
+            <p className="min-w-0 flex-1">Tools are waiting for {Array.from(new Set(library.pendingIds.map(id => library.pendingDestinations[id]?.name ?? "the previous project"))).join(", ")}. The destination has changed. Open that project, or choose to add them here.</p>
+            <Button variant="outline" size="sm" className="h-auto min-h-11 whitespace-normal" disabled={projectBusy || projectRestoreFailed} onClick={() => {
+              setRestoredDestination(destinationKey);
+              library.retargetPending({ key: destinationKey, name: currentProjectName ?? "Untitled project" });
+            }}>Add waiting tools to {currentProjectName ?? "this unnamed bin"}</Button>
+          </div>}
+          {saveError && <div role="alert" data-testid="bin-save-error" className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b border-destructive/40 bg-background px-3 py-2 text-sm text-destructive">
+            <p className="min-w-0 flex-1">{saveError}</p>
+            {bin.hydrated && <Button variant="outline" className="min-h-11 shrink-0" onClick={handleExportProject}>Download backup</Button>}
+          </div>}
+          <div className="relative min-h-0 flex-1">
           <CanvasWarnings
-            issues={issues}
+            holeIds={new Set(bin.cutouts.filter(cutout => cutout.role === "hole").map(cutout => cutout.id))}
+            issues={issues.filter(issue => issue.code !== "pocket-depth-needed")}
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
             onRevealIssue={revealIssue}
+            onAutoArrange={![...cutouts, ...fingerHoles].some(object => object.placementGroup) && cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
+            fixedBinSize={fixedBinSize}
           />
           {viewMode === "3d" ? (
             <BinViewport
               geometry={geometry}
               showPocketOutlines={!section || !hideInspectionPocketOutline}
-              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
+              pocketEditor={{ spec, transformOrigins: bin.transformOrigins, originShapes: library.shapes, linkControls: <SelectionLinkControls />, groupControls: <ObjectGroupControls />, pockets: editablePockets, pocketGeometry: profileOutlines, selectedId: bin.selectedCutoutId, fingerHoles, selection: bin.selection,
                 onSelectionChange: selection => dispatch({ type: "SET_SELECTION", selection }),
                 onCommitObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel }),
                 onPreviewObjects: (edits, historyLabel) => dispatch({ type: "UPDATE_OBJECTS", edits, historyLabel, transient: true }),
@@ -1218,9 +1398,9 @@ function BinDesignerWorkspace(): JSX.Element {
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
               textGeometries={textGeometries}
-              selectedSurfaceTextId={experimentalEnabled ? bin.selectedSurfaceTextId : null}
-              onSelectSurfaceText={experimentalEnabled ? editSurfaceText : undefined}
-              surfaceTextEditor={experimentalEnabled && bin.selectedSurfaceTextId && spec.surfaceTexts.some(label => label.id === bin.selectedSurfaceTextId) ? {
+              selectedSurfaceTextId={bin.selectedSurfaceTextId}
+              onSelectSurfaceText={editSurfaceText}
+              surfaceTextEditor={bin.selectedSurfaceTextId && spec.surfaceTexts.some(label => label.id === bin.selectedSurfaceTextId) ? {
                 tool: bin.textTool, snap: bin.textSnap,
                 onToolChange: tool => dispatch({ type: "SET_TEXT_TOOL", tool }),
                 onSnapChange: snap => dispatch({ type: "SET_TEXT_SNAP", snap }),
@@ -1232,7 +1412,7 @@ function BinDesignerWorkspace(): JSX.Element {
               hasStackingRim={hasStackingRim}
               binColor={binColor}
               pocketFloorColor={pocketFloorColor}
-              floorColorLabel={(builtSpec ?? committedSpec).fill === "none" ? "Bin floor" : "Pocket floor"}
+              floorColorLabel={(builtSpec ?? committedSpec).fill === "none" ? "Bin floor" : cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interior" : "Pocket floor"}
               stackingRimColor={stackingRimColor}
               showPocketFloorColor={colorPocketFloors}
               showStackingRimColor={colorStackingRim}
@@ -1242,7 +1422,7 @@ function BinDesignerWorkspace(): JSX.Element {
               progress={progress}
               error={error}
               onRetryPreview={retryPreview}
-              onPositionText={experimentalEnabled && spec.surfaceTexts.length > 0 ? positionText : undefined}
+              onPositionText={spec.surfaceTexts.length > 0 ? positionText : undefined}
               fitSize={fitSize}
               measurementOutlines={measurementOutlines}
               measurementSplitBoundaries={measurementSplitBoundaries}
@@ -1275,7 +1455,7 @@ function BinDesignerWorkspace(): JSX.Element {
               </Button>
             </div>
           )}
-          <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
+          {!isMobile && <div data-testid="bin-history-toolbar" className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-md border bg-background/90 shadow-sm backdrop-blur">
             <Button
               variant="ghost"
               size="sm"
@@ -1324,7 +1504,9 @@ function BinDesignerWorkspace(): JSX.Element {
             >
               <Redo2 className="h-3.5 w-3.5" />
             </Button>
+          </div>}
           </div>
+          {!isMobile && <PendingPocketDepthPrompt request={depthRequest} onEditBinHeight={editBinHeight} />}
         </div>
       }
     />

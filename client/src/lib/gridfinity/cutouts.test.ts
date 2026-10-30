@@ -21,6 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Arena } from "@/lib/manifold/arena";
 import { createKernel, loadManifold, type Kernel } from "@/lib/manifold/runtime";
+import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 
 import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY, type BinLayout } from "./bin";
 import { fingerAccessRimGeometry } from "./finger-access-rounding";
@@ -434,6 +435,48 @@ describe("buildBinWithCutouts", () => {
       expect(arena.track(plain.solid.intersect(shelf)).volume()).toBeGreaterThan(0);
       expect(arena.track(border!.intersect(shelf)).volume()).toBeLessThan(1e-7);
     }
+  });
+
+  it.each([undefined, "negative", "positive"] as const)("keeps a colored flush border aligned with slanted wall selection %s", side => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, lip: "none",
+      wallSlant: { axis: "y", angleDeg: 30, side } });
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY, { rimInsertThicknessMm: 1.25 });
+    const { body, stackingRim: border } = built.materialParts!;
+    expect(border).not.toBeNull();
+    expect(border!.status()).toBe("NoError");
+    expect(border!.boundingBox().max[1]).toBeCloseTo(built.solid.boundingBox().max[1], 5);
+    expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
+    expect(arena.track(body.add(border!)).volume()).toBeCloseTo(built.solid.volume(), 5);
+    expect(extractPrintableMeshData(kernel, body).indices.length).toBeGreaterThan(0);
+    expect(extractPrintableMeshData(kernel, border!).indices.length).toBeGreaterThan(0);
+  });
+
+  it.each([undefined, "negative", "positive"] as const)("keeps a colored slanted border connected on a custom footprint with wall selection %s", side => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 2.5, lip: "none", fill: "none",
+      footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
+      wallSlant: { axis: "y", angleDeg: 45, side } });
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY,
+      { rimInsertThicknessMm: 1.25, borderWidthMm: 0.95 });
+    const { body, stackingRim: border } = built.materialParts!;
+    expect(border!.status()).toBe("NoError");
+    expect(border!.decompose()).toHaveLength(1);
+    expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
+    expect(body.volume() + border!.volume()).toBeCloseTo(built.solid.volume(), 3);
+  });
+
+  it.each([1.5, 2, 2.5].flatMap(heightUnits => [undefined, "negative", "positive"].map(side => ({ heightUnits, side }))))("partitions the colored rim and short slanted tab on a $heightUnits u bin with selection $side", ({ heightUnits, side }) => {
+    const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits, lip: "none", fill: "none",
+      wallSlant: { axis: "y", angleDeg: 45, side }, labelTab: { wall: "north", width: "full" } });
+    const built = buildBinWithCutouts(kernel, spec, null, QUALITY,
+      { floorInsertThicknessMm: 0.6, rimInsertThicknessMm: 1.25, borderWidthMm: 0.95 });
+    const { body, stackingRim: border, pocketFloors: floor } = built.materialParts!;
+    expect(body.status()).toBe("NoError");
+    expect(border!.status()).toBe("NoError");
+    expect(border!.volume()).toBeGreaterThan(0);
+    expect(arena.track(body.intersect(border!)).volume()).toBeLessThan(1e-7);
+    expect(body.volume() + border!.volume() + floor!.volume()).toBeCloseTo(built.solid.volume(), 3);
+    expect(extractPrintableMeshData(kernel, body).indices.length).toBeGreaterThan(0);
+    expect(extractPrintableMeshData(kernel, border!).indices.length).toBeGreaterThan(0);
   });
 
   it.each(["rectangle", "custom"] as const)("changes border width independently of depth on a %s bin", kind => {

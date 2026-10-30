@@ -1,6 +1,21 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+@config "../../tailwind.config.ts";
+@source "./";
+@source "../index.html";
+
+/* Keep existing focus indicators and default controls during the v4 migration. */
+@theme {
+  --default-ring-width: 3px;
+  --default-ring-color: #3b82f6;
+}
+@utility outline-none {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+@layer base {
+  button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+  input::placeholder, textarea::placeholder { color: #9ca3af; }
+}
 
 /*
  * Design tokens for the shadcn/ui theme.
@@ -190,7 +205,7 @@
   list-style: none;
   font-size: .75rem;
   font-weight: 600;
-  color: rgb(var(--property-ink));
+  color: hsl(var(--foreground));
 }
 .property-surface details > summary::-webkit-details-marker { display: none; }
 .property-surface details > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: .25rem; }

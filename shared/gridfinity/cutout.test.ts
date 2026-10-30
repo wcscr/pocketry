@@ -49,6 +49,13 @@ describe("new finger access depth", () => {
     expect(defaultFingerAccessDepthMm(spec, [...cutouts].reverse())).toBe(defaultFingerAccessDepthMm(spec, cutouts));
   });
 
+  it("ignores retained holes when choosing the access depth", () => {
+    const cut = pocket({ mode: "mm", value: 10 });
+    const hole = { ...pocket({ mode: "mm", value: 2 }), role: "hole" as const };
+    expect(defaultFingerAccessDepthMm(spec, [cut, hole])).toBe(9);
+    expect(defaultFingerAccessDepthMm(spec, [hole])).toBe(12);
+  });
+
   it("uses active split sections instead of the retained unsplit depth", () => {
     const cutout = parseCutoutPlacement({ id: "split", shapeId: "shape", position: { x: 0, y: 0 },
       depth: { mode: "mm", value: 2 }, split: {

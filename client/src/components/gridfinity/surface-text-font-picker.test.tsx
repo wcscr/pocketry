@@ -32,8 +32,18 @@ beforeEach(() => {
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
 describe("unified surface-text font picker", () => {
+  it("explains that a symbol-only label needs no font and retains its saved font", () => {
+    render({ ...label, text: "", symbol: "hex-nut", font: "sans-bold" });
+    const button = host.querySelector<HTMLButtonElement>('[aria-label="Text 1 font"]')!;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toContain("Sans Bold");
+    expect(host.textContent).toContain("Add text to choose a font");
+    expect(change).not.toHaveBeenCalled();
+  });
   it("offers exactly five built-ins without system support or file uploads", async () => {
     render(); await open();
+    expect(document.querySelector('[aria-label="About surface text fonts"]')).not.toBeNull();
+    expect(document.activeElement).toBe(document.querySelector('[aria-label="Search fonts"]'));
     expect(options().map(option => option.textContent)).toEqual(["Sans", "Sans Bold", "Helvetiker", "Helvetiker Bold", "Monospace"]);
     expect(document.body.textContent).toContain("This browser cannot access system fonts");
     expect(document.querySelector('input[type="file"]')).toBeNull();

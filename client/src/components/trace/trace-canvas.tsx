@@ -1,3 +1,6 @@
+import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
+import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
+import { pointInRing } from "@shared/geometry/rings";
 import {
   Crop,
   Ellipsis,
@@ -47,15 +50,16 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
-import { getRing, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
+import { getRing, iterateRings, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useTrace, type TraceMode } from "@/state/trace-store";
+import { hasPendingManualCalibration, useTrace, type TraceMode } from "@/state/trace-store";
 
 import { TraceScene } from "./trace-scene";
 
@@ -63,7 +67,9 @@ import { TraceScene } from "./trace-scene";
 const PICK_RADIUS_PX = 10;
 
 export interface TraceCanvasProps {
-  onReprocess: () => void;
+  /** Incremented by the persistent review notice to focus the estimated area. */
+  estimatedEdgeFocusRequest?: number;
+  onReprocess: (region?: Rect) => void;
   /** Rendered when no image is loaded. */
   emptyState?: React.ReactNode;
 }
@@ -82,6 +88,8 @@ export interface TraceCanvasProps {
  * working area.
  */
 export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
+  const menu = useContourContextMenu();
+  if (!menu) return <ContourMenuProvider><TraceCanvas {...props} /></ContourMenuProvider>;
   return (
     <CanvasViewport>
       {/*
@@ -96,7 +104,8 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   );
 }
 
-function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element {
+function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: TraceCanvasProps): JSX.Element {
+  const openContourMenu = useContourContextMenu();
   const store = useTrace();
   const isMobile = useIsMobile();
   const sceneId = useId();
@@ -126,15 +135,16 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // Detected sheet geometry is useful while the user reviews it, but becomes
   // visual noise once accepted and the region tool takes over. A manually
   // placed ruler remains visible so its handles and label stay editable.
+  const replacingRuler = hasPendingManualCalibration(store);
   const displayedCalibration =
-    pendingAutoCalibration ?? (calibrationSource === "manual" ? calibration : null);
+    pendingAutoCalibration ?? (!replacingRuler && calibrationSource === "manual" ? calibration : null);
   const perspectiveOverlayPoints =
     manualPerspectivePoints.length > 0
       ? manualPerspectivePoints
       : (pendingPerspective?.points ?? []);
   const rulerEditable =
     !pendingAutoCalibration && (
-      (calibrationSource === "manual" && calibration !== null) ||
+      (!replacingRuler && calibrationSource === "manual" && calibration !== null) ||
       (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration))
     );
   const measurementMmPerPx = mmPerPixel(calibration);
@@ -172,6 +182,18 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const fitVisiblePhoto = useCallback(() => imageCrop ? fitToRect(imageCrop) : fit(), [imageCrop, fit, fitToRect]);
   const viewportReady = containerSize.width > 0 && containerSize.height > 0;
   useEffect(() => { if (viewportReady) fitVisiblePhoto(); }, [fitVisiblePhoto, viewportReady, imageSize.width, imageSize.height]);
+  const lastEstimatedFocus = useRef(estimatedEdgeFocusRequest);
+  useEffect(() => {
+    if (lastEstimatedFocus.current === estimatedEdgeFocusRequest || !viewportReady) return;
+    lastEstimatedFocus.current = estimatedEdgeFocusRequest;
+    const bounds = outlineBounds(store.estimatedEdgeRegions.map(outer => ({ outer, holes: [] })));
+    if (bounds) {
+      const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.3;
+      fitToRect({ x: bounds.minX - padding, y: bounds.minY - padding,
+        width: bounds.maxX - bounds.minX + 2 * padding, height: bounds.maxY - bounds.minY + 2 * padding });
+    }
+  }, [estimatedEdgeFocusRequest, store.estimatedEdgeRegions, viewportReady, fitToRect]);
+
 
   // Mirrors the hook's space tracking so the cursor can promise a pan before
   // the drag starts.
@@ -259,7 +281,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
   const desktopPoint = useContourPointFocus({
     outline,
-    enabled: !isMobile && selection !== null && (mode === "edit" || mode === "pan" || mode === "remove"),
+    enabled: !isMobile && selection !== null && (mode === "edit" || mode === "remove"),
     contextKey: `${store.sourceRevision}:${imageRotation}`,
   });
   useEffect(() => {
@@ -283,12 +305,21 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     | null
   >(null);
 
-  // A candidate click-to-add in select mode: armed on pointer down, disarmed
+  // A candidate selection click: armed on pointer down, disarmed
   // by movement, executed on pointer up. The threshold separates a click from
   // the start of a (failed) drag.
   const clickRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const CLICK_SLOP_PX = 4;
-  const canSelectRegion = measurementMmPerPx !== null && !pendingAutoCalibration;
+  const canSelectRegion = measurementMmPerPx !== null && !pendingAutoCalibration && !replacingRuler;
+  const [pendingRegion, setPendingRegion] = useState<Rect | null>(null);
+  useEffect(() => setPendingRegion(null), [store.sourceRevision, outline]);
+  const commitRegion = (next: Rect) => {
+    setPendingRegion(null);
+    dispatch({ type: "SET_REGION", region: next });
+    dispatch({ type: "REGION_COMMITTED" });
+    onReprocess(next);
+    viewport.fitToRect(next);
+  };
 
   useEffect(() => {
     const cancelRegion = (event: KeyboardEvent) => {
@@ -323,7 +354,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
 
   const updateHover = (event: ReactPointerEvent<SVGSVGElement>): void => {
     const editable =
-      selection !== null && (mode === "edit" || (!isMobile && mode === "pan")) && !viewport.isPanning;
+      selection !== null && mode === "edit" && !viewport.isPanning;
     let next: number | null = null;
     if (editable) {
       const image = toImage(event.clientX, event.clientY);
@@ -340,8 +371,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
    *   right-click-remove target);
    * - a click beside a *different* contour switches the selection to it,
    *   mirroring the contour list in Tool Detection;
-   * - a click anywhere else adds a vertex to the selected ring, joined at its
-   *   nearest edge so the outline reaches out to the clicked point.
+   * - a click near an edge inserts a point; empty space only deselects.
    */
   const handleContourClick = (image: Point): boolean => {
     if (!selection) return false;
@@ -352,15 +382,19 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       return true;
     }
 
+    const edge = nearestEdge(outline, image, pickRadius, selection);
     const other = nearestEdge(outline, image, pickRadius * 4);
-    if (other && !sameRingRef(other.ref, selection)) {
+    if (other && !sameRingRef(other.ref, selection) && (!edge || other.distance < edge.distance)) {
       desktopPoint.clear();
       dispatch({ type: "SELECT_RING", selection: other.ref });
       return true;
     }
 
-    const edge = nearestEdge(outline, image, Number.POSITIVE_INFINITY, selection);
-    if (!edge) return true;
+    if (!edge) {
+      desktopPoint.clear();
+      dispatch({ type: "SELECT_RING", selection: null });
+      return true;
+    }
     const ring = getRing(outline, edge.ref);
     if (!ring) return true;
     const next = [...ring];
@@ -383,6 +417,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
   const mobileEditor = useMobileContourEditor({
     enabled: mobileEditing, outline,
+    preferredRing: selection,
     selectionKey: store.sourceRevision,
     toLocal: point => toImage(point.x, point.y),
     getScreenProjection: () => {
@@ -562,24 +597,13 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
       return;
     }
 
-    // Select mode with a contour selected: a drag starting on a vertex handle
-    // relocates that vertex, and a plain click (not a Shift/Space pan) edits
-    // the contour on release.
+    // Select never changes geometry, even when the click hits a vertex.
     if (
       mode === "pan" &&
       event.button === 0 &&
       !event.shiftKey &&
-      !viewport.isSpaceHeld &&
-      selection
+      !viewport.isSpaceHeld
     ) {
-      const vertex = nearestVertex(outline, image, pointerPickRadius, selection);
-      if (vertex) {
-        dragRef.current = { kind: "vertex", ref: vertex.ref, index: vertex.index,
-          origin: { x: event.clientX, y: event.clientY }, moved: false, originalOutline: outline };
-        desktopPoint.select(vertex.ref, vertex.index, getRing(outline, vertex.ref)![vertex.index], true);
-        event.currentTarget.setPointerCapture(event.pointerId);
-        return;
-      }
       clickRef.current = { clientX: event.clientX, clientY: event.clientY };
     }
 
@@ -696,10 +720,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     }
 
     if (!drag) {
-      // A click that survived without becoming a drag edits the contour.
+      // A click that survived without becoming a pan selects or deselects.
       if (click && event.type !== "pointercancel" && event.button === 0) {
         const image = toImage(event.clientX, event.clientY);
-        if (image && handleContourClick(image)) return;
+        if (image) dispatch({ type: "SELECT_RING", selection: nearestEdge(outline, image, pickRadius)?.ref ?? null });
       }
       viewport.handlers.onPointerUp(event);
       return;
@@ -708,10 +732,10 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     if (drag.kind === "region") {
       // A stray click should not commit a degenerate crop.
       if (event.type !== "pointercancel" && region && region.width > 5 && region.height > 5) {
-        dispatch({ type: "REGION_COMMITTED" });
-        onReprocess();
-        // Framing what was just cropped is the whole point of cropping.
-        viewport.fitToRect(region);
+        if (history.stack[history.index]?.hasManualEdits) {
+          setPendingRegion(region);
+          dispatch({ type: "REGION_PREVIEW", region: drag.previousRegion });
+        } else commitRegion(region);
       } else {
         dispatch({ type: "REGION_PREVIEW", region: drag.previousRegion });
       }
@@ -735,32 +759,26 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
-    // Right-click removes a vertex wherever its handle is visible: always in
-    // edit mode, and in pan mode while a contour is selected for viewing from
-    // the contour list in Tool Detection. Region/calibrate keep the browser menu.
-    const viewingContour = mode === "pan" && selection !== null;
-    if (mode !== "edit" && !viewingContour) return;
-    if (mode === "edit") event.preventDefault();
-
+    if (usesNativeEditingMenu(event.target)) return;
+    if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
+    if (mode === "edit" || mode === "remove") {
+      event.preventDefault();
+      if (processing) return;
+      const image = toImage(event.clientX, event.clientY);
+      const vertex = image && nearestVertex(outline, image, pickRadius, selection);
+      const ring = vertex && getRing(outline, vertex.ref);
+      if (!vertex || !ring || ring.length <= 3) return;
+      desktopPoint.clear();
+      dispatch({ type: "OUTLINE_COMMITTED", outline: setRing(outline, vertex.ref,
+        ring.filter((_, index) => index !== vertex.index)), label: "Remove contour node" });
+      return;
+    }
     const image = toImage(event.clientX, event.clientY);
     if (!image) return;
-
-    const vertex = nearestVertex(outline, image, pickRadius, selection);
-    if (!vertex) return;
-    // In pan mode the menu is only hijacked when a vertex is actually hit.
-    event.preventDefault();
-
-    const ring = getRing(outline, vertex.ref);
-    // A ring needs three points to enclose anything.
-    if (!ring || ring.length <= 3) return;
-
-    const next = ring.filter((_, i) => i !== vertex.index);
-    desktopPoint.clear();
-    dispatch({
-      type: "OUTLINE_COMMITTED",
-      outline: setRing(outline, vertex.ref, next),
-      label: "Remove contour node",
-    });
+    const contained = [...iterateRings(outline)].reverse().find(({ ring }) => pointInRing(ring, image));
+    const edge = nearestEdge(outline, image, pickRadius);
+    const ref = contained?.ref ?? edge?.ref;
+    if (ref && openContourMenu?.(ref, contextMenuPoint(event))) event.preventDefault();
   };
 
   useCanvasShortcuts({
@@ -770,6 +788,16 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
     zoomOut: () => viewport.zoomBy(1 / 1.2),
     undo,
     redo,
+    escape: () => {
+      const drag = dragRef.current;
+      if (drag?.kind === "vertex") {
+        dragRef.current = null;
+        dispatch({ type: "OUTLINE_DRAGGING", outline: drag.originalOutline });
+      }
+      if (replacingRuler) dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
+      desktopPoint.clear();
+      dispatch({ type: "SELECT_RING", selection: null });
+    },
   });
 
   const cursor = useMemo(() => {
@@ -794,6 +822,17 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
   // positioned, clipped, full-size box these children lay out against.
   return (
     <>
+      <AlertDialog open={pendingRegion !== null} onOpenChange={open => { if (!open) setPendingRegion(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Re-detect in a new region?</AlertDialogTitle>
+            <AlertDialogDescription>This replaces your manual contour edits with a fresh detection. Keep your edits to leave the current region unchanged.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep my edits</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (pendingRegion) commitRegion(pendingRegion); }}>Replace manual edits</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {imageUrl && imageSize.width > 0 ? (
         <TraceScene
           svgRef={svgRef}
@@ -802,9 +841,11 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           imageUrl={imageUrl}
           imageSize={imageSize}
           imageRotation={imageRotation}
+          imageAlignment={store.imageAlignment}
           imageCrop={imageCrop}
           transform={viewport.transform}
           outline={outline}
+          estimatedEdgeRegions={store.estimatedEdgeRegions}
           selection={selection}
           region={region}
           regionActive={mode === "region"}
@@ -845,6 +886,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
           hoveredVertexIndex={hoveredVertexIndex}
           selectedVertexIndex={focusedPoint && sameRingRef(focusedPoint.ref, selection) ? focusedPoint.index : null}
           compactHandles={isMobile}
+          showVertices={mode === "edit" || mode === "remove"}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
@@ -935,7 +977,7 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
             />
           </CanvasToolbar>
 
-          {(mode === "edit" || mode === "remove" || (mode === "pan" && desktopPoint.selectedPoint)) && selection && getRing(outline, selection) && (
+          {(mode === "edit" || mode === "remove") && selection && getRing(outline, selection) && (
             <div className="absolute bottom-16 left-2 z-30 max-md:hidden">
               <ContourEditTools removeActive={mode === "remove"}
                 onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete}
@@ -983,9 +1025,11 @@ function TraceStage({ onReprocess, emptyState }: TraceCanvasProps): JSX.Element 
                   : measurement.end
                     ? "Click to start a new measurement"
                     : "Click the second measurement point"
-                : selection
-                  ? "Drag points to move · Click adds · Right-click removes · Shift-drag pans"
-                  : "Shift-drag pans · Ctrl-scroll zooms"}
+                : selection && (mode === "edit" || mode === "remove")
+                  ? "Drag points to move · Click an edge to add · Right-click a point to remove · Esc cancels"
+                  : mode === "pan"
+                    ? "Click a contour to select · Empty space clears selection · Shift-drag pans"
+                    : "Shift-drag pans · Ctrl-scroll zooms"}
             </span>
           </CanvasToolbar>
 
@@ -1019,7 +1063,8 @@ function ModeButton({
   disabled?: boolean;
   onSelect?: () => void;
 }): JSX.Element {
-  const { mode: current, dispatch } = useTrace();
+  const trace = useTrace();
+  const { mode: current, dispatch } = trace;
   const active = current === mode || (mode === "edit" && current === "remove");
 
   return (
@@ -1032,7 +1077,10 @@ function ModeButton({
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
-          onClick={() => { dispatch({ type: "SET_MODE", mode }); onSelect?.(); }}
+          onClick={() => {
+            if (hasPendingManualCalibration(trace) && mode !== "calibrate") dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
+            dispatch({ type: "SET_MODE", mode }); onSelect?.();
+          }}
         >
           <Icon className="h-4 w-4" />
         </Button>
@@ -1104,6 +1152,7 @@ interface ShortcutHandlers {
   zoomOut: () => void;
   undo: () => void;
   redo: () => void;
+  escape: () => void;
 }
 
 /**
@@ -1127,9 +1176,18 @@ function useCanvasShortcuts(handlers: ShortcutHandlers): void {
         else state.handlers.undo();
         return;
       }
+      if (meta && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        state.handlers.redo();
+        return;
+      }
       if (meta) return;
 
       switch (event.key) {
+        case "Escape":
+          event.preventDefault();
+          state.handlers.escape();
+          break;
         case "0":
           event.preventDefault();
           state.handlers.fit();

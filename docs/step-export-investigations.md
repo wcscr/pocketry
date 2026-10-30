@@ -1,5 +1,84 @@
 # STEP export investigations — review gate
 
+## Baseline refresh — 2026-10-29
+
+**Both approaches remain experimental; neither is selected or shipped. Both
+branches now include fetched main `ee7eefa9` and pass the local checks below.** The preserved tips are
+`2acae29a` (A) and `4b4934aa` (B). Before integration, they were respectively
+13 and 14 unique commits ahead of their common history and 61 commits behind
+fetched main `ee7eefa9`. The refresh retains main's schema 54 changes and uses
+schema 55 for analytic-profile provenance. Primitive inference is limited to
+project schemas 35 and earlier; metadata-less shapes from schema 36 onward
+remain polygons. This preserves an edited schema 36 polygon even after a main
+schema 54 resave. Explicit metadata is retained and validated, not recreated
+when absent. The older schema 36 results below remain evidence for their
+recorded revisions, not current-schema acceptance.
+A fresh October 29 PR lookup found no PR for either investigation branch.
+
+The latest real-example evidence is from October 15:
+
+- Unchanged Klein Voltage Tester, DeWalt Right-Angle Tools, and Caliper Storage
+  all failed their requested 2.8 mm bottom fillet in A and B; no package was
+  produced. Genuine OCCT/Fusion Fillet trials did not resolve the complete
+  cases. Partial fillets and custom rounded replacement solids are not passes.
+- Actual Mini Socket Set browser downloads passed native geometry/edit/reopen
+  checks in both applications. FreeCAD 26.3.0RC1 / Qt 6.11.2 completed four normal
+  STEP imports without a process crash, but its default Unicode name decoding
+  failed. This does not fix or qualify the older FreeCAD 1.1.4 build.
+- Disabling authored rounding in diagnostic copies allowed 9 of 10 examples
+  per approach to export and independently reopen; Wiha hit the 512 MiB guard.
+  This was a diagnostic, not an implemented sharp-only export mode or permission
+  to omit features from normal exports.
+
+Local evidence is under `outputs/example-cad-import-2026-10-15/`,
+`outputs/real-fillet-2026-10-15/`, `outputs/single-edge-fillet-2026-10-15/`, and
+`outputs/sharp-step-feasibility-2026-10-15/` in the primary checkout. Current
+DeWalt sample bytes differ from the frozen October 15 input; refresh acceptance
+must include both retained fixtures and current examples. No new native CAD,
+browser, slicer, or physical test is claimed by this baseline update.
+
+The refreshed preflight explicitly rejects arbitrary bin dimensions, peg
+bottoms, nonzero wall slants, active hollow floor fillets and compartments/divider
+scoops, hardware-symbol labels, and retained-material hole objects. Pending
+depths, local X/Y insertion, legacy unanchored offsets or insertion, and
+unqualified floor-clipped vertical insertion are also rejected. The CAD printing
+path rejects interior/object-axis pocket material coverage. Inactive retained
+hollow settings do not alone reject a solid bin. The guard and migration
+regressions pass in both branches. Grouped placement and broader material
+compatibility still need acceptance. A successful schema import must never
+silently omit authored geometry. The prior unsupported features remain open.
+
+Local verification uses Node **22.23.3**, with GitHub CI disabled:
+
+| Check | A: dedicated STEP | B: unified CAD |
+| --- | --- | --- |
+| `npm run check` | Pass | Pass |
+| `npm test` | 214 files / 3,411 tests pass | 214 files / 3,411 tests pass |
+| `npm run test:workflows` | 15 files / 537 tests pass | 15 files / 537 tests pass |
+| `npm run test:geometry` | Full suite: 26 files / 282 tests pass | Shared implementation qualified in A; targeted CAD tessellation: 1 file / 7 tests pass |
+| `npm run build` | Pass | Pass |
+| `git diff --check` (staged and unstaged) | Pass | Pass |
+
+A file comparison confirms the refreshed source trees differ only in the four
+original integration files: the investigation constant, unified worker client,
+preview hook, and its hook test. CAD construction, model guards, fixtures, and
+qualification tests are identical. The full shared geometry suite ran once in
+A; B ran its own quick/workflow suites and targeted CAD tessellation test
+(`npm run test:geometry -- client/src/lib/cad/mesh-build.qualification.test.ts`).
+The production build contains the 22,980,267-byte single-threaded CAD WASM,
+matching the installed package SHA-256
+`4c9f22e9f3828dca6f3c95405934cdbe624e593c35266f47f392ab337478dbde`,
+and the served CAD notices/source manifest.
+
+Full logs are retained in the primary checkout under
+`outputs/step-main-refresh-2026-10-29/{dedicated,unified}/`. Pre-refresh checkpoint
+branches are `codex/step-cad-export-before-main-20261029` and
+`codex/cad-unified-geometry-before-main-20261029`. Refreshed real-example browser
+exports and native CAD workflows remain pending. The following comparison is
+dated historical evidence.
+
+## Historical comparison — 2026-10-07
+
 Updated: 2026-10-07. **Recommendation: select A, dedicated STEP, for the next
 production milestones.** Both working investigations generate true CAD solids
 from authored design data. B also drives actual preview, STL, and multi-color
@@ -11,11 +90,13 @@ native API editing pass all six fixtures in each approach; see
 [freecad-step-acceptance.md](freecad-step-acceptance.md). FreeCAD's normal import
 dialog crashes remain an explicit failed workflow check.
 
-The 2026-10-15 [root-cause investigation](freecad-import-crash-root-cause.md) isolates the Qt 6.8.3 macOS accessibility cache defect without STEP or geometry. A corrected-build desktop import is still required.
+The 2026-10-15 [root-cause investigation](freecad-import-crash-root-cause.md) isolates the Qt 6.8.3 macOS accessibility cache defect without STEP or geometry. The later bounded RC1 import pass and remaining Unicode failure are recorded in the baseline update above.
 
 ## Isolated implementation
 
-| Investigation | Branch | Local preview | Integration |
+The following preview URLs describe the historical test sessions, not running servers.
+
+| Investigation | Branch | Historical local preview | Integration |
 | --- | --- | --- | --- |
 | A | `codex/step-cad-export` | `http://localhost:5194/bin` | Existing Manifold bin preview/STL/3MF; independent CAD STEP on demand. |
 | B | `codex/cad-unified-geometry` | `http://localhost:5195/bin` | CAD bin construction supplies STEP and tessellated preview/STL/3MF. |
@@ -29,10 +110,10 @@ hardening is `d31ee01` / `27684db`, loading diagnostics and independent
 dimensions are `ec39b44` / `2fac93b`, library recovery is `e8f5564` / `f5b54b4`,
 complete placement provenance is `220d857` / `ff7526c`, and shared scale/fill preflight is `178384f` / `e9c1eca`.
 
-The primary checkout's unrelated work is preserved. These are local commits;
-no PR, push, merge, deployment, or GitHub CI run has been performed. The original
-handwritten STEP serializer and fixtures remain regression references. The
-experimental UI uses the OCCT worker, not that serializer.
+In the historical run, the primary checkout's unrelated work was preserved and
+no PR, push, merge, deployment, or GitHub CI run was performed. The refreshed
+tree retains the original handwritten serializer and fixtures as regression
+references. The experimental UI exports through the OCCT worker/XCAF path.
 
 ## Geometry and object evidence
 
@@ -238,7 +319,7 @@ tablet controls were inspected. Responsive viewport testing is not testing on
 physical phones/tablets; their memory and compatibility gates remain pending.
 The original user browser project at port 5184 was preserved.
 
-Both branches pass Node 22 `npm run check`, `npm test` (165 files / 2778 tests),
+The historical branch revisions passed Node 22 `npm run check`, `npm test` (165 files / 2778 tests),
 `npm run build`, and `git diff --check`. One A rerun encountered an existing
 five-second geometry-test timeout under additional load; a complete rerun
 passed without relaxing the test. The early serializer's regression tests also
@@ -266,11 +347,11 @@ requires its own source-availability and provenance readback.
    curved mouth rounding, portable-font and linked-object acceptance, and full
    STEP material/color mapping. B additionally needs its CAD fit-check paths,
    broader printing parity, assembled material slicing and physical prints.
-4. Resolve the FreeCAD 1.1.4 normal import-dialog crashes observed with both
-   irregular STEP files and a FreeCAD-authored box on macOS 26.6.2, then rerun
-   that desktop workflow. The
-   six-fixture Fusion and FreeCAD native API edit/reconstruction/reopen corpora
-   pass. Test actual phones/tablets, cold network loading, memory
+4. Qualify a supported FreeCAD runtime containing the Qt fix and resolve
+   Unicode names under normal import settings. The October 15 RC1 Mini Socket
+   Set workflow is a bounded geometry pass, not complete application acceptance.
+   Rerun refreshed real examples in FreeCAD/Fusion after export blockers are
+   resolved. Test actual phones/tablets, cold network loading, memory
    termination/retry and process-memory evidence.
 5. Pass the complete release corpus and local gates, update supported-feature
    documentation, and only then replace the early exporter and propose the

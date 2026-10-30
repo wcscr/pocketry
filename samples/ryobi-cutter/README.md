@@ -12,6 +12,9 @@ pocket has 14 mm and 55 mm depths, with a finger-access slot for lifting the too
 
 ## Printed bin
 
+The editable project includes raised lettering approximating the printed photo.
+The supplied 3MF is unchanged; export the updated project for a model with these labels.
+
 <a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Printed non-rectangular bin holding the Ryobi cutter"></a>
 
 <a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="612" alt="Ryobi cutter beside its printed bin, showing the non-rectangular footprint and two-level pocket"></a>

@@ -47,3 +47,15 @@ it("keeps the dimension dialog scrollable above the keyboard", () => {
   expect(dialog.style.maxHeight).toBe("298px");
   expect(mocks.storeShape).not.toHaveBeenCalled();
 });
+
+it("carries the entered depth into drawing even when canvas dimensions replace invalid width", () => {
+  render("rectangle"); type(0, ""); type(2, "5");
+  React.act(() => [...document.querySelectorAll('button')].find(b => b.textContent === "Draw on canvas")!.click());
+  expect(mocks.draw).toHaveBeenCalledWith(5);
+});
+it.each(["", "0", "-1", "Infinity", "100"])("blocks canvas drawing for invalid depth %s", value => {
+  render("rectangle"); type(2, value);
+  const draw = [...document.querySelectorAll('button')].find(b => b.textContent === "Draw on canvas")!;
+  expect(draw.disabled).toBe(true); React.act(() => draw.click());
+  expect(mocks.draw).not.toHaveBeenCalled(); expect(mocks.storeShape).not.toHaveBeenCalled();
+});

@@ -5,7 +5,9 @@ import sansBold from "three/examples/fonts/droid/droid_sans_bold.typeface.json";
 import mono from "three/examples/fonts/droid/droid_sans_mono_regular.typeface.json";
 import helvetiker from "three/examples/fonts/helvetiker_regular.typeface.json";
 import helvetikerBold from "three/examples/fonts/helvetiker_bold.typeface.json";
-import type { SurfaceText } from "@shared/gridfinity/surface-text";
+import { surfaceTextName, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { hardwareSymbolOutline } from "@shared/gridfinity/hardware-symbols";
+import type { Outline, Ring } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { infillTopZ } from "@shared/gridfinity/fill";
 import { BASE_HEIGHT } from "@shared/gridfinity/standard";
@@ -23,7 +25,7 @@ export function surfaceTextZ(spec: BinSpec): number {
 }
 
 /** Same outlines serve the layout and Manifold extrusion; never silently replace glyphs. */
-export function surfaceTextShapes(label: SurfaceText) {
+function wordingFont(label: SurfaceText) {
   const selectedFont = label.font;
   const font = typeof selectedFont === "string" ? fonts[selectedFont] : loader.parse({
     // FontLoader memoizes paths on glyph objects. Keep that cache out of saved data.
@@ -41,11 +43,22 @@ export function surfaceTextShapes(label: SurfaceText) {
       throw new Error(`The label “${label.text}” contains an unsupported character: ${char}`);
     }
   }
-  return font.generateShapes(label.text, label.sizeMm);
+  return font;
 }
 
-export function surfaceTextOutline(label: SurfaceText) {
-  const shapes = surfaceTextShapes(label);
+/** Original font curves for CAD; geometry is never reconstructed from samples. */
+export function surfaceTextShapes(label: SurfaceText) {
+  return wordingFont(label).generateShapes(label.text, label.sizeMm);
+}
+
+function wordingOutline(label: SurfaceText): { outline: Outline; leadingSpaceMm: number } {
+  if (label.symbol && !label.text.trim()) return { outline: [], leadingSpaceMm: 0 };
+  const font = wordingFont(label);
+  // Spaces have advance widths but no outline. Bounds-based alignment must not
+  // cancel the spacing the user deliberately typed before the first glyph.
+  const leadingSpaceMm = [...label.text.match(/^\s*/u)![0]].reduce((width, char) =>
+    width + font.data.glyphs[char].ha * label.sizeMm / font.data.resolution, 0);
+  const shapes = font.generateShapes(label.text, label.sizeMm);
   const outline = normalizeOutline(shapes.map(shape => {
     const points = shape.extractPoints(12);
     const ring = (items: { x: number; y: number }[]) => {
@@ -55,10 +68,30 @@ export function surfaceTextOutline(label: SurfaceText) {
     };
     return { outer: ring(points.shape), holes: points.holes.map(ring) };
   }));
+  return { outline, leadingSpaceMm };
+}
+
+/** One optional symbol precedes vertically centered wording; text-only layout is unchanged. */
+export function surfaceTextOutline(label: SurfaceText): Outline {
+  let { outline, leadingSpaceMm } = wordingOutline(label);
+  if (label.symbol) {
+    const symbolSize = label.symbolSizeMm ?? label.sizeMm;
+    const scale = (ring: Ring) => ring.map(p => ({ x: p.x * symbolSize, y: p.y * symbolSize }));
+    const symbol = hardwareSymbolOutline(label.symbol, label.symbolRotationDeg).map(shape => ({ outer: scale(shape.outer), holes: shape.holes.map(scale) }));
+    const symbolBounds = outlineBounds(symbol)!;
+    const textBounds = outlineBounds(outline);
+    if (textBounds) {
+      const dx = symbolBounds.maxX + surfaceTextSymbolGap(label) + leadingSpaceMm - textBounds.minX;
+      const dy = (symbolBounds.minY + symbolBounds.maxY - textBounds.minY - textBounds.maxY) / 2;
+      const offset = (ring: Ring) => ring.map(p => ({ x: p.x + dx, y: p.y + dy }));
+      outline = outline.map(shape => ({ outer: offset(shape.outer), holes: shape.holes.map(offset) }));
+    }
+    outline = [...symbol, ...outline];
+  }
   // Complex system fonts can produce hundreds of thousands of points. Avoid
   // spreading them into function arguments, which exceeds browser stack limits.
   const bounds = outlineBounds(outline);
-  if (!bounds) throw new Error("Enter some visible text.");
+  if (!bounds) throw new Error("Enter some visible text or choose a symbol.");
   const cx = (bounds.minX + bounds.maxX) / 2;
   const cy = (bounds.minY + bounds.maxY) / 2;
   const angle = label.rotationDeg * Math.PI / 180;
@@ -80,14 +113,14 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
     const section = arena.track(new CrossSection(rings.map(ring => ring.map(p => [p.x, p.y] as [number, number])), "NonZero"));
     const unsupported = arena.track(section.subtract(support));
     if (unsupported.area() > 0.001) {
-      throw new Error(`Text “${label.text}” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size.`);
+      throw new Error(`Text “${surfaceTextName(label)}” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size.`);
     }
     const solid = arena.track(arena.track(section.extrude(label.heightMm)).translate([0, 0, z]));
     if (arena.track(solid.intersect(body)).volume() > 0.001 ||
         occupied.some(other => arena.track(solid.intersect(other)).volume() > 0.001)) {
-      throw new Error(`Text “${label.text}” overlaps another label or the bin walls. Move it or reduce its size.`);
+      throw new Error(`Text “${surfaceTextName(label)}” overlaps another label or the bin walls. Move it or reduce its size.`);
     }
-    if (solid.status() !== "NoError" || solid.isEmpty()) throw new Error(`Could not build text “${label.text}”.`);
+    if (solid.status() !== "NoError" || solid.isEmpty()) throw new Error(`Could not build text “${surfaceTextName(label)}”.`);
     occupied.push(solid);
     return { label, solid, z };
   });

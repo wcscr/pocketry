@@ -16,11 +16,13 @@ import {
   type Point,
   type Rect,
   type RingRef,
+  type Ring,
 } from "@shared/geometry/types";
 
 import { iterateRings, sameRingRef } from "@/lib/geometry/outline";
 import { outlineToPathData } from "@/lib/export/svg";
 import type { ImageQuarterTurns } from "@/lib/geometry/image-rotation";
+import type { ImageAlignment } from "@shared/geometry/image-alignment";
 
 /** The viewport transform applied to the whole scene. */
 export interface SceneTransform {
@@ -33,10 +35,12 @@ export interface TraceSceneProps {
   imageUrl: string;
   imageSize: { width: number; height: number };
   imageRotation?: ImageQuarterTurns;
+  imageAlignment?: ImageAlignment | null;
   /** Visible crop only; every image and overlay retains full-photo coordinates. */
   imageCrop?: Rect | null;
   transform: SceneTransform;
   outline: Outline;
+  estimatedEdgeRegions?: readonly Ring[];
   selection: RingRef | null;
   region: Rect | null;
   /** Keeps the crop boundary prominent only while the region tool is active. */
@@ -70,6 +74,8 @@ export interface TraceSceneProps {
   hoveredVertexIndex?: number | null;
   selectedVertexIndex?: number | null;
   compactHandles?: boolean;
+  /** Selection can highlight a contour without offering point editing. */
+  showVertices?: boolean;
   /** Handles for the interaction layer above. */
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -123,9 +129,11 @@ export function TraceScene({
   imageUrl,
   imageSize,
   imageRotation = 0,
+  imageAlignment = null,
   imageCrop = null,
   transform,
   outline,
+  estimatedEdgeRegions = [],
   selection,
   region,
   regionActive = false,
@@ -144,6 +152,7 @@ export function TraceScene({
   hoveredVertexIndex = null,
   selectedVertexIndex = null,
   compactHandles = false,
+  showVertices = true,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -193,18 +202,25 @@ export function TraceScene({
           width={imageSize.width}
           height={imageSize.height}
           rotation={imageRotation}
+          alignment={imageAlignment}
         />
 
+        {estimatedEdgeRegions.map((ring, index) => <path key={`estimated-${index}`} d={ringToPath(ring)}
+          fill="none" className="pointer-events-none stroke-amber-600" strokeWidth={2} strokeDasharray="7 4"
+          vectorEffect="non-scaling-stroke" data-testid="estimated-edge-region">
+          <title>Estimated edge area: review the contour hidden by the measurement aid.</title>
+        </path>)}
+
         {/* The traced material, with holes punched out by the even-odd rule. */}
-        {fillPath && (
-          <path
-            d={fillPath}
-            fillRule="evenodd"
-            className="fill-fuchsia-500/10"
-            style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }}
-            data-testid="detected-contour-fill"
-          />
-        )}
+        {fillPath && <>
+          <defs><mask id={`${sceneId}-holes`} maskUnits="userSpaceOnUse" x={0} y={0} width={imageSize.width} height={imageSize.height}>
+            <rect width={imageSize.width} height={imageSize.height} fill="white" />
+            {outline.flatMap(part => part.holes).map((ring, index) => <path key={index} d={ringToPath(ring)} fill="black" />)}
+          </mask></defs>
+          <path d={outlineToPathData(outline.map(part => ({ ...part, holes: [] })))} fillRule="nonzero"
+            mask={`url(#${sceneId}-holes)`} className="fill-fuchsia-500/10"
+            style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }} data-testid="detected-contour-fill" />
+        </>}
 
         {/*
           A bright contour alone disappears wherever the photo contains that
@@ -250,7 +266,7 @@ export function TraceScene({
           can carry thousands of points per ring; rendering a handle for every
           one of them is unusable and janks the whole canvas.
         */}
-        {selectedRing?.map((point, index) => {
+        {showVertices && selectedRing?.map((point, index) => {
           const hovered = index === hoveredVertexIndex;
           const selected = index === selectedVertexIndex;
           return (
@@ -267,6 +283,7 @@ export function TraceScene({
               strokeWidth={1.5}
               vectorEffect="non-scaling-stroke"
               data-vertex={index}
+              style={{ visibility: "var(--contour-handle-visibility, visible)" as "visible" }}
               data-vertex-hovered={hovered || undefined}
               data-point-selected={selected || undefined}
             />
@@ -323,18 +340,23 @@ export function TraceScene({
  * width and height are exactly the working image size, which *is* the outline's
  * coordinate space.
  */
-const SourceImage = memo(function SourceImage({
+export const SourceImage = memo(function SourceImage({
   url,
   width,
   height,
   rotation,
+  alignment = null,
 }: {
   url: string;
   width: number;
   height: number;
   rotation: ImageQuarterTurns;
+  alignment?: ImageAlignment | null;
 }) {
   if (width <= 0 || height <= 0) return null;
+  if (alignment) return <g transform={`matrix(${alignment.matrix.join(" ")})`} data-testid="trace-image-alignment">
+    <SourceImage url={url} width={alignment.sourceSize.width} height={alignment.sourceSize.height} rotation={rotation} />
+  </g>;
   const turned = rotation % 2 === 1;
   const sourceWidth = turned ? height : width;
   const sourceHeight = turned ? width : height;

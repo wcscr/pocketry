@@ -3,9 +3,41 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { parseCutoutPlacement } from "@shared/gridfinity/cutout";
+import { MAX_HEIGHT_UNITS } from "@shared/gridfinity/types";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { ShapeLibraryProvider } from "@/state/shape-library";
 import { MobileBinActions } from "./mobile-bin-actions";
+
+it("edits tall bins up to the shared height limit with undo and redo", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  let store!: BinStore;
+  function Probe() {
+    store = useBin();
+    return <MobileBinActions open onOpenChange={() => {}} onMore={() => {}} onExport={() => {}} />;
+  }
+  try {
+    React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
+    React.act(() => store.dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 50.5 } }));
+    const slider = host.querySelector<HTMLElement>('#quick-bin-height [role="slider"]')!;
+    expect(slider.getAttribute("aria-valuenow")).toBe("50.5");
+    expect(slider.getAttribute("aria-valuemax")).toBe(String(MAX_HEIGHT_UNITS));
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(store.spec.heightUnits).toBe(51);
+    React.act(() => store.dispatch({ type: "UNDO" }));
+    expect(store.spec.heightUnits).toBe(50.5);
+    React.act(() => store.dispatch({ type: "REDO" }));
+    expect(store.spec.heightUnits).toBe(51);
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
+    expect(store.spec.heightUnits).toBe(MAX_HEIGHT_UNITS);
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(store.spec.heightUnits).toBe(MAX_HEIGHT_UNITS);
+  } finally {
+    React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals();
+  }
+});
 
 it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket and section", property => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -24,6 +56,7 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
         depths: [{ mode: "remaining", floorThicknessMm: 6, sourceDepthMm: 16 }, { mode: "remaining", floorThicknessMm: 4, sourceDepthMm: 20 }] } });
     const second = { ...first, id: "second", position: { x: 15, y: 0 }, clearanceMm: 0.5 };
     React.act(() => store.dispatch({ type: "ADD_PLACED", cutouts: [first, second], gridX: 2, gridY: 2 }));
+    const placedSecond = store.cutouts[1];
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: first.id }));
     const slider = () => host.querySelector<HTMLElement>(`#quick-pocket-${property} [role="slider"]`)!;
     const previous = slider();
@@ -37,11 +70,39 @@ it.each(["depth", "clearance"])("keeps the mobile %s slider tied to its pocket a
     React.act(() => store.dispatch({ type: "SELECT_CUTOUT", id: second.id }));
     expect(slider().getAttribute("aria-valuenow")).toBe(property === "depth" ? "6" : "0.5");
     React.act(() => previous.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
-    expect(store.cutouts).toEqual([edited, second]);
+    expect(store.cutouts).toEqual([edited, placedSecond]);
     React.act(() => slider().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     expect(store.cutouts[0]).toEqual(edited);
-    expect(store.cutouts[1]).not.toEqual(second);
+    expect(store.cutouts[1]).not.toEqual(placedSecond);
   } finally {
     React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals();
   }
+});
+
+
+it("describes hole protection and offsets in mobile adjustment controls", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  let store!: BinStore;
+  function Probe() {
+    store = useBin();
+    return <MobileBinActions open onOpenChange={() => {}} onMore={() => {}} onExport={() => {}} />;
+  }
+  try {
+    React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Probe /></BinProvider></ShapeLibraryProvider>));
+    const hole = parseCutoutPlacement({ id: "hole", shapeId: "source", role: "hole", position: { x: 0, y: 0 }, depth: { mode: "through" } });
+    React.act(() => store.dispatch({ type: "ADD_PLACED", cutouts: [hole], gridX: 2, gridY: 2 }));
+    expect(host.textContent).toContain("Keeps material through the bin");
+    expect(host.textContent).toContain("Hole offset");
+    expect(host.textContent).toContain("reduces the surrounding pocket opening");
+    expect(host.textContent).not.toContain("Through pocket");
+    React.act(() => store.dispatch({ type: "UPDATE_CUTOUT", id: hole.id, patch: { depth: { mode: "mm", value: 5 } } }));
+    expect(host.textContent).toContain("Kept depth");
+    const slider = host.querySelector<HTMLElement>('#quick-pocket-clearance [role="slider"]')!;
+    React.act(() => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(store.cutouts[0].clearanceMm).toBeCloseTo(0.1);
+    expect(store.history.stack.at(-1)!.label).toBe("Change hole offset");
+  } finally { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });

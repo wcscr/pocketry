@@ -174,7 +174,7 @@ describe("WorkspaceLayout", () => {
       expect(controls.hasAttribute('inert')).toBe(true);
       const show = container.querySelector<HTMLButtonElement>('[aria-label="Show controls"]')!;
       expect(show.closest('[data-testid="desktop-workspace-controls"]')).toBeNull();
-      expect(show.dataset.testid).toBe('controls-restore-rail');
+      expect(show.textContent).toBe('Bin designer');
       React.act(() => show.click());
       expect(controls.hasAttribute('inert')).toBe(false);
       expect(controls.querySelector('input')).toBe(field);
@@ -182,7 +182,7 @@ describe("WorkspaceLayout", () => {
     } });
   });
 
-  it("restores either desktop panel from its own strip without remounting its fields or canvas", () => {
+  it("restores either desktop panel from a labeled vertical rail without remounting its fields or canvas", () => {
     function Harness() {
       const [open, setOpen] = React.useState(true);
       return <WorkspaceLayout autoSaveId="test:workflow-restore" panelOpen={open} onPanelOpenChange={setOpen}
@@ -201,10 +201,12 @@ describe("WorkspaceLayout", () => {
       expect(properties.hasAttribute('hidden')).toBe(true);
       const restore = container.querySelector<HTMLButtonElement>('[aria-label="Expand workflow panel"]')!;
       const restoreProperties = container.querySelector<HTMLButtonElement>('[aria-label="Expand properties panel"]')!;
-      expect(restore.dataset.testid).toBe('left-panel-restore-rail');
-      expect(restoreProperties.dataset.testid).toBe('right-panel-restore-rail');
+      expect(restore.textContent).toBe('Workflow');
+      expect(restoreProperties.textContent).toBe('Properties');
       expect(restore.closest('[aria-label="Editing tools"]')).toBeNull();
       expect(restoreProperties.closest('[aria-label="Editing tools"]')).toBeNull();
+      expect(restore.title).toBe('Workflow collapsed — click to expand');
+      expect(restore.getAttribute('aria-expanded')).toBe('false');
       React.act(() => restore.click());
       expect(panel.hasAttribute('hidden')).toBe(false);
       expect(properties.hasAttribute('hidden')).toBe(true);
@@ -212,6 +214,53 @@ describe("WorkspaceLayout", () => {
       expect(properties.hasAttribute('hidden')).toBe(false);
       expect(panel.querySelector('input')).toBe(field);
       expect(properties.querySelector('input')).toBe(property);
+      expect(container.querySelector('[data-testid="retained-canvas"]')).toBe(canvas);
+    } });
+  });
+
+  it.each([400, 900])("returns to the retained canvas from either compact panel (width=%s)", width => {
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return <WorkspaceLayout autoSaveId="test:compact-return" panelOpen={open} onPanelOpenChange={setOpen}
+        panel={<input aria-label="Retained workflow field" />} inspector={<input aria-label="Retained property field" />}
+        canvas={<div data-testid="retained-canvas">canvas</div>} />;
+    }
+    render(<Harness />, { mobile: width < 768, inspect: container => {
+      React.act(() => {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+        window.dispatchEvent(new Event("resize"));
+      });
+      const canvas = container.querySelector('[data-testid="retained-canvas"]');
+      for (const id of ["workflow-panel", "objects-panel"]) {
+        const pane = container.querySelector<HTMLElement>(`#${id}`)!;
+        const field = pane.querySelector("input");
+        React.act(() => container.querySelector<HTMLButtonElement>(`nav[aria-label="Editor panels"] button[aria-controls="${id}"]`)!.click());
+        expect(pane.hidden).toBe(false);
+        const back = [...pane.querySelectorAll("button")].find(button => button.textContent === "Back to Canvas")!;
+        expect(back).toBeDefined();
+        React.act(() => back.click());
+        expect(pane.hidden).toBe(true);
+        expect(pane.querySelector("input")).toBe(field);
+        expect(container.querySelector('[data-testid="retained-canvas"]')).toBe(canvas);
+      }
+    } });
+  });
+
+  it("returns from mobile controls without remounting the canvas or fields", () => {
+    function Harness() {
+      const [open, setOpen] = React.useState(true);
+      return <WorkspaceLayout autoSaveId="test:mobile-return" panelOpen={open} onPanelOpenChange={setOpen}
+        panel={<input aria-label="Retained field" />} canvas={<div data-testid="retained-canvas">canvas</div>} />;
+    }
+    render(<Harness />, { mobile: true, inspect: container => {
+      const pane = container.querySelector<HTMLElement>('[data-testid="mobile-properties-panel"]')!;
+      const field = pane.querySelector("input");
+      const canvas = container.querySelector('[data-testid="retained-canvas"]');
+      const back = [...pane.querySelectorAll("button")].find(button => button.textContent === "Back to Canvas")!;
+      expect(back.closest("header")).not.toBeNull();
+      React.act(() => back.click());
+      expect(pane.hidden).toBe(true);
+      expect(pane.querySelector("input")).toBe(field);
       expect(container.querySelector('[data-testid="retained-canvas"]')).toBe(canvas);
     } });
   });
