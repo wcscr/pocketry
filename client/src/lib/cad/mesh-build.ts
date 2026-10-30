@@ -30,7 +30,13 @@ export function buildCadBinMesh(request:BuildBinRequest,oc:OpenCascadeInstance,p
   const design=resolveCadDesign(project);
   const c=new CadContext(oc,operation=>{if(performance.now()-started>CAD_LIMITS.modelingMs)throw new Error(`${operation}: modeling exceeded 120 seconds`);});
   try{
-    const built=buildCadDesign(c,design,{floorThicknessMm:request.pocketFloorMaterialThicknessMm,rimThicknessMm:request.stackingRimMaterialThicknessMm,borderWidthMm:request.borderWidthMm},progress);
+    // Printing needs only finished shapes. Release construction tools and
+    // temporary text/Boolean objects before the mesher's native workspace grows.
+    const built=c.scope(()=>{
+      const {solid,body,textParts,materials}=buildCadDesign(c,design,{floorThicknessMm:request.pocketFloorMaterialThicknessMm,rimThicknessMm:request.stackingRimMaterialThicknessMm,borderWidthMm:request.borderWidthMm},progress);
+      return {solid,body,textParts,materials};
+    },result=>[result.solid,result.body,...result.textParts.map(part=>part.shape),
+      ...Object.values(result.materials??{}).filter((shape):shape is CadShape=>Boolean(shape))]);
     const volumeMm3=c.volume(built.solid);
     let plane:CadShape|undefined;
     if(request.section)plane=halfSpace(c,request.section.axis==="x"?{x:-1,y:0,z:0}:{x:0,y:-1,z:0},request.section.axis==="x"?{x:request.section.offsetMm,y:0,z:0}:{x:0,y:request.section.offsetMm,z:0});

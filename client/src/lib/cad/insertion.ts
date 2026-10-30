@@ -19,9 +19,9 @@ export function cadInsertionEnvelope(c: CadContext, source: CadShape, vector: Ve
   let boundary: CadShape = source;
   if (!silhouettes.IsNull()) {
     const splitter = c.own(new oc.BRepAlgoAPI_Splitter());
-    const args = c.own(new oc.NCollection_List_TopoDS_Shape()); args.Append(source);
+    const args = c.own(new oc.NCollection_List_TopoDS_Shape()); c.own(args.Append(source));
     const tools = c.own(new oc.NCollection_List_TopoDS_Shape());
-    for (const edge of c.subshapes(silhouettes,"edge")) tools.Append(edge);
+    for (const edge of c.subshapes(silhouettes,"edge")) c.own(tools.Append(edge));
     splitter.SetArguments(args); splitter.SetTools(tools);
     splitter.SetFuzzyValue(0.000001); splitter.SetRunParallel(false);
     splitter.Build(c.own(new oc.Message_ProgressRange()));

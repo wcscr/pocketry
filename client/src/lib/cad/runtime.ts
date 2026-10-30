@@ -2,7 +2,7 @@ import init, { type OpenCascadeInstance } from "replicad-opencascadejs";
 import wasmUrl from "replicad-opencascadejs/wasm?url";
 
 export type { OpenCascadeInstance };
-export const CAD_ENGINE_VERSION = "replicad-opencascadejs@1.1.0/OCCT-8.0.1";
+export const CAD_ENGINE_VERSION = "replicad-opencascadejs@1.1.0-pocketry.2/OCCT-8.0.1";
 
 /** Imported only by the CAD module worker. Failed loads remain retryable. */
 let pending: Promise<OpenCascadeInstance> | undefined;

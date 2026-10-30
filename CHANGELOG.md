@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix native CAD cleanup in both experimental investigations without changing modeled geometry; retain the 512 MiB guard. Complex authored bottom fillets remain an unresolved export gate.
+
 - Refresh the isolated CAD investigations against current main, preserving edited polygon provenance in schema 55 and rejecting newer unsupported features before export. Backend selection and real-bin fillet qualification remain pending.
 
 - Experimental CAD investigations: curved STEP solids, named source objects and cutters, complete project packages, progress and cancellation. Stable object IDs survive Fusion import through geometry-associated names. Production backend selection and remaining feature gates are pending.

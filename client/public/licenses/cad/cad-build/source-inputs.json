@@ -1,0 +1,18 @@
+[
+  {
+    "name": "ocjs",
+    "sha256": "1e0342c8dbdc04d1835c776d5e95ab25fcad56a5f4cafcbecad92a959b6b00b7",
+    "bytes": 4449501,
+    "parts": [
+      "ocjs.tar.gz.part00"
+    ]
+  },
+  {
+    "name": "replicad",
+    "sha256": "92180710da11a6e67ab75eaac8b494b29d32011415c22e29f7fecb1c796da783",
+    "bytes": 17426998,
+    "parts": [
+      "replicad.tar.gz.part00"
+    ]
+  }
+]

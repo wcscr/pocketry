@@ -40,13 +40,14 @@ export function buildCadDesign(c:CadContext,design:CadDesign,materials:CadMateri
         transform:{rotation:pocket.rotation,position:pocket.position,elevationMm:pocket.elevationMm,scaleX:pocket.scaleX,scaleY:pocket.scaleY,mirrored:pocket.mirrored}});
       let active=built.status==="active"&&Boolean(built.cutter);
       if(active) {
-        const overlap=c.boolean("common",blank,built.cutter!,`${pocket.name}: cutting-volume intersection`,true);
-        active=nonempty(c,overlap);
+        active=c.scope(()=>nonempty(c,c.boolean("common",blank,built.cutter!,`${pocket.name}: cutting-volume intersection`,true)));
       }
       add({id:`cutter:${pocket.id}`,sourceId:pocket.id,shapeId:pocket.shapeId,name:`${pocket.name} — cutter`,role:"pocket-cutter",shape:active?built.cutter:undefined,
         status:active?"active":"inactive",reason:active?undefined:built.reason??"Cutter does not intersect the bin blank",designLink:pocket.designLink});
       if(active) {
+        const previous=body;
         body=c.boolean("cut",body,built.cutter!,`${pocket.name}: subtract actual cutter`,true);
+        if(previous!==blank)c.drop(previous);
         if(built.floorBand)floorRegions.push(built.floorBand);
       }
     }catch(error){throw new Error(`${pocket.name} (${pocket.id}): ${error instanceof Error?error.message:String(error)}`);}

@@ -6,7 +6,7 @@ import { resolveCadDesign, CAD_LIMITS } from "./model";
 import { buildCadDesign } from "./build";
 import { writeCadStep } from "./step";
 
-export const CAD_EXPORTER_VERSION = "pocketry-cad-investigation-1";
+export const CAD_EXPORTER_VERSION = "pocketry-cad-investigation-2";
 export interface StepExportReport {
   snapshotSha256:string;exporterVersion:string;engineVersion:string;units:"mm";
   modelingToleranceMm:number;booleanRetryToleranceMm:number;booleanRetries:number;

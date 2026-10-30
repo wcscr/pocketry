@@ -31,7 +31,7 @@ export function planarSection(c: CadContext, shape: CadShape, z: number): CadSha
   const face=c.own(c.own(new c.oc.BRepBuilderAPI_MakeFace(plane)).Face());
   for(const tolerance of [0.000001,0.00001]) {
     const common=c.own(new c.oc.BRepAlgoAPI_Common());
-    const args=c.own(new c.oc.NCollection_List_TopoDS_Shape()),tools=c.own(new c.oc.NCollection_List_TopoDS_Shape());args.Append(shape);tools.Append(face);
+    const args=c.own(new c.oc.NCollection_List_TopoDS_Shape()),tools=c.own(new c.oc.NCollection_List_TopoDS_Shape());c.own(args.Append(shape));c.own(tools.Append(face));
     common.SetArguments(args);common.SetTools(tools);common.SetFuzzyValue(tolerance);common.SetRunParallel(false);common.Build(c.own(new c.oc.Message_ProgressRange()));
     if(!common.IsDone()||common.HasErrors())continue;
     const result=c.own(common.Shape()),faces=c.subshapes(result,"face");
@@ -54,6 +54,7 @@ export function mouthFlare(c:CadContext,cutter:CadShape,fillZ:number,top:number,
 
 export interface CadPocketBodies { source:CadShape; cutter?:CadShape; status:"active"|"inactive"; reason?:string; floorBand?:CadShape }
 export function buildCadPocket(c:CadContext,p:CadPocket,fillZ:number,binTop:number,floorThickness?:number):CadPocketBodies {
+  return c.scope(() => {
   c.guard(`${p.name}: profile`);
   const section=pocketSection(c,p.profiles,p.clearanceMm,p.cornerRoundMm);
   const localTop=p.rigid?0:fillZ;
@@ -104,4 +105,5 @@ export function buildCadPocket(c:CadContext,p:CadPocket,fillZ:number,binTop:numb
   const radius=Math.min(p.topFilletMm,...p.depths.map(d=>d/2),Math.max(0,fillZ-c.bounds(cutter).min.z)/2);
   cutter=mouthFlare(c,cutter,fillZ,binTop+1,radius);
   return {source,cutter,status:"active",floorBand};
+  }, result => [result.source, ...result.cutter ? [result.cutter] : [], ...result.floorBand ? [result.floorBand] : []]);
 }

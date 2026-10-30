@@ -1,0 +1,59 @@
+{
+  "purpose": "Rebuild pinned replicad-opencascadejs 1.1.0 single-thread bindings with actual native destruction; geometry kernel unchanged",
+  "image": "ghcr.io/taucad/opencascade.js@sha256:b900017985fc32e296e01531a3483d4041fd39c51e9a0be365e97e5295f15da7",
+  "imagePlatform": "linux/arm64",
+  "network": "none",
+  "cpus": 4,
+  "memoryBytes": 8589934592,
+  "hostMount": "/private/tmp/pocketry-cad-memory-build:/work",
+  "compilerRevision": "ebd263f15337b440b391492af073662707e86482",
+  "replicadRevision": "e4b05f67dc4e2393a876ce8c5064a9c93db05bf1",
+  "occtRevision": "b8f597c677811d1f9f4d8a97f5ae2825c0353a42",
+  "expectedEmscripten": "5.0.1",
+  "patch": "native-destructors.patch",
+  "buildRecipe": "build.sh",
+  "selectiveCompileRecipe": "selective-compile.py",
+  "qualificationScripts": [
+    "verify-destructors.mjs",
+    "verify-analyzer-lifetime.mjs"
+  ],
+  "productionApproved": false,
+  "sourceModification": "Retain default owning Embind destructor when public ordinary operator delete exists alongside placement delete; retain suppression for nonpublic destructor or placement-only deletion.",
+  "repairDate": "2026-10-30",
+  "candidateWasmWrittenAtUtc": "2026-10-30T14:20:10.374147+00:00",
+  "candidateWasmSha256": "6d0c2946d642e5edf83482218717aa006dd562a701dbbc645a0282d6bbc6de35",
+  "inheritedCompilerCacheMetadata": {
+    "buildId": "20260802T233211-O3-noLTO-single",
+    "timestamp": "2026-08-02T23:32:11+00:00",
+    "meaning": "Original precompiled-image cache metadata, not the October30 repair execution time."
+  },
+  "finalLinkEmccFlags": [
+    "-sMALLOC=mimalloc",
+    "-fwasm-exceptions",
+    "-sEXPORT_EXCEPTION_HANDLING_HELPERS",
+    "-sEXPORT_ES6=1",
+    "-sMODULARIZE",
+    "-sALLOW_MEMORY_GROWTH=1",
+    "-sINITIAL_MEMORY=100MB",
+    "-sMAXIMUM_MEMORY=4GB",
+    "-sEXPORTED_RUNTIME_METHODS=[\"FS\",\"wasmMemory\"]",
+    "-sENVIRONMENT=web,worker,node",
+    "--no-entry",
+    "-sERROR_ON_UNDEFINED_SYMBOLS=0",
+    "-sSTACK_SIZE=8388608",
+    "-sWASM_BIGINT",
+    "-msimd128",
+    "-O3",
+    "-sEVAL_CTORS=2"
+  ],
+  "nativeQualification": {
+    "registeredClasses": 454,
+    "owningDestructorsRepaired": 169,
+    "protectedBaseExceptions": 2,
+    "freshExactAnalyzerCycles": 5000,
+    "initialAndFinalWasmBytes": 104857600,
+    "ownershipChecks": 8,
+    "passed": true
+  },
+  "applicationGeometryQualification": "Tracked separately by application investigation; not asserted by this engine build record."
+}

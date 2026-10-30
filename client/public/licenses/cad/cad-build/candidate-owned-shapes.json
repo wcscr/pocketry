@@ -1,0 +1,40 @@
+{
+  "node": "v22.23.3",
+  "checks": [
+    {
+      "name": "BRepAlgoAPI_Algo protected base has no public constructor",
+      "passed": true
+    },
+    {
+      "name": "CDM_Document protected base has no public constructor",
+      "passed": true
+    },
+    {
+      "name": "shape survives builder destruction",
+      "passed": true
+    },
+    {
+      "name": "typed subshape survives explorer and returned wrapper destruction",
+      "passed": true
+    },
+    {
+      "name": "copied list result survives container destruction",
+      "passed": true
+    },
+    {
+      "name": "edge retains reference-counted curve after builders and curve handle destruction",
+      "passed": true
+    },
+    {
+      "name": "boolean result survives builder destruction",
+      "passed": true,
+      "volumeMm3": 5520
+    },
+    {
+      "name": "named inputs remain usable after boolean result creation",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "finalWasmBytes": 104857600
+}
