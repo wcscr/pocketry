@@ -1,3 +1,4 @@
+import type { ReplicadMeshData } from "replicad-opencascadejs";
 import type { MeshData } from "@/lib/mesh/mesh-data";
 import { CadContext, type CadShape } from "./adapter";
 
@@ -30,13 +31,22 @@ export function stitchCadMesh(mesh:MeshData):MeshData {
 export function tessellateCad(c:CadContext,shape:CadShape,printable:boolean,segments:number):MeshData {
   if(!c.subshapes(shape,"solid").length)return {positions:new Float32Array(),indices:new Uint32Array(),normals:printable?null:new Float32Array()};
   c.guard("CAD tessellation");
-  const data=c.oc.ReplicadMeshExtractor.extract(shape,printable?0.02:0.12,Math.PI*2/Math.max(24,segments),printable);
+  let data:ReplicadMeshData|undefined;
   try{
+    data=c.oc.ReplicadMeshExtractor.extract(shape,printable?0.02:0.12,Math.PI*2/Math.max(24,segments),printable);
     const heap=c.oc.wasmMemory.buffer;
     const mesh:MeshData={positions:new Float32Array(new Float32Array(heap,data.getVerticesPtr(),data.getVerticesSize())),
       indices:new Uint32Array(new Uint32Array(heap,data.getTrianglesPtr(),data.getTrianglesSize())),
       normals:printable?null:new Float32Array(new Float32Array(heap,data.getNormalsPtr(),data.getNormalsSize()))};
     c.guard("CAD tessellation");
     return printable?stitchCadMesh(mesh):mesh;
-  }finally{data.delete();}
+  }finally{
+    try{data?.delete();}
+    finally{
+      // The JS arrays own their copies. Release OCCT's cached triangulations
+      // before extracting another part; curves/surfaces remain unchanged.
+      // The extractor already performs this same Clean before every remesh.
+      c.oc.BRepTools.Clean(shape,false);
+    }
+  }
 }

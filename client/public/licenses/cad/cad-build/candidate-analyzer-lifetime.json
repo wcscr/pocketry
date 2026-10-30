@@ -1,0 +1,89 @@
+{
+  "node": "v22.23.3",
+  "operations": 5000,
+  "reuse": false,
+  "exact": true,
+  "initialWasmBytes": 104857600,
+  "samples": [
+    {
+      "completed": 1,
+      "wasmBytes": 104857600,
+      "rss": 171819008
+    },
+    {
+      "completed": 2,
+      "wasmBytes": 104857600,
+      "rss": 171868160
+    },
+    {
+      "completed": 3,
+      "wasmBytes": 104857600,
+      "rss": 171868160
+    },
+    {
+      "completed": 4,
+      "wasmBytes": 104857600,
+      "rss": 171933696
+    },
+    {
+      "completed": 5,
+      "wasmBytes": 104857600,
+      "rss": 171950080
+    },
+    {
+      "completed": 500,
+      "wasmBytes": 104857600,
+      "rss": 198967296
+    },
+    {
+      "completed": 1000,
+      "wasmBytes": 104857600,
+      "rss": 199802880
+    },
+    {
+      "completed": 1500,
+      "wasmBytes": 104857600,
+      "rss": 200572928
+    },
+    {
+      "completed": 2000,
+      "wasmBytes": 104857600,
+      "rss": 201293824
+    },
+    {
+      "completed": 2500,
+      "wasmBytes": 104857600,
+      "rss": 204013568
+    },
+    {
+      "completed": 3000,
+      "wasmBytes": 104857600,
+      "rss": 204029952
+    },
+    {
+      "completed": 3500,
+      "wasmBytes": 104857600,
+      "rss": 204128256
+    },
+    {
+      "completed": 4000,
+      "wasmBytes": 104857600,
+      "rss": 204144640
+    },
+    {
+      "completed": 4500,
+      "wasmBytes": 104857600,
+      "rss": 204144640
+    },
+    {
+      "completed": 5000,
+      "wasmBytes": 104857600,
+      "rss": 203702272
+    }
+  ],
+  "completed": 5000,
+  "validEveryCall": true,
+  "exactEveryCall": true,
+  "finalWasmBytes": 104857600,
+  "passed": true
+}

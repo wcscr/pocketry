@@ -1,0 +1,36 @@
+{
+  "generatorSha256": "21cd761167ef35e2cdc9376b4c34ebde8f6d22006e7da7f64a6782743f675787",
+  "buildDirectories": [
+    "sources",
+    "bindings",
+    "occt-docs.json",
+    "bindings-manifest.json",
+    "build-flags.json",
+    "doxygen-xml",
+    "any-type-report.json",
+    "compiled-bindings",
+    "ncollection-manifest.json",
+    "pch.h.pch",
+    "occt-libraries",
+    "pch.h",
+    "occt-includes",
+    "embind-patch-hash",
+    "patches-applied.json"
+  ],
+  "compiledObjects": 5344,
+  "staticLibraries": 49,
+  "pchBytes": 91779676,
+  "toolchain": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 5.0.1 (8c5f43157a3f069ade75876e23061330521eabde)\nCopyright (C) 2026 the Emscripten authors (see AUTHORS.txt)\nThis is free and open source software under the MIT license.\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "flags": {
+    "OCJS_DEFINES": "OCCT_NO_DUMP",
+    "OCJS_EH_MODE": "wasm",
+    "OCJS_EXCEPTIONS": "1",
+    "OCJS_EXTRA_CFLAGS": "",
+    "OCJS_LTO": "0",
+    "OCJS_OPT": "-O3",
+    "OCJS_RELAXED_SIMD": "0",
+    "OCJS_SIMD": "1",
+    "OCJS_UNDEFINES": "OCC_CONVERT_SIGNALS",
+    "THREADING": "single-threaded"
+  }
+}

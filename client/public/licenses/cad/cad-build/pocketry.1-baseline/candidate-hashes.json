@@ -1,0 +1,22 @@
+{
+  "replicad_single.wasm": {
+    "bytes": 22985103,
+    "sha256": "6d0c2946d642e5edf83482218717aa006dd562a701dbbc645a0282d6bbc6de35"
+  },
+  "replicad_single.provenance.json": {
+    "bytes": 7497,
+    "sha256": "4269ddb5a6c40ed1aa99ce53e11811993d846b2a8dc3d3f8f4e8b854a29e5aef"
+  },
+  "replicad_single.js": {
+    "bytes": 60124,
+    "sha256": "018e57538fcb773f0124eae60aee4de693d3aae01c55b2b883a874911ab121c3"
+  },
+  "replicad_single.d.ts": {
+    "bytes": 1617183,
+    "sha256": "b44516bd24e6abf0dbe680086e286b117d77299ea77e80f230220dc77d250b08"
+  },
+  "replicad_single.build-manifest.json": {
+    "bytes": 483723,
+    "sha256": "7cd16143c88ba11beefbc073a3af3b02056b9b168b5c7770b7e348e30b9cabac"
+  }
+}

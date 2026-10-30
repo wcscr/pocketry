@@ -1,0 +1,4092 @@
+{
+  "wasmSha256": "6d0c2946d642e5edf83482218717aa006dd562a701dbbc645a0282d6bbc6de35",
+  "importedFunctions": 66,
+  "records": [
+    {
+      "name": "OCJS",
+      "rawDestructorTableIndex": 4,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TColStd_IndexedDataMapOfStringString",
+      "rawDestructorTableIndex": 10,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS",
+      "rawDestructorTableIndex": 14,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Adaptor2d_Curve2d",
+      "rawDestructorTableIndex": 42,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Adaptor3d_Curve",
+      "rawDestructorTableIndex": 89,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Adaptor3d_Surface",
+      "rawDestructorTableIndex": 137,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BOPAlgo_Options",
+      "rawDestructorTableIndex": 187,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAdaptor_CompCurve",
+      "rawDestructorTableIndex": 227,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAdaptor_Curve",
+      "rawDestructorTableIndex": 276,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAdaptor_Curve2d",
+      "rawDestructorTableIndex": 306,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAdaptor_Surface",
+      "rawDestructorTableIndex": 329,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAlgoAPI_Algo",
+      "rawDestructorTableIndex": 352,
+      "wasmFunctionName": "278",
+      "nativeCodeBytes": 2,
+      "bodyPrefixHex": "000b",
+      "isEmptyFunction": true,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAlgoAPI_BooleanOperation",
+      "rawDestructorTableIndex": 376,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAlgoAPI_BuilderAlgo",
+      "rawDestructorTableIndex": 403,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAlgoAPI_Common",
+      "rawDestructorTableIndex": 438,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepAlgoAPI_Cut",
+      "rawDestructorTableIndex": 447,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepAlgoAPI_Fuse",
+      "rawDestructorTableIndex": 456,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepAlgoAPI_Section",
+      "rawDestructorTableIndex": 465,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepAlgoAPI_Splitter",
+      "rawDestructorTableIndex": 486,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepBndLib",
+      "rawDestructorTableIndex": 497,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_Command",
+      "rawDestructorTableIndex": 510,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_MakeEdge",
+      "rawDestructorTableIndex": 518,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepBuilderAPI_MakeFace",
+      "rawDestructorTableIndex": 557,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_MakeShape",
+      "rawDestructorTableIndex": 587,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_MakeShell",
+      "rawDestructorTableIndex": 597,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_MakeSolid",
+      "rawDestructorTableIndex": 615,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_MakeVertex",
+      "rawDestructorTableIndex": 634,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_MakeWire",
+      "rawDestructorTableIndex": 643,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepBuilderAPI_ModifyShape",
+      "rawDestructorTableIndex": 669,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_Sewing",
+      "rawDestructorTableIndex": 676,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepBuilderAPI_Transform",
+      "rawDestructorTableIndex": 755,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepCheck_Analyzer",
+      "rawDestructorTableIndex": 768,
+      "wasmFunctionName": "17457",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010f407104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepExtrema_DistShapeShape",
+      "rawDestructorTableIndex": 806,
+      "wasmFunctionName": "17271",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f200004402300210106402000108f0c104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepFeat_Form",
+      "rawDestructorTableIndex": 865,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepFeat_MakeDPrism",
+      "rawDestructorTableIndex": 890,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepFilletAPI_LocalOperation",
+      "rawDestructorTableIndex": 931,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepFilletAPI_MakeChamfer",
+      "rawDestructorTableIndex": 960,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepFilletAPI_MakeFillet",
+      "rawDestructorTableIndex": 1012,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepGProp",
+      "rawDestructorTableIndex": 1081,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepGProp_Face",
+      "rawDestructorTableIndex": 1099,
+      "wasmFunctionName": "16253",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010b709104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepLib",
+      "rawDestructorTableIndex": 1172,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepLib_ToolTriangulatedShape",
+      "rawDestructorTableIndex": 1252,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepMesh_DiscretRoot",
+      "rawDestructorTableIndex": 1265,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepMesh_IncrementalMesh",
+      "rawDestructorTableIndex": 1285,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_DraftAngle",
+      "rawDestructorTableIndex": 1319,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_MakeFilling",
+      "rawDestructorTableIndex": 1351,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_MakeOffset",
+      "rawDestructorTableIndex": 1387,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepOffsetAPI_MakeOffsetShape",
+      "rawDestructorTableIndex": 1419,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_MakePipe",
+      "rawDestructorTableIndex": 1436,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_MakePipeShell",
+      "rawDestructorTableIndex": 1460,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_MakeThickSolid",
+      "rawDestructorTableIndex": 1528,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepOffsetAPI_ThruSections",
+      "rawDestructorTableIndex": 1546,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeBox",
+      "rawDestructorTableIndex": 1595,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeCylinder",
+      "rawDestructorTableIndex": 1630,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeHalfSpace",
+      "rawDestructorTableIndex": 1642,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeOneAxis",
+      "rawDestructorTableIndex": 1651,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakePrism",
+      "rawDestructorTableIndex": 1664,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "BRepPrimAPI_MakeRevol",
+      "rawDestructorTableIndex": 1687,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeRevolution",
+      "rawDestructorTableIndex": 1710,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeSphere",
+      "rawDestructorTableIndex": 1727,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeSweep",
+      "rawDestructorTableIndex": 1744,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepPrimAPI_MakeTorus",
+      "rawDestructorTableIndex": 1750,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepTools",
+      "rawDestructorTableIndex": 1773,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRepToolsWrapper",
+      "rawDestructorTableIndex": 1828,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BRep_Tool",
+      "rawDestructorTableIndex": 1847,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BinTools",
+      "rawDestructorTableIndex": 1943,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "BndLib_Add2dCurve",
+      "rawDestructorTableIndex": 1957,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Bnd_Box",
+      "rawDestructorTableIndex": 1966,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "Bnd_Box2d",
+      "rawDestructorTableIndex": 2047,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Bnd_OBB",
+      "rawDestructorTableIndex": 2108,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "CDM_Document",
+      "rawDestructorTableIndex": 2167,
+      "wasmFunctionName": "278",
+      "nativeCodeBytes": 2,
+      "bodyPrefixHex": "000b",
+      "isEmptyFunction": true,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Extrema_GGExtPC_Adaptor2d_Curve2d_Extrema_Curve2dTool_Extrema_ExtPElC2d_gp_Pnt2d_gp_Vec2d_Extrema_POnCurv2d_NCollection_Sequence_Extrema_POnCurv2d_Extrema_GGenExtPC_Adaptor2d_Curve2d_255e67ef2564152f",
+      "rawDestructorTableIndex": 2279,
+      "wasmFunctionName": "27572",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010d603104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GCPnts_TangentialDeflection",
+      "rawDestructorTableIndex": 2334,
+      "wasmFunctionName": "27110",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010e20c104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeArcOfCircle",
+      "rawDestructorTableIndex": 2360,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeArcOfCircle2d",
+      "rawDestructorTableIndex": 2371,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeArcOfEllipse",
+      "rawDestructorTableIndex": 2382,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeArcOfEllipse2d",
+      "rawDestructorTableIndex": 2391,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeCircle2d",
+      "rawDestructorTableIndex": 2401,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeEllipse2d",
+      "rawDestructorTableIndex": 2414,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_MakeSegment2d",
+      "rawDestructorTableIndex": 2426,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GC_Root",
+      "rawDestructorTableIndex": 2435,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GProp_GProps",
+      "rawDestructorTableIndex": 2449,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "Geom2dAPI_ExtremaCurveCurve",
+      "rawDestructorTableIndex": 2479,
+      "wasmFunctionName": "26640",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010a41d104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dAPI_InterCurveCurve",
+      "rawDestructorTableIndex": 2500,
+      "wasmFunctionName": "26545",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010bf3c104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dAPI_PointsToBSpline",
+      "rawDestructorTableIndex": 2533,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dAPI_ProjectPointOnCurve",
+      "rawDestructorTableIndex": 2562,
+      "wasmFunctionName": "26225",
+      "nativeCodeBytes": 185,
+      "bodyPrefixHex": "01027f230041106b2202240020000440200041acaaa90136",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dAdaptor_Curve",
+      "rawDestructorTableIndex": 2593,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dConvert",
+      "rawDestructorTableIndex": 2675,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dConvert_ApproxCurve",
+      "rawDestructorTableIndex": 2702,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2dConvert_BSplineCurveToBezierCurve",
+      "rawDestructorTableIndex": 2714,
+      "wasmFunctionName": "5816",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802002201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_BSplineCurve",
+      "rawDestructorTableIndex": 2751,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_BezierCurve",
+      "rawDestructorTableIndex": 2886,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_BoundedCurve",
+      "rawDestructorTableIndex": 2960,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_Circle",
+      "rawDestructorTableIndex": 2973,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_Conic",
+      "rawDestructorTableIndex": 3008,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_Curve",
+      "rawDestructorTableIndex": 3039,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_Ellipse",
+      "rawDestructorTableIndex": 3094,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_Geometry",
+      "rawDestructorTableIndex": 3139,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_Line",
+      "rawDestructorTableIndex": 3173,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_OffsetCurve",
+      "rawDestructorTableIndex": 3222,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom2d_TrimmedCurve",
+      "rawDestructorTableIndex": 3267,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomAPI_Interpolate",
+      "rawDestructorTableIndex": 3299,
+      "wasmFunctionName": "25373",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010f00b104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomAPI_PointsToBSpline",
+      "rawDestructorTableIndex": 3314,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomAPI_PointsToBSplineSurface",
+      "rawDestructorTableIndex": 3347,
+      "wasmFunctionName": "2066",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomAPI_ProjectPointOnSurf",
+      "rawDestructorTableIndex": 3399,
+      "wasmFunctionName": "25100",
+      "nativeCodeBytes": 184,
+      "bodyPrefixHex": "01027f230041106b220224002000044020004190cba90136",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomAdaptor_TransformedCurve",
+      "rawDestructorTableIndex": 3461,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomAdaptor_TransformedSurface",
+      "rawDestructorTableIndex": 3541,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomConvert",
+      "rawDestructorTableIndex": 3618,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomLib",
+      "rawDestructorTableIndex": 3691,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomTools",
+      "rawDestructorTableIndex": 3740,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "GeomToolsWrapper",
+      "rawDestructorTableIndex": 3745,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_BSplineCurve",
+      "rawDestructorTableIndex": 3776,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_BSplineSurface",
+      "rawDestructorTableIndex": 3930,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_BezierCurve",
+      "rawDestructorTableIndex": 4101,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_BoundedCurve",
+      "rawDestructorTableIndex": 4176,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_BoundedSurface",
+      "rawDestructorTableIndex": 4189,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_ConicalSurface",
+      "rawDestructorTableIndex": 4213,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_Curve",
+      "rawDestructorTableIndex": 4259,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_CylindricalSurface",
+      "rawDestructorTableIndex": 4326,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_ElementarySurface",
+      "rawDestructorTableIndex": 4367,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_Geometry",
+      "rawDestructorTableIndex": 4395,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_SphericalSurface",
+      "rawDestructorTableIndex": 4439,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_Surface",
+      "rawDestructorTableIndex": 4487,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Geom_TrimmedCurve",
+      "rawDestructorTableIndex": 4547,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "HLRAlgo_Projector",
+      "rawDestructorTableIndex": 4583,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "HLRBRep_Algo",
+      "rawDestructorTableIndex": 4621,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "HLRBRep_HLRToShape",
+      "rawDestructorTableIndex": 4647,
+      "wasmFunctionName": "5816",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802002201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "HLRBRep_InternalAlgo",
+      "rawDestructorTableIndex": 4681,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "IFSelect_WorkSession",
+      "rawDestructorTableIndex": 4745,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Interface_InterfaceModel",
+      "rawDestructorTableIndex": 5181,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Interface_Static",
+      "rawDestructorTableIndex": 5287,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Interface_TypedValue",
+      "rawDestructorTableIndex": 5350,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Law_BSpFunc",
+      "rawDestructorTableIndex": 5382,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Law_Composite",
+      "rawDestructorTableIndex": 5426,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Law_Function",
+      "rawDestructorTableIndex": 5477,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Law_Interpol",
+      "rawDestructorTableIndex": 5501,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Law_Linear",
+      "rawDestructorTableIndex": 5541,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Law_S",
+      "rawDestructorTableIndex": 5569,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Message_ProgressRange",
+      "rawDestructorTableIndex": 5585,
+      "wasmFunctionName": "21604",
+      "nativeCodeBytes": 129,
+      "bodyPrefixHex": "02037f017c2000044023002102024020002d00180d002000",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "MoniTool_TypedValue",
+      "rawDestructorTableIndex": 5618,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_ChFiDS_CircSection",
+      "rawDestructorTableIndex": 5822,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_NCollection_Vec3_float",
+      "rawDestructorTableIndex": 5878,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_Poly_Triangle",
+      "rawDestructorTableIndex": 5930,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_bool",
+      "rawDestructorTableIndex": 5982,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_double",
+      "rawDestructorTableIndex": 6032,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_float",
+      "rawDestructorTableIndex": 6082,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_gp_Dir",
+      "rawDestructorTableIndex": 6134,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_gp_Pnt",
+      "rawDestructorTableIndex": 6186,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_gp_Pnt2d",
+      "rawDestructorTableIndex": 6236,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_gp_Vec",
+      "rawDestructorTableIndex": 6286,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_handle_Geom2d_BSplineCurve",
+      "rawDestructorTableIndex": 6338,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_handle_Geom2d_BezierCurve",
+      "rawDestructorTableIndex": 6390,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_handle_Geom_BSplineCurve",
+      "rawDestructorTableIndex": 6442,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_int",
+      "rawDestructorTableIndex": 6494,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array1_unsignedchar",
+      "rawDestructorTableIndex": 6544,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array2_double",
+      "rawDestructorTableIndex": 6596,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Array2_gp_Pnt",
+      "rawDestructorTableIndex": 6640,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_BaseList",
+      "rawDestructorTableIndex": 6683,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString",
+      "rawDestructorTableIndex": 6697,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString_2",
+      "rawDestructorTableIndex": 6733,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString_3",
+      "rawDestructorTableIndex": 6739,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString_4",
+      "rawDestructorTableIndex": 6745,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString_5",
+      "rawDestructorTableIndex": 6751,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString_6",
+      "rawDestructorTableIndex": 6757,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_TCollection_AsciiString_7",
+      "rawDestructorTableIndex": 6763,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile",
+      "rawDestructorTableIndex": 6779,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile_2",
+      "rawDestructorTableIndex": 6815,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile_3",
+      "rawDestructorTableIndex": 6821,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile_4",
+      "rawDestructorTableIndex": 6827,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile_5",
+      "rawDestructorTableIndex": 6833,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile_6",
+      "rawDestructorTableIndex": 6839,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_STEPCAFControl_ExternFile_7",
+      "rawDestructorTableIndex": 6845,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient",
+      "rawDestructorTableIndex": 6861,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient_2",
+      "rawDestructorTableIndex": 6897,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient_3",
+      "rawDestructorTableIndex": 6903,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient_4",
+      "rawDestructorTableIndex": 6909,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient_5",
+      "rawDestructorTableIndex": 6915,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient_6",
+      "rawDestructorTableIndex": 6921,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_handle_Standard_Transient_7",
+      "rawDestructorTableIndex": 6927,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int",
+      "rawDestructorTableIndex": 6943,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int_2",
+      "rawDestructorTableIndex": 6979,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int_3",
+      "rawDestructorTableIndex": 6985,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int_4",
+      "rawDestructorTableIndex": 6991,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int_5",
+      "rawDestructorTableIndex": 6997,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int_6",
+      "rawDestructorTableIndex": 7003,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_AsciiString_int_7",
+      "rawDestructorTableIndex": 7009,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString",
+      "rawDestructorTableIndex": 7025,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString_2",
+      "rawDestructorTableIndex": 7061,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString_3",
+      "rawDestructorTableIndex": 7067,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString_4",
+      "rawDestructorTableIndex": 7073,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString_5",
+      "rawDestructorTableIndex": 7079,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString_6",
+      "rawDestructorTableIndex": 7085,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_TCollection_ExtendedString_7",
+      "rawDestructorTableIndex": 7091,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double",
+      "rawDestructorTableIndex": 7107,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double_2",
+      "rawDestructorTableIndex": 7143,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double_3",
+      "rawDestructorTableIndex": 7149,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double_4",
+      "rawDestructorTableIndex": 7155,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double_5",
+      "rawDestructorTableIndex": 7161,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double_6",
+      "rawDestructorTableIndex": 7167,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_double_7",
+      "rawDestructorTableIndex": 7173,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData",
+      "rawDestructorTableIndex": 7189,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData_2",
+      "rawDestructorTableIndex": 7225,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData_3",
+      "rawDestructorTableIndex": 7231,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData_4",
+      "rawDestructorTableIndex": 7237,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData_5",
+      "rawDestructorTableIndex": 7243,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData_6",
+      "rawDestructorTableIndex": 7249,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_CDM_MetaData_7",
+      "rawDestructorTableIndex": 7255,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double",
+      "rawDestructorTableIndex": 7271,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double_2",
+      "rawDestructorTableIndex": 7307,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double_3",
+      "rawDestructorTableIndex": 7313,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double_4",
+      "rawDestructorTableIndex": 7319,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double_5",
+      "rawDestructorTableIndex": 7325,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double_6",
+      "rawDestructorTableIndex": 7331,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_double_7",
+      "rawDestructorTableIndex": 7337,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int",
+      "rawDestructorTableIndex": 7353,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int_2",
+      "rawDestructorTableIndex": 7389,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int_3",
+      "rawDestructorTableIndex": 7395,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int_4",
+      "rawDestructorTableIndex": 7401,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int_5",
+      "rawDestructorTableIndex": 7407,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int_6",
+      "rawDestructorTableIndex": 7413,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_handle_NCollection_HArray1_int_7",
+      "rawDestructorTableIndex": 7419,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int",
+      "rawDestructorTableIndex": 7435,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int_2",
+      "rawDestructorTableIndex": 7471,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int_3",
+      "rawDestructorTableIndex": 7477,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int_4",
+      "rawDestructorTableIndex": 7483,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int_5",
+      "rawDestructorTableIndex": 7489,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int_6",
+      "rawDestructorTableIndex": 7495,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_int_7",
+      "rawDestructorTableIndex": 7501,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t",
+      "rawDestructorTableIndex": 7517,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t_2",
+      "rawDestructorTableIndex": 7553,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t_3",
+      "rawDestructorTableIndex": 7559,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t_4",
+      "rawDestructorTableIndex": 7565,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t_5",
+      "rawDestructorTableIndex": 7571,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t_6",
+      "rawDestructorTableIndex": 7577,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TCollection_ExtendedString_uint8_t_7",
+      "rawDestructorTableIndex": 7583,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label",
+      "rawDestructorTableIndex": 7599,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label_2",
+      "rawDestructorTableIndex": 7635,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label_3",
+      "rawDestructorTableIndex": 7641,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label_4",
+      "rawDestructorTableIndex": 7647,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label_5",
+      "rawDestructorTableIndex": 7653,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label_6",
+      "rawDestructorTableIndex": 7659,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TDF_Label_TDF_Label_7",
+      "rawDestructorTableIndex": 7665,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher",
+      "rawDestructorTableIndex": 7681,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher_2",
+      "rawDestructorTableIndex": 7717,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher_3",
+      "rawDestructorTableIndex": 7723,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher_4",
+      "rawDestructorTableIndex": 7729,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher_5",
+      "rawDestructorTableIndex": 7735,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher_6",
+      "rawDestructorTableIndex": 7741,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_BRepTopAdaptor_Tool_TopTools_ShapeMapHasher_7",
+      "rawDestructorTableIndex": 7747,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher",
+      "rawDestructorTableIndex": 7763,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher_2",
+      "rawDestructorTableIndex": 7799,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher_3",
+      "rawDestructorTableIndex": 7805,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher_4",
+      "rawDestructorTableIndex": 7811,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher_5",
+      "rawDestructorTableIndex": 7817,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher_6",
+      "rawDestructorTableIndex": 7823,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_NCollection_List_TopoDS_Shape_TopTools_ShapeMapHasher_7",
+      "rawDestructorTableIndex": 7829,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher",
+      "rawDestructorTableIndex": 7842,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher_2",
+      "rawDestructorTableIndex": 7878,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher_3",
+      "rawDestructorTableIndex": 7884,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher_4",
+      "rawDestructorTableIndex": 7890,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher_5",
+      "rawDestructorTableIndex": 7896,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher_6",
+      "rawDestructorTableIndex": 7902,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_TopoDS_Shape_TopoDS_Shape_TopTools_ShapeMapHasher_7",
+      "rawDestructorTableIndex": 7908,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute",
+      "rawDestructorTableIndex": 7921,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute_2",
+      "rawDestructorTableIndex": 7957,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute_3",
+      "rawDestructorTableIndex": 7963,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute_4",
+      "rawDestructorTableIndex": 7969,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute_5",
+      "rawDestructorTableIndex": 7975,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute_6",
+      "rawDestructorTableIndex": 7981,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DataMap_handle_TDF_Attribute_handle_TDF_Attribute_7",
+      "rawDestructorTableIndex": 7987,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_handle_Standard_Transient",
+      "rawDestructorTableIndex": 8001,
+      "wasmFunctionName": "3935",
+      "nativeCodeBytes": 142,
+      "bodyPrefixHex": "01027f200004402300210206402000410110a40819200224",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_handle_Standard_Transient_1",
+      "rawDestructorTableIndex": 8044,
+      "wasmFunctionName": "3935",
+      "nativeCodeBytes": 142,
+      "bodyPrefixHex": "01027f200004402300210206402000410110a40819200224",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_handle_Standard_Transient_2",
+      "rawDestructorTableIndex": 8050,
+      "wasmFunctionName": "3935",
+      "nativeCodeBytes": 142,
+      "bodyPrefixHex": "01027f200004402300210206402000410110a40819200224",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_handle_Standard_Transient_3",
+      "rawDestructorTableIndex": 8056,
+      "wasmFunctionName": "3935",
+      "nativeCodeBytes": 142,
+      "bodyPrefixHex": "01027f200004402300210206402000410110a40819200224",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_handle_Standard_Transient_4",
+      "rawDestructorTableIndex": 8062,
+      "wasmFunctionName": "3935",
+      "nativeCodeBytes": 142,
+      "bodyPrefixHex": "01027f200004402300210206402000410110a40819200224",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_int",
+      "rawDestructorTableIndex": 8067,
+      "wasmFunctionName": "3934",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010ce01104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_int_1",
+      "rawDestructorTableIndex": 8110,
+      "wasmFunctionName": "3934",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010ce01104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_int_2",
+      "rawDestructorTableIndex": 8116,
+      "wasmFunctionName": "3934",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010ce01104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_int_3",
+      "rawDestructorTableIndex": 8122,
+      "wasmFunctionName": "3934",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010ce01104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_DynamicArray_int_4",
+      "rawDestructorTableIndex": 8128,
+      "wasmFunctionName": "3934",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010ce01104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_ChFiDS_CircSection",
+      "rawDestructorTableIndex": 8133,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_Poly_Triangle",
+      "rawDestructorTableIndex": 8164,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_bool",
+      "rawDestructorTableIndex": 8195,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_double",
+      "rawDestructorTableIndex": 8226,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_float",
+      "rawDestructorTableIndex": 8251,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_gp_Pnt",
+      "rawDestructorTableIndex": 8282,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_gp_Pnt2d",
+      "rawDestructorTableIndex": 8313,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_handle_Geom2d_BSplineCurve",
+      "rawDestructorTableIndex": 8344,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_handle_Geom_BSplineCurve",
+      "rawDestructorTableIndex": 8375,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_int",
+      "rawDestructorTableIndex": 8406,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HArray1_unsignedchar",
+      "rawDestructorTableIndex": 8437,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HSequence_TCollection_AsciiString",
+      "rawDestructorTableIndex": 8468,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HSequence_TCollection_ExtendedString",
+      "rawDestructorTableIndex": 8498,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HSequence_TopoDS_Shape",
+      "rawDestructorTableIndex": 8528,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HSequence_handle_Standard_Transient",
+      "rawDestructorTableIndex": 8558,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HSequence_handle_TCollection_HAsciiString",
+      "rawDestructorTableIndex": 8588,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_HSequence_int",
+      "rawDestructorTableIndex": 8618,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape",
+      "rawDestructorTableIndex": 8647,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape_2",
+      "rawDestructorTableIndex": 8700,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape_3",
+      "rawDestructorTableIndex": 8706,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape_4",
+      "rawDestructorTableIndex": 8712,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape_5",
+      "rawDestructorTableIndex": 8718,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape_6",
+      "rawDestructorTableIndex": 8724,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_TDF_Label_TopoDS_Shape_7",
+      "rawDestructorTableIndex": 8730,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient",
+      "rawDestructorTableIndex": 8748,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient_2",
+      "rawDestructorTableIndex": 8800,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient_3",
+      "rawDestructorTableIndex": 8806,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient_4",
+      "rawDestructorTableIndex": 8812,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient_5",
+      "rawDestructorTableIndex": 8818,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient_6",
+      "rawDestructorTableIndex": 8824,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedDataMap_handle_Standard_Transient_handle_Standard_Transient_7",
+      "rawDestructorTableIndex": 8830,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType",
+      "rawDestructorTableIndex": 8846,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType_2",
+      "rawDestructorTableIndex": 8884,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType_3",
+      "rawDestructorTableIndex": 8890,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType_4",
+      "rawDestructorTableIndex": 8896,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType_5",
+      "rawDestructorTableIndex": 8902,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType_6",
+      "rawDestructorTableIndex": 8908,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_Message_MetricType_7",
+      "rawDestructorTableIndex": 8914,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher",
+      "rawDestructorTableIndex": 8930,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher_2",
+      "rawDestructorTableIndex": 8968,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher_3",
+      "rawDestructorTableIndex": 8974,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher_4",
+      "rawDestructorTableIndex": 8980,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher_5",
+      "rawDestructorTableIndex": 8986,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher_6",
+      "rawDestructorTableIndex": 8992,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher_7",
+      "rawDestructorTableIndex": 8998,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute",
+      "rawDestructorTableIndex": 9011,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute_2",
+      "rawDestructorTableIndex": 9049,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute_3",
+      "rawDestructorTableIndex": 9055,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute_4",
+      "rawDestructorTableIndex": 9061,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute_5",
+      "rawDestructorTableIndex": 9067,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute_6",
+      "rawDestructorTableIndex": 9073,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_IndexedMap_handle_TDF_Attribute_7",
+      "rawDestructorTableIndex": 9079,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_BRepCheck_Status",
+      "rawDestructorTableIndex": 9095,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_TDF_Label",
+      "rawDestructorTableIndex": 9123,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_TopoDS_Shape",
+      "rawDestructorTableIndex": 9151,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_handle_Law_Function",
+      "rawDestructorTableIndex": 9176,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_handle_Message_Alert",
+      "rawDestructorTableIndex": 9201,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_handle_Poly_Triangulation",
+      "rawDestructorTableIndex": 9229,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_handle_TDF_AttributeDelta",
+      "rawDestructorTableIndex": 9254,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_List_handle_TDF_Delta",
+      "rawDestructorTableIndex": 9282,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label",
+      "rawDestructorTableIndex": 9310,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label_2",
+      "rawDestructorTableIndex": 9349,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label_3",
+      "rawDestructorTableIndex": 9355,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label_4",
+      "rawDestructorTableIndex": 9361,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label_5",
+      "rawDestructorTableIndex": 9367,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label_6",
+      "rawDestructorTableIndex": 9373,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TDF_Label_7",
+      "rawDestructorTableIndex": 9379,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher",
+      "rawDestructorTableIndex": 9394,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher_2",
+      "rawDestructorTableIndex": 9433,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher_3",
+      "rawDestructorTableIndex": 9439,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher_4",
+      "rawDestructorTableIndex": 9445,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher_5",
+      "rawDestructorTableIndex": 9451,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher_6",
+      "rawDestructorTableIndex": 9457,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_TopoDS_Shape_TopTools_ShapeMapHasher_7",
+      "rawDestructorTableIndex": 9463,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute",
+      "rawDestructorTableIndex": 9476,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute_2",
+      "rawDestructorTableIndex": 9515,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute_3",
+      "rawDestructorTableIndex": 9521,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute_4",
+      "rawDestructorTableIndex": 9527,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute_5",
+      "rawDestructorTableIndex": 9533,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute_6",
+      "rawDestructorTableIndex": 9539,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Map_handle_TDF_Attribute_7",
+      "rawDestructorTableIndex": 9545,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_Extrema_POnCurv2d",
+      "rawDestructorTableIndex": 9561,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_HLRBRep_ShapeBounds",
+      "rawDestructorTableIndex": 9607,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_IntRes2d_IntersectionPoint",
+      "rawDestructorTableIndex": 9653,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_TCollection_AsciiString",
+      "rawDestructorTableIndex": 9699,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_TCollection_ExtendedString",
+      "rawDestructorTableIndex": 9745,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_TDF_Label",
+      "rawDestructorTableIndex": 9791,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_TopoDS_Shape",
+      "rawDestructorTableIndex": 9840,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_double",
+      "rawDestructorTableIndex": 9886,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_gp_Pnt",
+      "rawDestructorTableIndex": 9932,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_gp_Pnt2d",
+      "rawDestructorTableIndex": 9978,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_handle_Geom_Curve",
+      "rawDestructorTableIndex": 10027,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_handle_Standard_Transient",
+      "rawDestructorTableIndex": 10073,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_handle_TCollection_HAsciiString",
+      "rawDestructorTableIndex": 10119,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_handle_TDF_Attribute",
+      "rawDestructorTableIndex": 10165,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "NCollection_Sequence_int",
+      "rawDestructorTableIndex": 10214,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "OSD_ThreadPool",
+      "rawDestructorTableIndex": 10260,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Poly_Connect",
+      "rawDestructorTableIndex": 10294,
+      "wasmFunctionName": "17288",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f20000440230021010640200010bc30104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Poly_PolygonOnTriangulation",
+      "rawDestructorTableIndex": 10321,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Poly_Triangle",
+      "rawDestructorTableIndex": 10368,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Poly_Triangulation",
+      "rawDestructorTableIndex": 10387,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Precision",
+      "rawDestructorTableIndex": 10486,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Quantity_Color",
+      "rawDestructorTableIndex": 10530,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Quantity_ColorRGBA",
+      "rawDestructorTableIndex": 10588,
+      "wasmFunctionName": "630",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004110105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ReplicadEdgeMeshData",
+      "rawDestructorTableIndex": 10619,
+      "wasmFunctionName": "17137",
+      "nativeCodeBytes": 27,
+      "bodyPrefixHex": "002000044020002802001044200028020410442000411010",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ReplicadEdgeMeshExtractor",
+      "rawDestructorTableIndex": 10631,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ReplicadMeshData",
+      "rawDestructorTableIndex": 10638,
+      "wasmFunctionName": "17125",
+      "nativeCodeBytes": 41,
+      "bodyPrefixHex": "002000044020002802001044200028020410442000280208",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ReplicadMeshExtractor",
+      "rawDestructorTableIndex": 10654,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ReplicadShapeCaster",
+      "rawDestructorTableIndex": 10665,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ReplicadShapeHasher",
+      "rawDestructorTableIndex": 10672,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "STEPCAFControl_Writer",
+      "rawDestructorTableIndex": 10679,
+      "wasmFunctionName": "17106",
+      "nativeCodeBytes": 1058,
+      "bodyPrefixHex": "01037f2000044023002103064023002102024020002802e4",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "STEPControl_Reader",
+      "rawDestructorTableIndex": 10751,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "STEPControl_Writer",
+      "rawDestructorTableIndex": 10780,
+      "wasmFunctionName": "5816",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802002201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ShapeFix_EdgeConnect",
+      "rawDestructorTableIndex": 10824,
+      "wasmFunctionName": "17041",
+      "nativeCodeBytes": 239,
+      "bodyPrefixHex": "01037f2000044023002103064023002102200041f8cc0f36",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ShapeFix_Face",
+      "rawDestructorTableIndex": 10838,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ShapeFix_Root",
+      "rawDestructorTableIndex": 10898,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ShapeFix_Solid",
+      "rawDestructorTableIndex": 10940,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ShapeFix_Wire",
+      "rawDestructorTableIndex": 10976,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "ShapeUpgrade_UnifySameDomain",
+      "rawDestructorTableIndex": 11110,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Standard_Failure",
+      "rawDestructorTableIndex": 11142,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "Standard_Transient",
+      "rawDestructorTableIndex": 11188,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "StepData_StepModel",
+      "rawDestructorTableIndex": 11220,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "StlAPI",
+      "rawDestructorTableIndex": 11265,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "StlAPI_Reader",
+      "rawDestructorTableIndex": 11273,
+      "wasmFunctionName": "1947",
+      "nativeCodeBytes": 13,
+      "bodyPrefixHex": "002000044020004101105e0b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "StlAPI_Writer",
+      "rawDestructorTableIndex": 11280,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TCollection_ExtendedString",
+      "rawDestructorTableIndex": 11291,
+      "wasmFunctionName": "16897",
+      "nativeCodeBytes": 31,
+      "bodyPrefixHex": "01017f200004402300210106402000108501104419200124",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TDF_Attribute",
+      "rawDestructorTableIndex": 11407,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TDF_Label",
+      "rawDestructorTableIndex": 11458,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TDataStd_GenericEmpty",
+      "rawDestructorTableIndex": 11513,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TDataStd_GenericExtString",
+      "rawDestructorTableIndex": 11527,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TDataStd_Name",
+      "rawDestructorTableIndex": 11545,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TDocStd_Document",
+      "rawDestructorTableIndex": 11569,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopExp_Explorer",
+      "rawDestructorTableIndex": 11648,
+      "wasmFunctionName": "16799",
+      "nativeCodeBytes": 30,
+      "bodyPrefixHex": "01017f200004402300210106402000105a10441920012400",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "TopLoc_Location",
+      "rawDestructorTableIndex": 11671,
+      "wasmFunctionName": "5816",
+      "nativeCodeBytes": 92,
+      "bodyPrefixHex": "01027f2000044023002102024020002802002201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Builder",
+      "rawDestructorTableIndex": 11705,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_CompSolid",
+      "rawDestructorTableIndex": 11721,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Compound",
+      "rawDestructorTableIndex": 11728,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Edge",
+      "rawDestructorTableIndex": 11735,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Face",
+      "rawDestructorTableIndex": 11742,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Shape",
+      "rawDestructorTableIndex": 11747,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "TopoDS_Shell",
+      "rawDestructorTableIndex": 11813,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Solid",
+      "rawDestructorTableIndex": 11820,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Vertex",
+      "rawDestructorTableIndex": 11827,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "TopoDS_Wire",
+      "rawDestructorTableIndex": 11834,
+      "wasmFunctionName": "2314",
+      "nativeCodeBytes": 156,
+      "bodyPrefixHex": "01027f2000044023002102024020002802042201450d0020",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "XCAFDoc_ColorTool",
+      "rawDestructorTableIndex": 11841,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "XCAFDoc_DocumentTool",
+      "rawDestructorTableIndex": 11906,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "XCAFDoc_LengthUnit",
+      "rawDestructorTableIndex": 11976,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "XCAFDoc_ShapeTool",
+      "rawDestructorTableIndex": 12009,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "XSControl_Reader",
+      "rawDestructorTableIndex": 12133,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "XSControl_WorkSession",
+      "rawDestructorTableIndex": 12210,
+      "wasmFunctionName": "146",
+      "nativeCodeBytes": 20,
+      "bodyPrefixHex": "0020000440200020002802002802041100000b0b",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Ax1",
+      "rawDestructorTableIndex": 12280,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Ax2",
+      "rawDestructorTableIndex": 12333,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Ax22d",
+      "rawDestructorTableIndex": 12388,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Ax2d",
+      "rawDestructorTableIndex": 12437,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Ax3",
+      "rawDestructorTableIndex": 12488,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Circ",
+      "rawDestructorTableIndex": 12551,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Circ2d",
+      "rawDestructorTableIndex": 12612,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Cylinder",
+      "rawDestructorTableIndex": 12681,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Dir",
+      "rawDestructorTableIndex": 12742,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Dir2d",
+      "rawDestructorTableIndex": 12810,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Elips",
+      "rawDestructorTableIndex": 12859,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Elips2d",
+      "rawDestructorTableIndex": 12924,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_GTrsf",
+      "rawDestructorTableIndex": 12996,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_GTrsf2d",
+      "rawDestructorTableIndex": 13050,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Pln",
+      "rawDestructorTableIndex": 13105,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Pnt",
+      "rawDestructorTableIndex": 13174,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": true
+    },
+    {
+      "name": "gp_Pnt2d",
+      "rawDestructorTableIndex": 13241,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Sphere",
+      "rawDestructorTableIndex": 13300,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Trsf",
+      "rawDestructorTableIndex": 13365,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Trsf2d",
+      "rawDestructorTableIndex": 13437,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Vec",
+      "rawDestructorTableIndex": 13498,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_Vec2d",
+      "rawDestructorTableIndex": 13599,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_XY",
+      "rawDestructorTableIndex": 13680,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    },
+    {
+      "name": "gp_XYZ",
+      "rawDestructorTableIndex": 13741,
+      "wasmFunctionName": "520",
+      "nativeCodeBytes": 28,
+      "bodyPrefixHex": "01017f200004402300210106402000104419200124001042",
+      "isEmptyFunction": false,
+      "isPocketryLifetimeRegression": false
+    }
+  ]
+}

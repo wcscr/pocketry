@@ -4,6 +4,7 @@ export interface NativeHandle { delete(): void }
 export class CadArena {
   private handles: NativeHandle[] = [];
   own<T extends NativeHandle>(handle: T): T { this.handles.push(handle); return handle; }
+  has(handle: NativeHandle): boolean { return this.handles.includes(handle); }
   release<T extends NativeHandle>(handle: T): T {
     const index = this.handles.lastIndexOf(handle);
     if (index < 0) throw new Error("CAD handle is not owned by this arena");

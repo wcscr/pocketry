@@ -1,5 +1,252 @@
 {
-  "package": "replicad-opencascadejs@1.1.0",
+  "package": "replicad-opencascadejs@1.1.0-pocketry.2",
+  "upstreamPackage": "replicad-opencascadejs@1.1.0",
+  "localRepair": {
+    "package": "replicad-opencascadejs@1.1.0-pocketry.2",
+    "status": "locally-qualified",
+    "patch": "native-destructors.patch",
+    "patchSha256": "dafb4fdd851b38431515f334e79bb73b04388dd37ca47cdfc9f1120879ca9fbd",
+    "generatorOriginalSha256": "21cd761167ef35e2cdc9376b4c34ebde8f6d22006e7da7f64a6782743f675787",
+    "generatorPatchedSha256": "91848d957c3d9477be4672a0c52615d939396a62632d931a27f525435c58cbd8",
+    "buildRecipe": "build-cad-engine.sh",
+    "supportDirectory": "cad-build/",
+    "compilerImage": "ghcr.io/taucad/opencascade.js@sha256:b900017985fc32e296e01531a3483d4041fd39c51e9a0be365e97e5295f15da7",
+    "compilerPlatform": "linux/arm64",
+    "allocator": "emmalloc",
+    "rebuildScope": "Selective binding rebuild using pinned precompiled OCCT libraries and explicit emmalloc YAML link flag; actual candidate relinked from the locally repaired binding cache; full clean-image .2 recipe not run; no full source or bit-for-bit rebuild claim",
+    "artifacts": {
+      "replicad_single.cjs": {
+        "bytes": 107,
+        "sha256": "e13327f9a883a467eabf1eee8635c7b3687be96dd100acb6bff8a68759b7dfff",
+        "modifiedFromUpstream": false
+      },
+      "replicad_single.d.ts": {
+        "bytes": 1617183,
+        "sha256": "b44516bd24e6abf0dbe680086e286b117d77299ea77e80f230220dc77d250b08",
+        "modifiedFromUpstream": false
+      },
+      "replicad_single.js": {
+        "bytes": 58648,
+        "sha256": "452800b7bd503098ad5ff47afeb19d264aa2432de1d931eeb922614bcb1e2a8c",
+        "modifiedFromUpstream": true
+      },
+      "replicad_single.wasm": {
+        "bytes": 22927086,
+        "sha256": "c4dec33bb5c623782ccdba290c5c4b280cf9a458b2d62d59dc4f900d6f87a255",
+        "modifiedFromUpstream": true
+      }
+    },
+    "qualification": {
+      "scope": "Binding native ownership repair, byte-identical sharp Wiha unified meshes, and independent STEP geometry equivalence; no production backend selection or general authored-fillet acceptance",
+      "registeredClasses": 454,
+      "repairedOwningDestructors": 169,
+      "protectedBaseExceptions": [
+        "BRepAlgoAPI_Algo",
+        "CDM_Document"
+      ],
+      "nativeAnalyzerIterations": 5000,
+      "nativeAnalyzerFinalWasmBytes": 104857600,
+      "ownershipAndAccessChecks": 8,
+      "sharpWihaStepPeakWasmMiB": 120,
+      "sharpWihaMeshPeakWasmMiB": 207.375,
+      "sharpWihaMeshFinalTriangles": 74260,
+      "sharpWihaMeshBuffers": "Complete/body/text positions and indices byte-identical to pocketry.1 at unchanged quality",
+      "geometryComparator": "Independent OCCT 7.8",
+      "authoredBottomFillet": "Unmodified Wiha reaches invalid bottom fillet at 100 MiB; fails closed with no ZIP; outlines, requested radii, and production limits unchanged",
+      "evidence": [
+        "cad-build/destructor-comparison.json",
+        "cad-build/candidate-analyzer-lifetime.json",
+        "cad-build/candidate-owned-shapes.json"
+      ],
+      "matchingNamedBodies": 15,
+      "zeroVolumeDirectionalDifferences": 30,
+      "projectSourceBytesUnchanged": true,
+      "snapshotIdentityUnchanged": true
+    },
+    "qualifiedOn": "2026-10-30",
+    "buildTimestampNote": "Local binding repair built and qualified 2026-10-30. Generated linking provenance retains its cached upstream 2026-08-02 build ID/timestamp; that is not the date of the repair.",
+    "supportFiles": {
+      "build-cad-engine.sh": {
+        "bytes": 124,
+        "sha256": "8170fba7ae93d2c264a16f6b94e15abe8b702b257a4876366218f709fba5e7ff"
+      },
+      "native-destructors.patch": {
+        "bytes": 1106,
+        "sha256": "dafb4fdd851b38431515f334e79bb73b04388dd37ca47cdfc9f1120879ca9fbd"
+      },
+      "single-thread-emmalloc.patch": {
+        "bytes": 364,
+        "sha256": "f59d9172396b05e6c996c1035ae08d701a5713ec1510f3b3cfaa1bb096fd71e4"
+      },
+      "cad-build/REBUILD.md": {
+        "bytes": 5869,
+        "sha256": "e2884c39da6d1569b1501469e08341e902cdfea55c69d9e35d0150168c812a30"
+      },
+      "cad-build/allocator-patch-hashes.json": {
+        "bytes": 244,
+        "sha256": "a4d2fb5085c264a2358706f8bdedd736077632f82578ebdd9cfd64efa161f2d9"
+      },
+      "cad-build/build-provenance.json": {
+        "bytes": 4294,
+        "sha256": "34a9d596d6091bbd7324e6cf8b9bbf0f8a6db19cc42708eb0303b25c496892d2"
+      },
+      "cad-build/build.sh": {
+        "bytes": 2342,
+        "sha256": "6bd2b690eb91ab8ba38775d5c88fcd63c9f5170ec835aaa76f61a1dd51b1c1b3"
+      },
+      "cad-build/candidate-analyzer-lifetime.json": {
+        "bytes": 1604,
+        "sha256": "58a8d6b039457fad8ef36301a98550a1b6bb7bb556656152e1df72335d0f4027"
+      },
+      "cad-build/candidate-build-manifest.json": {
+        "bytes": 483723,
+        "sha256": "bcf5a5af32b8fbed69d3ab8bed473984dc39faaf4d6cfa0f3de0098a8031fe34"
+      },
+      "cad-build/candidate-destructors.json": {
+        "bytes": 142134,
+        "sha256": "886ff240d639196b3dc30f3e0f42c5ab62ae62e6de7896f8df4712bf6d9d0aa9"
+      },
+      "cad-build/candidate-engine-provenance.json": {
+        "bytes": 7497,
+        "sha256": "7a32be1cc4a268a43164ff16970b2f8a6515112bc93a0b9f481ba029fc1869fa"
+      },
+      "cad-build/candidate-hashes.json": {
+        "bytes": 701,
+        "sha256": "03e1d223fb0a7c31df81e6aacc6587205a5016e6744c6a122994b8d903d00570"
+      },
+      "cad-build/candidate-owned-shapes.json": {
+        "bytes": 969,
+        "sha256": "93aad210a1804df6cf86e9c56acfa357e580327074b32a264b421ff37503f5e2"
+      },
+      "cad-build/compare-destructors.mjs": {
+        "bytes": 1780,
+        "sha256": "3bfb9c42471e868e0f0447881a2cd666bd1275cc2a2afa7c3299c2434530fef6"
+      },
+      "cad-build/compiler-inventory.json": {
+        "bytes": 1202,
+        "sha256": "29272b3c124e501a9c4c9a2949ecf89303e3c526cbd5a4bf680f88d49c899596"
+      },
+      "cad-build/compiler-manifest.json": {
+        "bytes": 34397,
+        "sha256": "9e7e71d48dcc5e0182056e4e8a9d7c963e0dc3f7b41677edff9290af87bd6664"
+      },
+      "cad-build/destructor-comparison.json": {
+        "bytes": 1346,
+        "sha256": "6ee62b9c1324a9f9c4148973c7e3a770b2441857c5a86364b460ccad7d186be3"
+      },
+      "cad-build/destructor-exceptions.json": {
+        "bytes": 810,
+        "sha256": "79b6bf0d6fa58c14d21bfeffdc786d3cf4cc101ea3faa1509e7db543db685893"
+      },
+      "cad-build/link.log": {
+        "bytes": 9647,
+        "sha256": "7034c4769973fa1b94eed8cff78d62cce6ca93ad5ea036e5ba7d717cc7fe4935"
+      },
+      "cad-build/original-destructors.json": {
+        "bytes": 134983,
+        "sha256": "1243dc476879f6e67f5fd593b1e98049f0088fe5e2570c011f37481930c3ad60"
+      },
+      "cad-build/patch-hashes.json": {
+        "bytes": 244,
+        "sha256": "f3110d79f005f50cb4f77457be237d021ae745719680152d189f4c5a855611ff"
+      },
+      "cad-build/pocketry.1-baseline/BASELINE.txt": {
+        "bytes": 288,
+        "sha256": "6f1315c4166906aedf2f7242687be9adeaa814dd107e4a81548e87ed55f54a9c"
+      },
+      "cad-build/pocketry.1-baseline/REBUILD.md": {
+        "bytes": 4794,
+        "sha256": "b48d713f56d4a21f2229855155ae01925ced65dac273ba96934c30804e73f0b9"
+      },
+      "cad-build/pocketry.1-baseline/build-provenance.json": {
+        "bytes": 2432,
+        "sha256": "859eca128fabe095e4c11486d5ad8e98e37bee1ff4fa116c7d2528a67356252e"
+      },
+      "cad-build/pocketry.1-baseline/build.sh": {
+        "bytes": 1540,
+        "sha256": "c7759d9e0dffc8398db2070857a3d4c759d381a5ba9f601307c1c6a8762204dd"
+      },
+      "cad-build/pocketry.1-baseline/candidate-analyzer-lifetime.json": {
+        "bytes": 1604,
+        "sha256": "fb7830807208bb007e5eb4234d1c2284625af5c116d9dae090901e83ce8d2feb"
+      },
+      "cad-build/pocketry.1-baseline/candidate-build-manifest.json": {
+        "bytes": 483723,
+        "sha256": "7cd16143c88ba11beefbc073a3af3b02056b9b168b5c7770b7e348e30b9cabac"
+      },
+      "cad-build/pocketry.1-baseline/candidate-destructors.json": {
+        "bytes": 142188,
+        "sha256": "3befe0fb1fc5b3f9550d202b4b1fd7d8bad42af4fbe8b66853b2e86250235477"
+      },
+      "cad-build/pocketry.1-baseline/candidate-engine-provenance.json": {
+        "bytes": 7497,
+        "sha256": "4269ddb5a6c40ed1aa99ce53e11811993d846b2a8dc3d3f8f4e8b854a29e5aef"
+      },
+      "cad-build/pocketry.1-baseline/candidate-hashes.json": {
+        "bytes": 701,
+        "sha256": "b4481537e2c854bd77c40cfbb73c87e01914972fb54c7f5745f1dba2929a3ee4"
+      },
+      "cad-build/pocketry.1-baseline/candidate-owned-shapes.json": {
+        "bytes": 969,
+        "sha256": "93aad210a1804df6cf86e9c56acfa357e580327074b32a264b421ff37503f5e2"
+      },
+      "cad-build/pocketry.1-baseline/destructor-comparison.json": {
+        "bytes": 1346,
+        "sha256": "da7b629cd7f5d929a6d141a216729ad4319f99a4acc9bcd088f4b73149047daa"
+      },
+      "cad-build/pocketry.1-baseline/link.log": {
+        "bytes": 9925,
+        "sha256": "ec1514a4c085c73679eaf243a85325047114299e2bcadb4b0f2b1d5acec139ec"
+      },
+      "cad-build/pocketry.1-baseline/prepare-rebuild.py": {
+        "bytes": 2806,
+        "sha256": "25743b55c27ee3b5e25315e7b3c7770bdb8aba7e2bdccb148d5631758b324fd6"
+      },
+      "cad-build/portable-recipe-check.json": {
+        "bytes": 527,
+        "sha256": "b76b5f0024e862614d40b18e9d8590ef2ea02366f31a49f4909793d0994fc170"
+      },
+      "cad-build/prepare-rebuild.py": {
+        "bytes": 3441,
+        "sha256": "51324e87f02e0bb1564517b5ddada756ea531e849274f7b6571e505470902e51"
+      },
+      "cad-build/rebuild.sh": {
+        "bytes": 863,
+        "sha256": "8a5b42b7843ad3df0c62d027b729705728bfc0ab957c164a1f152d38b5e39328"
+      },
+      "cad-build/selective-compile.json": {
+        "bytes": 36940,
+        "sha256": "cc367fa6496eb5b7965fd2fa77634178723dd594ed70d546e0ebf27aeec19718"
+      },
+      "cad-build/selective-compile.py": {
+        "bytes": 1870,
+        "sha256": "9070bbe2fc00ab8cd5fd17e8f02f5da55ef7b9c966b4893906df128b87f5c1ca"
+      },
+      "cad-build/source-inputs.json": {
+        "bytes": 373,
+        "sha256": "6867b777e64f997eecc10f249af28ea8365d1b845ba395855658958594b04d06"
+      },
+      "cad-build/verify-analyzer-lifetime.mjs": {
+        "bytes": 1780,
+        "sha256": "41f69cc2efd338fa54850aad41372d016ce20c69180ea0a52bdecf011a1e6ab7"
+      },
+      "cad-build/verify-destructors.mjs": {
+        "bytes": 3208,
+        "sha256": "d79d350c7a35aa26eefe4ba1f20486a5768fffadca9fcc6890836e826a2dfbce"
+      },
+      "cad-build/verify-owned-shapes.mjs": {
+        "bytes": 3254,
+        "sha256": "29e281ec778bad62e23cc65345898529291478cac157809c043f760e94964b84"
+      }
+    },
+    "buildProvenance": "cad-build/build-provenance.json",
+    "linkProvenance": "cad-build/candidate-engine-provenance.json",
+    "allocatorPatch": "single-thread-emmalloc.patch",
+    "allocatorPatchSha256": "f59d9172396b05e6c996c1035ae08d701a5713ec1510f3b3cfaa1bb096fd71e4",
+    "actualRelinkCacheImage": "sha256:02d2d51ff183ecfdb5020359efc516d0410b14d994688443a0d38a496e70cf96",
+    "allocatorYamlOriginalSha256": "01d85d96f2d4d7fcc864ec23ce1aecf6dc4ec86b363c3803cf4d5fac4a789bd0",
+    "allocatorYamlPatchedSha256": "0b6c7d994fddab1b179defe223bae2afa18873c4dfad6c3d488ae53051590b71"
+  },
   "sources": [
     {
       "name": "replicad",
@@ -118,8 +365,352 @@
         }
       ],
       "notices": [
-        "emscripten-LICENSE"
+        "emscripten-LICENSE",
+        "mimalloc-LICENSE"
+      ],
+      "embeddedComponents": [
+        {
+          "name": "mimalloc",
+          "version": "2.1.7",
+          "repository": "microsoft/mimalloc",
+          "upstreamRevision": "8c532c32c3c96e5ba1f2283e032f69ead8add00f",
+          "modifications": "Emscripten-specific port as shipped in Emscripten 5.0.1",
+          "compiledInCurrentBuild": false,
+          "role": "Retained source and license for original upstream and pocketry.1 baseline builds",
+          "sourcePath": "system/lib/mimalloc",
+          "license": "MIT",
+          "notice": "mimalloc-LICENSE",
+          "noticeSha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d",
+          "sourceFiles": 43,
+          "sourceBytes": 741049,
+          "sourceTreeSha256": "952fc17353892d0cfbb6f7e59c9bd16848c5e1290035350905f1805b9febe1a7",
+          "sourceTreeHashFormat": "SHA-256 of UTF-8 relative-path + NUL + file-SHA256 + LF, sorted by POSIX path components",
+          "files": [
+            {
+              "path": "LICENSE",
+              "bytes": 1096,
+              "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+            },
+            {
+              "path": "README.emscripten",
+              "bytes": 218,
+              "sha256": "2b543f75903937198c22a779244073d593fcd110beade0e47aa887cb93528a5a"
+            },
+            {
+              "path": "include/mimalloc/atomic.h",
+              "bytes": 16952,
+              "sha256": "9fb64be39216e8945f50596743422a67ca7eca790bcff809ee5d418cd598af27"
+            },
+            {
+              "path": "include/mimalloc/internal.h",
+              "bytes": 39023,
+              "sha256": "11d67ff05ec6653f615c4c571bef77f2d73d127189a9bb872ede658bba97ceec"
+            },
+            {
+              "path": "include/mimalloc/prim.h",
+              "bytes": 16775,
+              "sha256": "e8f88eaaffc10532c1516371f3111cd3a656c76a6d928c6aa09f30fbeacd8f33"
+            },
+            {
+              "path": "include/mimalloc/track.h",
+              "bytes": 5490,
+              "sha256": "6c200e33299de255eb9ba2bddf8ca239833bbfca6df6b135c84557cc74990318"
+            },
+            {
+              "path": "include/mimalloc/types.h",
+              "bytes": 30431,
+              "sha256": "ee12565adefef0ede47686578296017f9ecad80e1145b967fb3a0ebf6cd1789b"
+            },
+            {
+              "path": "include/mimalloc-new-delete.h",
+              "bytes": 4044,
+              "sha256": "dd4f25cae53209d45d73f8e6a2b9c219e8fc7434d97f20eba9af1a8b850030fd"
+            },
+            {
+              "path": "include/mimalloc-override.h",
+              "bytes": 3165,
+              "sha256": "243db1b073ce985873545b746288546efb8ccadeb9860e674a7f0f701af8bac9"
+            },
+            {
+              "path": "include/mimalloc.h",
+              "bytes": 37054,
+              "sha256": "65becba41248d139f7dd21f979d0e82adbb71e234eb18c151bb30e2c30d69a1e"
+            },
+            {
+              "path": "readme.md",
+              "bytes": 48544,
+              "sha256": "a44bd41b7c25ee6cac1b40652cd4c75c2492a196991c7806e25365e41ee8d6df"
+            },
+            {
+              "path": "src/alloc-aligned.c",
+              "bytes": 15432,
+              "sha256": "4c210d75f6f46a200a609fc2367764beb409c62de55cfe145779645203b29999"
+            },
+            {
+              "path": "src/alloc-override.c",
+              "bytes": 17987,
+              "sha256": "90974f49f64d136754e31f43c5da9adae380abba61b4222a5e8bd287982e62ea"
+            },
+            {
+              "path": "src/alloc-posix.c",
+              "bytes": 6618,
+              "sha256": "4110c34bbd3f212055354cca73303acc773f383a84e37e8db9d4df95338e374d"
+            },
+            {
+              "path": "src/alloc.c",
+              "bytes": 20850,
+              "sha256": "fdf55126f310b13f61dfd8a1e2b784cad9498c205fa54097ac56c9d51bd5f78f"
+            },
+            {
+              "path": "src/arena.c",
+              "bytes": 48390,
+              "sha256": "8cab69c2722b25264df63001e04c886ceea573462d17cf4c6b1ac0b154ec6b91"
+            },
+            {
+              "path": "src/bitmap.c",
+              "bytes": 18809,
+              "sha256": "ed71962d647e64773a5563b65b76f276487b09d7a18bd4c0c5b06a03c076c6f5"
+            },
+            {
+              "path": "src/bitmap.h",
+              "bytes": 6004,
+              "sha256": "d28f202d03e9d1e9d3ebefdb81c3ff96eb935711b720e3fbe351b71de223fda4"
+            },
+            {
+              "path": "src/free.c",
+              "bytes": 21637,
+              "sha256": "dde8c3501935b29be069a571a8950efa7a4d637b3f249fec90a07ff23b40d87d"
+            },
+            {
+              "path": "src/heap.c",
+              "bytes": 22471,
+              "sha256": "2eea3df2e0597da769b20476bcfd7ab2c09d38ed0d545f1d5b9203fe0f65952a"
+            },
+            {
+              "path": "src/init.c",
+              "bytes": 25801,
+              "sha256": "64766b3df71a6b1012eea3f3662603008bcc6b5af77b2e0bc6f57edae0cf375f"
+            },
+            {
+              "path": "src/libc.c",
+              "bytes": 8208,
+              "sha256": "c6feea12f7ce01804a63cddcd7545771940248c0f154bbd20b8f470c77592b5e"
+            },
+            {
+              "path": "src/options.c",
+              "bytes": 20850,
+              "sha256": "3b2a1466f24d3bd85740a7ad1b6696fcfc9a7dbc09e236cfb02a290c9aba096c"
+            },
+            {
+              "path": "src/os.c",
+              "bytes": 27475,
+              "sha256": "476c5514c389add41a1a876c325510dac9d333bc07c08131010b82292b9329ce"
+            },
+            {
+              "path": "src/page-queue.c",
+              "bytes": 11964,
+              "sha256": "7802e3d596a383941c2bb116d8eaf2f4ad63673b7372b24f0ab9bc45741cf214"
+            },
+            {
+              "path": "src/page.c",
+              "bytes": 36278,
+              "sha256": "c64a946aa7144879d6fd23735fa1fada030994f2cd43bfbb7c9cb1ba77123dfb"
+            },
+            {
+              "path": "src/prim/emscripten/prim.c",
+              "bytes": 7533,
+              "sha256": "d82f236d70cb29a5f5383e5677e62c0926c783024328c24dca606b3f3eb006a5"
+            },
+            {
+              "path": "src/prim/osx/alloc-override-zone.c",
+              "bytes": 13666,
+              "sha256": "05b2e1ea84d20e2cca9cb6423896e0fbeb2db0ca464e3adbb0d4edae6c3198d1"
+            },
+            {
+              "path": "src/prim/osx/prim.c",
+              "bytes": 489,
+              "sha256": "247a9952465eb105be03a9962e922b085ce5d52034775551a61cd8594275be73"
+            },
+            {
+              "path": "src/prim/prim.c",
+              "bytes": 960,
+              "sha256": "fa92e5b4d869017b32297eb60672e028ea9c323c1858cb3fae450e295d5108a9"
+            },
+            {
+              "path": "src/prim/readme.md",
+              "bytes": 456,
+              "sha256": "792531421c247fca0766ff7630057ec491173578ca4d1919ae34f05eb289ccf4"
+            },
+            {
+              "path": "src/prim/unix/prim.c",
+              "bytes": 29258,
+              "sha256": "0a9cbaed86705fdeab9b1141b0315de077241db153d214c6929abfc1b6dfc8ce"
+            },
+            {
+              "path": "src/prim/wasi/prim.c",
+              "bytes": 8291,
+              "sha256": "bfac56a07b2eb8fef65e06e23a33291f57eefc26b21c97398cabf9ebe3183579"
+            },
+            {
+              "path": "src/prim/windows/etw-mimalloc.wprp",
+              "bytes": 2525,
+              "sha256": "f70e61a1f2fe63da2f51c581895cf4a0918a9bffb0cf8600171f297141446962"
+            },
+            {
+              "path": "src/prim/windows/etw.h",
+              "bytes": 36194,
+              "sha256": "4f3110ef2054c95cb275be96cb279224d3d46a728c5117bd1435425f382de778"
+            },
+            {
+              "path": "src/prim/windows/etw.man",
+              "bytes": 3926,
+              "sha256": "445e6a70f9728fcc76a5ba52079336064d5e2257c2969023f1c64bf943776f54"
+            },
+            {
+              "path": "src/prim/windows/prim.c",
+              "bytes": 25885,
+              "sha256": "ba8fcdc7c34246a2c7ff0274bf661358599b37f25c9ae9c776d72d7a96beebf6"
+            },
+            {
+              "path": "src/prim/windows/readme.md",
+              "bytes": 548,
+              "sha256": "1bcb43eef7fcddf6d8f18c6d5ee9bd350090ed183a1009d4f1c9b4d81a205bb9"
+            },
+            {
+              "path": "src/random.c",
+              "bytes": 8969,
+              "sha256": "d642a722e93e6e5f2fb49881fefda72ab05d0d43838ec727871e82e6a684f6cd"
+            },
+            {
+              "path": "src/segment-map.c",
+              "bytes": 6301,
+              "sha256": "b51ddc6bb26eb0729784d940601de6c20c470b70f77c7bb0db0eea47731b8a57"
+            },
+            {
+              "path": "src/segment.c",
+              "bytes": 65069,
+              "sha256": "a6d6318587f3e967fbe025e3368b32b5fb0be15955dfa1dac5b39f8120e86b3c"
+            },
+            {
+              "path": "src/static.c",
+              "bytes": 1297,
+              "sha256": "54251e90068191b62b6a71196db22ea8a947665667fd21ffa56750e4d3de5afb"
+            },
+            {
+              "path": "src/stats.c",
+              "bytes": 18116,
+              "sha256": "cb85cb7c4a4a1229776f6430233269ab6cf19c03c0c7d4a389e250a2196b8f1f"
+            }
+          ]
+        },
+        {
+          "name": "emmalloc",
+          "version": "Emscripten 5.0.1",
+          "compiledInCurrentBuild": true,
+          "role": "Direct current allocator",
+          "license": "MIT OR NCSA",
+          "notice": "emscripten-LICENSE",
+          "path": "system/lib/emmalloc.c",
+          "bytes": 59000,
+          "sha256": "33e4f77ea1d7bcb85f164f0fd269bb24513789c958023f095285807f84f7ef7c"
+        },
+        {
+          "name": "sbrk",
+          "version": "Emscripten 5.0.1",
+          "compiledInCurrentBuild": true,
+          "role": "linear-memory allocation used by emmalloc",
+          "license": "MIT OR NCSA",
+          "notice": "emscripten-LICENSE",
+          "path": "system/lib/libc/sbrk.c",
+          "bytes": 4508,
+          "sha256": "44ec20f7bbc94ce66def915be8cb5ecd6edbe2cbd84f048ffc59e0f394f72700"
+        }
+      ],
+      "allocatorBuildDefinition": {
+        "path": "tools/system_libs.py",
+        "bytes": 86560,
+        "sha256": "bec2edc533bf39439b2b71ea6df6d1fc3fea04af0fa62bb0bfbb4f88027af619"
+      },
+      "runtimeLicenseFiles": [
+        {
+          "path": "LICENSE",
+          "bytes": 5093,
+          "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+        },
+        {
+          "path": "system/lib/libc/musl/COPYRIGHT",
+          "bytes": 6204,
+          "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+        },
+        {
+          "path": "system/lib/libcxx/LICENSE.TXT",
+          "bytes": 16703,
+          "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+        },
+        {
+          "path": "system/lib/libcxxabi/LICENSE.TXT",
+          "bytes": 16706,
+          "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+        },
+        {
+          "path": "system/lib/compiler-rt/LICENSE.TXT",
+          "bytes": 16708,
+          "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+        }
       ]
+    }
+  ],
+  "previousLocalRepairs": [
+    {
+      "package": "replicad-opencascadejs@1.1.0-pocketry.1",
+      "status": "locally-qualified",
+      "allocator": "mimalloc",
+      "artifacts": {
+        "replicad_single.cjs": {
+          "bytes": 107,
+          "sha256": "e13327f9a883a467eabf1eee8635c7b3687be96dd100acb6bff8a68759b7dfff",
+          "modifiedFromUpstream": false
+        },
+        "replicad_single.d.ts": {
+          "bytes": 1617183,
+          "sha256": "b44516bd24e6abf0dbe680086e286b117d77299ea77e80f230220dc77d250b08",
+          "modifiedFromUpstream": false
+        },
+        "replicad_single.js": {
+          "bytes": 60124,
+          "sha256": "018e57538fcb773f0124eae60aee4de693d3aae01c55b2b883a874911ab121c3",
+          "modifiedFromUpstream": false
+        },
+        "replicad_single.wasm": {
+          "bytes": 22985103,
+          "sha256": "6d0c2946d642e5edf83482218717aa006dd562a701dbbc645a0282d6bbc6de35",
+          "modifiedFromUpstream": true
+        }
+      },
+      "qualification": {
+        "scope": "Binding native ownership repair and sharp Wiha geometry regression; neither production backend selection nor general authored-fillet acceptance",
+        "registeredClasses": 454,
+        "repairedOwningDestructors": 169,
+        "protectedBaseExceptions": [
+          "BRepAlgoAPI_Algo",
+          "CDM_Document"
+        ],
+        "nativeAnalyzerIterations": 5000,
+        "nativeAnalyzerFinalWasmBytes": 104857600,
+        "sharpWihaPeakWasmMiB": 163.0625,
+        "geometryComparator": "Independent OCCT 7.8",
+        "matchingNamedBodies": 15,
+        "zeroVolumeDirectionalDifferences": 30,
+        "authoredBottomFillet": "Still invalid under diagnostic 2 GiB allowance; fail closed; production limits unchanged",
+        "evidence": [
+          "cad-build/pocketry.1-baseline/destructor-comparison.json",
+          "cad-build/pocketry.1-baseline/candidate-analyzer-lifetime.json",
+          "cad-build/pocketry.1-baseline/candidate-owned-shapes.json"
+        ],
+        "ownershipAndAccessChecks": 8
+      },
+      "qualifiedOn": "2026-10-30",
+      "evidenceDirectory": "cad-build/pocketry.1-baseline/"
     }
   ]
 }

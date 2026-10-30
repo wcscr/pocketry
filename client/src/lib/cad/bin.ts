@@ -64,6 +64,7 @@ export function cadWallInteriorSection(c:CadContext,spec:BinSpec,thickness=binWa
 
 export interface CadBinBlank { blank: CadShape; lip?: CadShape; interior?: CadShape }
 export function buildCadBinBlank(c: CadContext, spec: BinSpec): CadBinBlank {
+  return c.scope(() => {
   const width=binFootprintMm(spec.gridX,spec.gridPitch),length=binFootprintMm(spec.gridY,spec.gridPitch),rimZ=binHeightMm(spec.heightUnits);
   let blank:CadShape;
   if(spec.flatBottom)blank=footprintPrism(c,spec,0,BASE_HEIGHT);
@@ -75,7 +76,9 @@ export function buildCadBinBlank(c: CadContext, spec: BinSpec): CadBinBlank {
     const cell=c.boolean("fuse",perimeter,fill,"Gridfinity foot fill");
     blank=footprintPrism(c,spec,BASE_PROFILE_HEIGHT,BASE_HEIGHT);
     for(const occupied of occupiedCells(spec)) {
-      const center=cellCenterMm(spec,occupied);blank=c.boolean("fuse",blank,c.move(cell,{...center,z:0}),"Gridfinity feet and bridge");
+      const previous=blank,center=cellCenterMm(spec,occupied);
+      blank=c.scope(()=>c.boolean("fuse",previous,c.move(cell,{...center,z:0}),"Gridfinity feet and bridge"),shape=>[shape]);
+      c.drop(previous);
     }
   }
   let interior:CadShape|undefined;
@@ -106,4 +109,5 @@ export function buildCadBinBlank(c: CadContext, spec: BinSpec): CadBinBlank {
   }
   if(!c.valid(blank))throw new Error("Bin construction did not produce valid closed solids");
   return {blank,lip,interior};
+  }, result => [result.blank, ...result.lip ? [result.lip] : [], ...result.interior ? [result.interior] : []]);
 }

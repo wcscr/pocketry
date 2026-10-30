@@ -1,0 +1,21 @@
+{
+  "occtRevision": "b8f597c677811d1f9f4d8a97f5ae2825c0353a42",
+  "exceptions": [
+    {
+      "name": "BRepAlgoAPI_Algo",
+      "header": "src/ModelingAlgorithms/TKBO/BRepAlgoAPI/BRepAlgoAPI_Algo.hxx",
+      "protectedSectionLine": 56,
+      "constructorLine": 58,
+      "destructorLine": 61,
+      "reason": "The algorithm base has protected construction and destruction. Concrete public derived classes own native destruction."
+    },
+    {
+      "name": "CDM_Document",
+      "header": "src/ApplicationFramework/TKCDF/CDM/CDM_Document.hxx",
+      "protectedSectionLine": 347,
+      "constructorLine": 348,
+      "destructorLine": 350,
+      "reason": "The document base has protected construction and destruction. Concrete document classes and reference-counted handles own native destruction."
+    }
+  ]
+}

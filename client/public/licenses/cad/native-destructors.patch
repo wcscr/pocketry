@@ -1,0 +1,14 @@
+--- a/src/ocjs_bindgen/codegen/embind/class_.py
++++ b/src/ocjs_bindgen/codegen/embind/class_.py
+@@ -154,7 +154,10 @@
+ 
+   nonPublicDestructor = any(x.kind == clang.cindex.CursorKind.DESTRUCTOR and not x.access_specifier == clang.cindex.AccessSpecifier.PUBLIC for x in theClass.get_children())
+   placementDelete = next((x for x in theClass.get_children() if x.spelling == "operator delete" and len(list(x.get_arguments())) == 2), None) is not None
+-  if nonPublicDestructor or placementDelete:
++  # Placement delete coexists with ordinary owning delete in DEFINE_STANDARD_ALLOC.
++  # It does not prevent Embind from destroying a heap-allocated instance.
++  publicOrdinaryDelete = any(x.spelling == "operator delete" and len(list(x.get_arguments())) == 1 and x.access_specifier == clang.cindex.AccessSpecifier.PUBLIC for x in theClass.get_children())
++  if nonPublicDestructor or (placementDelete and not publicOrdinaryDelete):
+     output += "namespace emscripten { namespace internal { template<> void raw_destructor<" + classCpp + ">(" + classCpp + "* ptr) { /* do nothing */ } } }\n"
+   return output
+ 

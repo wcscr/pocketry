@@ -1,0 +1,3 @@
+# Preserve hashed build evidence and unified-diff blank context markers verbatim.
+client/public/licenses/cad/*.patch -whitespace
+client/public/licenses/cad/**/link.log -whitespace

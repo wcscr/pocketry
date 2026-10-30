@@ -1,0 +1,27 @@
+{
+  "name": "replicad-opencascadejs",
+  "version": "1.1.0-pocketry.2",
+  "description": "Pocketry single-threaded replicad-opencascadejs rebuild with native destructor repair and emmalloc",
+  "author": "Steve Genoud <steve@sgenoud.com>",
+  "license": "LGPL-2.1-only",
+  "type": "module",
+  "main": "./dist/replicad_single.cjs",
+  "module": "./dist/replicad_single.js",
+  "types": "./dist/replicad_single.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/replicad_single.d.ts",
+      "import": "./dist/replicad_single.js",
+      "require": "./dist/replicad_single.cjs",
+      "default": "./dist/replicad_single.js"
+    },
+    "./wasm": "./dist/replicad_single.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "upstreamGitHead": "e4b05f67dc4e2393a876ce8c5064a9c93db05bf1"
+}

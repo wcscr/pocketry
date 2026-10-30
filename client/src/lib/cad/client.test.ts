@@ -6,7 +6,7 @@ class Endpoint extends EventTarget implements MessageEndpoint {
   calls:{id:number;payload:unknown}[]=[];
   terminate=vi.fn();
   postMessage(message:unknown){this.calls.push(message as {id:number;payload:unknown});}
-  reply(value:unknown){this.dispatchEvent(new MessageEvent("message",{data:{id:this.calls.at(-1)!.id,kind:"result",value,recycle:false}}));}
+  reply(value:unknown,recycle=false){this.dispatchEvent(new MessageEvent("message",{data:{id:this.calls.at(-1)!.id,kind:"result",value,recycle}}));}
 }
 describe("physical CAD job lifecycle",()=>{
   it("serializes jobs, captures queued snapshots, and releases dedicated workers",async()=>{
@@ -22,6 +22,21 @@ describe("physical CAD job lifecycle",()=>{
     const cancelled=client.call("step",{}, {signal:abort.signal});const result=expect(cancelled).rejects.toMatchObject({name:"WorkerCancelledError"});
     const next=client.call("step",{});abort.abort();await result;
     expect(workers[0].terminate).toHaveBeenCalledOnce();expect(workers).toHaveLength(2);workers[1].reply("recovered");expect(await next).toBe("recovered");client.dispose();
+  });
+  it("bounds reused workers by job count and observed WASM capacity",async()=>{
+    const workers:Endpoint[]=[];const client=createCadJobClient(()=>{const w=new Endpoint();workers.push(w);return w;});
+    try{
+      for(let i=0;i<8;i++){
+        const job=client.call("buildBin",{});expect(workers).toHaveLength(1);
+        workers[0].reply(i);expect(await job).toBe(i);
+        expect(workers[0].terminate).toHaveBeenCalledTimes(i===7?1:0);
+      }
+      const large=client.call("step",{});expect(workers).toHaveLength(2);
+      workers[1].reply("large",true);expect(await large).toBe("large");
+      expect(workers[1].terminate).toHaveBeenCalledOnce();
+      const next=client.call("buildBin",{});expect(workers).toHaveLength(3);
+      workers[2].reply("fresh");expect(await next).toBe("fresh");
+    }finally{client.dispose();}
   });
   it("stops a synchronous modeling phase at 120 seconds",async()=>{
     vi.useFakeTimers();
