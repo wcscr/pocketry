@@ -137,6 +137,8 @@ export const binSpecSchema = z
         autoWall: z.boolean().optional(),
         /** Repeat the selected tab on every hollow sub-bin; absent keeps the outer wall. */
         scope: z.enum(["outer", "compartments"]).optional(),
+        /** Distance below the mounting wall/divider top; absent preserves legacy flush tabs. */
+        recessMm: z.number().finite().min(0).max(10).optional(),
         /** Exact boundary anchor for an irregular footprint; null keeps wall-based rectangle behavior. */
         edge: boundaryEdgeSchema.nullable().default(null),
         width: z.enum(["full", "center", "left", "right"]).default("full"),

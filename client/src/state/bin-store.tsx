@@ -1,4 +1,5 @@
 import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
+import { moveTextsWithLabelTabRecess } from "@shared/gridfinity/label-tab-surfaces";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
@@ -604,6 +605,9 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       };
       if (doc.spec.labelTab?.autoWall && !doc.spec.labelTab.edge) {
         doc.spec.labelTab = { ...doc.spec.labelTab, wall: defaultLabelTabWall(doc.spec) };
+      }
+      if (!action.patch.surfaceTexts) {
+        doc.spec.surfaceTexts = moveTextsWithLabelTabRecess(state.spec, doc.spec);
       }
       if ("fillHeightPercent" in action.patch) {
         const previous = getCommittedBinDoc(state);

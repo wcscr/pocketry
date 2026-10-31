@@ -9,6 +9,8 @@ import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { labelTabSurfaces } from "@shared/gridfinity/label-tab-surfaces";
+import { ringBounds } from "@shared/geometry/rings";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
@@ -56,6 +58,26 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("moves shelf labels once across transient recess edits, commit, undo and redo", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fill: "none", lip: "none",
+      wallSlant: { axis: "y", angleDeg: 30 }, labelTab: { wall: "south", width: "full", recessMm: 0 } } }));
+    const bounds = ringBounds(labelTabSurfaces(store().spec)[0].ring)!;
+    const label = surfaceTextSchema.parse({ id: "metric", text: "M2x8", sizeMm: 3.2, surface: "label-tab",
+      position: { x: 0, y: (bounds.minY + bounds.maxY) / 2 } });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [label] } }));
+    const before = store().spec;
+    const edit = (recessMm: number, transient = false) => act(() => store().dispatch({ type: "PATCH_SPEC", transient,
+      patch: { labelTab: { ...store().spec.labelTab!, recessMm } } }));
+    edit(0.2, true); edit(0.4, true); edit(0.4);
+    const after = store().spec;
+    expect(after.surfaceTexts[0].position.y).toBeCloseTo(label.position.y - 0.4 * Math.tan(Math.PI / 6));
+    expect(after.surfaceTexts[0].sizeMm).toBe(3.2);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec).toEqual(before);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec).toEqual(after);
+  });
   it("preserves saved and manually anchored tabs when the wall slant changes", () => {
     const { store, act } = mountBin();
     for (const tab of [

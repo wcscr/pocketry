@@ -49,6 +49,17 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([undefined, 0, 0.4, 1.2])("preserves label-tab recess (%s) through saving and undo history", recessMm => {
+    const spec = { ...VALID.spec, labelTab: { wall: "north", width: "full", recessMm } };
+    const doc = { ...VALID, schemaVersion: recessMm === undefined ? 55 : PROJECT_SCHEMA_VERSION, spec, cutouts: [],
+      history: { index: 0, stack: [{ label: "Recess", doc: { spec, cutouts: [], fingerHoles: [] } }] } };
+    const parsed = parseProjectDoc(doc)!;
+    expect(parsed).not.toBeNull();
+    expect(parsed.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(parsed.spec.labelTab!.recessMm).toBe(recessMm);
+    expect(parsed.history!.stack[0].doc.spec.labelTab!.recessMm).toBe(recessMm);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed))))).toEqual(parsed);
+  });
   it.each([undefined, false, true])("round-trips automatic label placement (%s) and history", autoWall => {
     const spec = { ...VALID.spec, lip: "none", wallSlant: { axis: "x", angleDeg: 20 }, labelTab: { wall: "west", autoWall, width: "full" } };
     const parsed = parseProjectDoc({ ...VALID, spec, cutouts: [], history: { index: 0, stack: [

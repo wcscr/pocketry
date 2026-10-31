@@ -1,4 +1,4 @@
-import { labelTabProfileMm, supportedLabelTabProfileMm } from "./label-tab";
+import { labelTabProfileMm, labelTabRecessMm, supportedLabelTabProfileMm } from "./label-tab";
 import { BASE_HEIGHT, STACKING_LIP_SUPPORT_HEIGHT, TAB_WIDTH_NOMINAL_MM } from "./standard";
 import type { Ring } from "../geometry/types";
 import type { BinSpec } from "./types";
@@ -76,7 +76,8 @@ export function dividerStripRings(spec: BinSpec): Ring[] {
 
 /** Tab placements in upright bin coordinates, reused by solids and collision warnings. */
 export function compartmentLabelTabPlacements(spec: BinSpec) {
-  const tab = spec.labelTab, profile = labelTabProfileMm(spec);
+  const tab = spec.labelTab;
+  const profile = labelTabProfileMm(spec, labelTabRecessMm(spec) > 0 ? compartmentHeightMm(spec) : undefined);
   if (!tab || tab.scope !== "compartments" || spec.fill !== "none" || !profile || compartmentLayoutError(spec)) return [];
   const { cellWidth, cellLength, columnFronts, rowFronts } = compartmentLayout(spec);
   const horizontal = tab.wall === "north" || tab.wall === "south";
@@ -92,6 +93,6 @@ export function compartmentLabelTabPlacements(spec: BinSpec) {
     };
     return { ...origin, start, length, depth, rotation,
       profile: supportedLabelTabProfileMm(spec, profile, tab.wall, origin, depth,
-        BASE_HEIGHT + compartmentHeightMm(spec)) };
+        BASE_HEIGHT + compartmentHeightMm(spec) - labelTabRecessMm(spec)) };
   }));
 }

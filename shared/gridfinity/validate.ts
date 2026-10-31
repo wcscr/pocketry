@@ -1,4 +1,4 @@
-import { compartmentHeightMm, compartmentLabelTabPlacements, compartmentLayoutError } from "./compartments";
+import { compartmentLabelTabPlacements, compartmentLayoutError } from "./compartments";
 import { binWidthMm, binLengthMm } from "./bin-size";
 import { hasSmoothBase, ultim8PegCenters } from "./peg-bottom";
 import { hasPocketTilt, pocketAxis } from "./pocket-orientation";
@@ -46,13 +46,15 @@ import {
   STACKING_LIP_DEPTH,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
   TAB_HEIGHT_MM,
+  TAB_SUPPORT_HEIGHT_MM,
   TAB_WIDTH_NOMINAL_MM,
 } from "./standard";
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantCloses, wallSlantHeightMm } from "./wall-slant";
-import { boundaryLabelTabProfileMm } from "./label-tab";
+import { boundaryLabelTabProfileMm, labelTabRecessMm } from "./label-tab";
+import { labelTabTopZ } from "./label-tab-surfaces";
 
 /**
  * Pure validation of a bin specification — no WASM, cheap enough to run on
@@ -217,15 +219,20 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
     });
   }
 
+  if (spec.labelTab && labelTabRecessMm(spec) > 0 && labelTabTopZ(spec) - BASE_HEIGHT <= TAB_SUPPORT_HEIGHT_MM) {
+    issues.push({ code: "label-tab-recess", severity: "error",
+      message: "The label tab recess leaves too little height above the floor. Reduce the recess or increase bin height." });
+  }
+
   if (
     spec.labelTab &&
-    binHeightMm(spec.heightUnits) - TAB_HEIGHT_MM < BASE_HEIGHT
+    (labelTabRecessMm(spec) > 0 ? labelTabTopZ(spec) : binHeightMm(spec.heightUnits)) - TAB_HEIGHT_MM < BASE_HEIGHT
   ) {
     issues.push({
       code: "label-tab-clipped",
       severity: "warning",
-      message: spec.wallSlant
-        ? `A ${spec.heightUnits}u bin has too little wall for the full label tab; its depth is reduced to stay above the base.`
+      message: spec.wallSlant || labelTabRecessMm(spec) > 0
+        ? "The height and recess leave too little wall for the full label tab; its depth is reduced to stay above the base."
         : `A ${heightLabel} bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
           `label tab — the tab reaches down into the base and will look truncated.`,
     });
@@ -296,7 +303,8 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   }));
   // The tab is sheared together with the wall. Its footprint sweeps between
   // the lower edge of the tab and the rim, so warn over that full XY extent.
-  const sweptCorners = [binHeightMm(spec.heightUnits) - profile.heightMm, binHeightMm(spec.heightUnits)]
+  const topZ = binHeightMm(spec.heightUnits) - labelTabRecessMm(spec);
+  const sweptCorners = [topZ - profile.heightMm, topZ]
     .flatMap(z => corners.map(point => wallSlantPointMm(spec, point, z)));
   return {
     minX: Math.min(...sweptCorners.map(point => point.x)),
@@ -456,7 +464,7 @@ export function validateLayout(
       const corners = [tab.start, tab.start + tab.length].flatMap(x => [0, -tab.depth].map(y => ({
         x: tab.x + x * Math.cos(angle) - y * Math.sin(angle), y: tab.y + x * Math.sin(angle) + y * Math.cos(angle),
       })));
-      const swept = [BASE_HEIGHT + compartmentHeightMm(spec) - tab.profile.heightMm, BASE_HEIGHT + compartmentHeightMm(spec)]
+      const swept = [labelTabTopZ(spec) - tab.profile.heightMm, labelTabTopZ(spec)]
         .flatMap(z => corners.map(point => wallSlantPointMm(spec, point, z)));
       return { minX: Math.min(...swept.map(p => p.x)), maxX: Math.max(...swept.map(p => p.x)),
         minY: Math.min(...swept.map(p => p.y)), maxY: Math.max(...swept.map(p => p.y)) };

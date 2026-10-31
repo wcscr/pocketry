@@ -15,6 +15,7 @@ import {
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { boundaryLabelTabProfileMm } from "@shared/gridfinity/label-tab";
+import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
 import { roundedRectPolygon } from "./profiles";
@@ -23,8 +24,8 @@ import { footprintInteriorSection } from "./footprint-section";
 
 /**
  * Label tab (upstream `src/core/tab.scad` + `TAB_POLYGON`): a shelf hung
- * from the top of one wall — vertical wall face, flat top flush with the
- * wall top, 1.2 mm tip face, 36° sloped underside — deep enough to read or
+ * from one wall — vertical wall face, flat top below the wall by its recess,
+ * 1.2 mm tip face, 36° sloped underside — deep enough to read or
  * label the bin's contents.
  *
  * Construction mirrors the scoop's: the profile prism is built oversized
@@ -92,7 +93,7 @@ export function buildLabelTab(
         ? chordMm / 2 - lengthMm
         : -lengthMm / 2;
   const local = arena.track(
-    prism.translate([startX, 0, binHeightMm(spec.heightUnits) - profileMm.heightMm]),
+    prism.translate([startX, 0, labelTabTopZ(spec) - profileMm.heightMm]),
   );
   const rotation = WALL_ROTATION_DEG[edge.side];
   const rotated =
@@ -132,7 +133,7 @@ function buildCompartmentLabelTabs(kernel: Kernel, spec: BinSpec, segments: numb
     if (profile.points.at(-1)![0] !== 0 && profile.points.at(-1)![1] > 0) points.push([0, 0]);
     const section = arena.track(new CrossSection([points]));
     const prism = arena.track(arena.track(section.extrude(length)).rotate([90, 0, 90]));
-    const local = arena.track(prism.translate([start, 0, BASE_HEIGHT + height - profile.heightMm]));
+    const local = arena.track(prism.translate([start, 0, labelTabTopZ(spec) - profile.heightMm]));
     return arena.track(arena.track(local.rotate([0, 0, rotation])).translate([x, y, 0]));
   });
   const envelope = arena.track(arena.track(footprintOuterSection(kernel, spec, segments).extrude(height)).translate([0, 0, BASE_HEIGHT]));
