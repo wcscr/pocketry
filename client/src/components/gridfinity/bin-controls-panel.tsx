@@ -1965,13 +1965,17 @@ export function BinControlsPanel({
             description="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops."
             checked={spec.labelTab !== null}
             onChange={enabled => {
-              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full", recessMm: DEFAULT_LABEL_TAB_RECESS_MM } : null });
+              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full", recessMm: DEFAULT_LABEL_TAB_RECESS_MM, frontRim: true } : null });
               if (!enabled && editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
             }}
             settingsLabel="Label tab settings" testId="label-tab-settings"
             summary={spec.labelTab ? { full: "Full", center: "Center", left: "Left", right: "Right" }[spec.labelTab.width] : ""}>
             {spec.labelTab && (
               <div className="space-y-2">
+                <FeatureSwitch label="Front rim"
+                  description="Raise the shelf's free edge to the wall or divider top, using the bin's wall thickness. Follows Recess; 0 mm leaves the shelf flat."
+                  checked={spec.labelTab.frontRim ?? false}
+                  onChange={frontRim => patchSpec({ labelTab: { ...spec.labelTab!, frontRim } })} />
                 <div className="flex items-center justify-between gap-3">
                   <SettingLabel label="Recess" htmlFor="bin-label-tab-recess" hint="Lower the shelf below its wall or divider top. New tabs and raised lettering both default to 0.5 mm, so the lettering finishes flush with the wall. Use 0 for a flush shelf." />
                   <div className="flex items-center gap-1.5">

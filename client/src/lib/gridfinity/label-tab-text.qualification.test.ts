@@ -37,8 +37,10 @@ function expectClosedStl(mesh: MeshData) {
 }
 
 describe("raised labels on slanted shelves", () => {
-  it.each([0, 0.4, DEFAULT_LABEL_TAB_RECESS_MM])("exports six metric labels with %s mm recess and separate colored 3MF parts", async recessMm => {
-    const spec = { ...reported, labelTab: { ...reported.labelTab!, recessMm }, surfaceTexts: [...reported.surfaceTexts] };
+  it.each([{ recessMm: 0 }, { recessMm: 0.4 }, { recessMm: DEFAULT_LABEL_TAB_RECESS_MM },
+    { recessMm: DEFAULT_LABEL_TAB_RECESS_MM, frontRim: true }])("exports six metric labels with %j and separate colored 3MF parts", async settings => {
+    const { recessMm } = settings;
+    const spec = { ...reported, labelTab: { ...reported.labelTab!, ...settings }, surfaceTexts: [...reported.surfaceTexts] };
     for (let i = 0; i < 6; i++) spec.surfaceTexts.push(placeSurfaceTextOnTab(spec, { ...label, id: String(i), text: `M${i + 2}` }));
     await withKernel(kernel => {
       const result = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY,
@@ -69,8 +71,10 @@ describe("raised labels on slanted shelves", () => {
     for (const side of ["both", "positive", "negative"] as const) for (const angleDeg of [-30, 30]) {
       for (const scope of ["outer", "compartments"] as const) {
         const spec = parseBinSpec({ ...reported, wallSlant: { axis, angleDeg, side },
-          compartments: { ...reported.compartments, scoop: true },
-          labelTab: { wall: axis === "x" ? angleDeg > 0 ? "west" : "east" : angleDeg > 0 ? "south" : "north", width: "full", scope } });
+          // Outer tabs span the full bin; their centred label must not cross a divider.
+          compartments: { ...reported.compartments, rows: scope === "outer" ? 1 : 2, columns: scope === "outer" ? 1 : 3, scoop: true },
+          labelTab: { wall: axis === "x" ? angleDeg > 0 ? "west" : "east" : angleDeg > 0 ? "south" : "north", width: "full", scope,
+            recessMm: 0.5, frontRim: true } });
         const placed = placeSurfaceTextOnTab(spec, label);
         expect(placed.surface, `${axis}/${side}/${angleDeg}/${scope}`).toBe("label-tab");
         await withKernel(kernel => {
@@ -122,9 +126,9 @@ describe("raised labels on slanted shelves", () => {
 
   it.each(["outer", "compartments"] as const)("clips %s tab text to a custom footprint", async scope => {
     const spec = parseBinSpec({ ...reported, gridX: 2, gridY: 2, gridPitch: "full", bottomFilletRadiusMm: 0,
-      compartments: { rows: 2, columns: 2 },
+      compartments: { rows: scope === "outer" ? 1 : 2, columns: scope === "outer" ? 1 : 2 },
       footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
-      labelTab: { wall: "south", scope, width: "center" } });
+      labelTab: { wall: "south", scope, width: "center", recessMm: 0.5, frontRim: true } });
     const placed = placeSurfaceTextOnTab(spec, label);
     expect(placed.surface).toBe("label-tab");
     await withKernel(kernel => {

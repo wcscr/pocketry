@@ -1418,7 +1418,15 @@ it.each(["standard", "workflow"])("defaults tabs opposite scoops and retains man
     expect(labelSettings()!.hidden).toBe(false);
     expect(current()).toBe(beforeDisclosure);
     choose("Label tab style", "Full width");
-    expect(current().labelTab).toMatchObject({ autoWall: true, wall: "north", recessMm: 0.5 });
+    expect(current().labelTab).toMatchObject({ autoWall: true, wall: "north", recessMm: 0.5, frontRim: true });
+    const rim = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Front rim"]')!;
+    expect(rim().getAttribute("aria-checked")).toBe("true");
+    React.act(() => rim().click());
+    expect(current().labelTab!.frontRim).toBe(false);
+    clickBinHistory(container, "undo");
+    expect(rim().getAttribute("aria-checked")).toBe("true");
+    clickBinHistory(container, "redo");
+    expect(rim().getAttribute("aria-checked")).toBe("false");
     const recess = () => container.querySelector<HTMLInputElement>('[aria-label="Label tab recess in millimetres"]')!;
     expect(recess().value).toBe("0.5");
     const enterRecess = (value: string) => {

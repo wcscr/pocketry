@@ -14,7 +14,7 @@ import {
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { boundaryLabelTabProfileMm } from "@shared/gridfinity/label-tab";
+import { boundaryLabelTabProfileMm, labelTabProfileWithFrontRim } from "@shared/gridfinity/label-tab";
 import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
@@ -74,7 +74,7 @@ export function buildLabelTab(
   // Profile in the (x = depth, y = height) plane, depth negated so the tab
   // grows inward (−y after mapping) from the wall face; negation also turns
   // the upstream point order CCW.
-  const profile = profileMm.points.map(([depth, height]) => [-depth, height] as [number, number]);
+  const profile = labelTabProfileWithFrontRim(spec, profileMm).map(([depth, height]) => [-depth, height] as [number, number]);
   const section = arena.track(new CrossSection([profile]));
 
   const lengthMm =
@@ -127,7 +127,7 @@ function buildCompartmentLabelTabs(kernel: Kernel, spec: BinSpec, segments: numb
   const height = compartmentHeightMm(spec);
   if (!placements.length || height <= 0) return null;
   const tabs = placements.map(({ x, y, start, length, depth, rotation, profile }) => {
-    const points = profile.points.map(([d, z]) => [d === 0 ? 0.02 : -d * depth / profile.depthMm, z] as [number, number]);
+    const points = labelTabProfileWithFrontRim(spec, profile).map(([d, z]) => [d === 0 ? 0.02 : -d * depth / profile.depthMm, z] as [number, number]);
     // Keep the sloped underside's root at the nominal wall face. The tiny
     // attachment overlap must not flatten the support by extending its run.
     if (profile.points.at(-1)![0] !== 0 && profile.points.at(-1)![1] > 0) points.push([0, 0]);

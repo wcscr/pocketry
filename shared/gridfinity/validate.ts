@@ -53,7 +53,7 @@ import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantCloses, wallSlantHeightMm } from "./wall-slant";
-import { boundaryLabelTabProfileMm, labelTabRecessMm } from "./label-tab";
+import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimHeightMm } from "./label-tab";
 import { labelTabTopZ } from "./label-tab-surfaces";
 
 /**
@@ -304,7 +304,7 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   // The tab is sheared together with the wall. Its footprint sweeps between
   // the lower edge of the tab and the rim, so warn over that full XY extent.
   const topZ = binHeightMm(spec.heightUnits) - labelTabRecessMm(spec);
-  const sweptCorners = [topZ - profile.heightMm, topZ]
+  const sweptCorners = [topZ - profile.heightMm, topZ + labelTabFrontRimHeightMm(spec)]
     .flatMap(z => corners.map(point => wallSlantPointMm(spec, point, z)));
   return {
     minX: Math.min(...sweptCorners.map(point => point.x)),
@@ -464,7 +464,7 @@ export function validateLayout(
       const corners = [tab.start, tab.start + tab.length].flatMap(x => [0, -tab.depth].map(y => ({
         x: tab.x + x * Math.cos(angle) - y * Math.sin(angle), y: tab.y + x * Math.sin(angle) + y * Math.cos(angle),
       })));
-      const swept = [labelTabTopZ(spec) - tab.profile.heightMm, labelTabTopZ(spec)]
+      const swept = [labelTabTopZ(spec) - tab.profile.heightMm, labelTabTopZ(spec) + labelTabFrontRimHeightMm(spec)]
         .flatMap(z => corners.map(point => wallSlantPointMm(spec, point, z)));
       return { minX: Math.min(...swept.map(p => p.x)), maxX: Math.max(...swept.map(p => p.x)),
         minY: Math.min(...swept.map(p => p.y)), maxY: Math.max(...swept.map(p => p.y)) };
