@@ -37,6 +37,16 @@ labels default to a quarter-em gap until edited, while an explicitly set gap
 stays fixed when text or symbol size changes. The combined outline is centered at the
 label position and then rotated. Existing text-only outlines are unchanged.
 STL joins labels to the bin; 3MF retains each label as a separately named part.
+The model warning panel flags text and symbol details that may disappear at
+**0.42 mm line width**, a reference for a typical **0.4 mm nozzle**. Click the
+warning to select its label. Increase the font size or choose a bolder font;
+symbols have their own size setting. A smaller nozzle may also help. This is an
+outline-based estimate, not a slicer simulation or a guarantee: it allows small
+corner losses, and thin-wall handling and variable-width walls can change the
+result. Always inspect the label layers in your slicer. Warnings do not block
+export, resize labels, or change saved projects. The check also covers portable
+custom fonts, punctuation and symbol-only labels.
+
 Projects and undo history store a stable symbol ID, optional size/gap, and independent
 angle (schema 54; absent angle means zero and absent symbol size inherits text
 size). Old text-only labels keep their text and do not gain a default symbol.

@@ -13,6 +13,8 @@ import { infillTopZ } from "@shared/gridfinity/fill";
 import { labelTabSurfaces, labelTabTopZ, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
 import { normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
 import type { Kernel } from "@/lib/manifold/runtime";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { surfaceTextPrintabilityIssue } from "./surface-text-printability";
 
 const loader = new FontLoader();
 const fonts = {
@@ -116,7 +118,7 @@ export function surfaceTextOutline(label: SurfaceText): Outline {
 }
 
 /** Text sits exactly on the surface. Keep each label separate for 3MF part editing. */
-export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold): { label: SurfaceText; solid: Manifold; z: number }[] {
+export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold): { label: SurfaceText; solid: Manifold; z: number; printabilityIssue?: ValidationIssue }[] {
   const { arena, CrossSection } = kernel;
   const supports = new Map<number, ReturnType<typeof body.slice>>();
   const tabsAvailable = !spec.surfaceTexts.some(label => surfaceTextSurface(spec, label) === "label-tab") || labelTabSurfaces(spec).length > 0;
@@ -155,6 +157,6 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
       : raised;
     if (solid.status() !== "NoError" || solid.isEmpty()) throw new Error(`Could not build text “${surfaceTextName(label)}”.`);
     occupied.push(solid);
-    return { label, solid, z };
+    return { label, solid, z, printabilityIssue: surfaceTextPrintabilityIssue(label, section) };
   });
 }

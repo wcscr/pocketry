@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Warn when surface text or hardware-symbol strokes may disappear with a typical 0.4 mm nozzle. Select the affected label from the warning to adjust its font or size; exports remain available.
+
 - Restrict hollow-bin text to label tabs. Retarget older labels without moving or resizing them, and explain when label tabs need to be enabled.
 
 - Place raised text and hardware symbols on label tabs, including slanted compartment bins. Show shelf tops in Layout and start new text on the next empty tab; preserve existing labels' surface choices through save and undo.

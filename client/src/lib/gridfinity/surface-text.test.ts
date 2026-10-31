@@ -16,6 +16,21 @@ const text = surfaceTextSchema.parse({ id: "text-1", text: "B8 & O", position: {
 const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", surfaceTexts: [text], textColor: "#ff6600" });
 
 describe("surface text", () => {
+  it.each([false, true])("returns thin-stroke warnings across the worker boundary without blocking export (export=%s)", async exportTopology => {
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (
+      request: BuildBinRequest, context: HandlerContext
+    ) => Promise<TransferableResult<BuildBinResult>>;
+    const small = { ...text, text: "M4 nut", font: "helvetiker" as const, sizeMm: 2 };
+    const { value } = await handler({ spec: { ...spec, surfaceTexts: [small] }, quality: EXPORT_QUALITY, exportTopology },
+      { signal: new AbortController().signal, progress: () => {} });
+    expect(value.validationIssues).toContainEqual(expect.objectContaining({
+      code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: [text.id],
+    }));
+    expect(value.textMeshes?.[0].mesh.indices.length).toBeGreaterThan(0);
+    const { value: revised } = await handler({ spec: { ...spec, surfaceTexts: [{ ...small, font: "helvetiker-bold", sizeMm: 3.6 }] }, quality: EXPORT_QUALITY, exportTopology },
+      { signal: new AbortController().signal, progress: () => {} });
+    expect(revised.validationIssues?.some(issue => issue.code === "surface-text-thin-strokes")).toBe(false);
+  });
   it("migrates v28 and round-trips independent label names through the document and history without changing geometry", () => {
     const oldDoc = { spec, cutouts: [], fingerHoles: [] };
     const named = { ...text, name: "Socket sizes" };
