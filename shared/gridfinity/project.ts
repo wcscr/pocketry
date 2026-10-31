@@ -96,9 +96,10 @@ export { serializeProjectDoc } from "./project-font-sources";
  * Version 52 adds hollow compartments, scoop bottoms, and repeated label tabs.
  * Version 53 adds a retained hollow-bin bottom edge fillet radius.
  * Version 54 adds optional bundled hardware symbols with independent size, rotation, and text gap.
+ * Version 55 adds an explicit label-tab surface for raised text; existing labels keep their surface.
  */
 
-export const PROJECT_SCHEMA_VERSION = 54 as const;
+export const PROJECT_SCHEMA_VERSION = 55 as const;
 
 const projectFields = {
   shapes: z.array(tracedShapeSchema),
@@ -400,7 +401,7 @@ function parseProjectInput(input: unknown): ProjectDoc | null {
     input = expandProjectFontSources(input);
   }
   if (input && typeof input === "object" && !Array.isArray(input)
-      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53].includes((input as Record<string, unknown>).schemaVersion as number)) {
+      && [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54].includes((input as Record<string, unknown>).schemaVersion as number)) {
     // Strict current schemas still reject unsupported data from version-27 prototypes.
     const legacy = input as Record<string, unknown>;
     const cleaned = legacy.schemaVersion === 37 ? removePreviewPegDensity(legacy) : legacy;

@@ -31,6 +31,55 @@ describe("BinDesignerPage", () => {
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("adds text to each slanted shelf and preserves surface selection through undo: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5.5, lip: "none", fill: "none",
+        wallSlant: { axis: "y", angleDeg: 30 }, bottomFilletRadiusMm: 8,
+        compartments: { enabled: true, rows: 2, columns: 3, dividerThicknessMm: 1.2 },
+        labelTab: { wall: "south", scope: "compartments", width: "full" } }),
+    });
+    const { container, unmount } = renderPage({ mobile, experimental: false });
+    try {
+      await flushHydration();
+      if (mobile && layout === "standard") {
+        React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Adjust")!.click());
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "All properties")!.click());
+      }
+      openSettingsSection(document.body, "text");
+      React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts;
+      expect(container.querySelectorAll('[data-testid="layout-label-tab"]')).toHaveLength(6);
+      if (mobile) openMobileProperties();
+      expect(document.querySelector('[aria-label="Text surface"]')!.textContent).toBe("Label tabs");
+      expect(document.querySelector('[aria-label="Text surface"]')!.closest("[hidden]")).toBeNull();
+      for (let i = 1; i < 6; i++) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
+      expect(current()).toHaveLength(6);
+      expect(current().every(label => label.surface === "label-tab")).toBe(true);
+      expect(new Set(current().map(label => JSON.stringify(label.position))).size).toBe(6);
+      const added = current();
+      clickBinHistory(container, "undo");
+      expect(current()).toEqual(added.slice(0, 5));
+      clickBinHistory(container, "redo");
+      expect(current()).toEqual(added);
+      // The 3D manipulation plane must be the shelf, not the hollow floor.
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-text-3d-${added[0].id}"]`)!.click());
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-text-editor-z")).toBe("38.5");
+      if (mobile) openMobileProperties();
+      React.act(() => document.querySelector('[aria-label="Text surface"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Bin surface")!.click());
+      expect(current()[0].surface).toBe("bin");
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-text-editor-z")).toBe("7");
+      clickBinHistory(container, "undo");
+      expect(current()).toEqual(added);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
   ])("opens the clicked text properties from either canvas without changing wording or history: %o", async ({ layout, mobile }) => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);

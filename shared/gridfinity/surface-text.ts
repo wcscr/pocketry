@@ -27,6 +27,8 @@ const surfaceTextFields = z.object({
   /** Gap before any leading text spaces; absent keeps the quarter-em spacing. */
   symbolGapMm: z.number().finite().min(0).max(40).optional(),
   position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
+  /** Absent preserves the original floor/infill placement of saved labels. */
+  surface: z.enum(["bin", "label-tab"]).optional(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
   /** Font em size; glyph height depends on the characters. */
   sizeMm: z.number().finite().min(2).max(40).default(6),

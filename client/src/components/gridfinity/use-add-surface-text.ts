@@ -1,4 +1,5 @@
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { placeSurfaceTextOnTab } from "@/lib/gridfinity/surface-text";
 import { revealPanelSection } from "@/components/layout/panel-section";
 import { usePanelState } from "@/components/layout/panel-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -14,7 +15,7 @@ export function useAddSurfaceText(onAdd?: () => void): () => void {
   return () => {
     if (spec.surfaceTexts.length >= 32) return;
     onAdd?.();
-    const label = surfaceTextSchema.parse({ id: crypto.randomUUID(), text: "Text", font: "helvetiker", position: { x: 0, y: 0 } });
+    const label = placeSurfaceTextOnTab(spec, surfaceTextSchema.parse({ id: crypto.randomUUID(), text: "Text", font: "helvetiker", position: { x: 0, y: 0 } }));
     dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [...spec.surfaceTexts, label] }, historyLabel: "Add surface text" });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });

@@ -1,4 +1,5 @@
 import { dividerStripRings } from "@shared/gridfinity/compartments";
+import { labelTabSurfaces } from "@shared/gridfinity/label-tab-surfaces";
 import { pickBinContextTarget } from "@/lib/gridfinity/context-target";
 import { useBinObjectContextMenu, type BinContextTarget } from "./object-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
@@ -1809,6 +1810,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
           <g clipPath={`url(#${sceneId}-compartments)`} className="pointer-events-none fill-foreground/35" data-testid="layout-dividers">
             <title>Divider footprints at the floor; inspect slants and scoops in 3D</title>
             {dividerStripRings(spec).map((ring, i) => <path key={i} d={ringToCanvasPath(ring, spec)} />)}
+          </g>
+          <g className="pointer-events-none fill-primary/10 stroke-primary/60" data-testid="layout-label-tabs">
+            <title>Label tab tops — place text on these shelves using the Label tabs surface</title>
+            {labelTabSurfaces(spec).map((surface, i) => <g key={i}>
+              <defs><clipPath id={`${sceneId}-tab-${i}`}><path d={ringToCanvasPath(surface.clip, spec)} /></clipPath></defs>
+              <path d={ringToCanvasPath(surface.ring, spec)} clipPath={`url(#${sceneId}-tab-${i})`}
+                strokeWidth={1} vectorEffect="non-scaling-stroke" data-testid="layout-label-tab" />
+            </g>)}
           </g>
           {/* 42 mm cell boundaries. */}
           {gridLines.map((line, index) => (
