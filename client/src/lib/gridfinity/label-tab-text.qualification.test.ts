@@ -91,12 +91,10 @@ describe("raised labels on slanted shelves", () => {
     });
   });
 
-  it("rejects floating, oversized, overlapping and missing-tab text, while preserving legacy floor placement", async () => {
+  it("rejects floating, oversized, overlapping and missing-tab text", async () => {
     const placed = placeSurfaceTextOnTab(reported, label);
     await withKernel(kernel => {
       const build = (surfaceTexts: typeof reported.surfaceTexts) => buildBinWithCutouts(kernel, { ...reported, surfaceTexts }, null, PREVIEW_QUALITY);
-      // Same position with the old floor-only behavior intersects the slanted support.
-      expect(() => build([{ ...placed, surface: undefined }])).toThrow();
       expect(() => build([{ ...placed, position: { x: 100, y: 100 } }])).toThrow("must fit on a label tab");
       expect(() => build([{ ...placed, sizeMm: 40 }])).toThrow("must fit on a label tab");
       expect(() => build([placed, { ...placed, id: "duplicate" }])).toThrow("overlaps");
@@ -144,12 +142,33 @@ describe("raised labels on slanted shelves", () => {
     });
   });
 
-  it.each(["none", "solid"] as const)("allows supported text on the original %s surface of a slanted bin", async fill => {
-    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 5, fill, lip: "none", wallSlant: { axis: "y", angleDeg: 30 }, surfaceTexts: [label] });
+  it("allows supported text on the solid fill of a slanted bin", async () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 5, fill: "solid", lip: "none", wallSlant: { axis: "y", angleDeg: 30 }, surfaceTexts: [label] });
     await withKernel(kernel => {
       const result = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY);
-      expect(result.textParts[0].z).toBe(fill === "none" ? 7 : 35);
+      expect(result.textParts[0].z).toBe(35);
       expectClosedStl(extractPrintableMeshData(kernel, result.solid));
+    });
+  });
+
+  it.each([undefined, "bin"] as const)("builds the reported M1 label at tab height with legacy surface %s", async surface => {
+    const original = surfaceTextSchema.parse({ id: "reported", text: "M1 4x6.5", font: "helvetiker", sizeMm: 2,
+      symbol: "pan-screw", symbolSizeMm: 3.5, symbolRotationDeg: 45, rotationDeg: -180,
+      position: { x: 27.055917407145827, y: 27.305240547813284 }, surface });
+    const spec = parseBinSpec({ ...reported, surfaceTexts: [original] });
+    expect(spec.surfaceTexts).toEqual([{ ...original, surface: "label-tab" }]);
+    await withKernel(kernel => {
+      const result = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY);
+      expect(result.textParts[0].z).toBe(38.5);
+      expect(result.solid.decompose().map(part => kernel.arena.track(part)).filter(part => part.volume() > 1e-6)).toHaveLength(1);
+      expectClosedStl(extractPrintableMeshData(kernel, result.solid));
+    });
+  });
+
+  it("requires label tabs for hollow-bin text even if it would fit on the floor", async () => {
+    const spec = parseBinSpec({ ...reported, labelTab: null, surfaceTexts: [label] });
+    await withKernel(kernel => {
+      expect(() => buildBinWithCutouts(kernel, spec, null, PREVIEW_QUALITY)).toThrow("Enable label tabs in Construction");
     });
   });
 });

@@ -4,7 +4,7 @@ import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/proj
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { labelTabSurfaces, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
 import { validateBinSpec } from "@shared/gridfinity/validate";
-import { BASE_HEIGHT, binHeightMm } from "@shared/gridfinity/standard";
+import { binHeightMm } from "@shared/gridfinity/standard";
 import { placeSurfaceTextOnTab, surfaceTextZ } from "./surface-text";
 
 const label = surfaceTextSchema.parse({ id: "first", text: "M3", font: "helvetiker", position: { x: 0, y: 0 } });
@@ -27,7 +27,7 @@ describe("label-tab text placement", () => {
     }
     expect(new Set(spec.surfaceTexts.map(text => JSON.stringify(text.position))).size).toBe(6);
     const extra = { ...label, id: "extra" };
-    expect(placeSurfaceTextOnTab(spec, extra)).toEqual(extra);
+    expect(placeSurfaceTextOnTab(spec, extra)).toEqual({ ...extra, surface: "label-tab" });
     expect(validateBinSpec(spec).issues.filter(issue => issue.severity === "error")).toEqual([]);
   });
 
@@ -40,20 +40,27 @@ describe("label-tab text placement", () => {
     expect(pointOnLabelTab(placed.position, labelTabSurfaces(spec)[0])).toBe(true);
   });
 
-  it("preserves legacy floor placement and round-trips explicit targets through saved history", () => {
+  it.each([54, 55])("retargets version %i hollow labels and history without changing their design", schemaVersion => {
     const legacy = { spec: { ...bin, surfaceTexts: [label] }, cutouts: [], fingerHoles: [] };
-    const migrated = parseProjectDoc({ schemaVersion: 54, ...legacy, shapes: [] })!;
+    const explicit = { ...legacy, spec: { ...bin, surfaceTexts: [{ ...label, surface: "bin" as const }] } };
+    const migrated = parseProjectDoc({ schemaVersion, ...explicit, shapes: [], history: { index: 1, stack: [
+      { doc: legacy, label: "Add text" }, { doc: explicit, label: "Choose surface" },
+    ] } })!;
     expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
-    expect(migrated.spec.surfaceTexts).toEqual([label]);
-    expect(surfaceTextZ(bin, label)).toBe(BASE_HEIGHT);
-    const placed = placeSurfaceTextOnTab(bin, label);
-    const current = { ...legacy, spec: { ...bin, surfaceTexts: [placed] } };
-    const saved = { ...migrated, ...current, history: { index: 1, stack: [
-      { doc: legacy, label: "Floor label" }, { doc: current, label: "Tab label" },
-    ] } };
-    expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
-    expect(surfaceTextZ(bin, { ...placed, surface: "bin" })).toBe(BASE_HEIGHT);
-    expect(surfaceTextZ(bin, placed)).toBe(binHeightMm(bin.heightUnits));
+    expect(migrated.spec.surfaceTexts).toEqual([{ ...label, surface: "label-tab" }]);
+    for (const entry of migrated.history!.stack) expect(entry.doc.spec.surfaceTexts).toEqual(migrated.spec.surfaceTexts);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(migrated)))).toEqual(migrated);
+    expect(surfaceTextZ(bin, label)).toBe(binHeightMm(bin.heightUnits));
+    expect(surfaceTextZ(bin, { ...label, surface: "bin" })).toBe(binHeightMm(bin.heightUnits));
+  });
+
+  it("keeps solid-fill targets and uses label tabs even when no shelf fits a new hollow-bin label", () => {
+    for (const surface of [undefined, "bin", "label-tab"] as const) {
+      const original = { ...label, surface };
+      expect(parseBinSpec({ ...bin, fill: "solid", surfaceTexts: [original] }).surfaceTexts).toEqual([original]);
+    }
+    expect(placeSurfaceTextOnTab({ ...bin, labelTab: null }, label)).toEqual({ ...label, surface: "label-tab" });
+    expect(placeSurfaceTextOnTab(bin, { ...label, text: "M".repeat(120) })).toEqual({ ...label, text: "M".repeat(120), surface: "label-tab" });
   });
 
   it("does not offer shelf tops above a closed wedge or silently change a requested target", () => {
