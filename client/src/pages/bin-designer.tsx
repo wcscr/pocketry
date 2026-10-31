@@ -254,6 +254,10 @@ function BinDesignerWorkspace(): JSX.Element {
       setSettingsSectionRequest(settings);
       return;
     }
+    if (issue.surfaceTextIds?.length) {
+      editSurfaceText(issue.surfaceTextIds[0]);
+      return;
+    }
     if (issue.cutoutIds?.length) {
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
@@ -544,7 +548,8 @@ function BinDesignerWorkspace(): JSX.Element {
   // Pure and worker validation can both report the same invalid insertion.
   const issues = [...layoutIssues, ...solidIssues.filter(issue => !layoutIssues.some(local =>
     local.code === issue.code && local.message === issue.message && local.severity === issue.severity
-    && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)))];
+    && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)
+    && JSON.stringify(local.surfaceTextIds) === JSON.stringify(issue.surfaceTextIds)))];
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
     return shape ? [{ cutout, shape }] : [];
@@ -1356,6 +1361,7 @@ function BinDesignerWorkspace(): JSX.Element {
             issues={issues.filter(issue => issue.code !== "pocket-depth-needed")}
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
+            selectedSurfaceTextId={bin.selectedSurfaceTextId}
             onRevealIssue={revealIssue}
             onAutoArrange={![...cutouts, ...fingerHoles].some(object => object.placementGroup) && cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
             fixedBinSize={fixedBinSize}

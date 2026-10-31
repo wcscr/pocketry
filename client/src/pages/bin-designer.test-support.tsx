@@ -129,6 +129,7 @@ vi.mock("@/lib/export/layout", async original => ({
 }));
 
 const binGeometryMock = vi.hoisted(() => ({
+  validationIssues: [] as import("@shared/gridfinity/validate").ValidationIssue[],
   building: false,
   statsAreStale: false,
   previewIsDraft: false,
@@ -156,6 +157,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     previewIsDraft: binGeometryMock.previewIsDraft,
     statsAreStale: binGeometryMock.statsAreStale,
     cutoutReports: [],
+    validationIssues: binGeometryMock.validationIssues,
     building: binGeometryMock.building,
     progress: binGeometryMock.progress,
     error: binGeometryMock.error,
@@ -292,6 +294,7 @@ beforeEach(() => {
   binGeometryMock.statsAreStale = false;
   vi.clearAllMocks();
   projectSaveMock.onSaved = undefined;
+  binGeometryMock.validationIssues = [];
   binGeometryMock.building = false;
   binGeometryMock.progress = 1;
   binGeometryMock.error = null;

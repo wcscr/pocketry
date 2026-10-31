@@ -31,6 +31,34 @@ describe("BinDesignerPage", () => {
   it.each([
     { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
     { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
+  ])("opens the affected label from a thin-stroke warning without changing the design: %o", async ({ layout, mobile }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    const label = surfaceTextSchema.parse({ id: "fine-label", text: "M4 nut", font: "helvetiker", sizeMm: 2, position: { x: 0, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [label] }),
+    });
+    binGeometryMock.validationIssues = [{ code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: [label.id], message: "Fine detail may disappear at 0.42 mm line width." }];
+    const { container, unmount } = renderPage({ mobile, experimental: false });
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
+      const action = container.querySelector<HTMLButtonElement>('[data-issue-code="surface-text-thin-strokes"]')!;
+      expect(action.textContent).toContain("Edit text or symbol");
+      React.act(() => action.click());
+      if (mobile) openMobileProperties();
+      const size = document.querySelector<HTMLInputElement>('[aria-label="Text size (mm)"]')!;
+      expect(size.value).toBe("2");
+      expect(size.closest("[hidden]")).toBeNull();
+      expect(action.dataset.selected).toBe("true");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts).toEqual([label]);
+      expect(binHistoryButton(container, "undo").disabled).toBe(true);
+    } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it.each([
+    { layout: "standard", mobile: false }, { layout: "workflow", mobile: false },
+    { layout: "standard", mobile: true }, { layout: "workflow", mobile: true },
   ])("adds text to each slanted shelf and preserves surface selection through undo: %o", async ({ layout, mobile }) => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);

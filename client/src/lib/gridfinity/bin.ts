@@ -455,6 +455,7 @@ export function buildBinWithCutouts(
 
   const bodySolid = solid;
   const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
+  for (const part of textParts) if (part.printabilityIssue) validationIssues.push(part.printabilityIssue);
   if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
   if (layout) validationIssues.push(...validateInsertionPaths(kernel, solid, insertionPaths, layout.cutouts, layout.shapesById,
     textParts.map(part => part.solid)));
