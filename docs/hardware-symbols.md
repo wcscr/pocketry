@@ -14,7 +14,9 @@ tab text stays recoverable and export explains which surface needs restoring.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised
-height, position, and text color. Bolts and screws start upright, with the
+height, position, and text color. New raised lettering defaults to 0.5 mm,
+matching the default label-tab recess so its top finishes flush with walls and
+dividers. Existing saved heights are preserved. Bolts and screws start upright, with the
 head at the top. **Symbol rotation** turns just the symbol; **Label rotation** turns the
 whole label. The chosen symbol angle is retained when switching symbols or
 selecting None. Fonts affect only the text.

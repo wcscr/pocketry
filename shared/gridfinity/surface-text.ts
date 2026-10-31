@@ -32,7 +32,8 @@ const surfaceTextFields = z.object({
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
   /** Font em size; glyph height depends on the characters. */
   sizeMm: z.number().finite().min(2).max(40).default(6),
-  heightMm: z.number().finite().min(0.2).max(5).default(0.8),
+  /** Raised lettering depth; matches the default shelf recess for flush tops. */
+  heightMm: z.number().finite().min(0.2).max(5).default(0.5),
   rotationDeg: z.number().finite().min(-180).max(180).default(0),
 }).strict();
 

@@ -32,11 +32,13 @@ the same geometry builder. Existing pocket/finger cuts still remove material
 from the finished bin. Label tabs can stay on the selected outer wall or repeat on each sub-bin.
 The Label tab switch enables a full-width tab; its collapsed disclosure groups
 Recess, Style, Apply to, and On wall. Recess accepts 0–10 mm and defaults to
-0.4 mm for newly enabled tabs; zero is flush. Outer tabs use the wall top as
+0.5 mm for newly enabled tabs; zero is flush. Outer tabs use the wall top as
 their reference, repeated tabs use the divider top, with or without a stacking
 lip. Wall/divider heights stay unchanged. Text follows the shelf vertically and
-keeps its offset from the shelf centre on slanted bins; text size and extrusion
-height stay unchanged, so raised text can still extend above the walls. Shallow
+keeps its offset from the shelf centre on slanted bins. New lettering defaults
+to 0.5 mm extrusion, matching the recess so its top is flush with the walls.
+Text size is independent. Saved extrusion heights stay unchanged; taller
+lettering can extend above the walls. Shallow
 tabs reduce depth to retain support; a recess that leaves no room above the floor
 blocks export. Schema 56 retains this setting in projects and undo history;
 older saved designs without a recess remain flush.

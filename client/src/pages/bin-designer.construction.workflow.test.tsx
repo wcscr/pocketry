@@ -1418,9 +1418,9 @@ it.each(["standard", "workflow"])("defaults tabs opposite scoops and retains man
     expect(labelSettings()!.hidden).toBe(false);
     expect(current()).toBe(beforeDisclosure);
     choose("Label tab style", "Full width");
-    expect(current().labelTab).toMatchObject({ autoWall: true, wall: "north", recessMm: 0.4 });
+    expect(current().labelTab).toMatchObject({ autoWall: true, wall: "north", recessMm: 0.5 });
     const recess = () => container.querySelector<HTMLInputElement>('[aria-label="Label tab recess in millimetres"]')!;
-    expect(recess().value).toBe("0.4");
+    expect(recess().value).toBe("0.5");
     const enterRecess = (value: string) => {
       React.act(() => {
         recess().focus();
@@ -1432,7 +1432,7 @@ it.each(["standard", "workflow"])("defaults tabs opposite scoops and retains man
     enterRecess("0.8");
     expect(current().labelTab!.recessMm).toBe(0.8);
     clickBinHistory(container, "undo");
-    expect(recess().value).toBe("0.4");
+    expect(recess().value).toBe("0.5");
     clickBinHistory(container, "redo");
     expect(recess().value).toBe("0.8");
     enterRecess("0");
