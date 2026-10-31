@@ -2,7 +2,7 @@ import type { Point, Ring } from "../geometry/types";
 import { pointInRing, ringBounds, signedArea } from "../geometry/rings";
 import { compartmentHeightMm, compartmentLabelTabPlacements } from "./compartments";
 import { edgeForWall, footprintInteriorRingMm, footprintOuterRingMm, resolveBoundaryRun } from "./footprint";
-import { boundaryLabelTabProfileMm, labelTabRecessMm } from "./label-tab";
+import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimWidthMm } from "./label-tab";
 import { BASE_HEIGHT, binHeightMm, D_WALL, TAB_WIDTH_NOMINAL_MM } from "./standard";
 import type { BinSpec } from "./types";
 import { wallSlantHeightMm, wallSlantOutlineMm } from "./wall-slant";
@@ -51,6 +51,7 @@ export function labelTabSurfaces(spec: BinSpec): LabelTabSurface[] {
   }
   const clip = wallSlantOutlineMm(spec, compartments ? footprintOuterRingMm(spec) : footprintInteriorRingMm(spec), z);
   return placements.flatMap(({ x, y, start, length, depth, rotation }) => {
+    depth -= labelTabFrontRimWidthMm(spec, depth);
     const angle = rotation * Math.PI / 180;
     const ring = wallSlantOutlineMm(spec, [
       { x: start, y: 0 }, { x: start + length, y: 0 },

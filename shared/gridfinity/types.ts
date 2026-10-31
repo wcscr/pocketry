@@ -139,6 +139,8 @@ export const binSpecSchema = z
         scope: z.enum(["outer", "compartments"]).optional(),
         /** Distance below the mounting wall/divider top; absent preserves legacy flush tabs. */
         recessMm: z.number().finite().min(0).max(10).optional(),
+        /** Raise the free edge to the mounting top; absent preserves older open shelves. */
+        frontRim: z.boolean().optional(),
         /** Exact boundary anchor for an irregular footprint; null keeps wall-based rectangle behavior. */
         edge: boundaryEdgeSchema.nullable().default(null),
         width: z.enum(["full", "center", "left", "right"]).default("full"),

@@ -11,6 +11,7 @@ import {
   TAB_SUPPORT_ANGLE_DEG,
   TAB_SUPPORT_HEIGHT_MM,
   binWallHeightMm,
+  binWallThicknessMm,
 } from "./standard";
 
 interface LabelTabProfile {
@@ -26,6 +27,26 @@ export const DEFAULT_LABEL_TAB_RECESS_MM = 0.5;
 /** Missing values belong to saved designs made before recess was configurable. */
 export function labelTabRecessMm(spec: Pick<BinSpec, "labelTab">): number {
   return spec.labelTab?.recessMm ?? 0;
+}
+
+/** The front edge finishes at the mounting wall/divider height. */
+export function labelTabFrontRimHeightMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.frontRim ? labelTabRecessMm(spec) : 0;
+}
+
+export function labelTabFrontRimWidthMm(spec: BinSpec, depthMm: number): number {
+  return labelTabFrontRimHeightMm(spec) > 0 ? Math.min(binWallThicknessMm(spec), depthMm) : 0;
+}
+
+/** Add the rim after support correction; heightMm still locates the shelf top. */
+export function labelTabProfileWithFrontRim(spec: BinSpec, profile: LabelTabProfile): [number, number][] {
+  const width = labelTabFrontRimWidthMm(spec, profile.depthMm);
+  if (width === 0) return profile.points;
+  const { depthMm: d, heightMm: h } = profile;
+  return [...profile.points.slice(0, 2),
+    ...(width < d ? [[d - width, h] as [number, number]] : []),
+    [d - width, h + labelTabFrontRimHeightMm(spec)], [d, h + labelTabFrontRimHeightMm(spec)],
+    ...profile.points.slice(3)];
 }
 
 /** Place tabs above the acute floor-to-wall angle, opposite the scoops. */

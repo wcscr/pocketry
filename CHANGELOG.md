@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a front rim to new label tabs by default, level with the mounting wall/divider. It follows the recess and wall thickness, can be switched off, and reserves its space when placing labels. Saved shelves retain their existing shape.
+
 - Add configurable label-tab recess, defaulting new tabs and raised lettering to 0.5 mm each so lettering finishes flush with walls/dividers. Labels follow recessed shelves; saved designs retain their settings.
 
 - Restrict hollow-bin text to label tabs. Retarget older labels without moving or resizing them, and explain when label tabs need to be enabled.

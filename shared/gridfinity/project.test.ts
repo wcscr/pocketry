@@ -49,6 +49,15 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([undefined, false, true])("preserves front rims (%s) through migration, saving and undo history", frontRim => {
+    const spec = { ...VALID.spec, labelTab: { wall: "north", width: "full", recessMm: 0.5, frontRim } };
+    const parsed = parseProjectDoc({ ...VALID, schemaVersion: frontRim === undefined ? 56 : PROJECT_SCHEMA_VERSION,
+      spec, cutouts: [], history: { index: 0, stack: [{ label: "Front rim", doc: { spec, cutouts: [], fingerHoles: [] } }] } })!;
+    expect(parsed).not.toBeNull();
+    expect(parsed.spec.labelTab!.frontRim).toBe(frontRim);
+    expect(parsed.history!.stack[0].doc.spec.labelTab!.frontRim).toBe(frontRim);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(parsed))))).toEqual(parsed);
+  });
   it.each([undefined, 0, 0.4, 1.2])("preserves label-tab recess (%s) through saving and undo history", recessMm => {
     const spec = { ...VALID.spec, labelTab: { wall: "north", width: "full", recessMm } };
     const doc = { ...VALID, schemaVersion: recessMm === undefined ? 55 : PROJECT_SCHEMA_VERSION, spec, cutouts: [],

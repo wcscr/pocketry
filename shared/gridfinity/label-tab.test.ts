@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultLabelTabWall, labelTabProfileMm, labelTabRecessMm } from "./label-tab";
+import { defaultLabelTabWall, labelTabProfileMm, labelTabRecessMm, labelTabFrontRimWidthMm, labelTabProfileWithFrontRim } from "./label-tab";
 import { compartmentLayout } from "./compartments";
 import { parseBinSpec } from "./types";
 import { labelTabTopZ, labelTabSurfaces, moveTextsWithLabelTabRecess } from "./label-tab-surfaces";
@@ -8,6 +8,21 @@ import { ringBounds } from "../geometry/rings";
 import { surfaceTextSchema } from "./surface-text";
 
 describe("label tab defaults", () => {
+  it("reserves the rim width without changing the support profile or older shelves", () => {
+    const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", lip: "none", wallThicknessMm: 1.6,
+      labelTab: { wall: "north", recessMm: 0.5 } });
+    const profile = labelTabProfileMm(spec)!;
+    expect(labelTabProfileWithFrontRim(spec, profile)).toEqual(profile.points);
+    const rimmed = parseBinSpec({ ...spec, labelTab: { ...spec.labelTab, frontRim: true } });
+    expect(labelTabFrontRimWidthMm(rimmed, profile.depthMm)).toBe(1.6);
+    expect(labelTabProfileWithFrontRim(rimmed, profile).slice(5)).toEqual(profile.points.slice(3));
+    const before = ringBounds(labelTabSurfaces(spec)[0].ring)!, after = ringBounds(labelTabSurfaces(rimmed)[0].ring)!;
+    expect(after.minY - before.minY).toBeCloseTo(1.6);
+    expect(after.maxY).toBe(before.maxY);
+    const flush = parseBinSpec({ ...rimmed, labelTab: { ...rimmed.labelTab, recessMm: 0 } });
+    expect(labelTabFrontRimWidthMm(flush, profile.depthMm)).toBe(0);
+    expect(labelTabSurfaces(parseBinSpec({ ...rimmed, heightUnits: 2, labelTab: { ...rimmed.labelTab, recessMm: 5.7 } }))).toEqual([]);
+  });
   it.each(["outer", "compartments"] as const)("recesses %s shelves from their mounting top", scope => {
     for (const lip of ["none", "standard"] as const) {
       const original = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", lip, labelTab: { scope } });
