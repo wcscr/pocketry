@@ -1,6 +1,6 @@
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
-import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
+import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm } from "@shared/gridfinity/label-tab";
 import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
 import { effectiveBottomFilletRadiusMm } from "@shared/gridfinity/bottom-fillet";
 import { FeatureSettings } from "./feature-settings";
@@ -1965,13 +1965,23 @@ export function BinControlsPanel({
             description="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops."
             checked={spec.labelTab !== null}
             onChange={enabled => {
-              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full" } : null });
+              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full", recessMm: DEFAULT_LABEL_TAB_RECESS_MM } : null });
               if (!enabled && editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
             }}
             settingsLabel="Label tab settings" testId="label-tab-settings"
             summary={spec.labelTab ? { full: "Full", center: "Center", left: "Left", right: "Right" }[spec.labelTab.width] : ""}>
             {spec.labelTab && (
               <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <SettingLabel label="Recess" htmlFor="bin-label-tab-recess" hint="Lower the shelf below its wall or divider top. New tabs use 0.4 mm; 0 keeps it flush. Raised text sits on the shelf and may extend above the wall." />
+                  <div className="flex items-center gap-1.5">
+                    <DraftNumberInput id="bin-label-tab-recess" className="h-8 w-20" aria-label="Label tab recess in millimetres"
+                      value={labelTabRecessMm(spec)} min={0} max={10} step={0.1}
+                      onValueChange={recessMm => patchSpec({ labelTab: { ...spec.labelTab!, recessMm } }, true)}
+                      onValueCommit={recessMm => patchSpec({ labelTab: { ...spec.labelTab!, recessMm } })} />
+                    <span className="text-xs text-muted-foreground">mm</span>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-28 shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
                   <Select value={spec.labelTab.width}

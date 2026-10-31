@@ -1,16 +1,17 @@
 import type { Point, Ring } from "../geometry/types";
-import { pointInRing, signedArea } from "../geometry/rings";
+import { pointInRing, ringBounds, signedArea } from "../geometry/rings";
 import { compartmentHeightMm, compartmentLabelTabPlacements } from "./compartments";
 import { edgeForWall, footprintInteriorRingMm, footprintOuterRingMm, resolveBoundaryRun } from "./footprint";
-import { boundaryLabelTabProfileMm } from "./label-tab";
+import { boundaryLabelTabProfileMm, labelTabRecessMm } from "./label-tab";
 import { BASE_HEIGHT, binHeightMm, D_WALL, TAB_WIDTH_NOMINAL_MM } from "./standard";
 import type { BinSpec } from "./types";
 import { wallSlantHeightMm, wallSlantOutlineMm } from "./wall-slant";
+import { surfaceTextSurface } from "./surface-text";
 
 /** Shelf tops remain horizontal when the walls lean. */
 export function labelTabTopZ(spec: BinSpec): number {
-  return spec.labelTab?.scope === "compartments" && spec.fill === "none"
-    ? BASE_HEIGHT + compartmentHeightMm(spec) : binHeightMm(spec.heightUnits);
+  return (spec.labelTab?.scope === "compartments" && spec.fill === "none"
+    ? BASE_HEIGHT + compartmentHeightMm(spec) : binHeightMm(spec.heightUnits)) - labelTabRecessMm(spec);
 }
 
 export interface LabelTabSurface {
@@ -62,4 +63,23 @@ export function labelTabSurfaces(spec: BinSpec): LabelTabSurface[] {
 
 export function pointOnLabelTab(point: Point, surface: LabelTabSurface): boolean {
   return pointInRing(surface.ring, point) && pointInRing(surface.clip, point);
+}
+
+/** Keep each label's offset from its shelf centre when a recess edit shifts
+ * slanted shelves in XY. Text remains rigid, at its authored size and rotation. */
+export function moveTextsWithLabelTabRecess(previous: BinSpec, next: BinSpec): BinSpec["surfaceTexts"] {
+  if (labelTabRecessMm(previous) === labelTabRecessMm(next) || !previous.labelTab || !next.labelTab) return next.surfaceTexts;
+  const before = labelTabSurfaces(previous), after = labelTabSurfaces(next);
+  if (before.length !== after.length) return next.surfaceTexts;
+  return next.surfaceTexts.map(label => {
+    if (surfaceTextSurface(previous, label) !== "label-tab") return label;
+    const index = before.findIndex(surface => pointOnLabelTab(label.position, surface));
+    if (index < 0) return label;
+    const a = ringBounds(before[index].ring), b = ringBounds(after[index].ring);
+    if (!a || !b) return label;
+    return { ...label, position: {
+      x: label.position.x + (b.minX + b.maxX - a.minX - a.maxX) / 2,
+      y: label.position.y + (b.minY + b.maxY - a.minY - a.maxY) / 2,
+    } };
+  });
 }

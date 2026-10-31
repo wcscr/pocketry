@@ -21,6 +21,13 @@ interface LabelTabProfile {
   supportLimited?: boolean;
 }
 
+export const DEFAULT_LABEL_TAB_RECESS_MM = 0.4;
+
+/** Missing values belong to saved designs made before recess was configurable. */
+export function labelTabRecessMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.recessMm ?? 0;
+}
+
 /** Place tabs above the acute floor-to-wall angle, opposite the scoops. */
 export function defaultLabelTabWall(spec: Pick<BinSpec, "wallSlant">): NonNullable<BinSpec["labelTab"]>["wall"] {
   const slant = spec.wallSlant;
@@ -30,10 +37,14 @@ export function defaultLabelTabWall(spec: Pick<BinSpec, "wallSlant">): NonNullab
     : slant.angleDeg > 0 ? "south" : "north";
 }
 
-/** Keep a slanted tab's 36-degree underside above the fixed Gridfinity base. */
-export function labelTabProfileMm(spec: Pick<BinSpec, "heightUnits" | "wallSlant">): LabelTabProfile | null {
-  const availableHeightMm = binWallHeightMm(spec.heightUnits);
-  if (!spec.wallSlant || availableHeightMm >= TAB_HEIGHT_MM) {
+/** Keep slanted or recessed tabs' 36-degree undersides above the fixed base.
+ * Legacy flush upright tabs retain their original truncated profile. */
+export function labelTabProfileMm(spec: Pick<BinSpec, "heightUnits" | "wallSlant" | "labelTab">,
+  mountingHeightMm = binWallHeightMm(spec.heightUnits)): LabelTabProfile | null {
+  const recess = labelTabRecessMm(spec);
+  const availableHeightMm = mountingHeightMm - recess;
+  if (recess > 0 && availableHeightMm <= TAB_SUPPORT_HEIGHT_MM) return null;
+  if ((!spec.wallSlant && recess === 0) || availableHeightMm >= TAB_HEIGHT_MM) {
     return { depthMm: TAB_DEPTH_MM, heightMm: TAB_HEIGHT_MM,
       points: TAB_PROFILE.map(([depth, height]) => [depth, height]) };
   }
@@ -108,5 +119,5 @@ export function boundaryLabelTabProfileMm(spec: BinSpec): LabelTabProfile | null
   const axis = edge.side === "north" || edge.side === "south" ? "y" : "x";
   origin[axis] += edge.side === "south" || edge.side === "west" ? D_WALL : -D_WALL;
   return supportedLabelTabProfileMm(spec, profile, edge.side, origin, profile.depthMm,
-    BASE_HEIGHT + binWallHeightMm(spec.heightUnits));
+    BASE_HEIGHT + binWallHeightMm(spec.heightUnits) - labelTabRecessMm(spec));
 }

@@ -36,8 +36,8 @@ function expectClosedStl(mesh: MeshData) {
 }
 
 describe("raised labels on slanted shelves", () => {
-  it("exports six metric labels attached to the reported bin, with separate colored 3MF parts", async () => {
-    const spec = { ...reported, surfaceTexts: [...reported.surfaceTexts] };
+  it.each([0, 0.4])("exports six metric labels with %s mm recess and separate colored 3MF parts", async recessMm => {
+    const spec = { ...reported, labelTab: { ...reported.labelTab!, recessMm }, surfaceTexts: [...reported.surfaceTexts] };
     for (let i = 0; i < 6; i++) spec.surfaceTexts.push(placeSurfaceTextOnTab(spec, { ...label, id: String(i), text: `M${i + 2}` }));
     await withKernel(kernel => {
       const result = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY,
@@ -46,8 +46,8 @@ describe("raised labels on slanted shelves", () => {
       expect(result.solid.status()).toBe("NoError");
       expect(result.solid.decompose().map(part => kernel.arena.track(part)).filter(part => part.volume() > 1e-6)).toHaveLength(1);
       for (const part of result.textParts) {
-        expect(part.z).toBe(38.5);
-        expect(part.solid.boundingBox().min[2]).toBeCloseTo(38.5, 6);
+        expect(part.z).toBeCloseTo(38.5 - recessMm);
+        expect(part.solid.boundingBox().min[2]).toBeCloseTo(38.5 - recessMm, 6);
         expect(kernel.arena.track(part.solid.intersect(result.bodySolid)).volume()).toBeCloseTo(0, 6);
       }
       expectClosedStl(extractPrintableMeshData(kernel, result.solid));
@@ -58,7 +58,7 @@ describe("raised labels on slanted shelves", () => {
       ], { assemble: true }))["3D/3dmodel.model"]);
       expect(model.match(/<component /g)).toHaveLength(7);
       expect(model).toContain('name="Text: M3"');
-      expect(model).toContain('z="38.5"');
+      expect([...model.matchAll(/z="([^"]+)"/g)].some(match => Math.abs(Number(match[1]) - (38.5 - recessMm)) < 1e-4)).toBe(true);
       expect(model).toContain("#002244");
     });
   });

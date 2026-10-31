@@ -40,13 +40,13 @@ function expectClosedStl(mesh: MeshData) {
 }
 
 describe("label underside support after wall slant", () => {
-  it("keeps the Metric Screw Storage label undersides at 36 degrees in the exported STL", () => {
+  it.each([0, 0.4])("keeps the Metric Screw Storage label undersides at 36 degrees with %s mm recess", recessMm => {
     // Geometry from the reported print: six south-facing tabs, a 30-degree
     // lean and an 8 mm floor fillet. The old mesh had 27.1-degree undersides.
     const spec = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5.5, lip: "none", fill: "none",
       wallSlant: { axis: "y", angleDeg: 30 }, bottomFilletRadiusMm: 8,
       compartments: { enabled: true, rows: 2, columns: 3, dividerThicknessMm: 1.2 },
-      labelTab: { wall: "south", autoWall: true, scope: "compartments", width: "full" } });
+      labelTab: { wall: "south", autoWall: true, scope: "compartments", width: "full", recessMm } });
     const built = buildBin(kernel, spec, EXPORT_QUALITY), mesh = extractPrintableMeshData(kernel, built.solid);
     expect(built.solid.status()).toBe("NoError");
     expect(built.solid.decompose().map(p => arena.track(p)).filter(p => p.volume() > 1e-6)).toHaveLength(1);

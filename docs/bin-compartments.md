@@ -18,8 +18,9 @@ Upright scoops curve from each row's front wall (-Y) into its floor. Slanted
 bins automatically face scoops toward the obtuse angle: +X right, -X left,
 +Y back, -Y front. Their radius is half the hollow height, capped at half the
 clear compartment span along the scoop axis to preserve floor space.
-Dividers and repeated tabs stop 1.2 mm below the nominal rim with a stacking
-lip, matching Rebuilt's infill ceiling; flush bins use the nominal rim. Scoops and dividers
+Dividers stop 1.2 mm below the nominal rim with a stacking
+lip, matching Rebuilt's infill ceiling; flush bins use the nominal rim. Repeated
+label tabs sit below that divider height by their configured recess. Scoops and dividers
 follow the body's selected slant, including a single slanted wall and clipped
 closing wedges. Custom footprints clip the regular grid; missing cells can
 remove or split compartments. The layout view shows divider footprints at the
@@ -30,7 +31,16 @@ Earlier projects default to 1 by 1 with scoops off. Preview, STL, and 3MF share
 the same geometry builder. Existing pocket/finger cuts still remove material
 from the finished bin. Label tabs can stay on the selected outer wall or repeat on each sub-bin.
 The Label tab switch enables a full-width tab; its collapsed disclosure groups
-Style, Apply to, and On wall. Turning it off removes the tab and exits edge picking;
+Recess, Style, Apply to, and On wall. Recess accepts 0–10 mm and defaults to
+0.4 mm for newly enabled tabs; zero is flush. Outer tabs use the wall top as
+their reference, repeated tabs use the divider top, with or without a stacking
+lip. Wall/divider heights stay unchanged. Text follows the shelf vertically and
+keeps its offset from the shelf centre on slanted bins; text size and extrusion
+height stay unchanged, so raised text can still extend above the walls. Shallow
+tabs reduce depth to retain support; a recess that leaves no room above the floor
+blocks export. Schema 56 retains this setting in projects and undo history;
+older saved designs without a recess remain flush.
+Turning it off removes the tab and exits edge picking;
 undo restores the prior tab settings. New tabs use Auto:
 back for upright bins, or the edge above the acute angle for slanted bins
 (+X left, -X right, +Y front, -Y back), opposite the scoops. Auto follows slant
