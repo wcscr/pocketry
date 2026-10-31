@@ -1,6 +1,14 @@
 # Hardware symbols
 
 Choose **Add → Surface text**, then **Symbol** in the selected label's properties.
+
+With label tabs enabled, new text starts on the next empty shelf that fits it.
+**Surface → Label tabs** places text or symbols on the horizontal shelf tops,
+including slanted walls and compartment dividers. Layout shades those tops at
+their actual shifted positions. Use **Bin surface** for the floor or solid fill;
+existing saved labels keep that original placement. Changing a label's surface
+is undoable and saved with the project. If tabs are disabled or clipped away,
+tab text stays recoverable and export explains which surface needs restoring.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised

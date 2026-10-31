@@ -159,8 +159,6 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
       message: `The slanted wall meets the vertical wall before the requested height. The body is clipped to a support wedge (${wallSlantHeightMm(spec).toFixed(1)} mm tall). Features above the intersection are clipped.` });
     if (spec.lip === "standard") issues.push({ code: "slanted-wall-lip", severity: "error",
       message: "Slanted walls need a flush rim; turn off the stacking lip." });
-    if (spec.surfaceTexts.length) issues.push({ code: "slanted-wall-surface-text", severity: "error",
-      message: "Remove surface text before slanting the bin body." });
     if (wallHeight <= 0) issues.push({ code: "slanted-wall-height", severity: "error",
       message: "Increase bin height above 1u to slant its walls." });
   }

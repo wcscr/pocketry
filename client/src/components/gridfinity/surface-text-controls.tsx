@@ -18,6 +18,8 @@ import { SurfaceTextFontPicker } from "./surface-text-font-picker";
 import { SurfaceTextSymbolPicker } from "./surface-text-symbol-picker";
 import { useSurfaceTextWording } from "./use-surface-text-wording";
 import { useBin } from "@/state/bin-store";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { placeSurfaceTextOnTab } from "@/lib/gridfinity/surface-text";
 
 /** Label edits live in the bin spec, so persistence and undo use the existing document path. */
 export function SurfaceTextControls({ onPositionText }: { onPositionText: () => void }): JSX.Element {
@@ -109,6 +111,7 @@ function TextEditor({ label, index, onChange, onRemove }: {
   onRemove: () => void;
 }): JSX.Element {
   const id = useId();
+  const { spec } = useBin();
   const { draft, error, change, commit, changeSymbol } = useSurfaceTextWording(label);
   const numeric = (key: "sizeMm" | "symbolSizeMm" | "symbolGapMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg",
     name: string, unit: "mm" | "°", min: number, max: number, step: number, caption = name) =>
@@ -140,6 +143,19 @@ function TextEditor({ label, index, onChange, onRemove }: {
       {numeric("sizeMm", "Text size", "mm", 2, 40, 0.5, "Size")}
     </div>
     <div className="space-y-2" role="group" aria-label="Label placement and height">
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`${id}-surface`} className="shrink-0 text-xs">Surface</Label>
+        <Select value={label.surface ?? "bin"} onValueChange={(surface: "bin" | "label-tab") => {
+          onChange(surface === "label-tab" ? placeSurfaceTextOnTab(spec, { ...label, surface }) : { surface });
+        }}>
+          <SelectTrigger id={`${id}-surface`} aria-label="Text surface" className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="bin">Bin surface</SelectItem>
+            <SelectItem value="label-tab" disabled={!spec.labelTab && label.surface !== "label-tab"}>Label tabs</SelectItem>
+          </SelectContent>
+        </Select>
+        <HelpHint label="text surface">Bin surface places text on the floor or solid fill. Label tabs places it on the horizontal shelves, including with slanted walls. Drag text over a shelf in Layout.</HelpHint>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         {numeric("heightMm", "Raised height", "mm", 0.2, 5, 0.2, "Height")}
         {numeric("rotationDeg", "Label rotation", "°", -180, 180, 5)}

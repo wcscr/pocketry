@@ -98,6 +98,7 @@ vi.mock("@/components/gridfinity/bin-viewport", () => ({
       data-floor-label={floorColorLabel}
       data-rim-color={stackingRimColor}
       data-text-color={textColor}
+      data-text-editor-z={surfaceTextEditor?.z}
       data-measurement-splits={JSON.stringify(measurementSplitBoundaries)}
     >
       {pocketEditor && <SelectionToolButtons count={surfaceTextEditor ? 1 : pocketEditor.selection?.length ?? 0} onActivate={() => {}} />}

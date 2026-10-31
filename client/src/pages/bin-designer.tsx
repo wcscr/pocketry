@@ -1380,7 +1380,8 @@ function BinDesignerWorkspace(): JSX.Element {
                 tool: bin.textTool, snap: bin.textSnap,
                 onToolChange: tool => dispatch({ type: "SET_TEXT_TOOL", tool }),
                 onSnapChange: snap => dispatch({ type: "SET_TEXT_SNAP", snap }),
-                label: spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId)!, z: surfaceTextZ(spec),
+                label: spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId)!,
+                z: surfaceTextZ(spec, spec.surfaceTexts.find(label => label.id === bin.selectedSurfaceTextId)!),
                 onCommit: (label, mode) => dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: spec.surfaceTexts.map(item => item.id === label.id ? label : item) }, historyLabel: `${mode === "translate" ? "Move" : "Rotate"} surface text in 3D` }),
               } : undefined}
               textColor={spec.textColor ?? edgeBandColor}

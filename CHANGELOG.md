@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Place raised text and hardware symbols on label tabs, including slanted compartment bins. Show shelf tops in Layout and start new text on the next empty tab; preserve existing labels' surface choices through save and undo.
+
 - Add 18 GFLabel hardware symbols to surface labels, alone or before text, with compact settings and consistent inline labels, independent symbol size and rotation, adjustable text gap and preserved leading spaces, upright bolts and screws, saved history, STL/3MF export, and bundled BSD-3-Clause attribution and project links.
 
 - Preserve label-shelf underside support angles on slanted bins, including compartment labels and shallow supports that reach the floor.
