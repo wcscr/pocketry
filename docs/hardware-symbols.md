@@ -5,9 +5,11 @@ Choose **Add → Surface text**, then **Symbol** in the selected label's propert
 With label tabs enabled, new text starts on the next empty shelf that fits it.
 **Surface → Label tabs** places text or symbols on the horizontal shelf tops,
 including slanted walls and compartment dividers. Layout shades those tops at
-their actual shifted positions. Use **Bin surface** for the floor or solid fill;
-existing saved labels keep that original placement. Changing a label's surface
-is undoable and saved with the project. If tabs are disabled or clipped away,
+their actual shifted positions. Hollow bins use **Label tabs** exclusively;
+**Bin surface** is available only with solid fill. Opening an older hollow-bin
+project or removing solid fill retargets its labels to tab height without moving,
+rotating, or resizing them. Fill changes and their label updates undo together.
+If tabs are disabled or clipped away,
 tab text stays recoverable and export explains which surface needs restoring.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before

@@ -9,7 +9,7 @@ import { useSelectionInspector } from "./selection-inspector-context";
 import { useId, useState } from "react";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { Pencil, Trash2 } from "lucide-react";
-import { surfaceTextName, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { surfaceTextName, surfaceTextSurface, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,17 +145,18 @@ function TextEditor({ label, index, onChange, onRemove }: {
     <div className="space-y-2" role="group" aria-label="Label placement and height">
       <div className="flex items-center gap-2">
         <Label htmlFor={`${id}-surface`} className="shrink-0 text-xs">Surface</Label>
-        <Select value={label.surface ?? "bin"} onValueChange={(surface: "bin" | "label-tab") => {
+        <Select value={surfaceTextSurface(spec, label)} disabled={spec.fill === "none"} onValueChange={(surface: "bin" | "label-tab") => {
           onChange(surface === "label-tab" ? placeSurfaceTextOnTab(spec, { ...label, surface }) : { surface });
         }}>
           <SelectTrigger id={`${id}-surface`} aria-label="Text surface" className="h-8 min-w-0 flex-1 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="bin">Bin surface</SelectItem>
+            {spec.fill === "solid" && <SelectItem value="bin">Bin surface</SelectItem>}
             <SelectItem value="label-tab" disabled={!spec.labelTab && label.surface !== "label-tab"}>Label tabs</SelectItem>
           </SelectContent>
         </Select>
-        <HelpHint label="text surface">Bin surface places text on the floor or solid fill. Label tabs places it on the horizontal shelves, including with slanted walls. Drag text over a shelf in Layout.</HelpHint>
+        <HelpHint label="text surface">Hollow bins place text on label tabs. Bin surface is available with solid fill. Label tabs places text on the horizontal shelves, including with slanted walls. Drag text over a shelf in Layout.</HelpHint>
       </div>
+      {spec.fill === "none" && !spec.labelTab && <p className="text-xs text-muted-foreground">Enable label tabs in Construction to support this text.</p>}
       <div className="grid grid-cols-2 gap-3">
         {numeric("heightMm", "Raised height", "mm", 0.2, 5, 0.2, "Height")}
         {numeric("rotationDeg", "Label rotation", "°", -180, 180, 5)}

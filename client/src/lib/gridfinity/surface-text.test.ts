@@ -3,7 +3,6 @@ import { strFromU8, unzipSync } from "fflate";
 import { SURFACE_TEXT_FONTS, surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
-import { BASE_HEIGHT } from "@shared/gridfinity/standard";
 import { withKernel, loadManifold } from "@/lib/manifold/runtime";
 import { writeThreeMf } from "@/lib/mesh/threemf";
 import type { TransferableResult, HandlerContext } from "@/lib/worker/host";
@@ -60,12 +59,11 @@ describe("surface text", () => {
     });
   });
 
-  it.each([{ fill: "none" as const }, { fillHeightPercent: 50 }, { flatBottom: true }])("follows the actual surface: %j", async patch => {
+  it.each([{ fillHeightPercent: 50 }, { flatBottom: true }])("follows the actual solid-fill surface: %j", async patch => {
     await withKernel(kernel => {
       const altered = parseBinSpec({ ...spec, ...patch });
       const result = buildBinWithCutouts(kernel, altered, null, EXPORT_QUALITY);
       expect(result.textParts[0].z).toBeCloseTo(surfaceTextZ(altered), 6);
-      if (altered.fill === "none") expect(result.textParts[0].z).toBe(BASE_HEIGHT);
     });
   });
 

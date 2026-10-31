@@ -27,7 +27,7 @@ const surfaceTextFields = z.object({
   /** Gap before any leading text spaces; absent keeps the quarter-em spacing. */
   symbolGapMm: z.number().finite().min(0).max(40).optional(),
   position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
-  /** Absent preserves the original floor/infill placement of saved labels. */
+  /** Absent uses solid fill when available; hollow bins always use label tabs. */
   surface: z.enum(["bin", "label-tab"]).optional(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
   /** Font em size; glyph height depends on the characters. */
@@ -43,6 +43,11 @@ export const surfaceTextSchema = surfaceTextFields.refine(hasContent, contentErr
 export const surfaceTextWithLegacyColorSchema = surfaceTextFields.extend({ color: textColorSchema.optional() }).refine(hasContent, contentError);
 
 export type SurfaceText = z.infer<typeof surfaceTextSchema>;
+
+/** Hollow bins have no selectable fill surface, including for older saved labels. */
+export function surfaceTextSurface(spec: { fill: "none" | "solid" }, label?: Pick<SurfaceText, "surface">): "bin" | "label-tab" {
+  return spec.fill === "none" ? "label-tab" : label?.surface ?? "bin";
+}
 
 /** Retain the original spacing for labels without an explicit gap. */
 export function surfaceTextSymbolGap(label: SurfaceText): number {

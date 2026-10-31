@@ -68,11 +68,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>(`[data-testid="button-select-text-3d-${added[0].id}"]`)!.click());
       expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-text-editor-z")).toBe("38.5");
       if (mobile) openMobileProperties();
-      React.act(() => document.querySelector('[aria-label="Text surface"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Bin surface")!.click());
-      expect(current()[0].surface).toBe("bin");
-      expect(container.querySelector('[data-testid="bin-viewport-stub"]')!.getAttribute("data-text-editor-z")).toBe("7");
-      clickBinHistory(container, "undo");
+      expect(document.querySelector<HTMLButtonElement>('[aria-label="Text surface"]')!.disabled).toBe(true);
       expect(current()).toEqual(added);
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
   });

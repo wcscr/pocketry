@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_COMPARTMENTS_PER_AXIS } from "./compartments";
-import { surfaceTextWithLegacyColorSchema, textColorSchema } from "./surface-text";
+import { surfaceTextSurface, surfaceTextWithLegacyColorSchema, textColorSchema } from "./surface-text";
 import { withFontSourceValidationCache } from "./local-font";
 
 import {
@@ -150,7 +150,10 @@ export const binSpecSchema = z
     ...spec,
     // Unreleased per-label color projects migrate to their first chosen color.
     textColor: textColor !== undefined ? textColor : surfaceTexts.find(label => label.color !== undefined)?.color ?? null,
-    surfaceTexts: surfaceTexts.map(({ color: _legacyColor, ...label }) => label),
+    // Retarget hollow-bin labels without changing their authored placement or size.
+    // This also normalizes imported projects and every saved history entry.
+    surfaceTexts: surfaceTexts.map(({ color: _legacyColor, ...label }) => spec.fill === "none"
+      ? { ...label, surface: surfaceTextSurface(spec, label) } : label),
   }))
   .superRefine((spec, context) => {
     if (!spec.arbitrarySizeMm && (spec.heightUnits < 1 || Math.abs(spec.heightUnits * 2 - Math.round(spec.heightUnits * 2)) > 1e-7)) {

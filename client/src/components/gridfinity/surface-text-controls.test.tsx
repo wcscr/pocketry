@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import type { LocalFont } from "@shared/gridfinity/local-font";
 import { extendLocalFont } from "@/lib/gridfinity/local-font";
 import { SurfaceTextProperties } from "./surface-text-controls";
@@ -52,6 +53,47 @@ function mount(mode: "properties" | "inline", system = false) {
   cleanups.push(() => { React.act(() => root.unmount()); host.remove(); });
   return { getBin: () => bin, host, first, second, edit, change, select };
 }
+
+it("restricts hollow labels to tabs, preserves their design, and undoes the fill change as one edit", () => {
+  const { host, getBin, first, second } = mount("properties");
+  const surface = () => host.querySelector<HTMLButtonElement>('[aria-label="Text surface"]')!;
+  expect(surface().disabled).toBe(false);
+  expect(surface().textContent).toBe("Bin surface");
+  const historySize = getBin().history.stack.length;
+  React.act(() => getBin().dispatch({ type: "PATCH_SPEC", patch: { fill: "none" }, historyLabel: "Hollow bin" }));
+  const retargeted = [first, second].map(label => ({ ...label, surface: "label-tab" }));
+  expect(getBin().spec.surfaceTexts).toEqual(retargeted);
+  expect(surface().textContent).toBe("Label tabs");
+  expect(surface().disabled).toBe(true);
+  expect(host.textContent).toContain("Enable label tabs in Construction");
+  expect(getBin().history.stack).toHaveLength(historySize + 1);
+  const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+    shapes: [], spec: getBin().spec, cutouts: [], fingerHoles: [], history: getBin().history })))!;
+  expect(saved.spec.surfaceTexts).toEqual(retargeted);
+  expect(saved.history!.stack.at(-1)!.doc.spec.surfaceTexts).toEqual(retargeted);
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.fill).toBe("solid");
+  expect(getBin().spec.surfaceTexts).toEqual([first, second]);
+  expect(surface().disabled).toBe(false);
+  React.act(() => getBin().dispatch({ type: "REDO" }));
+  expect(getBin().spec.surfaceTexts).toEqual(retargeted);
+  expect(surface().disabled).toBe(true);
+  React.act(() => getBin().dispatch({ type: "PATCH_SPEC", patch: { labelTab: { wall: "south", width: "full", edge: null } } }));
+  expect(host.textContent).not.toContain("Enable label tabs in Construction");
+  expect(getBin().spec.surfaceTexts).toEqual(retargeted);
+});
+
+it("keeps both surface choices for solid fill and never restores a floor target while hollow", () => {
+  const { host, getBin, first } = mount("properties");
+  React.act(() => getBin().dispatch({ type: "PATCH_SPEC", patch: { labelTab: { wall: "south", width: "full", edge: null } } }));
+  React.act(() => host.querySelector('[aria-label="Text surface"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+  expect(options.map(option => option.textContent)).toEqual(["Bin surface", "Label tabs"]);
+  React.act(() => options.find(option => option.textContent === "Label tabs")!.click());
+  expect(getBin().spec.surfaceTexts[0].surface).toBe("label-tab");
+  React.act(() => getBin().dispatch({ type: "PATCH_SPEC", patch: { fill: "none", surfaceTexts: [{ ...first, surface: "bin" }] } }));
+  expect(getBin().spec.surfaceTexts).toEqual([{ ...first, surface: "label-tab" }]);
+});
 
 describe.each(["properties", "inline"] as const)("%s wording ownership", mode => {
   it("commits a valid draft when canvas selection unmounts the focused editor before blur", () => {

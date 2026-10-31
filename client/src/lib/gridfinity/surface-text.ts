@@ -5,12 +5,11 @@ import sansBold from "three/examples/fonts/droid/droid_sans_bold.typeface.json";
 import mono from "three/examples/fonts/droid/droid_sans_mono_regular.typeface.json";
 import helvetiker from "three/examples/fonts/helvetiker_regular.typeface.json";
 import helvetikerBold from "three/examples/fonts/helvetiker_bold.typeface.json";
-import { surfaceTextName, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
+import { surfaceTextName, surfaceTextSurface, surfaceTextSymbolGap, type SurfaceText } from "@shared/gridfinity/surface-text";
 import { hardwareSymbolOutline } from "@shared/gridfinity/hardware-symbols";
 import type { Outline, Ring } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
 import { infillTopZ } from "@shared/gridfinity/fill";
-import { BASE_HEIGHT } from "@shared/gridfinity/standard";
 import { labelTabSurfaces, labelTabTopZ, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
 import { normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
 import type { Kernel } from "@/lib/manifold/runtime";
@@ -22,8 +21,7 @@ const fonts = {
 };
 
 export function surfaceTextZ(spec: BinSpec, label?: SurfaceText): number {
-  if (label?.surface === "label-tab") return labelTabTopZ(spec);
-  return spec.fill === "none" ? BASE_HEIGHT : infillTopZ(spec);
+  return surfaceTextSurface(spec, label) === "label-tab" ? labelTabTopZ(spec) : infillTopZ(spec);
 }
 
 /** Start on the first free shelf that fits the wording, with a small edge margin.
@@ -31,7 +29,7 @@ export function surfaceTextZ(spec: BinSpec, label?: SurfaceText): number {
 export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): SurfaceText {
   const surfaces = labelTabSurfaces(spec);
   for (const surface of surfaces) {
-    if (spec.surfaceTexts.some(other => other.id !== label.id && other.surface === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
+    if (spec.surfaceTexts.some(other => other.id !== label.id && surfaceTextSurface(spec, other) === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
     const bounds = outlineBounds([{ outer: surface.ring, holes: [] }])!;
     const position = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
     if (!pointOnLabelTab(position, surface)) continue;
@@ -46,7 +44,7 @@ export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): Surfac
     if (fitted.symbolSizeMm !== undefined && fitted.symbolSizeMm < 2) continue;
     if (surfaceTextOutline(fitted).every(shape => shape.outer.every(point => pointOnLabelTab(point, surface)))) return fitted;
   }
-  return label;
+  return spec.fill === "none" ? { ...label, surface: "label-tab" } : label;
 }
 
 /** Same outlines serve the layout and Manifold extrusion; never silently replace glyphs. */
@@ -121,12 +119,15 @@ export function surfaceTextOutline(label: SurfaceText): Outline {
 export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold): { label: SurfaceText; solid: Manifold; z: number }[] {
   const { arena, CrossSection } = kernel;
   const supports = new Map<number, ReturnType<typeof body.slice>>();
-  const tabsAvailable = !spec.surfaceTexts.some(label => label.surface === "label-tab") || labelTabSurfaces(spec).length > 0;
+  const tabsAvailable = !spec.surfaceTexts.some(label => surfaceTextSurface(spec, label) === "label-tab") || labelTabSurfaces(spec).length > 0;
   const occupied: Manifold[] = [];
   return spec.surfaceTexts.map(label => {
     const z = surfaceTextZ(spec, label);
-    if (label.surface === "label-tab" && !tabsAvailable) {
-      throw new Error(`Text “${surfaceTextName(label)}” needs a label tab. Enable label tabs or change its Surface to Bin surface.`);
+    const onTab = surfaceTextSurface(spec, label) === "label-tab";
+    if (onTab && !tabsAvailable) {
+      throw new Error(`Text “${surfaceTextName(label)}” needs a label tab. ${spec.fill === "none"
+        ? "Enable label tabs in Construction. Hollow bins place text on label tabs."
+        : "Enable label tabs or change its Surface to Bin surface."}`);
     }
     let support = supports.get(z);
     if (!support) {
@@ -137,7 +138,7 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
     const section = arena.track(new CrossSection(rings.map(ring => ring.map(p => [p.x, p.y] as [number, number])), "NonZero"));
     const unsupported = arena.track(section.subtract(support));
     if (unsupported.area() > 0.001) {
-      throw new Error(label.surface === "label-tab"
+      throw new Error(onTab
         ? `Text “${surfaceTextName(label)}” must fit on a label tab, clear of openings. Move it onto a tab in Layout or reduce its size.`
         : `Text “${surfaceTextName(label)}” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size.`);
     }
@@ -149,7 +150,7 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
     // Rotating/warping a shelf can leave its cap a few floating-point units
     // below nominal Z. Seat the label against that actual cap, then subtract
     // the body so 3MF materials do not overlap and fused STL letters attach.
-    const solid = label.surface === "label-tab"
+    const solid = onTab
       ? arena.track(arena.track(arena.track(section.extrude(label.heightMm + 0.001)).translate([0, 0, z - 0.001])).subtract(body))
       : raised;
     if (solid.status() !== "NoError" || solid.isEmpty()) throw new Error(`Could not build text “${surfaceTextName(label)}”.`);
