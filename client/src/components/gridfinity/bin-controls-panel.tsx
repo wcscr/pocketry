@@ -1973,7 +1973,7 @@ export function BinControlsPanel({
             {spec.labelTab && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
-                  <SettingLabel label="Recess" htmlFor="bin-label-tab-recess" hint="Lower the shelf below its wall or divider top. New tabs use 0.4 mm; 0 keeps it flush. Raised text sits on the shelf and may extend above the wall." />
+                  <SettingLabel label="Recess" htmlFor="bin-label-tab-recess" hint="Lower the shelf below its wall or divider top. New tabs and raised lettering both default to 0.5 mm, so the lettering finishes flush with the wall. Use 0 for a flush shelf." />
                   <div className="flex items-center gap-1.5">
                     <DraftNumberInput id="bin-label-tab-recess" className="h-8 w-20" aria-label="Label tab recess in millimetres"
                       value={labelTabRecessMm(spec)} min={0} max={10} step={0.1}

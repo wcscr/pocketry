@@ -21,7 +21,7 @@ interface LabelTabProfile {
   supportLimited?: boolean;
 }
 
-export const DEFAULT_LABEL_TAB_RECESS_MM = 0.4;
+export const DEFAULT_LABEL_TAB_RECESS_MM = 0.5;
 
 /** Missing values belong to saved designs made before recess was configurable. */
 export function labelTabRecessMm(spec: Pick<BinSpec, "labelTab">): number {

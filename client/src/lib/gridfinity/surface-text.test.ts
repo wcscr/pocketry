@@ -16,6 +16,12 @@ const text = surfaceTextSchema.parse({ id: "text-1", text: "B8 & O", position: {
 const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", surfaceTexts: [text], textColor: "#ff6600" });
 
 describe("surface text", () => {
+  it("defaults raised lettering to 0.5 mm while preserving saved heights", () => {
+    expect(text.heightMm).toBe(0.5);
+    const previous = parseProjectDoc({ schemaVersion: 56, shapes: [], cutouts: [], fingerHoles: [],
+      spec: { ...spec, surfaceTexts: [{ ...text, heightMm: 0.8 }] } })!;
+    expect(previous.spec.surfaceTexts[0].heightMm).toBe(0.8);
+  });
   it("migrates v28 and round-trips independent label names through the document and history without changing geometry", () => {
     const oldDoc = { spec, cutouts: [], fingerHoles: [] };
     const named = { ...text, name: "Socket sizes" };
@@ -147,7 +153,7 @@ describe("surface text", () => {
     const coordinates = (mesh: typeof label, axis: number) => [...mesh.positions].filter((_, i) => i % 3 === axis);
     expect(Math.max(...coordinates(body, 2))).toBeCloseTo(21);
     expect(Math.min(...coordinates(label, 2))).toBeCloseTo(21);
-    expect(Math.max(...coordinates(label, 2))).toBeCloseTo(21.8);
+    expect(Math.max(...coordinates(label, 2))).toBeCloseTo(21.5);
     if (section) expect(Math.max(...coordinates(label, 0))).toBeLessThanOrEqual(0.00001);
     expect(label.normals).toBeNull();
     expect(transfer).toContain(label.positions.buffer);

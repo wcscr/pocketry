@@ -3,6 +3,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
+import { DEFAULT_LABEL_TAB_RECESS_MM } from "@shared/gridfinity/label-tab";
 import { withKernel, loadManifold } from "@/lib/manifold/runtime";
 import { extractPrintableMeshData, type MeshData } from "@/lib/mesh/mesh-data";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
@@ -36,7 +37,7 @@ function expectClosedStl(mesh: MeshData) {
 }
 
 describe("raised labels on slanted shelves", () => {
-  it.each([0, 0.4])("exports six metric labels with %s mm recess and separate colored 3MF parts", async recessMm => {
+  it.each([0, 0.4, DEFAULT_LABEL_TAB_RECESS_MM])("exports six metric labels with %s mm recess and separate colored 3MF parts", async recessMm => {
     const spec = { ...reported, labelTab: { ...reported.labelTab!, recessMm }, surfaceTexts: [...reported.surfaceTexts] };
     for (let i = 0; i < 6; i++) spec.surfaceTexts.push(placeSurfaceTextOnTab(spec, { ...label, id: String(i), text: `M${i + 2}` }));
     await withKernel(kernel => {
@@ -48,6 +49,7 @@ describe("raised labels on slanted shelves", () => {
       for (const part of result.textParts) {
         expect(part.z).toBeCloseTo(38.5 - recessMm);
         expect(part.solid.boundingBox().min[2]).toBeCloseTo(38.5 - recessMm, 6);
+        if (recessMm === DEFAULT_LABEL_TAB_RECESS_MM) expect(part.solid.boundingBox().max[2]).toBeCloseTo(38.5, 6);
         expect(kernel.arena.track(part.solid.intersect(result.bodySolid)).volume()).toBeCloseTo(0, 6);
       }
       expectClosedStl(extractPrintableMeshData(kernel, result.solid));
@@ -115,7 +117,7 @@ describe("raised labels on slanted shelves", () => {
     expect(part.label.surface).toBe("label-tab");
     const zs = [...part.mesh.positions].filter((_, i) => i % 3 === 2);
     expect(Math.min(...zs)).toBeCloseTo(38.5, 5);
-    expect(Math.max(...zs)).toBeCloseTo(39.3, 5);
+    expect(Math.max(...zs)).toBeCloseTo(38.5 + label.heightMm, 5);
   });
 
   it.each(["outer", "compartments"] as const)("clips %s tab text to a custom footprint", async scope => {

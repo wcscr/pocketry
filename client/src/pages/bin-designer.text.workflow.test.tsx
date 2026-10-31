@@ -57,6 +57,7 @@ describe("BinDesignerPage", () => {
       for (let i = 1; i < 6; i++) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
       expect(current()).toHaveLength(6);
       expect(current().every(label => label.surface === "label-tab")).toBe(true);
+      expect(current().every(label => label.heightMm === 0.5)).toBe(true);
       expect(new Set(current().map(label => JSON.stringify(label.position))).size).toBe(6);
       const added = current();
       clickBinHistory(container, "undo");

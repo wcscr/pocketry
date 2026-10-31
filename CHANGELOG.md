@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add configurable label-tab recess, defaulting new tabs to 0.4 mm below walls/dividers. Labels follow recessed shelves; saved flush designs retain their position.
+- Add configurable label-tab recess, defaulting new tabs and raised lettering to 0.5 mm each so lettering finishes flush with walls/dividers. Labels follow recessed shelves; saved designs retain their settings.
 
 - Restrict hollow-bin text to label tabs. Retarget older labels without moving or resizing them, and explain when label tabs need to be enabled.
 
