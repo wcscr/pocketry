@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match raised label-tab front edges to Rim Top color and depth in previews and multicolor exports, keeping the recessed writing surface and lettering colors separate.
+
 - Add a front rim to new label tabs by default, level with the mounting wall/divider. It follows the recess and wall thickness, can be switched off, and reserves its space when placing labels. Saved shelves retain their existing shape.
 
 - Add configurable label-tab recess, defaulting new tabs and raised lettering to 0.5 mm each so lettering finishes flush with walls/dividers. Labels follow recessed shelves; saved designs retain their settings.

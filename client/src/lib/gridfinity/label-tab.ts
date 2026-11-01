@@ -14,8 +14,9 @@ import {
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { boundaryLabelTabProfileMm, labelTabProfileWithFrontRim } from "@shared/gridfinity/label-tab";
+import { boundaryLabelTabProfileMm, labelTabProfileWithFrontRim, labelTabFrontRimHeightMm } from "@shared/gridfinity/label-tab";
 import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
+import { infillTopZ } from "@shared/gridfinity/fill";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
 import { roundedRectPolygon } from "./profiles";
@@ -51,6 +52,26 @@ const WALL_ROTATION_DEG: Record<LabelTabSpec["wall"], number> = {
   south: 180,
   west: 90,
 };
+
+/** Color the raised free edge, using the same placement, clipping and attachment
+ * as the tab itself. Slice above the recessed shelf so its writing surface is
+ * never included, then extend the color down by the requested rim depth.
+ * Like the tab builder, this region is in the upright frame before wall slant. */
+export function buildLabelTabFrontRimRegion(kernel: Kernel, spec: BinSpec,
+  segments: number, depthMm: number): Manifold | null {
+  const height = labelTabFrontRimHeightMm(spec);
+  if (height <= 0 || !Number.isFinite(depthMm) || depthMm <= 0) return null;
+  const top = labelTabTopZ(spec) + height;
+  if (spec.fill === "solid" && infillTopZ(spec) >= top - 1e-8) return null;
+  const tab = buildLabelTab(kernel, spec, segments);
+  if (!tab) return null;
+  const { arena } = kernel;
+  const section = arena.track(tab.slice(top - height / 2));
+  const depth = Math.min(depthMm, top - BASE_HEIGHT);
+  if (section.isEmpty() || depth <= 0) return null;
+  const column = arena.track(arena.track(section.extrude(depth)).translate([0, 0, top - depth]));
+  return arena.track(column.intersect(tab));
+}
 
 /** Builds the tab solid for `spec.labelTab`, or null when absent. */
 export function buildLabelTab(

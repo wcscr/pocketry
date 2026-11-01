@@ -2208,8 +2208,8 @@ export function BinControlsPanel({
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <SettingLabel label={rimColorLabel} hint={spec.lip === "standard"
-                  ? "Separate material below the original rim surface."
-                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height."} />
+                  ? "Separate material below the original rim surface. Raised label-tab front edges share this color and depth; recessed label surfaces keep the bin-body color."
+                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height. Raised label-tab front edges share this color and depth; recessed label surfaces keep the bin-body color."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
