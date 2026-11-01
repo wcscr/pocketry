@@ -41,7 +41,7 @@ import {
   type CutoutBuildReport,
 } from "./cutouts";
 import { holeOptionsFromSpec } from "./holes";
-import { buildLabelTab } from "./label-tab";
+import { buildLabelTab, buildLabelTabFrontRimRegion } from "./label-tab";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing, buildWallSection } from "./wall";
@@ -278,7 +278,7 @@ export interface BinMaterialParts {
   body: Manifold;
   /** Thin printable volumes below pocket floors or the interior floor of a hollow bin. */
   pocketFloors: Manifold | null;
-  /** Printable lip crest or flush wall border; keeps the existing material key. */
+  /** Printable lip/border, enabled divider tops and raised label-tab front edges. */
   stackingRim: Manifold | null;
 }
 
@@ -431,6 +431,8 @@ export function buildBinWithCutouts(
       const dividerTops = buildDividerTopRegion(kernel, spec, quality.circularSegments, options.rimInsertThicknessMm);
       if (dividerTops) requestedRim = arena.track(requestedRim.add(slantBodyPart(kernel, dividerTops, spec)));
     }
+    const labelFrontRims = buildLabelTabFrontRimRegion(kernel, spec, quality.circularSegments, options.rimInsertThicknessMm);
+    if (labelFrontRims) requestedRim = arena.track(requestedRim.add(slantBodyPart(kernel, labelFrontRims, spec)));
     let clippedRim = arena.track(requestedRim.intersect(solid));
     if (pocketFloors) {
       clippedRim = arena.track(clippedRim.subtract(pocketFloors));
