@@ -584,7 +584,7 @@ describe("BinDesignerPage", () => {
         expect(container.querySelector<HTMLButtonElement>(`[data-testid="button-export-${format}"]`)!.disabled).toBe(false);
       }
       openSettingsSection(container, "construction");
-      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Solid fill"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('#bin-solid-fill')!.click());
       openSettingsSection(container, "export");
       expect(warning()?.textContent).toContain("Solid fill is enabled at 37.5% height");
       expect(warning()?.textContent).not.toContain("The final model is a solid bin");

@@ -26,7 +26,7 @@ import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
-import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
+import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
@@ -130,6 +130,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [depthRequest, setDepthRequest] = useState(0);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
+  const [constructionGroups, setConstructionGroups] = useState<ConstructionDisclosureState>({});
   useEffect(() => {
     if (!libraryRequested && !sampleLibraryRequested && !newProjectRequested) return;
     setSettingsSectionRequest({ id: "bin-settings-project" });
@@ -247,7 +248,6 @@ function BinDesignerWorkspace(): JSX.Element {
     ];
   }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
   const revealIssue = (issue: ValidationIssue) => {
-    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     const settings = issueSettingsTarget(issue.code);
     if (settings) {
       setPanelOpen(true);
@@ -255,6 +255,7 @@ function BinDesignerWorkspace(): JSX.Element {
       return;
     }
     if (issue.cutoutIds?.length) {
+      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
       if (issue.code === "pocket-depth-needed") {
@@ -264,6 +265,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } else {
       setPanelOpen(true);
       if (issue.fingerHoleIds?.length) {
+        dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
         dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
         setSettingsSectionRequest({ id: "bin-settings-finger-holes" });
       } else {
@@ -1263,12 +1265,15 @@ function BinDesignerWorkspace(): JSX.Element {
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />} />}
       panel={
         <BinControlsPanel
+          constructionGroups={constructionGroups}
+          onConstructionGroupChange={(group, open) => setConstructionGroups(current => ({ ...current, [group]: open }))}
           ultim8Entry={ultim8Entry}
           onUltim8EntryComplete={() => navigate("/bin", { replace: true })}
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
           onShowFitCheck={() => { setSettingsSectionRequest({ id: "bin-settings-fit" }); setPanelOpen(true); }}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
+          onNavigateSettings={request => { setSettingsSectionRequest(request); setPanelOpen(true); }}
           onRevealIssue={revealIssue}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}

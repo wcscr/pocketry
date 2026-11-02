@@ -26,6 +26,7 @@ import {
   PanelSettingsIndex,
 } from "@/components/layout/panel-section";
 import { Button } from "@/components/ui/button";
+import { DisclosureSummary } from "@/components/ui/disclosure-summary";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RulerLengthInput } from "./ruler-length-input";
 import { Label } from "@/components/ui/label";
@@ -793,7 +794,7 @@ export function TraceControlsPanel({
             </div>
           )}
           {!pendingAutoCalibration && <details className="text-xs" data-testid="manual-calibration-advanced">
-            <summary className="min-h-9 cursor-pointer rounded py-2 font-medium [@media(pointer:coarse)]:min-h-11">Advanced</summary>
+            <DisclosureSummary>Advanced</DisclosureSummary>
             <Button variant="outline" size="sm" className="w-full" disabled={!hasImage || processing}
               onClick={onDetectMarkers} data-testid="button-detect-markers">Detect references again</Button>
           </details>}

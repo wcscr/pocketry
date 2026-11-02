@@ -8,6 +8,8 @@ import {
   render,
   renderPage,
   openSettingsSection,
+  openConstructionGroup,
+  setBinInterior,
   selectPocket,
 } from "./bin-designer.test-support";
 import * as React from "react";
@@ -681,7 +683,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color bin floor"]')!.click());
 
       openSettingsSection(container, "construction");
-      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Solid fill"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('#bin-solid-fill')!.click());
       openSettingsSection(container, "materials");
       expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket floors color"]')!.value).toBe("#2255aa");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -742,22 +744,26 @@ it.each(["standard", "workflow"])("retains optional divider coloring across cons
   const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
   binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, stackingRim: mesh } });
   const { container, unmount } = renderPage();
-  const option = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Include dividers"]');
+  const option = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Match divider tops to rim color"]');
   const toggle = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
   try {
     await flushHydration(); openSettingsSection(container, "materials");
     expect(option()!.getAttribute("aria-checked")).toBe("false");
     expect(container.querySelector('[data-testid="view-color-row-rim"]')!.contains(option())).toBe(true);
-    toggle("Include dividers");
+    toggle("Match divider tops to rim color");
     expect(vi.mocked(useBinGeometry).mock.lastCall![4]?.colorDividerTops).toBe(true);
     toggle("Color top border");
     expect(option()!.disabled).toBe(true);
     expect(option()!.getAttribute("aria-checked")).toBe("true");
     toggle("Color top border");
     for (const label of ["Internal compartments", "Solid fill"]) {
-      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "construction");
+      openConstructionGroup(container, "compartments");
+      if (label === "Solid fill") setBinInterior(container, "solid"); else toggle(label);
       openSettingsSection(container, "materials"); expect(option()).toBeNull();
-      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "construction");
+      openConstructionGroup(container, "compartments");
+      if (label === "Solid fill") setBinInterior(container, "none"); else toggle(label);
       openSettingsSection(container, "materials");
       expect(option()!.getAttribute("aria-checked")).toBe("true");
     }

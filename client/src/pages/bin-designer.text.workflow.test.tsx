@@ -26,6 +26,56 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import * as ProjectPersistence from "@/lib/project/persist";
 
+it.each([
+  { layout: "standard", symbolOnly: false }, { layout: "workflow", symbolOnly: false },
+  { layout: "standard", symbolOnly: true }, { layout: "workflow", symbolOnly: true },
+])("keeps mobile text Adjust compact and opens the full editor separately: %o", async ({ layout, symbolOnly }) => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  const label = surfaceTextSchema.parse({ id: "quick-label", text: symbolOnly ? "" : "M3", symbol: "hex-nut", sizeMm: 6,
+    heightMm: 0.5, position: { x: -12.75, y: 27.06 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+    spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [label] }) });
+  const { container, unmount } = renderPage({ mobile: true, experimental: false });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-quick-label"]')!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0];
+    const before = current();
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Adjust")!.click());
+    const tray = container.querySelector<HTMLElement>(".mobile-adjustment-tray")!;
+    expect(tray.querySelector('[data-testid="surface-text-quick-controls"]')).not.toBeNull();
+    expect(tray.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+    expect(tray.querySelector('[aria-label="Hardware symbol"]')).toBeNull();
+    expect(tray.querySelectorAll('input[type="number"]')).toHaveLength(2);
+    const size = tray.querySelector<HTMLInputElement>(`[aria-label="${symbolOnly ? "Symbol size" : "Text size"} (mm)"]`)!;
+    React.act(() => {
+      size.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(size, "7.5");
+      size.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => size.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const edited = { ...before, ...(symbolOnly ? { symbolSizeMm: 7.5 } : { sizeMm: 7.5, symbolSizeMm: 6 }) };
+    expect(current()).toEqual(edited);
+    clickBinHistory(container, "undo"); expect(current()).toEqual(before);
+    clickBinHistory(container, "redo"); expect(current()).toEqual(edited);
+    const height = tray.querySelector<HTMLInputElement>('[aria-label="Raised height (mm)"]')!;
+    React.act(() => {
+      height.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(height, "0.8");
+      height.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => [...tray.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "All properties")!.click());
+    expect(container.querySelector(".mobile-adjustment-tray")).toBeNull();
+    const editor = document.querySelector<HTMLElement>('[data-testid="surface-text-editor"]')!;
+    expect(editor.closest("[hidden]")).toBeNull();
+    expect(editor.querySelector('input[type="text"]')).not.toBeNull();
+    expect(editor.querySelector('[aria-label="Hardware symbol"]')).not.toBeNull();
+    expect(current()).toEqual({ ...edited, heightMm: 0.8 });
+    clickBinHistory(container, "undo"); expect(current()).toEqual(edited);
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+});
+
 describe("BinDesignerPage", () => {
 
   it.each([

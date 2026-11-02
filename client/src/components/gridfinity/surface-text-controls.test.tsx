@@ -95,6 +95,29 @@ it("keeps both surface choices for solid fill and never restores a floor target 
   expect(getBin().spec.surfaceTexts).toEqual([{ ...first, surface: "label-tab" }]);
 });
 
+it("preserves decimal placement precision and commits a negative label rotation once", () => {
+  const { host, getBin, first, second, change } = mount("properties");
+  const positioned = { ...first, position: { x: -127.0643, y: 27.0678 } };
+  React.act(() => getBin().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [positioned, second] } }));
+  const history = getBin().history;
+  for (const [axis, displayed] of [["X", "-127.06"], ["Y", "27.07"]]) {
+    const input = host.querySelector<HTMLInputElement>(`[aria-label="${axis} (mm)"]`)!;
+    expect(input.value).toBe(displayed);
+    React.act(() => input.focus());
+    React.act(() => input.blur());
+  }
+  expect(getBin().spec.surfaceTexts).toEqual([positioned, second]);
+  expect(getBin().history).toBe(history);
+  const rotation = host.querySelector<HTMLInputElement>('[aria-label="Label rotation (°)"]')!;
+  React.act(() => rotation.focus()); change(rotation, "-180");
+  React.act(() => rotation.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  expect(rotation.value).toBe("-180");
+  expect(getBin().spec.surfaceTexts).toEqual([{ ...positioned, rotationDeg: -180 }, second]);
+  expect(getBin().history.stack).toHaveLength(history.stack.length + 1);
+  React.act(() => getBin().dispatch({ type: "UNDO" }));
+  expect(getBin().spec.surfaceTexts).toEqual([positioned, second]);
+});
+
 describe.each(["properties", "inline"] as const)("%s wording ownership", mode => {
   it("commits a valid draft when canvas selection unmounts the focused editor before blur", () => {
     const { getBin, first, second, edit, change, select } = mount(mode);

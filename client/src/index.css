@@ -209,6 +209,26 @@
 }
 .property-surface details > summary::-webkit-details-marker { display: none; }
 .property-surface details > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: .25rem; }
+.disclosure-summary,
+.property-surface details > .disclosure-summary {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .25rem;
+  border-radius: .25rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.disclosure-summary::-webkit-details-marker { display: none; }
+.disclosure-summary:hover { background-color: hsl(var(--muted) / .6); }
+.disclosure-summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+details > .disclosure-summary .disclosure-hide { display: none; }
+details[open] > .disclosure-summary .disclosure-show { display: none; }
+details[open] > .disclosure-summary .disclosure-hide { display: inline; }
+details[open] > .disclosure-summary .disclosure-chevron { transform: rotate(90deg); }
 .property-surface input:not([type="checkbox"]):not([type="radio"]),
 .property-surface select, .property-surface [role="combobox"] { min-height: 2.25rem; }
 @media (pointer: coarse) {

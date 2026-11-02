@@ -125,6 +125,13 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
     const z = surfaceTextZ(spec, label);
     const onTab = surfaceTextSurface(spec, label) === "label-tab";
     if (onTab && !tabsAvailable) {
+      if (spec.labelTab) {
+        const rimConsumesShelf = spec.labelTab.frontRim && labelTabSurfaces({ ...spec,
+          labelTab: { ...spec.labelTab, frontRim: false } }).length > 0;
+        throw new Error(`Text “${surfaceTextName(label)}” needs a label tab with a usable writing surface. ${rimConsumesShelf
+          ? "Increase Tab depth or turn off Front rim in Construction."
+          : "Reduce Recess, increase bin height, or choose another label-tab placement."}`);
+      }
       throw new Error(`Text “${surfaceTextName(label)}” needs a label tab. ${spec.fill === "none"
         ? "Enable label tabs in Construction. Hollow bins place text on label tabs."
         : "Enable label tabs or change its Surface to Bin surface."}`);

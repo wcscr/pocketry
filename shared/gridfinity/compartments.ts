@@ -1,5 +1,5 @@
-import { labelTabProfileMm, labelTabRecessMm, supportedLabelTabProfileMm } from "./label-tab";
-import { BASE_HEIGHT, STACKING_LIP_SUPPORT_HEIGHT, TAB_WIDTH_NOMINAL_MM } from "./standard";
+import { labelTabProfileMm, labelTabRecessMm, labelTabWidthMm, supportedLabelTabProfileMm } from "./label-tab";
+import { BASE_HEIGHT, STACKING_LIP_SUPPORT_HEIGHT } from "./standard";
 import type { Ring } from "../geometry/types";
 import type { BinSpec } from "./types";
 import { binWidthMm, binLengthMm } from "./bin-size";
@@ -82,7 +82,7 @@ export function compartmentLabelTabPlacements(spec: BinSpec) {
   const { cellWidth, cellLength, columnFronts, rowFronts } = compartmentLayout(spec);
   const horizontal = tab.wall === "north" || tab.wall === "south";
   const chord = horizontal ? cellWidth : cellLength;
-  const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
+  const length = tab.width === "full" ? chord : Math.min(labelTabWidthMm(spec), chord);
   const start = tab.width === "left" ? -chord / 2 : tab.width === "right" ? chord / 2 - length : -length / 2;
   const depth = Math.min(profile.depthMm, (horizontal ? cellLength : cellWidth) / 2);
   const rotation = tab.wall === "north" ? 0 : tab.wall === "east" ? -90 : tab.wall === "south" ? 180 : 90;

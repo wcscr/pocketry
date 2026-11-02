@@ -49,6 +49,27 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("migrates omitted tab sizes and round-trips requested sizes in every history snapshot", () => {
+    const before = parseBinSpec({ ...VALID.spec, labelTab: { width: "center", recessMm: 0.5, frontRim: true } });
+    const old = parseProjectDoc({ ...VALID, schemaVersion: 57, spec: before, cutouts: [],
+      history: { index: 0, stack: [{ label: "Original", doc: { spec: before, cutouts: [], fingerHoles: [] } }] } })!;
+    expect(old).not.toBeNull();
+    expect(old.schemaVersion).toBe(58);
+    expect(old.spec.labelTab).toEqual(before.labelTab);
+    expect(old.history!.stack[0].doc.spec.labelTab).toEqual(before.labelTab);
+    const small = parseBinSpec({ ...before, labelTab: { ...before.labelTab, width: "full", depthMm: 5, widthMm: 12 } });
+    const explicit = parseBinSpec({ ...before, labelTab: { ...before.labelTab, depthMm: 15.85, widthMm: 42 } });
+    const doc = parseProjectDoc({ ...old, spec: small, cutouts: VALID.cutouts,
+      transformOrigins: { pockets: [{ cutout: VALID.cutouts[0], spec: small }], fingerHoles: [] },
+      history: { index: 1,
+        stack: [before, small, explicit].map(spec => ({ label: "Tab size", doc: { spec, cutouts: VALID.cutouts, fingerHoles: [] } })) } })!;
+    expect(doc).not.toBeNull();
+    const reloaded = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(doc))))!;
+    expect(reloaded).toEqual(doc);
+    expect(reloaded.history!.stack.map(entry => entry.doc.spec.labelTab)).toEqual([before.labelTab, small.labelTab, explicit.labelTab]);
+    expect(reloaded.history!.index).toBe(1);
+    expect(reloaded.transformOrigins!.pockets[0].spec.labelTab).toEqual(small.labelTab);
+  });
   it.each([undefined, false, true])("preserves front rims (%s) through migration, saving and undo history", frontRim => {
     const spec = { ...VALID.spec, labelTab: { wall: "north", width: "full", recessMm: 0.5, frontRim } };
     const parsed = parseProjectDoc({ ...VALID, schemaVersion: frontRim === undefined ? 56 : PROJECT_SCHEMA_VERSION,

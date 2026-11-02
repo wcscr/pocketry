@@ -239,6 +239,10 @@ export const TAB_WIDTH_NOMINAL_MM = 42;
 /** How deep the tab protrudes into the bin (`_tab_depth`). */
 export const TAB_DEPTH_MM = 15.85;
 
+/** Adjustable tabs can shrink the standard shelf without enlarging its envelope. */
+export const MIN_LABEL_TAB_DEPTH_MM = 1;
+export const MIN_LABEL_TAB_WIDTH_MM = 1;
+
 /** Angle of the sloped support holding up the tab (`_tab_support_angle`). */
 export const TAB_SUPPORT_ANGLE_DEG = 36;
 

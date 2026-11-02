@@ -9,7 +9,8 @@ import {
   type BoundaryEdge,
   type GridCell,
 } from "./footprint";
-import { D_DIV, D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM, type GridPitch } from "./standard";
+import { D_DIV, D_WALL, GRID_PITCH_DIVISOR, MAX_HOLLOW_WALL_THICKNESS_MM,
+  MIN_LABEL_TAB_DEPTH_MM, TAB_DEPTH_MM, MIN_LABEL_TAB_WIDTH_MM, TAB_WIDTH_NOMINAL_MM, type GridPitch } from "./standard";
 
 /**
  * The Gridfinity bin specification — what the user asks for, not how it is
@@ -126,8 +127,8 @@ export const binSpecSchema = z
     screwHoles: z.boolean().default(false),
     /**
      * Label tab: a sloped shelf hung from the top of one wall (upstream
-     * `TAB_POLYGON`). `width` is either the full wall or one nominal 42 mm
-     * section at an end; `wall` names the bin edge in the y-up bin frame
+     * `TAB_POLYGON`). `width` chooses the full wall or a sized section
+     * (42 mm when widthMm is absent); `wall` names the bin edge in the y-up bin frame
      * (`north` = +y, the layout view's top).
      */
     labelTab: z
@@ -141,6 +142,10 @@ export const binSpecSchema = z
         recessMm: z.number().finite().min(0).max(10).optional(),
         /** Raise the free edge to the mounting top; absent preserves older open shelves. */
         frontRim: z.boolean().optional(),
+        /** Requested inward reach; absent preserves the standard 15.85 mm profile. */
+        depthMm: z.number().finite().min(MIN_LABEL_TAB_DEPTH_MM).max(TAB_DEPTH_MM).optional(),
+        /** Requested width for center/left/right styles; retained but ignored by full width. */
+        widthMm: z.number().finite().min(MIN_LABEL_TAB_WIDTH_MM).max(TAB_WIDTH_NOMINAL_MM).optional(),
         /** Exact boundary anchor for an irregular footprint; null keeps wall-based rectangle behavior. */
         edge: boundaryEdgeSchema.nullable().default(null),
         width: z.enum(["full", "center", "left", "right"]).default("full"),

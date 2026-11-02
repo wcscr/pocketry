@@ -367,8 +367,20 @@ function openSettingsSection(
   });
 }
 
+function openConstructionGroup(container: HTMLElement, group: "walls" | "compartments" | "floor" | "base" | "labels"): void {
+  React.act(() => {
+    const trigger = container.querySelector<HTMLButtonElement>(`[data-testid="construction-${group}-trigger"]`)!;
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+  });
+}
+
+function setBinInterior(container: HTMLElement, fill: "none" | "solid"): void {
+  React.act(() => container.querySelector<HTMLButtonElement>(fill === "solid" ? "#bin-solid-fill" : "#bin-hollow-fill")!.click());
+}
+
 function openUltim8Setup(container: HTMLElement): void {
   openSettingsSection(container, "construction");
+  openConstructionGroup(container, "base");
   React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="select-bin-bottom"]')!
     .dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
   React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Wham Bam Systems ULTIM8-compatible pegs")!.click());
@@ -479,6 +491,8 @@ export {
   render,
   renderPage,
   openSettingsSection,
+  openConstructionGroup,
+  setBinInterior,
   openUltim8Setup,
   enterJigThickness,
   jigDialogButton,

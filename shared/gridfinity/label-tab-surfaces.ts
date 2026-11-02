@@ -2,8 +2,8 @@ import type { Point, Ring } from "../geometry/types";
 import { pointInRing, ringBounds, signedArea } from "../geometry/rings";
 import { compartmentHeightMm, compartmentLabelTabPlacements } from "./compartments";
 import { edgeForWall, footprintInteriorRingMm, footprintOuterRingMm, resolveBoundaryRun } from "./footprint";
-import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimWidthMm } from "./label-tab";
-import { BASE_HEIGHT, binHeightMm, D_WALL, TAB_WIDTH_NOMINAL_MM } from "./standard";
+import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimWidthMm, labelTabWidthMm } from "./label-tab";
+import { BASE_HEIGHT, binHeightMm, D_WALL } from "./standard";
 import type { BinSpec } from "./types";
 import { wallSlantHeightMm, wallSlantOutlineMm } from "./wall-slant";
 import { surfaceTextSurface } from "./surface-text";
@@ -40,7 +40,7 @@ export function labelTabSurfaces(spec: BinSpec): LabelTabSurface[] {
     if (!profile || !run) return [];
     const chord = run.lengthMm - 2 * D_WALL;
     if (chord <= 0) return [];
-    const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
+    const length = tab.width === "full" ? chord : Math.min(labelTabWidthMm(spec), chord);
     placements = [{
       x: (run.start.x + run.end.x) / 2 + (edge.side === "west" ? D_WALL : edge.side === "east" ? -D_WALL : 0),
       y: (run.start.y + run.end.y) / 2 + (edge.side === "south" ? D_WALL : edge.side === "north" ? -D_WALL : 0),

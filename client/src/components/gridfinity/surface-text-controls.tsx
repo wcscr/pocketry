@@ -21,6 +21,15 @@ import { useBin } from "@/state/bin-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { placeSurfaceTextOnTab } from "@/lib/gridfinity/surface-text";
 
+type SurfaceTextNumberKey = "sizeMm" | "symbolSizeMm" | "symbolGapMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg";
+
+function numberPatch(label: SurfaceText, key: SurfaceTextNumberKey, value: number): Partial<SurfaceText> {
+  // An older mixed label inherits text size until its first size edit. Freeze
+  // that existing symbol size in the same undo transaction as a text resize.
+  return { [key]: value, ...(key === "sizeMm" && label.symbol && label.symbolSizeMm === undefined
+    ? { symbolSizeMm: label.sizeMm } : {}) };
+}
+
 /** Label edits live in the bin spec, so persistence and undo use the existing document path. */
 export function SurfaceTextControls({ onPositionText }: { onPositionText: () => void }): JSX.Element {
   const { spec, selectedSurfaceTextId, dispatch } = useBin();
@@ -80,6 +89,34 @@ export function SurfaceTextProperties(): JSX.Element | null {
   </PropertySurface> : null;
 }
 
+/** The phone tray keeps size and relief close at hand; wording and placement stay in their editors. */
+export function SurfaceTextQuickControls(): JSX.Element | null {
+  const { spec, selectedSurfaceTextId, dispatch } = useBin();
+  const selected = spec.surfaceTexts.find(label => label.id === selectedSurfaceTextId);
+  if (!selected) return null;
+  const symbolOnly = !!selected.symbol && !selected.text.trim();
+  const update = (key: "sizeMm" | "symbolSizeMm" | "heightMm", value: number, transient = false) => dispatch({
+    type: "PATCH_SPEC", historyLabel: "Edit surface text", transient,
+    patch: { surfaceTexts: spec.surfaceTexts.map(label => label.id === selected.id ? { ...label, ...numberPatch(label, key, value) } : label) },
+  });
+  return <div key={selected.id} className="grid grid-cols-2 gap-2" data-testid="surface-text-quick-controls">
+    <Label className="block min-w-0 space-y-1 text-xs"><span className="block">{symbolOnly ? "Symbol size" : "Text size"} · mm</span>
+      <span className="grid">
+      <DraftNumberInput aria-label={`${symbolOnly ? "Symbol size" : "Text size"} (mm)`} className="h-11 w-full text-base"
+        value={symbolOnly ? selected.symbolSizeMm ?? selected.sizeMm : selected.sizeMm} min={2} max={40} step={0.5} displayPrecision={2}
+        onValueChange={value => update(symbolOnly ? "symbolSizeMm" : "sizeMm", value, true)}
+        onValueCommit={value => update(symbolOnly ? "symbolSizeMm" : "sizeMm", value)} />
+      </span>
+    </Label>
+    <Label className="block min-w-0 space-y-1 text-xs"><span className="block">Raised height · mm</span>
+      <span className="grid">
+      <DraftNumberInput aria-label="Raised height (mm)" className="h-11 w-full text-base" value={selected.heightMm} min={0.2} max={5} step={0.2} displayPrecision={2}
+        onValueChange={value => update("heightMm", value, true)} onValueCommit={value => update("heightMm", value)} />
+      </span>
+    </Label>
+  </div>;
+}
+
 /** Surface-anchored text uses the same XY / Z controls in Layout and 3D. */
 export function SurfaceTextTransformControls({ mode }: { mode?: "translate" | "rotate" }): JSX.Element | null {
   const bin = useBin();
@@ -113,21 +150,19 @@ function TextEditor({ label, index, onChange, onRemove }: {
   const id = useId();
   const { spec } = useBin();
   const { draft, error, change, commit, changeSymbol } = useSurfaceTextWording(label);
-  const numeric = (key: "sizeMm" | "symbolSizeMm" | "symbolGapMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg",
+  const numeric = (key: SurfaceTextNumberKey,
     name: string, unit: "mm" | "°", min: number, max: number, step: number, caption = name) =>
-    <Label className="flex min-w-0 items-center gap-1.5 text-xs">
-      <span className="flex-1">{caption}</span>
-      <DraftNumberInput aria-label={`${name} (${unit})`} className="h-8 w-16 min-w-0" value={label[key] ?? (key === "symbolSizeMm" ? label.sizeMm : key === "symbolGapMm" ? surfaceTextSymbolGap(label) : 0)}
-        min={min} max={max} step={step} displayPrecision={2}
-        onValueChange={value => updateNumber(key, value, true)} onValueCommit={value => updateNumber(key, value)} />
-      <span className="text-[11px] text-muted-foreground">{unit}</span>
+    <Label className="block min-w-0 space-y-1 text-xs">
+      <span className="block">{caption}</span>
+      <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1.5">
+        <DraftNumberInput aria-label={`${name} (${unit})`} className="h-8 w-full min-w-0" value={label[key] ?? (key === "symbolSizeMm" ? label.sizeMm : key === "symbolGapMm" ? surfaceTextSymbolGap(label) : 0)}
+          min={min} max={max} step={step} displayPrecision={2}
+          onValueChange={value => updateNumber(key, value, true)} onValueCommit={value => updateNumber(key, value)} />
+        <span className="pt-2 text-[11px] text-muted-foreground">{unit}</span>
+      </span>
     </Label>;
-  const updateNumber = (key: "sizeMm" | "symbolSizeMm" | "symbolGapMm" | "symbolRotationDeg" | "heightMm" | "rotationDeg", value: number, transient = false) => {
-    // An older mixed label inherits text size until its first size edit. Freeze
-    // that existing symbol size in the same undo transaction as a text resize.
-    onChange({ [key]: value, ...(key === "sizeMm" && label.symbol && label.symbolSizeMm === undefined
-      ? { symbolSizeMm: label.sizeMm } : {}) }, transient);
-  };
+  const updateNumber = (key: SurfaceTextNumberKey, value: number, transient = false) =>
+    onChange(numberPatch(label, key, value), transient);
   return <fieldset className="min-w-0 space-y-2" data-testid="surface-text-editor">
     <legend className="sr-only">Text {index + 1}</legend>
     <div className="flex items-center gap-2">
@@ -138,9 +173,9 @@ function TextEditor({ label, index, onChange, onRemove }: {
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Remove text ${index + 1}`} onClick={onRemove}><Trash2 className="h-4 w-4" /></Button>
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] items-end gap-3">
       <SurfaceTextFontPicker label={label} index={index} id={`${id}-font`} onChange={font => onChange({ font })} />
-      {numeric("sizeMm", "Text size", "mm", 2, 40, 0.5, "Size")}
+      {numeric("sizeMm", "Text size", "mm", 2, 40, 0.5)}
     </div>
     <div className="space-y-2" role="group" aria-label="Label placement and height">
       <div className="flex items-center gap-2">
@@ -157,23 +192,25 @@ function TextEditor({ label, index, onChange, onRemove }: {
         <HelpHint label="text surface">Hollow bins place text on label tabs. Bin surface is available with solid fill. Label tabs places text on the horizontal shelves, including with slanted walls. Drag text over a shelf in Layout.</HelpHint>
       </div>
       {spec.fill === "none" && !spec.labelTab && <p className="text-xs text-muted-foreground">Enable label tabs in Construction to support this text.</p>}
-      <div className="grid grid-cols-2 gap-3">
-        {numeric("heightMm", "Raised height", "mm", 0.2, 5, 0.2, "Height")}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] gap-3">
+        {numeric("heightMm", "Raised height", "mm", 0.2, 5, 0.2)}
         {numeric("rotationDeg", "Label rotation", "°", -180, 180, 5)}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {(["x", "y"] as const).map(axis => <Label key={axis} className="flex min-w-0 items-center gap-1.5 text-xs">
-          <span className="flex-1">{axis.toUpperCase()}</span>
-          <DraftNumberInput aria-label={`${axis.toUpperCase()} (mm)`} className="h-8 w-16 min-w-0" value={label.position[axis]} min={-672} max={672} step={1} displayPrecision={2}
-            onValueChange={value => onChange({ position: { ...label.position, [axis]: value } }, true)}
-            onValueCommit={value => onChange({ position: { ...label.position, [axis]: value } })} />
-          <span className="text-[11px] text-muted-foreground">mm</span>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] gap-3">
+        {(["x", "y"] as const).map(axis => <Label key={axis} className="block min-w-0 space-y-1 text-xs">
+          <span className="block">{axis.toUpperCase()}</span>
+          <span className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1.5">
+            <DraftNumberInput aria-label={`${axis.toUpperCase()} (mm)`} className="h-8 w-full min-w-0" value={label.position[axis]} min={-672} max={672} step={1} displayPrecision={2}
+              onValueChange={value => onChange({ position: { ...label.position, [axis]: value } }, true)}
+              onValueCommit={value => onChange({ position: { ...label.position, [axis]: value } })} />
+            <span className="pt-2 text-[11px] text-muted-foreground">mm</span>
+          </span>
         </Label>)}
       </div>
     </div>
     <div className="space-y-2 border-t pt-2" role="group" aria-label="Symbol settings">
       <SurfaceTextSymbolPicker id={`${id}-symbol`} symbol={label.symbol} rotationDeg={label.symbolRotationDeg} canRemove={!!draft.trim()} onChange={changeSymbol} />
-      {label.symbol && <div className="grid grid-cols-2 gap-3">
+      {label.symbol && <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] gap-3">
         {numeric("symbolSizeMm", "Symbol size", "mm", 2, 40, 0.5, "Size")}
         {numeric("symbolRotationDeg", "Symbol rotation", "°", -180, 180, 5, "Rotation")}
       </div>}
