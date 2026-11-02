@@ -237,10 +237,32 @@ export interface PanelSettingsIndexProps {
  * `scrollIntoView()` also scrolls a mobile drawer ancestor, which can carry the
  * map itself behind the drawer's clipped top edge.
  */
-export function revealPanelSection(id: string, items: readonly { id: string }[], focusId?: string): void {
+export function revealPanelSection(id: string, items: readonly { id: string }[], focusId?: string): () => void {
     const target = document.getElementById(id);
-    if (!target) return;
-    const scroller = target.parentElement;
+    if (!target) return () => {};
+    const inspectorScroller = target.closest<HTMLElement>('[data-testid="inspector-scroll"]');
+    const scroller = inspectorScroller ?? target.parentElement;
+    const frames = new Set<number>();
+    let cancelled = false;
+    const stopListening = () => {
+      document.removeEventListener("pointerdown", cancel, true);
+      document.removeEventListener("keydown", cancel, true);
+    };
+    const cancel = () => { cancelled = true; frames.forEach(frame => window.cancelAnimationFrame(frame)); stopListening(); };
+    document.addEventListener("pointerdown", cancel, true);
+    document.addEventListener("keydown", cancel, true);
+    const nextFrame = (callback: () => void) => {
+      if (typeof window.requestAnimationFrame !== "function") { if (!cancelled) callback(); return; }
+      let frame = 0;
+      let completed = false;
+      frame = window.requestAnimationFrame(() => {
+        completed = true;
+        frames.delete(frame);
+        if (!target.isConnected) cancel();
+        if (!cancelled) callback();
+      });
+      if (!completed) frames.add(frame);
+    };
 
     // The index is a focused navigator, not just an anchor list: close every
     // sibling before opening the requested section so its final offset is
@@ -269,11 +291,16 @@ export function revealPanelSection(id: string, items: readonly { id: string }[],
       // A selected item may have a long list above its controls. Resolve its
       // editor after the section opens so small screens reach editable fields.
       const focus = focusId ? document.getElementById(focusId) : null;
-      const scrollTarget = focus && target.contains(focus) ? focus : target;
+      const disclosure = focus?.closest<HTMLElement>("[data-settings-disclosure]");
+      // Keep the group name and nearby controls in view when the destination
+      // fits below them; short panes still prioritize the focused field.
+      const showGroup = focus && disclosure && target.contains(disclosure)
+        && focus.getBoundingClientRect().bottom - disclosure.getBoundingClientRect().top <= scroller.clientHeight;
+      const scrollTarget = focus && target.contains(focus) ? showGroup ? disclosure : focus : target;
       // Browsers otherwise clamp the final sections below the top because
       // there is not enough content beneath them. Add only the blank space
       // required for the selected heading to reach the scroller's top edge.
-      scroller.style.paddingBottom = `${scroller.clientHeight}px`;
+      if (!inspectorScroller) scroller.style.paddingBottom = `${scroller.clientHeight}px`;
       // offsetTop is relative to the nearest positioned ancestor, which is the
       // whole panel rather than PanelBody. Convert the live rectangles into a
       // scroll-content coordinate so the heading lands at PanelBody's visible
@@ -288,6 +315,7 @@ export function revealPanelSection(id: string, items: readonly { id: string }[],
       // browser cannot animate or clamp an intermediate position.
       scroller.scrollTop = targetTop;
       scroller?.scrollTo?.({ top: targetTop, behavior: "auto" });
+      if (focus && target.contains(focus) && !focus.closest("[hidden]")) focus.focus({ preventScroll: true });
       const alignSelectedHeading = () => {
         const remainingOffset =
           scrollTarget.getBoundingClientRect().top -
@@ -299,16 +327,29 @@ export function revealPanelSection(id: string, items: readonly { id: string }[],
       // Scroll anchoring and collapsible content can adjust the pane just
       // after scrollTo. Correct against the actual rendered rectangles for
       // the following two frames so the result is exact.
-      window.requestAnimationFrame(() => {
+      nextFrame(() => {
         alignSelectedHeading();
-        window.requestAnimationFrame(alignSelectedHeading);
+        nextFrame(() => { alignSelectedHeading(); stopListening(); });
       });
     };
-    if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(scroll));
-    } else {
-      scroll();
-    }
+    // The outer section may mount its contents on the next render. Reveal any
+    // inner settings disclosures before measuring or focusing their field.
+    nextFrame(() => {
+      const focus = focusId ? document.getElementById(focusId) : null;
+      if (focus && target.contains(focus)) {
+        const ancestors: HTMLElement[] = [];
+        for (let parent = focus.parentElement; parent && parent !== target; parent = parent.parentElement) ancestors.unshift(parent);
+        for (const parent of ancestors) {
+          if (parent.matches("[data-settings-disclosure][data-state=closed]")) {
+            parent.querySelector<HTMLButtonElement>("[data-settings-disclosure-trigger]")?.click();
+          } else if (parent instanceof HTMLDetailsElement && !parent.open) {
+            parent.querySelector<HTMLElement>("summary")?.click();
+          }
+        }
+      }
+      nextFrame(scroll);
+    });
+    return cancel;
   }
 
 export function PanelSettingsIndex({

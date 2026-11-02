@@ -9,7 +9,7 @@ import { useBin } from "@/state/bin-store";
 
 const binSections = new Set(["bin-settings-size", "bin-settings-construction", "bin-settings-materials"]);
 
-/** Keep every editor mounted once; workflow navigation chooses its right-hand home. */
+/** Route the active settings section to the inspector; shared UI state lives above these portals. */
 export function InspectorPanelSections({ children }: { children: ReactNode }): JSX.Element {
   const inspector = useSelectionInspector();
   const { spec } = useBin();

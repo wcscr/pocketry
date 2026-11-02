@@ -8,6 +8,8 @@ import {
   render,
   renderPage,
   openSettingsSection,
+  openConstructionGroup,
+  setBinInterior,
   selectPocket,
 } from "./bin-designer.test-support";
 import * as React from "react";
@@ -681,7 +683,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color bin floor"]')!.click());
 
       openSettingsSection(container, "construction");
-      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Solid fill"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('#bin-solid-fill')!.click());
       openSettingsSection(container, "materials");
       expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket floors color"]')!.value).toBe("#2255aa");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -755,9 +757,13 @@ it.each(["standard", "workflow"])("retains optional divider coloring across cons
     expect(option()!.getAttribute("aria-checked")).toBe("true");
     toggle("Color top border");
     for (const label of ["Internal compartments", "Solid fill"]) {
-      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "construction");
+      openConstructionGroup(container, "compartments");
+      if (label === "Solid fill") setBinInterior(container, "solid"); else toggle(label);
       openSettingsSection(container, "materials"); expect(option()).toBeNull();
-      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "construction");
+      openConstructionGroup(container, "compartments");
+      if (label === "Solid fill") setBinInterior(container, "none"); else toggle(label);
       openSettingsSection(container, "materials");
       expect(option()!.getAttribute("aria-checked")).toBe("true");
     }

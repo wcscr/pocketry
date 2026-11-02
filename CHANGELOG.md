@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Organize Construction into Interior, Walls & rim, Compartments, Floor & scoops, Base & mounting, and Label tabs, with clear disclosures that retain their state across navigation and screen sizes. Keep existing model settings and feature behavior.
+- Reveal and focus settings from model warnings without unexpectedly switching canvas views or overriding newer navigation. Preserve explicitly chosen properties when resizing.
+- Make Trace disclosures visible, give text measurements room for signed decimal values, simplify mobile text adjustment, and show full project names in the Library.
+
 - Match raised label-tab front edges to Rim Top color and depth in previews and multicolor exports, keeping the recessed writing surface and lettering colors separate.
 
 - Add a front rim to new label tabs by default, level with the mounting wall/divider. It follows the recess and wall thickness, can be switched off, and reserves its space when placing labels. Saved shelves retain their existing shape.
