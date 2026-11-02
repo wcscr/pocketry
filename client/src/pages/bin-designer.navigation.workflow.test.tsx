@@ -66,7 +66,7 @@ it.each([
       await finishNavigation();
       expect(container.querySelector(canvasSelector)).toBe(canvas);
       expect(container.querySelector('#bin-settings-construction')!.closest('[hidden]')).toBeNull();
-      const target = container.querySelector('#bin-label-tab-recess')!;
+      const target = container.querySelector('#bin-label-tab-depth')!;
       expect(target.closest('[hidden]')).toBeNull();
       expect(document.activeElement).toBe(target);
       expect(expanded("labels")).toBe("true");
@@ -80,7 +80,7 @@ it.each([
       click(container, '[data-issue-code="label-tab-clipped"]');
       await finishNavigation();
       expect(expanded("labels")).toBe("true");
-      expect(document.activeElement).toBe(container.querySelector('#bin-label-tab-recess'));
+      expect(document.activeElement).toBe(container.querySelector('#bin-label-tab-depth'));
     }
   } finally { unmount(); }
 });

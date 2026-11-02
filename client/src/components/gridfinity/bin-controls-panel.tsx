@@ -1,9 +1,10 @@
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
-import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm } from "@shared/gridfinity/label-tab";
+import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
 import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
 import { effectiveBottomFilletRadiusMm } from "@shared/gridfinity/bottom-fillet";
 import { SettingsGroup } from "@/components/layout/settings-group";
+import { LabelTabSizeControls } from "./label-tab-size-controls";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useBinObjectContextMenu } from "./object-context-menu";
@@ -207,6 +208,8 @@ export interface BinControlsPanelProps {
   onRevealIssue: (issue: ValidationIssue) => void;
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string; focusId?: string };
+  /** Contextual links use the same cancellable navigation as warning actions. */
+  onNavigateSettings: (request: { id: string; focusId?: string }) => void;
   exportOnly?: boolean;
   /** Opens Check fit and leaves the compact mobile Export view. */
   onShowFitCheck: () => void;
@@ -280,6 +283,7 @@ export function BinControlsPanel({
   issues,
   onRevealIssue,
   settingsSectionRequest,
+  onNavigateSettings,
   exportOnly = false,
   onShowFitCheck,
   stats,
@@ -1865,6 +1869,11 @@ export function BinControlsPanel({
                       <span className="text-xs text-muted-foreground">mm</span>
                     </div>
                   </div>
+                  {(spec.compartments.rows > 1 || spec.compartments.columns > 1) && <Button
+                    variant="link" size="sm" className="h-auto min-h-11 px-0 text-xs" data-testid="button-divider-colors"
+                    onClick={() => onNavigateSettings({ id: "bin-settings-materials", focusId: colorStackingRim ? "color-divider-tops" : "divider-top-colors" })}>
+                    Divider colors…
+                  </Button>}
                 </div>}
             </div>
             </> : <p className="text-xs text-muted-foreground">Choose Hollow interior to use dividers. Your compartment settings are retained.</p>}
@@ -2018,20 +2027,22 @@ export function BinControlsPanel({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
+                  <Label className="shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
                   <Select value={spec.labelTab.width}
                     onValueChange={width => patchSpec({ labelTab: { ...spec.labelTab!, width: width as "full" | "center" | "left" | "right" } })}>
                     <SelectTrigger id="bin-label-tab" aria-label="Label tab style" className="h-8 flex-1" data-testid="select-label-tab"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="full">Full width</SelectItem>
-                      <SelectItem value="center">Center · 42 mm</SelectItem>
-                      <SelectItem value="left">Left · 42 mm</SelectItem>
-                      <SelectItem value="right">Right · 42 mm</SelectItem>
+                      <SelectItem value="center">Center · {labelTabWidthMm(spec)} mm</SelectItem>
+                      <SelectItem value="left">Left · {labelTabWidthMm(spec)} mm</SelectItem>
+                      <SelectItem value="right">Right · {labelTabWidthMm(spec)} mm</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <LabelTabSizeControls spec={spec} onChange={(patch, transient) =>
+                  patchSpec({ labelTab: { ...spec.labelTab!, ...patch } }, transient)} />
                 <div className="flex items-center gap-2">
-                  <SettingLabel label="Apply to" className="w-28 shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
+                  <SettingLabel label="Apply to" className="shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
                   <Select value={spec.labelTab.scope ?? "outer"} disabled={spec.fill !== "none"}
                     onValueChange={scope => {
                       patchSpec({ labelTab: { ...spec.labelTab!, scope: scope === "compartments" ? "compartments" : "outer" } });
@@ -2043,7 +2054,7 @@ export function BinControlsPanel({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs">On wall</Label>
+                  <Label className="shrink-0 whitespace-nowrap text-xs">On wall</Label>
                   <Select
                     value={spec.labelTab.autoWall ? "auto" : spec.labelTab.wall}
                     onValueChange={(wall) =>
@@ -2285,10 +2296,17 @@ export function BinControlsPanel({
               </div>
             </div>
             {spec.fill === "none" && internalCompartmentsOn && (spec.compartments.rows > 1 || spec.compartments.columns > 1) &&
-              <FeatureSwitch label="Include dividers"
-                description="Use the rim color and depth on the tops of internal dividers. Follows slanted walls without changing their dimensions."
-                checked={colorDividerTops} disabled={!colorStackingRim}
-                onChange={onColorDividerTopsChange} />}
+              <div id="divider-top-colors" role="group" aria-label="Divider top colors" tabIndex={-1}
+                aria-describedby={!colorStackingRim ? "divider-top-colors-help" : undefined}
+                className="space-y-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <FeatureSwitch id="color-divider-tops" label="Match divider tops to rim color"
+                  description="Use the rim color and depth on the tops of internal dividers. Follows slanted walls without changing their dimensions."
+                  checked={colorDividerTops} disabled={!colorStackingRim}
+                  onChange={onColorDividerTopsChange} />
+                {!colorStackingRim && <p id="divider-top-colors-help" className="text-xs text-muted-foreground">
+                  Turn on “Color {rimColorLabel.toLowerCase()}” above to use this option. Your divider color choice is retained.
+                </p>}
+              </div>}
             {spec.lip === "none" && <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Color width" htmlFor="input-border-width" hint="Width inward from the outer edge. Colors existing material only; hollow bins are limited to their walls." />
               <div className="flex items-center gap-1.5">

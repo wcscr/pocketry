@@ -11,10 +11,11 @@ import {
   binHeightMm,
   D_WALL,
   R_F2,
+  TAB_DEPTH_MM,
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { boundaryLabelTabProfileMm, labelTabProfileWithFrontRim, labelTabFrontRimHeightMm } from "@shared/gridfinity/label-tab";
+import { boundaryLabelTabProfileMm, labelTabProfileWithFrontRim, labelTabFrontRimHeightMm, labelTabDepthMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
 import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
 import { infillTopZ } from "@shared/gridfinity/fill";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
@@ -95,11 +96,19 @@ export function buildLabelTab(
   // Profile in the (x = depth, y = height) plane, depth negated so the tab
   // grows inward (−y after mapping) from the wall face; negation also turns
   // the upstream point order CCW.
-  const profile = labelTabProfileWithFrontRim(spec, profileMm).map(([depth, height]) => [-depth, height] as [number, number]);
+  // Narrow tabs cannot rely on their ends meeting the rounded wall corners.
+  // Give resized shelves a small mounting overlap, as repeated tabs already
+  // have, while retaining the exact legacy geometry at standard dimensions.
+  const resized = labelTabDepthMm(spec) !== TAB_DEPTH_MM
+    || (tab.width !== "full" && labelTabWidthMm(spec) !== TAB_WIDTH_NOMINAL_MM);
+  const attachmentMm = resized ? 0.02 : 0;
+  const profile = labelTabProfileWithFrontRim(spec, profileMm)
+    .map(([depth, height]) => [depth === 0 && attachmentMm ? attachmentMm : -depth, height] as [number, number]);
+  if (attachmentMm && profileMm.points.at(-1)![1] > 0) profile.push([0, 0]);
   const section = arena.track(new CrossSection([profile]));
 
   const lengthMm =
-    tab.width === "full" ? chordMm + 20 : Math.min(TAB_WIDTH_NOMINAL_MM, chordMm);
+    tab.width === "full" ? chordMm + 20 : Math.min(labelTabWidthMm(spec), chordMm);
   // extrude → z ∈ [0, L]; rotate X90 then Z90 maps (depth, height, length)
   // onto (length → x, depth → y, height → z).
   const prism = arena.track(
@@ -132,11 +141,14 @@ export function buildLabelTab(
   // Trim to the rounded interior so the ends follow the corner fillets.
   const interiorW = binWidthMm(spec) - 2 * D_WALL;
   const interiorL = binLengthMm(spec) - 2 * D_WALL;
-  const columnSection = spec.footprint.kind === "custom"
+  let columnSection = spec.footprint.kind === "custom"
     ? footprintInteriorSection(kernel, spec, circularSegments)
     : arena.track(new CrossSection([
         roundedRectPolygon(interiorW, interiorL, R_F2, circularSegments),
       ]));
+  // The overlap belongs inside the wall; clipping it to the original cavity
+  // would remove that attachment and leave a separate shelf component.
+  if (attachmentMm) columnSection = arena.track(columnSection.offset(attachmentMm, "Round", 2, circularSegments));
   const column = arena.track(columnSection.extrude(binHeightMm(spec.heightUnits) + 1));
   return arena.track(placed.intersect(column));
 }

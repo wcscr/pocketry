@@ -5,7 +5,8 @@ import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { labelTabSurfaces, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
 import { validateBinSpec } from "@shared/gridfinity/validate";
 import { binHeightMm } from "@shared/gridfinity/standard";
-import { placeSurfaceTextOnTab, surfaceTextZ } from "./surface-text";
+import { withKernel } from "@/lib/manifold/runtime";
+import { buildSurfaceTexts, placeSurfaceTextOnTab, surfaceTextZ } from "./surface-text";
 
 const label = surfaceTextSchema.parse({ id: "first", text: "M3", font: "helvetiker", position: { x: 0, y: 0 } });
 const bin = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5.5, lip: "none", fill: "none",
@@ -69,5 +70,33 @@ describe("label-tab text placement", () => {
     const requested = { ...label, surface: "label-tab" as const };
     expect(placeSurfaceTextOnTab(closed, requested)).toEqual(requested);
     expect(labelTabSurfaces({ ...bin, labelTab: null })).toEqual([]);
+  });
+
+  it("explains when an enabled tab's front rim consumes its writing surface without moving text", async () => {
+    const requested = { ...label, surface: "label-tab" as const, position: { x: -12.75, y: 27.06 }, rotationDeg: -15 };
+    const spec = parseBinSpec({ ...bin, wallSlant: null, wallThicknessMm: 1.6, surfaceTexts: [requested],
+      labelTab: { wall: "south", scope: "compartments", depthMm: 1, widthMm: 10, width: "center", recessMm: 0.5, frontRim: true } });
+    expect(labelTabSurfaces(spec)).toEqual([]);
+    expect(labelTabSurfaces({ ...spec, labelTab: { ...spec.labelTab!, frontRim: false } }).length).toBeGreaterThan(0);
+    await withKernel(kernel => {
+      const body = kernel.arena.track(kernel.Manifold.cube([1, 1, 1]));
+      expect(() => buildSurfaceTexts(kernel, spec, body)).toThrow("Increase Tab depth or turn off Front rim");
+    });
+    expect(spec.surfaceTexts).toEqual([requested]);
+  });
+
+  it("distinguishes a missing tab from an enabled shelf that cannot fit above the floor", async () => {
+    const requested = { ...label, surface: "label-tab" as const };
+    const absent = parseBinSpec({ ...bin, labelTab: null, surfaceTexts: [requested] });
+    const tooLow = parseBinSpec({ ...absent, heightUnits: 2, wallSlant: null,
+      labelTab: { wall: "south", width: "full", depthMm: 5, recessMm: 6, frontRim: false } });
+    expect(labelTabSurfaces(tooLow)).toEqual([]);
+    await withKernel(kernel => {
+      const body = kernel.arena.track(kernel.Manifold.cube([1, 1, 1]));
+      expect(() => buildSurfaceTexts(kernel, absent, body)).toThrow("Enable label tabs in Construction");
+      expect(() => buildSurfaceTexts(kernel, tooLow, body)).toThrow("Reduce Recess, increase bin height, or choose another label-tab placement");
+    });
+    expect(absent.surfaceTexts).toEqual([requested]);
+    expect(tooLow.surfaceTexts).toEqual([requested]);
   });
 });

@@ -45,15 +45,13 @@ import {
   gridPitchMm,
   STACKING_LIP_DEPTH,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
-  TAB_HEIGHT_MM,
   TAB_SUPPORT_HEIGHT_MM,
-  TAB_WIDTH_NOMINAL_MM,
 } from "./standard";
 import type { BinSpec } from "./types";
 import { infillHeightMm } from "./fill";
 import { resolvePocketSplit } from "./pocket-split";
 import { wallSlantPointMm, wallSlantExtraSizeMm, wallSlantCloses, wallSlantHeightMm } from "./wall-slant";
-import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimHeightMm } from "./label-tab";
+import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimHeightMm, labelTabRequestedHeightMm, labelTabWidthMm } from "./label-tab";
 import { labelTabTopZ } from "./label-tab-surfaces";
 
 /**
@@ -226,14 +224,14 @@ export function validateBinSpec(spec: BinSpec): ValidationResult {
 
   if (
     spec.labelTab &&
-    (labelTabRecessMm(spec) > 0 ? labelTabTopZ(spec) : binHeightMm(spec.heightUnits)) - TAB_HEIGHT_MM < BASE_HEIGHT
+    (labelTabRecessMm(spec) > 0 ? labelTabTopZ(spec) : binHeightMm(spec.heightUnits)) - labelTabRequestedHeightMm(spec) < BASE_HEIGHT
   ) {
     issues.push({
       code: "label-tab-clipped",
       severity: "warning",
       message: spec.wallSlant || labelTabRecessMm(spec) > 0
         ? "The height and recess leave too little wall for the full label tab; its depth is reduced to stay above the base."
-        : `A ${heightLabel} bin is shorter than the ${TAB_HEIGHT_MM.toFixed(1)} mm ` +
+        : `A ${heightLabel} bin is shorter than the ${labelTabRequestedHeightMm(spec).toFixed(1)} mm ` +
           `label tab — the tab reaches down into the base and will look truncated.`,
     });
   }
@@ -273,7 +271,7 @@ export function labelTabStripMm(spec: BinSpec): Bounds | null {
   if (!run) return null;
   const horizontal = edge.side === "north" || edge.side === "south";
   const chord = run.lengthMm - 2 * D_WALL;
-  const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
+  const length = tab.width === "full" ? chord : Math.min(labelTabWidthMm(spec), chord);
   const alongStart =
     tab.width === "left"
       ? -chord / 2

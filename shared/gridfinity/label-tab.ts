@@ -10,6 +10,7 @@ import {
   TAB_PROFILE,
   TAB_SUPPORT_ANGLE_DEG,
   TAB_SUPPORT_HEIGHT_MM,
+  TAB_WIDTH_NOMINAL_MM,
   binWallHeightMm,
   binWallThicknessMm,
 } from "./standard";
@@ -23,6 +24,22 @@ interface LabelTabProfile {
 }
 
 export const DEFAULT_LABEL_TAB_RECESS_MM = 0.5;
+
+/** Requested dimensions remain independent of the available shelf space. */
+export function labelTabDepthMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.depthMm ?? TAB_DEPTH_MM;
+}
+
+export function labelTabWidthMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.widthMm ?? TAB_WIDTH_NOMINAL_MM;
+}
+
+/** Height required by the requested depth at the original support angle. */
+export function labelTabRequestedHeightMm(spec: Pick<BinSpec, "labelTab">): number {
+  const depth = labelTabDepthMm(spec);
+  return depth === TAB_DEPTH_MM ? TAB_HEIGHT_MM
+    : Math.tan(TAB_SUPPORT_ANGLE_DEG * Math.PI / 180) * depth + TAB_SUPPORT_HEIGHT_MM;
+}
 
 /** Missing values belong to saved designs made before recess was configurable. */
 export function labelTabRecessMm(spec: Pick<BinSpec, "labelTab">): number {
@@ -63,11 +80,16 @@ export function defaultLabelTabWall(spec: Pick<BinSpec, "wallSlant">): NonNullab
 export function labelTabProfileMm(spec: Pick<BinSpec, "heightUnits" | "wallSlant" | "labelTab">,
   mountingHeightMm = binWallHeightMm(spec.heightUnits)): LabelTabProfile | null {
   const recess = labelTabRecessMm(spec);
+  const requestedDepthMm = labelTabDepthMm(spec);
+  const requestedHeightMm = labelTabRequestedHeightMm(spec);
   const availableHeightMm = mountingHeightMm - recess;
   if (recess > 0 && availableHeightMm <= TAB_SUPPORT_HEIGHT_MM) return null;
-  if ((!spec.wallSlant && recess === 0) || availableHeightMm >= TAB_HEIGHT_MM) {
-    return { depthMm: TAB_DEPTH_MM, heightMm: TAB_HEIGHT_MM,
-      points: TAB_PROFILE.map(([depth, height]) => [depth, height]) };
+  if ((!spec.wallSlant && recess === 0) || availableHeightMm >= requestedHeightMm) {
+    return { depthMm: requestedDepthMm, heightMm: requestedHeightMm,
+      points: requestedDepthMm === TAB_DEPTH_MM ? TAB_PROFILE.map(([depth, height]) => [depth, height]) : [
+        [0, 0], [0, requestedHeightMm], [requestedDepthMm, requestedHeightMm],
+        [requestedDepthMm, requestedHeightMm - TAB_SUPPORT_HEIGHT_MM],
+      ] };
   }
   if (availableHeightMm <= TAB_SUPPORT_HEIGHT_MM) return null;
   const slope = Math.tan(TAB_SUPPORT_ANGLE_DEG * Math.PI / 180);

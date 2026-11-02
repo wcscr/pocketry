@@ -1,8 +1,11 @@
 import { expect, it } from "vitest";
 import { issueSettingsTarget } from "./issue-settings";
 
-it("directs clipped tabs to recess while keeping placement problems at the style controls", () => {
+it("directs tab sizing and recess problems to their fields while keeping placement problems at the style controls", () => {
   expect(issueSettingsTarget("label-tab-clipped")).toEqual({
+    id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-depth",
+  });
+  expect(issueSettingsTarget("label-tab-recess")).toEqual({
     id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-recess",
   });
   for (const code of ["label-tab-edge-missing", "label-tab-shadow"]) {

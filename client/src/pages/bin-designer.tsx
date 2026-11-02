@@ -1273,6 +1273,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onShowFitCheck={() => { setSettingsSectionRequest({ id: "bin-settings-fit" }); setPanelOpen(true); }}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
+          onNavigateSettings={request => { setSettingsSectionRequest(request); setPanelOpen(true); }}
           onRevealIssue={revealIssue}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
