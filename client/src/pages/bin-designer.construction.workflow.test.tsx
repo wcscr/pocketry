@@ -1371,11 +1371,12 @@ it("downloads neither jig SVG nor backup when generation fails", async () => {
   } finally { unmount(); }
 });
 
-it.each(["standard", "workflow"])("retains per-sub-bin tab placement while changing style and undoing in %s", async layout => {
+it.each(["standard", "workflow"].flatMap(layout => [undefined, "outer", "compartments"].map(scope => ({ layout, scope }))))(
+  "retains saved tab placement ($scope) while changing style and undoing in $layout", async ({ layout, scope }) => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, "", `/bin?layout=${layout}`);
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(parseProjectDoc({ ...EMPTY_PROJECT,
-    spec: { ...EMPTY_PROJECT.spec, fill: "none", compartments: { rows: 2, columns: 3 }, labelTab: { wall: "north", width: "full", scope: "compartments" } } }));
+    spec: { ...EMPTY_PROJECT.spec, fill: "none", compartments: { rows: 2, columns: 3 }, labelTab: { wall: "north", width: "full", scope } } }));
   const { container, unmount } = renderPage({ experimental: false });
   try {
     await flushHydration(); openSettingsSection(container, "construction");
@@ -1390,18 +1391,23 @@ it.each(["standard", "workflow"])("retains per-sub-bin tab placement while chang
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     expect(group.contains(placement())).toBe(true);
     expect(group.querySelector('[aria-label="Label tab wall"]')).not.toBeNull();
-    expect(placement().textContent).toBe("Each sub-bin");
-    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-choose-label-edge"]')!.disabled).toBe(true);
+    const repeats = scope === "compartments";
+    expect(placement().textContent).toBe(repeats ? "Each sub-bin" : "Outer wall");
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab!.scope).toBe(scope);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="button-choose-label-edge"]')!.disabled).toBe(repeats);
+    React.act(() => placement().focus());
     React.act(() => placement().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
-    const outer = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(el => el.textContent === "Outer wall")!;
-    React.act(() => outer.click());
-    expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab!.scope).toBe("outer");
+    const alternative = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(el => el.textContent === (repeats ? "Outer wall" : "Each sub-bin"))!;
+    React.act(() => alternative.click());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab!.scope).toBe(repeats ? "outer" : "compartments");
     clickBinHistory(container, "undo");
-    expect(placement().textContent).toBe("Each sub-bin");
+    expect(placement().textContent).toBe(repeats ? "Each sub-bin" : "Outer wall");
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab style"]')!.focus());
     React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab style"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
     const centered = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(el => el.textContent === "Center · 42 mm")!;
     React.act(() => centered.click());
-    expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab).toMatchObject({ width: "center", scope: "compartments" });
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab!.width).toBe("center");
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0].labelTab!.scope).toBe(scope);
   } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
 });
 

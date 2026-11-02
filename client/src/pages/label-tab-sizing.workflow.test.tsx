@@ -4,6 +4,7 @@ import { expect, it, vi } from "vitest";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { labelTabSurfaces } from "@shared/gridfinity/label-tab-surfaces";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import * as ProjectPersistence from "@/lib/project/persist";
 
@@ -43,6 +44,41 @@ function style(container: HTMLElement, option: string): void {
     .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
   React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(element => element.textContent === option)!.click());
 }
+
+it.each(contexts)("enables tabs for every sub-bin, including dividers added later, in $layout (mobile: $mobile)", async ({ layout, mobile }) => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+    spec: parseBinSpec({ ...EMPTY_PROJECT.spec, fill: "none", gridX: 2, gridY: 2, heightUnits: 6,
+      compartments: { enabled: false, rows: 2, columns: 3 }, labelTab: null }) });
+  const page = renderPage({ mobile });
+  const { container } = page;
+  let unmount = page.unmount;
+  const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+  try {
+    await flushHydration(); openTabs(container, mobile);
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab"]')!.click());
+    expect(container.querySelector('[aria-label="Label tab placement"]')!.textContent).toBe("Each sub-bin");
+    expect(current().labelTab).toMatchObject({ scope: "compartments", width: "full", autoWall: true });
+    expect(labelTabSurfaces(current())).toHaveLength(1);
+    clickBinHistory(container, "undo"); expect(current().labelTab).toBeNull();
+    clickBinHistory(container, "redo"); expect(current().labelTab!.scope).toBe("compartments");
+    openConstructionGroup(container, "compartments");
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Internal compartments"]')!.click());
+    expect(labelTabSurfaces(current())).toHaveLength(6);
+    openTabs(container, mobile);
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab"]')!.click());
+    React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Label tab"]')!.click());
+    expect(labelTabSurfaces(current())).toHaveLength(6);
+    const saved = parseProjectDoc({ ...EMPTY_PROJECT, spec: current() })!;
+    unmount(); unmount = () => {};
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    const reopened = renderPage({ mobile }); unmount = reopened.unmount;
+    await flushHydration(); openTabs(reopened.container, mobile);
+    expect(reopened.container.querySelector('[aria-label="Label tab placement"]')!.textContent).toBe("Each sub-bin");
+    expect(labelTabSurfaces(current())).toHaveLength(6);
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+});
 
 it.each(contexts)("edits tab dimensions with undo, cancellation and retained width in $layout (mobile: $mobile)", async ({ layout, mobile }) => {
   const originalUrl = window.location.href;

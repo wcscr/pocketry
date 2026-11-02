@@ -32,7 +32,9 @@ Schema 52 retains the settings in projects, undo history, and transform origins.
 Earlier projects default to 1 by 1 with scoops off. Preview, STL, and 3MF share
 the same geometry builder. Existing pocket/finger cuts still remove material
 from the finished bin. Label tabs can stay on the selected outer wall or repeat on each sub-bin.
-The Label tab switch enables a full-width tab. The Label tabs group contains
+The Label tab switch enables full-width tabs with Apply to set to Each sub-bin,
+including when dividers are added later. Saved tabs keep their existing placement;
+older tabs without a saved placement still use the outer wall. The Label tabs group contains
 Front rim, Recess, Style, Tab depth, partial-tab width, Apply to, and On wall.
 Recess accepts 0–10 mm and defaults to
 0.5 mm for newly enabled tabs; zero is flush. Outer tabs use the wall top as

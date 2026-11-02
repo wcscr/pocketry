@@ -2006,7 +2006,7 @@ export function BinControlsPanel({
             description="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops."
             checked={spec.labelTab !== null}
             onChange={enabled => {
-              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full", recessMm: DEFAULT_LABEL_TAB_RECESS_MM, frontRim: true } : null });
+              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, scope: "compartments", width: "full", recessMm: DEFAULT_LABEL_TAB_RECESS_MM, frontRim: true } : null });
               if (!enabled && editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
             }}
             />
