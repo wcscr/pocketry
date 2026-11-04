@@ -23,6 +23,12 @@ for current behavior and architecture.
    pocketry@sugarcreekresearch.com. Later PRs usually need
    no further action unless the terms, rights holder, or your authority change.
 
+Identify everyone whose original work is included, and any employer or other
+organization that owns rights in that work. CLA acceptance must cover those
+rights holders—not just the person opening the PR. If you're unsure about
+ownership or authorization, ask us. Private details can be emailed to
+pocketry@sugarcreekresearch.com.
+
 Maintainers review and edit changelog entries, combine related items, and set
 release versions and dates. You do not need to bump the version for a normal PR.
 
