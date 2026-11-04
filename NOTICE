@@ -3,7 +3,7 @@ Copyright (c) 2026 Sugarcreek Research, LLC
 
 This product includes third-party software and directly adapted open-source
 work. Pocketry's original work is distributed under the GNU Affero General
-Public License, version 3 only (AGPL-3.0-only; see LICENSE). Third-party
+Public License, version 3 only (AGPL-3.0; see LICENSE). Third-party
 portions remain under the licences identified below.
 
 Wham Bam Systems ULTIM8 jig compatibility dimensions come from the creator’s
@@ -11,9 +11,10 @@ public product page and calibration guide. The peg builder is original Pocketry 
 Bam CAD files, meshes, or implementation are distributed. ULTIM8 and eufyMake
 are the respective owners’ trademarks.
 
-This notice inventories projects Pocketry directly depends on, bundles, or
-adapts. Transitive dependencies are not enumerated here; their notices remain
-with their packages. Exact npm versions are recorded in package-lock.json.
+This source notice inventories projects Pocketry directly depends on, bundles,
+or adapts. Production builds append the complete license and notice texts for
+npm packages included in the browser and worker bundles, including transitive
+dependencies. Exact npm versions are recorded in package-lock.json.
 
 Automatic hollow-wall thickness uses the numerical height bands documented by
 Gridfinity Extended: 0.95 mm below 8U, 1.2 mm below 16U, and 1.6 mm thereafter.
@@ -478,9 +479,12 @@ MIT License:
   vite
   vitest
 
-The full licence text and package-specific copyright notice for an installed
-npm dependency can be found in that package's `node_modules` directory and its
-upstream source repository.
+The production NOTICE.txt appends the full licence and notice texts for npm
+packages in the emitted browser and worker chunks. These come from the installed
+packages or reviewed, version-specific upstream supplements in licenses/npm/.
+Builds fail if a bundled package lacks a licence text. Source checkouts and Node
+hosting retain package notices in node_modules as well; build tools and server-only
+packages listed above are not necessarily included in the browser distribution.
 
 ================================================================================
 Docker self-hosting base images

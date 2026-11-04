@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include full bundled npm dependency notices with releases, link contribution guidelines from About, and update Help's Flat bottom instructions.
+
 - Let label tabs use less space with adjustable inward depth and partial-tab width, preserving existing designs and text placement. Newly enabled tabs default to Each sub-bin. Link directly from Compartments to the clearer “Match divider tops to rim color” setting.
 - Organize Construction into Interior, Walls & rim, Compartments, Floor & scoops, Base & mounting, and Label tabs, with clear disclosures that retain their state across navigation and screen sizes. Keep existing model settings and feature behavior.
 - Reveal and focus settings from model warnings without unexpectedly switching canvas views or overriding newer navigation. Preserve explicitly chosen properties when resizing.

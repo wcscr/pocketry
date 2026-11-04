@@ -73,6 +73,12 @@ known facts; maintainers verify the following before incorporation:
 Help contributors resolve missing facts; record the conclusion and outstanding
 items instead of requesting a legal certification from them.
 
+Run `npm run build` when dependencies or bundled assets change and inspect the
+emitted `NOTICE.txt`. The build appends full npm notices from browser and worker
+chunks; missing package license files require a reviewed, version-specific
+[upstream supplement](../licenses/npm/README.md). This packaging check does not
+replace the compatibility review or notices for separately vendored assets.
+
 ## 3. Verify and integrate
 
 Check local commands/results under [CLAUDE.md](../CLAUDE.md), preserve human

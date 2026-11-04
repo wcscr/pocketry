@@ -13,6 +13,11 @@
 !client/**
 !shared/
 !shared/**
+!server/
+!server/bundled-notices.ts
+!licenses/
+!licenses/npm/
+!licenses/npm/**
 !samples/
 !samples/pocketry-sample-library.json
 !deploy/

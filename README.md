@@ -178,6 +178,9 @@ npm run build
 ```
 
 The build includes `LICENSE.txt` and `NOTICE.txt` alongside the application.
+`NOTICE.txt` includes full license texts for bundled npm dependencies, including
+transitive packages used by browser and worker code. See the
+[notice maintenance guide](licenses/npm/README.md) when updating dependencies.
 
 ## Versions and update history
 

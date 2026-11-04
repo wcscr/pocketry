@@ -41,8 +41,8 @@ source outline again. Normal editing restores pocket outlines automatically.
 
 Untouched older pockets preserve their existing geometry. Starting a rigid edit
 resolves their current depth into a fixed source dimension, including each split
-section independently. Elevation belongs to each placement; optional linked X/Y
-rotation still applies to linked copies. Saved-project schema 26 converts the
+section independently. Elevation and orientation belong to each placement and
+remain independent in linked designs. Saved-project schema 26 converts the
 profile prototype's centered extrusion, edge rotation, history and creation
 references into equivalent ordinary pockets.
 
