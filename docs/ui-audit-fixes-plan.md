@@ -1,5 +1,9 @@
 # Published UI audit fixes
 
+This is a historical UI repair plan and validation record; its task list is not current work status.
+Enhancements, problem reports, and current priorities are tracked in
+[GitHub issues](https://github.com/wcscr/pocketry/issues).
+
 Scope: fix findings 1–5 from the October 21 published UI audit. The highlighted Trace a Photo mode remains unchanged.
 
 | Finding | Implementation and controls | Adversarial checks |

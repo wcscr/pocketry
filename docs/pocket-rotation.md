@@ -8,13 +8,17 @@ the existing Rotation control sets Z heading.
 **Depth** is the extrusion distance normal to the original outline. It becomes
 thickness when the pocket is turned sideways. Clearance, corner rounding,
 top/bottom fillets, scaling, mirroring and split depths define the source solid
-before rotation. A through cut extends along the rotated source axis through the
-bin. Each split section retains its own depth.
+before rotation. Once rigid placement is established, Through preserves a finite
+source solid and permits its seat to reach the underside; it does not create an
+infinite shaft. Each split section retains its own depth. See
+[insertion and floor behavior](pocket-insertion-paths.md).
 
 **Elevation** is the lowest point above the bin underside. Raising or lowering
 moves the whole solid without changing its dimensions, and it can move completely
-above the fill. A submerged solid leaves an enclosed cavity. The surface opening
-is only the solid's intersection with the fill surface. Layout and SVG/DXF export
+above the fill. With insertion clearance disabled, a submerged solid leaves an
+enclosed cavity. The surface opening
+is the cavity's intersection with the fill surface, including any separately
+enabled insertion clearance. Layout and SVG/DXF export
 use that same section; the full projected solid remains available for selection.
 
 Fill-height depth adjustment continues to work for surface-anchored pockets.

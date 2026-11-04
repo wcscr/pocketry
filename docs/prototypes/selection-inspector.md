@@ -1,5 +1,9 @@
 # Workflow and properties layout
 
+This is a historical workflow-layout design record. Some control names and locations below describe earlier revisions; use the [bin implementation reference](../gridfinity-plan.md) and current UI source for present behavior.
+Enhancements, problem reports, and current priorities are tracked in
+[GitHub issues](https://github.com/wcscr/pocketry/issues).
+
 This layout separates choosing objects from editing them. Its prototype started from
 `codex/pocket-tilt` at `169277ff`, preserving pocket tilt, design links, mixed
 selection, arrangement, geometry validation, and the existing project format.
