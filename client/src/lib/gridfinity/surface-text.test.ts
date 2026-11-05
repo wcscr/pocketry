@@ -10,7 +10,14 @@ import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
 import { createBasicPocket } from "./basic-shape";
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import { BUILD_BIN_METHOD, type BuildBinResult, type BuildBinRequest } from "./worker-api";
-import { surfaceTextOutline, surfaceTextZ } from "./surface-text";
+import { SURFACE_TEXT_ISSUE_CODE, surfaceTextOutline, surfaceTextZ } from "./surface-text";
+
+/** Misplaced labels are reported and left out; the rest of the bin still builds. */
+function textIssues(result: ReturnType<typeof buildBinWithCutouts>): string {
+  expect(result.solid.status()).toBe("NoError");
+  return result.validationIssues.filter(issue => issue.code === SURFACE_TEXT_ISSUE_CODE && issue.severity === "error")
+    .map(issue => issue.message).join("\n");
+}
 
 const text = surfaceTextSchema.parse({ id: "text-1", text: "B8 & O", position: { x: 0, y: 0 } });
 const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", surfaceTexts: [text], textColor: "#ff6600" });
@@ -73,16 +80,23 @@ describe("surface text", () => {
     });
   });
 
-  it("rejects text outside the footprint or across a pocket and overlapping labels", async () => {
+  it("reports text outside the footprint or across a pocket and overlapping labels without failing the bin", async () => {
     await withKernel(kernel => {
-      const outside = { ...spec, surfaceTexts: [{ ...text, position: { x: 42, y: 0 } }] };
-      expect(() => buildBinWithCutouts(kernel, outside, null, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
-      const overlap = { ...spec, surfaceTexts: [text, { ...text, id: "text-2" }] };
-      expect(() => buildBinWithCutouts(kernel, overlap, null, EXPORT_QUALITY)).toThrow("overlaps");
+      const outside = buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [{ ...text, position: { x: 42, y: 0 } }] }, null, EXPORT_QUALITY);
+      expect(textIssues(outside)).toContain("must fit on the flat surface");
+      expect(outside.textParts).toHaveLength(0);
+      expect(outside.validationIssues[0].surfaceTextIds).toEqual(["text-1"]);
+      const overlap = buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [text, { ...text, id: "text-2" }] }, null, EXPORT_QUALITY);
+      expect(textIssues(overlap)).toContain("overlaps");
+      // The first label still builds; only the overlapping one is left out.
+      expect(overlap.textParts.map(part => part.label.id)).toEqual(["text-1"]);
+      expect(overlap.validationIssues.find(issue => issue.code === SURFACE_TEXT_ISSUE_CODE)!.surfaceTextIds).toEqual(["text-2"]);
       const pocket = createBasicPocket("rectangle", { x: -10, y: -10 }, { x: 10, y: 10 }, "pocket")!;
-      expect(() => buildBinWithCutouts(kernel, spec, {
+      const across = buildBinWithCutouts(kernel, spec, {
         cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [],
-      }, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
+      }, EXPORT_QUALITY);
+      expect(textIssues(across)).toContain("must fit on the flat surface");
+      expect(across.solid.volume()).toBeCloseTo(across.bodySolid.volume(), 6);
     });
   });
 
@@ -92,7 +106,7 @@ describe("surface text", () => {
     const narrow = parseBinSpec({ gridPitch: "half", gridX: 2, gridY: 7, heightUnits: 3, surfaceTexts: [label] });
     const layout = { cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [] };
     await withKernel(kernel => {
-      expect(() => buildBinWithCutouts(kernel, narrow, layout, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
+      expect(textIssues(buildBinWithCutouts(kernel, narrow, layout, EXPORT_QUALITY))).toContain("must fit on the flat surface");
       const moved = { ...narrow, surfaceTexts: [{ ...label, position: { x: 0, y: 60 } }] };
       const result = buildBinWithCutouts(kernel, moved, layout, EXPORT_QUALITY);
       expect(result.textParts).toHaveLength(1);

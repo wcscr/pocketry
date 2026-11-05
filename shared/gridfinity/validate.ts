@@ -76,6 +76,8 @@ export interface ValidationIssue {
   cutoutIds?: string[];
   /** Independent finger access object(s) the issue is about. */
   fingerHoleIds?: string[];
+  /** Surface text label(s) the issue is about; reported instead of failing the build. */
+  surfaceTextIds?: string[];
 }
 
 export interface ValidationResult {

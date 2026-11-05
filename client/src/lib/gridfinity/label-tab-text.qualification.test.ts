@@ -14,6 +14,7 @@ import { BUILD_BIN_METHOD, type BuildBinRequest, type BuildBinResult } from "./w
 import type { HandlerContext, TransferableResult } from "@/lib/worker/host";
 import { placeSurfaceTextOnTab } from "./surface-text";
 import { createBasicPocket } from "./basic-shape";
+import { surfaceTextIssueText } from "./surface-text.test-support";
 
 const reported = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5.5, lip: "none", fill: "none",
   wallSlant: { axis: "y", angleDeg: 30 }, bottomFilletRadiusMm: 8,
@@ -101,12 +102,12 @@ describe("raised labels on slanted shelves", () => {
     const placed = placeSurfaceTextOnTab(reported, label);
     await withKernel(kernel => {
       const build = (surfaceTexts: typeof reported.surfaceTexts) => buildBinWithCutouts(kernel, { ...reported, surfaceTexts }, null, PREVIEW_QUALITY);
-      expect(() => build([{ ...placed, position: { x: 100, y: 100 } }])).toThrow("must fit on a label tab");
-      expect(() => build([{ ...placed, sizeMm: 40 }])).toThrow("must fit on a label tab");
-      expect(() => build([placed, { ...placed, id: "duplicate" }])).toThrow("overlaps");
-      expect(() => buildBinWithCutouts(kernel, { ...reported, labelTab: null, surfaceTexts: [placed] }, null, PREVIEW_QUALITY)).toThrow("needs a label tab");
+      expect(surfaceTextIssueText(build([{ ...placed, position: { x: 100, y: 100 } }]))).toContain("must fit on a label tab");
+      expect(surfaceTextIssueText(build([{ ...placed, sizeMm: 40 }]))).toContain("must fit on a label tab");
+      expect(surfaceTextIssueText(build([placed, { ...placed, id: "duplicate" }]))).toContain("overlaps");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, { ...reported, labelTab: null, surfaceTexts: [placed] }, null, PREVIEW_QUALITY))).toContain("needs a label tab");
       const closed = parseBinSpec({ ...reported, wallSlant: { axis: "x", angleDeg: -80, side: "positive" }, surfaceTexts: [placed] });
-      expect(() => buildBinWithCutouts(kernel, closed, null, PREVIEW_QUALITY)).toThrow("needs a label tab");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, closed, null, PREVIEW_QUALITY))).toContain("needs a label tab");
     });
   });
 
@@ -142,9 +143,9 @@ describe("raised labels on slanted shelves", () => {
     const placed = placeSurfaceTextOnTab(reported, label), p = placed.position;
     const pocket = createBasicPocket("rectangle", { x: p.x - 10, y: p.y - 4 }, { x: p.x + 10, y: p.y + 4 }, "opening")!;
     await withKernel(kernel => {
-      expect(() => buildBinWithCutouts(kernel, { ...reported, surfaceTexts: [placed] }, {
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, { ...reported, surfaceTexts: [placed] }, {
         cutouts: [{ ...pocket.cutout, depth: { mode: "through" } }], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [],
-      }, PREVIEW_QUALITY)).toThrow("must fit on a label tab");
+      }, PREVIEW_QUALITY))).toContain("must fit on a label tab");
     });
   });
 
@@ -174,7 +175,7 @@ describe("raised labels on slanted shelves", () => {
   it("requires label tabs for hollow-bin text even if it would fit on the floor", async () => {
     const spec = parseBinSpec({ ...reported, labelTab: null, surfaceTexts: [label] });
     await withKernel(kernel => {
-      expect(() => buildBinWithCutouts(kernel, spec, null, PREVIEW_QUALITY)).toThrow("Enable label tabs in Construction");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, spec, null, PREVIEW_QUALITY))).toContain("Enable label tabs in Construction");
     });
   });
 });

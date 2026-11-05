@@ -251,22 +251,25 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0 }: {
+export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0, invalidSurfaceTextIds }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
   onSelectSurfaceText?: (id: string, inline?: boolean) => void;
   edgeBandColor?: string;
   /** A placement request exits canvas tools that intercept label dragging. */
   textPositionRequest?: number;
+  /** Labels the last build could not place; outlined until moved. */
+  invalidSurfaceTextIds?: ReadonlySet<string>;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest}
+        invalidSurfaceTextIds={invalidSurfaceTextIds} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest, invalidSurfaceTextIds }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number; invalidSurfaceTextIds?: ReadonlySet<string> }): JSX.Element {
   const openObjectMenu = useBinObjectContextMenu();
   const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
@@ -2043,7 +2046,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
           {/* Labels must remain visible and receive pointer events above the
               pockets/openings they may overlap while being positioned. */}
-          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} invalidIds={invalidSurfaceTextIds} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
           {editorMode === "contour" &&
             selected &&

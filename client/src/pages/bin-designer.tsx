@@ -167,8 +167,9 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!isMobile || panelOpen) setSettingsSectionRequest({ id: "bin-settings-text" });
     if (!inspectorPrototype && !isMobile) setPanelOpen(true);
   };
-  const positionText = () => {
-    dispatch({ type: "SELECT_SURFACE_TEXT", id: bin.selectedSurfaceTextId });
+  /** Open Layout placement for one label (a reported issue) or the current selection. */
+  const positionTextFor = (id: string | null) => {
+    dispatch({ type: "SELECT_SURFACE_TEXT", id });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     setTextPositionRequest(request => request + 1);
@@ -176,6 +177,8 @@ function BinDesignerWorkspace(): JSX.Element {
     // The standard mobile drawer covers the canvas; return to it for dragging.
     setPanelOpen(!isMobile);
   };
+  // Also passed as a click handler, so never forward the event as an id.
+  const positionText = () => positionTextFor(bin.selectedSurfaceTextId);
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
   }, [bin.editorMode, isMobile, setPanelOpen]);
@@ -253,6 +256,10 @@ function BinDesignerWorkspace(): JSX.Element {
     if (settings) {
       setPanelOpen(true);
       setSettingsSectionRequest(settings);
+      return;
+    }
+    if (issue.surfaceTextIds?.length) {
+      positionTextFor(issue.surfaceTextIds.find(id => id !== bin.selectedSurfaceTextId) ?? issue.surfaceTextIds[0]);
       return;
     }
     if (issue.cutoutIds?.length) {
@@ -547,9 +554,12 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   // Pure and worker validation can both report the same invalid insertion.
-  const issues = [...layoutIssues, ...solidIssues.filter(issue => !layoutIssues.some(local =>
+  // A label deleted since the last build no longer needs its stale issue.
+  const issues = [...layoutIssues, ...solidIssues.filter(issue => !issue.surfaceTextIds?.length
+    || issue.surfaceTextIds.some(id => spec.surfaceTexts.some(label => label.id === id))).filter(issue => !layoutIssues.some(local =>
     local.code === issue.code && local.message === issue.message && local.severity === issue.severity
     && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)))];
+  const invalidSurfaceTextIds = new Set(issues.flatMap(issue => issue.severity === "error" ? issue.surfaceTextIds ?? [] : []));
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
     return shape ? [{ cutout, shape }] : [];
@@ -1431,7 +1441,8 @@ function BinDesignerWorkspace(): JSX.Element {
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest}
+              invalidSurfaceTextIds={invalidSurfaceTextIds} />
           )}
           <ViewToggle
             viewMode={viewMode}

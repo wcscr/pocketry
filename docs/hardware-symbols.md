@@ -3,7 +3,9 @@
 Choose **Add → Surface text**, then **Symbol** in the selected label's properties.
 
 With label tabs enabled, new text starts on the next empty shelf that fits it.
-**Surface → Label tabs** places text or symbols on the horizontal shelf tops,
+On bins with a stacking lip it starts clear of the lip's overhang beside the outer
+walls, shifting toward the bin's middle or shrinking as needed; saved labels are
+not moved. **Surface → Label tabs** places text or symbols on the horizontal shelf tops,
 including slanted walls and compartment dividers. Layout shades those tops at
 their actual shifted positions. Hollow bins use **Label tabs** exclusively;
 **Bin surface** is available only with solid fill. Opening an older hollow-bin
@@ -11,6 +13,12 @@ project or removing solid fill retargets its labels to tab height without moving
 rotating, or resizing them. Fill changes and their label updates undo together.
 If tabs are disabled or clipped away,
 tab text stays recoverable and export explains which surface needs restoring.
+When rows or columns change, tab labels follow the same sub-bin. A label whose
+tab disappears stays at its current position, is outlined in Layout, and blocks
+export even if another tab happens to sit underneath it. Restore its original
+tab to reattach it, or move the label onto another tab in Layout. This ownership
+is retained in saved projects and undo history (schema 60); editing only the
+wording or size does not dismiss the warning.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised
