@@ -72,35 +72,34 @@ Draw a **Region** around each tool and refine its **Outline**. Add clearance wit
 **Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
 there was estimated. You’ll set pocket depths in Bin.
 
-For tools on white Pocketry calibration sheets, try **Learned outer outline**
-in Outline settings. It samples the selected region from original photo pixels
-and runs a small TEED model on your device. Review tips and shadows; rejected
-boundaries retain color detection. See [behavior and measured limits](docs/teed-outline-integration.md).
+For white Pocketry calibration sheets, choose **Tool edges · white sheet** under
+**Find the outline using**. **Color contrast** remains available for other
+backgrounds and interior holes. These choices find the boundary; they do not
+apply curve fitting. Review tool tips and shadows; rejected tool-edge detections
+retain the color result. Processing stays on your device.
 
-For the curve prototype, choose **Edit contours → Edit curves (prototype)** in
-Trace, or **Edit contour → Edit curves (prototype)** in Bin. Drag an edge to bend
-it, move its handles, or use **Split edge**, **Straight**, **Smooth**, and **Corner**.
-Curves stay editable in Trace recovery, Add to bin, and saved Pocketry projects,
-including undo/redo. Trace margin must be zero before starting; simplification,
-symmetry, and trace margin are locked once curves are authored. Use Bin clearance
-to adjust fit. Trace SVG retains native curves when no hole/material boolean is needed; solid exports and DXF use sampled
-outlines. See [prototype scope and verification](docs/contour-curves-prototype.md).
+Choose **Auto-simplify outline** directly in Outline settings to preview supported
+straight lines and smooth curves. Use **More detail**, **Balanced**, or **Smoother**,
+compare with **Show original outline**, then **Apply simplified outline**. Cancel
+keeps the detected outline, and Apply is one undoable edit. Keep Trace margin at
+zero and simplify before manual editing. Under Advanced, **Maximum change from
+detected outline** limits how far the replacement can move from the dense detected
+boundary, using the photo calibration. It does not add pocket clearance.
 
-For a fresh detection, **Reconstruct lines & curves** fits straight segments and
-true curves directly from the dense boundary. Review the visible maximum deviation
-and preview, then Apply as one undoable edit. Keep Trace margin at zero and
-reconstruct before manual contour edits.
+**Edit outline** opens manual tools. Click an edge to add a point; right-click a
+point to delete it. Choose **Bend edges** to drag an edge into a curve or adjust its
+handles; the same add/delete shortcuts remain available on curves. Shift-click
+points or drag a box to select a group; **Select points** provides tap-to-toggle
+selection without a keyboard. Drag selected points to move them together, Delete
+to remove them, or **Simplify section** for adjacent points. Space-drag pans;
+Escape clears the selection. In Bin, these curve tools are under **Edit contour →
+Bend edges**. Each completed geometry edit is independently undoable.
 
-In curve editing, **Fit selected points** lets you choose the first and last point
-of a connected section, then **Preview fit**. **Swap ends** selects the other way
-around the contour. **Auto-fit contour** previews fitting the chosen outer contour
-or hole while preserving sharp corners and existing curves. Adjust **Max deviation**
-to control how closely it follows the current outline; **Apply fit** commits one
-undoable edit. **Cancel fit** or Escape discards the preview. Auto-fit is always
-opt-in; detection, opening projects, and saving never run it automatically.
-
-
-![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
+Curves stay editable through recovery, Trace → Bin transfer, and saved projects.
+Use Bin clearance to adjust fit after authoring curves. Native Trace SVG retains
+curves when no hole/material boolean is needed; solid exports and DXF use adaptive
+samples. See [curve behavior and limits](docs/contour-curves-prototype.md) and
+[white-sheet evaluation and timings](docs/teed-outline-integration.md).
 
 ### 2. Arrange the pockets
 

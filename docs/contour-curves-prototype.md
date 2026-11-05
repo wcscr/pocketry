@@ -4,32 +4,38 @@ Tracks [enhancement #156](https://github.com/wcscr/pocketry/issues/156).
 
 ## Trying it
 
-In Trace, detect and simplify an outline, keep trace margin at zero, and choose
-**Edit contours → Edit curves (prototype)**. In Bin, select an upright pocket in
-Layout and choose **Edit contour → Edit curves (prototype)**. Transferred curves
-open directly in curve mode. Tilted/profile pockets retain the existing contour
-editing restriction.
+In Trace, **Auto-simplify outline** is directly in Outline settings after fresh
+detection. For manual work, choose **Edit outline**, then **Bend edges** to shape
+curves. In Bin, select an upright pocket in Layout and choose **Edit contour →
+Bend edges**. Transferred curves open directly in curve editing. Tilted/profile
+pockets retain the existing contour editing restriction.
 
-- Drag an edge to bend it; drag an anchor to move it with its handles.
-- Select an edge to see its two handles. **Curve** adds handles to a straight
-  edge, **Straight** removes them, and **Split edge** subdivides the exact curve.
-- Select an anchor for **Smooth**, **Corner**, **Delete point**, or coordinates.
-  The contour and selection menus also make these controls keyboard accessible.
-  Coordinates use image pixels in Trace and shape-local millimetres in Bin.
-- Each completed gesture is one undo step. Clicking/selecting makes no edit.
-  Escape, pointer cancellation, focus loss, and a second finger cancel a draft.
-  Blank-space dragging pans; Shift/Space/middle-drag and pinch remain available.
+- Click an edge to add a point on the existing line or exact curve. Right-click
+  an anchor to delete that point, in both polygon and curve editing.
+- Drag an edge in Bend edges to curve it; drag an anchor to move it with its
+  handles. **Add handles**, **Straighten**, and **Add midpoint** provide explicit
+  alternatives. Smooth/Corner controls and coordinates apply to a selected anchor.
+- Shift-click toggles nodes; empty-space dragging selects a box, and Shift adds
+  to a selection. The visible **Select points** toggle allows tap-to-toggle on
+  phones. Drag a selected node to move the group; Delete removes selected points
+  atomically, keeping at least three in each ring. **Simplify section** accepts
+  one adjacent run, including one across the closed ring's seam. Disjoint nodes
+  can still be moved/deleted but cannot be fitted as a single section.
+- Selection and navigation do not create history. Each completed geometry gesture
+  commits once. Escape clears selection/cancels a draft, and pointer cancellation,
+  focus loss or a second finger cancels a draft. Space/middle-drag and the hand tool
+  pan; pinch zooms without editing points. Done leaves manual editing.
 - Trace recovery and portable Pocketry projects preserve handles. Add to bin
-  preserves them for separate pockets and holes, retaining their photo positions. Existing polygon
-  projects keep their original vertices until an explicit curve edit.
+  retains separate pockets/holes and photo positions. The contour list counts
+  editable anchors, rather than the denser samples used for solid exports.
 
 ## Reconstructing a detected photo outline
 
-Trace offers **Edit Contour → Edit curves (prototype) → Reconstruct lines & curves** after a fresh detection, with margin zero and no manual contour edits. This explicitly reconstructs all detected contours from their dense source. It does not run automatically on detection, load or save. The existing selected-point and coarse-contour fitting actions remain available separately.
+Trace offers **Outline → Auto-simplify outline** after a fresh detection, with margin zero and no manual contour edits. This explicitly reconstructs all detected contours from their dense source. It does not run automatically on detection, load or save. The existing selected-point and coarse-contour fitting actions remain available separately.
 
 The reconstruction first finds persistent corners using arc-length neighborhoods at two scales. It prefers supported finite straight runs and fits Bézier spans elsewhere, then refits curved spans using shared tangents and the neighboring straight-line directions. Smooth joins are accepted only when the adjusted spans still satisfy the selected allowance. Fitting can retain small corners/spurs when removing them would exceed that allowance; it does not infer perfect circular arcs or hidden tool geometry.
 
-Preview shows the dense reference and green candidate, with straight/cubic counts. **Max deviation** is in mm after calibration and px otherwise. The visible initial value is at least 0.1 mm (1 px uncalibrated), or the typical dense sampling step if coarser. It can be edited; the algorithm never silently increases a selected bound. The bound is against the dense detected polygon, not the photograph. Cubic error is checked continuously along every source edge; line checks include finite endpoints and reverse progress. Winding, intersections, hole relationships and budgets are also checked. Topology checks use adaptive samples and are not an exact proof for arbitrarily tiny features.
+Preview shows the green candidate and straight/cubic counts; **Show original outline** switches to the dense detected reference. Detail presets select half the default allowance (More detail), the default (Balanced), or twice the default (Smoother), rounded upward to the displayed precision. Advanced **Maximum change from detected outline** is in mm after calibration and px otherwise. It bounds distance from the dense detected outline before simplification. For example, 0.2 mm permits up to 0.2 mm of boundary movement, not 0.2 mm of pocket clearance. The default allowance is at least 0.1 mm (1 px uncalibrated), or the typical dense sampling step if coarser. It can be edited; the algorithm never silently increases a selected bound. The bound is against the dense detected polygon, not the photograph. Cubic error is checked continuously along every source edge; line checks include finite endpoints and reverse progress. Winding, intersections, hole relationships and budgets are also checked. Topology checks use adaptive samples and are not an exact proof for arbitrarily tiny features.
 
 Reconstruction runs in a cancellable worker without loading a new ML runtime. Cancel, Escape, changing the source/scale/ring or changing the allowance discards a pending preview. Apply commits the entire result as one undoable edit; any rejected contour keeps the entire previous source. Handles use the existing recovery, project, handoff and export representation. Undo to the original detected outline before reconstructing again after manual edits.
 
@@ -37,7 +43,7 @@ Reconstruction runs in a cancellable worker without loading a new ML runtime. Ca
 
 Both editors offer two explicit actions after entering curve editing:
 
-- **Fit selected points**: tap the first and last anchor or choose them from the
+- **Select a section**: tap the first and last anchor or choose them from the
   First/Last menus. The amber section follows increasing point numbers, including
   the closing edge. **Swap ends** selects the complementary path. Select at least
   three adjacent points on one ring, then **Preview fit**.
@@ -53,7 +59,7 @@ creates one undo entry and, in Bin, one immutable shape revision. Undo/Redo also
 survives project/draft recovery. Source changes, contour switches, and calibration
 or placement scale changes invalidate a pending preview.
 
-**Max deviation** defaults to 0.1 mm after calibration (1 px without calibration).
+**Maximum change from current outline** defaults to 0.1 mm after calibration (1 px without calibration).
 It measures fitting error against the current edited polygon, not the photo or
 the earlier unsimplified detection. It is separate from the downstream 0.025 mm
 sampling tolerance. Bin converts the requested bound using the largest placement

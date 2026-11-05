@@ -337,14 +337,13 @@ describe("TraceCanvas edit history", () => {
           const dense: Outline = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
           trace!.dispatch({ type: "DETECTED", imageUrl: trace!.imageUrl, outline: rounded, rawOutline: dense, svg: "", region: trace!.region });
         } else trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded });
-        trace!.dispatch({ type: "SET_MODE", mode: "edit" });
+        trace!.dispatch({ type: "SET_MODE", mode: mode === "reconstruct" ? "pan" : "edit" });
       });
       const before = trace!.history.stack.length;
       const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
       expect(trace!.curves).toBeUndefined();
-      click("Edit curves (prototype)");
-      if (mode === "reconstruct") await React.act(async () => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Reconstruct lines & curves")!.click());
-      else click(mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+      if (mode === "reconstruct") await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineCleanupRequest={{ id: 1, sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
+      else { click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
       if (mode === "range") {
         for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
           const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
@@ -354,7 +353,7 @@ describe("TraceCanvas edit history", () => {
       }
       expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
       expect(trace!.history.stack).toHaveLength(before); expect(trace!.curves).toBeUndefined();
-      click("Apply fit");
+      click(mode === "reconstruct" ? "Apply simplified outline" : "Apply fit");
       const curves = trace!.curves!;
       expect(curves[0].outer.length).toBeLessThan(48); expect(trace!.history.stack).toHaveLength(before + 1);
       const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace!)!)));
@@ -1329,7 +1328,7 @@ describe("touch-accessible trace tools", () => {
         Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: id } });
         svg.dispatchEvent(event);
       });
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit contours"]')!.click());
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
       const historyIndex = trace!.history.index;
       pointer("pointerdown", 10, 10); pointer("pointermove", 25, 25);
       expect(trace!.outline[0].outer[0]).toEqual({ x: 25, y: 25 });
@@ -1372,7 +1371,7 @@ describe("touch-accessible trace tools", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit contours"]')!.click());
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
       const tools = host.querySelector('[aria-label="Contour editing tools"]')!;
       const buttons = tools.querySelectorAll<HTMLButtonElement>('button');
       expect(tools.textContent).toContain("Contour 1");

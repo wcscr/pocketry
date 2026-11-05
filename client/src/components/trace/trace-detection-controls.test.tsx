@@ -25,7 +25,8 @@ it("enables learned silhouettes explicitly, suppresses holes, and preserves the 
     await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
     expect(trace.boundaryMethod).toBe("color");
     React.act(() => trace.dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true }));
-    await React.act(async () => host.querySelector<HTMLButtonElement>("#learned-outline")!.click());
+    await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
+      method.value = "teed"; method.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(trace.boundaryMethod).toBe("teed");
     expect(trace.includeInteriorHoles).toBe(false);
     expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);

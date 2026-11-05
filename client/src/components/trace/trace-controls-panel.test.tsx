@@ -26,6 +26,7 @@ const CALIBRATION: Calibration = {
 const applyPerspective = vi.fn();
 const rotateImage = vi.fn();
 const reprocess = vi.fn();
+const simplifyOutline = vi.fn();
 const detectMarkers = vi.fn();
 let trace: TraceStore;
 
@@ -169,6 +170,7 @@ function Harness(): JSX.Element {
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
+        onSmoothOutline={simplifyOutline}
         onDetectMarkers={detectMarkers}
         onApplyPerspective={applyPerspective}
       />
@@ -248,6 +250,18 @@ it("adds a square from the Outline controls after empty detection and guards pro
   expect(add().disabled).toBe(true);
   await click("button-add-contour");
   expect(trace.outline).toHaveLength(2);
+});
+
+it("offers auto-simplify directly after detection without entering manual editing", async () => {
+  await prepareOutline();
+  const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+  React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
+  const action = () => host.querySelector<HTMLButtonElement>('[data-testid="button-smooth-outline"]')!;
+  expect(action().textContent).toContain("Auto-simplify outline"); expect(action().disabled).toBe(false);
+  const history = trace.history;
+  await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
+  React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
+  expect(action().disabled).toBe(true); expect(host.textContent).toContain("Undo manual edits");
 });
 
 async function changeNumber(id: string, value: string): Promise<void> {

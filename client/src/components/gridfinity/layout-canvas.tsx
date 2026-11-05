@@ -467,6 +467,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     enabled: editorMode === "contour" && !!selected && !panActive && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout),
     contextKey: selectedCutoutId ?? "", scale, tolerance: CURVE_TOLERANCE_MM,
     fitUnitsPerUnit: selected ? Math.max(selected.cutout.scaleX, selected.cutout.scaleY) : 1,
+    onDone: () => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }),
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
     fromClient: (x, y) => { const p = toBin(x, y); return p && selected ? untransformPointPlacement(p, selected.cutout) : null; },
     toCanvas: p => selected ? binToCanvas(transformPointPlacement(p, selected.cutout), spec) : p,
@@ -1424,7 +1425,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       if (target && openObjectMenu?.(target, contextMenuPoint(event))) event.preventDefault();
       return;
     }
-    if (curveEditor.active) { event.preventDefault(); return; }
+    if (curveEditor.contextMenu(event)) return;
     if (editorMode !== "contour") return;
     event.preventDefault();
     const handle = contourHandle(event.target as Element);

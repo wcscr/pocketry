@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { curveControls, curvePath, curveRing, curvesFromOutline, editCurves, evaluateCurve, sampleCurves,
   type CurveEdit, type CurveOutline } from "@shared/geometry/curves";
 import type { Outline, Point, RingRef } from "@shared/geometry/types";
@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ViewportPointerHandlers } from "@/hooks/use-viewport-transform";
 import { useCurveFitting } from "./use-curve-fitting";
+import { usePointSelection } from "./use-point-selection";
+import { curvePoints, type selectedCurveSection } from "@shared/geometry/curve-point-selection";
+import { HelpHint } from "@/components/ui/help-hint";
 
 type Target = { kind: "edge" | "point" | "in" | "out"; index: number };
 interface Options {
@@ -26,19 +29,21 @@ interface Options {
   panRequested?: boolean;
   startDisabled?: boolean;
   startHint?: string;
+  onDone?: () => void;
 }
 const identity = (p: Point) => p;
 
 /** Shared editing interaction. All gesture drafts are local until pointer-up;
  * cancel, selection and pointer clicks never create source revisions. */
 export function useCurveEditor({ outline, curves, reconstructionSource, enabled, contextKey, scale, tolerance,
-  fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint,
+  fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone,
   fitUnitsPerUnit = 1, fitUnit = "mm" }: Options) {
   const [started, setStarted] = useState(false);
   const [ref, setRef] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
   const [target, setTarget] = useState<Target>({ kind: "edge", index: 0 });
   const [draft, setDraft] = useState<CurveOutline | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sectionRequest, setSectionRequest] = useState<NonNullable<ReturnType<typeof selectedCurveSection>>>();
   const base = useMemo(() => curves ?? curvesFromOutline(outline), [curves, outline]);
   const value = draft ?? base;
   const active = enabled && (started || !!curves);
@@ -70,11 +75,21 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
   const fitting = useCurveFitting({ source: base, ringRef, enabled: active, contextKey, unitsPerUnit: fitUnitsPerUnit,
     unit: fitUnit, scale, toCanvas, reconstructionSource, onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
   useEffect(() => { if (fitting.open) cancel(); }, [fitting.open]);
+  const fitSection = (section: NonNullable<ReturnType<typeof selectedCurveSection>>) => {
+    setStarted(true); setRef(section.ref); setTarget({ kind: "point", index: section.start }); setSectionRequest(section);
+  };
+  useEffect(() => {
+    if (sectionRequest && active) { fitting.start("range", sectionRequest); setSectionRequest(undefined); }
+  }, [sectionRequest, active]);
+  const points = usePointSelection({ source: base, enabled: active && !fitting.open, contextKey, scale,
+    fromClient, toCanvas, viewport, panRequested, onCommit: commit, onSmoothSection: fitSection,
+    onPinchStart: () => { cancel(); pointers.current.clear(); } });
   const down = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
     if (!active) return false;
+    if (points.down(e)) { cancel(); return true; }
     if (e.pointerType === "touch") pointers.current.add(e.pointerId);
     if (pointers.current.size > 1) { cancel(); viewport.onPointerDown(e, { pan: false }); return true; }
-    if (e.button !== 0 || e.shiftKey || panRequested || gesture.current) { viewport.onPointerDown(e); return true; }
+    if (e.button !== 0 || panRequested || gesture.current) { viewport.onPointerDown(e); return true; }
     const hit = (e.target as Element).closest<SVGElement>("[data-curve-kind]");
     viewport.onPointerDown(e, { pan: !hit });
     if (!hit) return true;
@@ -90,6 +105,14 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
       const p = evaluateCurve(curveControls(pickedRing, picked.index), k / 100), d = Math.hypot(p.x - q.x, p.y - q.y);
       if (d < distance) { distance = d; t = k / 100; }
     }
+    if (picked.kind === "edge") {
+      const controls = curveControls(pickedRing, picked.index), squareDistance = (t: number) => { const p = evaluateCurve(controls, t); return (p.x - q.x) ** 2 + (p.y - q.y) ** 2; };
+      let lo = Math.max(.001, t - .01), hi = Math.min(.999, t + .01);
+      for (let i = 0; i < 24; i++) { const a = lo + (hi - lo) / 3, b = hi - (hi - lo) / 3;
+        if (squareDistance(a) < squareDistance(b)) hi = b; else lo = a;
+      }
+      t = (lo + hi) / 2;
+    }
     gesture.current = { id: e.pointerId, source: base, ref: pickedRef, target: picked, start: q, client: { x: e.clientX, y: e.clientY }, t, latest: null };
     capture.current = e.currentTarget;
     e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -97,6 +120,7 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
   };
   const move = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
     if (!active) return false;
+    if (points.move(e)) return true;
     viewport.onPointerMove(e);
     const drag = gesture.current; if (!drag || drag.id !== e.pointerId) return true;
     e.stopPropagation();
@@ -112,6 +136,7 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
     return true;
   };
   const end = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
+    if (points.end(e)) return true;
     if (!active && !pointers.current.has(e.pointerId)) return false;
     pointers.current.delete(e.pointerId);
     viewport.onPointerUp(e);
@@ -120,7 +145,26 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
     e.stopPropagation(); gesture.current = null;
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     if (drag.latest) commit(drag.latest, drag.target.kind === "edge" ? "Bend contour curve" : "Move curve anchor or handle");
-    else setDraft(null);
+    else if (drag.target.kind === "edge") {
+      commit(editCurves(drag.source, drag.ref, { kind: "split", index: drag.target.index, t: drag.t }), "Add contour node");
+      setTarget({ kind: "point", index: drag.target.index + 1 });
+    } else setDraft(null);
+    return true;
+  };
+  const contextMenu = (event: ReactMouseEvent<SVGSVGElement>): boolean => {
+    if (!active) return false;
+    event.preventDefault();
+    if (fitting.open) return true;
+    const p = fromClient(event.clientX, event.clientY); if (!p) return true;
+    let hit: ReturnType<typeof curvePoints>[number] | undefined, distance = 12 / Math.max(scale, 1e-6);
+    for (const ref of curvePoints(base)) { const q = curveRing(base, ref)![ref.index].point, d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (d < distance) { hit = ref; distance = d; }
+    }
+    if (hit && curveRing(base, hit)!.length > 3) {
+      cancel(); points.clear(); setRef({ shapeIndex: hit.shapeIndex, ringIndex: hit.ringIndex });
+      commit(editCurves(base, hit, { kind: "delete", index: hit.index }), "Remove contour node");
+      setTarget({ kind: "point", index: 0 });
+    }
     return true;
   };
   const inv = 1 / Math.max(scale, 1e-6);
@@ -156,24 +200,23 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
       </g>;
     }))}
     {fitting.overlay}
+    {points.overlay}
   </g>;
   const coordinate = anchor && (selected.kind === "in" || selected.kind === "out" ? anchor[selected.kind] : anchor.point);
   const controls = active && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
-    <span className="text-xs text-muted-foreground">Curves · prototype</span>
+    <div className="flex w-full items-center gap-2"><span className="text-sm font-medium">Edit outline · Bend edges</span>
+      <HelpHint label="curve editing">Click an edge to add a point. Right-click a point to delete it. Drag edges to bend them into curves, points to move them, or handles to shape a curve. Shift-click adds points; drag empty space for a selection box. Use Select points without a keyboard. Space-drag pans. Edits apply immediately; Undo restores them.</HelpHint>
+      {!curves && <Button size="sm" variant="outline" onClick={() => { cancel(); points.clear(); setStarted(false); }}>Points</Button>}
+      {onDone && <Button size="sm" variant="secondary" onClick={onDone}>Done</Button>}</div>
     <select aria-label="Curve contour" className="h-9 max-w-40 rounded border bg-background px-1 text-xs" value={`${ringRef.shapeIndex}:${ringRef.ringIndex}`}
       onChange={e => { const [shapeIndex, ringIndex] = e.target.value.split(":").map(Number); setRef({ shapeIndex, ringIndex }); setTarget({ kind: "edge", index: 0 }); }}>
       {value.flatMap((s, i) => [<option key={`${i}:-1`} value={`${i}:-1`}>Contour {i + 1}</option>, ...s.holes.map((_, j) => <option key={`${i}:${j}`} value={`${i}:${j}`}>Contour {i + 1} · Hole {j + 1}</option>)])}
     </select>
     {fitting.open ? fitting.controls : <>
-    <select aria-label="Curve selection" className="h-9 max-w-36 rounded border bg-background px-1 text-xs" value={`${selected.kind}:${selected.index}`}
-      onChange={e => { const [kind, index] = e.target.value.split(":"); setTarget({ kind: kind as Target["kind"], index: Number(index) }); }}>
-      {ring.flatMap((a, i) => [<option key={`e${i}`} value={`edge:${i}`}>Edge {i + 1}</option>, <option key={`p${i}`} value={`point:${i}`}>Point {i + 1}</option>,
-        ...(a.in ? [<option key={`i${i}`} value={`in:${i}`}>Point {i + 1} · In handle</option>] : []), ...(a.out ? [<option key={`o${i}`} value={`out:${i}`}>Point {i + 1} · Out handle</option>] : [])])}
-    </select>
-    {selected.kind === "edge" ? <>
-      <Button size="sm" variant="outline" onClick={() => edit({ kind: "curve", index: selected.index }, "Make contour curve")}>Curve</Button>
-      <Button size="sm" variant="outline" onClick={() => edit({ kind: "straight", index: selected.index }, "Straighten contour edge")}>Straight</Button>
-      <Button size="sm" variant="outline" onClick={() => { edit({ kind: "split", index: selected.index, t: 0.5 }, "Split contour curve"); setTarget({ kind: "point", index: selected.index + 1 }); }}>Split edge</Button>
+    {points.selection.length < 2 && (selected.kind === "edge" ? <>
+      <Button size="sm" variant="outline" onClick={() => edit({ kind: "curve", index: selected.index }, "Make contour curve")} title="Add curve handles to this edge; drag a handle or the edge to bend it.">Add handles</Button>
+      <Button size="sm" variant="outline" onClick={() => edit({ kind: "straight", index: selected.index }, "Straighten contour edge")} title="Replace this curved edge with a straight line between its endpoints.">Straighten</Button>
+      <Button size="sm" variant="outline" onClick={() => { edit({ kind: "split", index: selected.index, t: 0.5 }, "Split contour curve"); setTarget({ kind: "point", index: selected.index + 1 }); }} title="Add a point halfway along this edge. You can also click the edge where you want a point.">Add midpoint</Button>
       {[-1, 1].map(direction => <Button key={direction} size="sm" variant="outline" aria-label={direction < 0 ? "Bend curve outward" : "Bend curve inward"}
         onClick={() => { const a = ring[selected.index].point, b = ring[(selected.index + 1) % ring.length].point, d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
           edit({ kind: "bend", index: selected.index, t: 0.5, delta: { x: -(b.y - a.y) / d * direction * tolerance * 40, y: (b.x - a.x) / d * direction * tolerance * 40 } }, "Bend contour curve"); }}>{direction < 0 ? "Bend −" : "Bend +"}</Button>)}
@@ -189,13 +232,23 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
           onBlur={e => { const n = Number(e.target.value); if (!e.target.value || !Number.isFinite(n) || n === coordinate[axis] || n === Number(coordinate[axis].toFixed(4))) return;
             const point = { ...coordinate, [axis]: n }; edit(selected.kind === "in" || selected.kind === "out" ? { kind: "handle", side: selected.kind, index: selected.index, point } : { kind: "move", index: selected.index, point }, "Move curve anchor or handle"); }} />
       </label>)}
-    </>}
-    {fitting.actions}
+    </>)}
+    {points.controls}
+    <details className="w-full"><summary className="cursor-pointer py-2 text-xs font-medium">Choose a section or point by number</summary><div className="flex flex-wrap gap-2 py-2">    <select aria-label="Curve selection" className="h-9 max-w-36 rounded border bg-background px-1 text-xs" value={`${selected.kind}:${selected.index}`}
+      onChange={e => { const [kind, index] = e.target.value.split(":"); setTarget({ kind: kind as Target["kind"], index: Number(index) }); }}>
+      {ring.flatMap((a, i) => [<option key={`e${i}`} value={`edge:${i}`}>Edge {i + 1}</option>, <option key={`p${i}`} value={`point:${i}`}>Point {i + 1}</option>,
+        ...(a.in ? [<option key={`i${i}`} value={`in:${i}`}>Point {i + 1} · In handle</option>] : []), ...(a.out ? [<option key={`o${i}`} value={`out:${i}`}>Point {i + 1} · Out handle</option>] : [])])}
+    </select>
+{fitting.actions}</div></details>
     </>}
     {error && <span role="alert" className="w-full text-xs text-destructive">{error}</span>}
   </div>;
-  const startButton = enabled && !active && <Button size="sm" variant="outline" disabled={startDisabled} title={startHint}
-    onClick={() => { setStarted(true); setError(null); }} data-testid="button-edit-curves">Edit curves (prototype)</Button>;
-  return { active, overlay, controls, startButton, down, move, end,
-    lostCapture: (e: ReactPointerEvent<SVGSVGElement>) => { if (gesture.current?.id === e.pointerId) cancel(); } };
+  const startButton = enabled && !active && <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm" role="group" aria-label="Outline editing style">
+    <span className="text-sm font-medium">Edit outline</span><Button size="sm" variant="secondary" aria-pressed>Points</Button>
+    <Button size="sm" variant="outline" disabled={startDisabled} title={startDisabled ? startHint : "Drag an edge to turn it into a curve. Click to add a point; right-click a point to delete."}
+      onClick={() => { setStarted(true); setError(null); }} data-testid="button-edit-curves">Bend edges</Button>
+    {onDone && <Button size="sm" variant="outline" onClick={onDone}>Done</Button>}
+  </div>;
+  return { active, overlay, controls, startButton, down, move, end, fitSection, contextMenu,
+    lostCapture: (e: ReactPointerEvent<SVGSVGElement>) => { points.lostCapture(e); if (gesture.current?.id === e.pointerId) cancel(); } };
 }

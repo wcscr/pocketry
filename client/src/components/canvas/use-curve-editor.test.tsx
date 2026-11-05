@@ -21,7 +21,7 @@ function Harness({ placed = false, input = outline, units = 1, unit = "mm", cont
     toCanvas: p => placed ? { x: 200 - 2 * p.x, y: 300 - p.y } : p,
     onCommit: (value, label) => { onCommit(value, label); setCurves(value); },
   });
-  return <><svg onPointerDown={editor.down} onPointerMove={editor.move} onPointerUp={editor.end} onPointerCancel={editor.end} onLostPointerCapture={editor.lostCapture}>{editor.overlay}</svg>{editor.startButton}{editor.controls}</>;
+  return <><svg onPointerDown={editor.down} onPointerMove={editor.move} onPointerUp={editor.end} onPointerCancel={editor.end} onLostPointerCapture={editor.lostCapture} onContextMenu={editor.contextMenu}>{editor.overlay}</svg>{editor.startButton}{editor.controls}</>;
 }
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.clearAllMocks(); saved = undefined;
@@ -31,15 +31,19 @@ beforeEach(() => {
 it("reconstructs from dense evidence in an explicit preview and applies one edit", async () => {
   const dense = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
   React.act(() => root.render(<Harness input={rounded} dense={dense} />));
-  React.act(() => button("Edit curves (prototype)").click());
-  await React.act(async () => button("Reconstruct lines & curves").click());
+  React.act(() => button("Bend edges").click());
+  await React.act(async () => button("Auto-simplify outline").click());
+  expect(host.querySelector('[data-testid="reconstruction-source"]')).toBeNull();
+  React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
+  React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
   expect(host.textContent).toContain("256 →");
   expect(onCommit).not.toHaveBeenCalled();
   expect(host.querySelector('[data-testid="curve-fit-preview"]')!.getAttribute("d")).toContain("C");
-  React.act(() => button("Apply fit").click());
+  React.act(() => button("Apply simplified outline").click());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit.mock.calls[0][1]).toBe("Reconstruct lines and curves");
+  expect(onCommit.mock.calls[0][1]).toBe("Auto-simplify outline");
   expect(saved![0].outer.length).toBeLessThan(rounded[0].outer.length);
 });
 
@@ -51,16 +55,32 @@ it("cancels a pending reconstruction and ignores its late worker result", async 
   });
   try {
     React.act(() => root.render(<Harness input={rounded} dense={rounded} />));
-    React.act(() => button("Edit curves (prototype)").click());
-    await React.act(async () => button("Reconstruct lines & curves").click());
-    expect(host.textContent).toContain("Reconstructing contour");
-    expect(button("Apply fit").disabled).toBe(true);
-    React.act(() => button("Cancel fit").click());
+    React.act(() => button("Bend edges").click());
+    await React.act(async () => button("Auto-simplify outline").click());
+    expect(host.textContent).toContain("Simplifying outline");
+    expect(button("Apply simplified outline").disabled).toBe(true);
+    React.act(() => button("Cancel").click());
     expect(signal?.aborted).toBe(true);
     await React.act(async () => finish({ curves: [], changed: true } as never));
     expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
     expect(onCommit).not.toHaveBeenCalled();
   } finally { invoke.mockRestore(); }
+});
+
+it("offers detail presets without applying and explains the detected-boundary reference", async () => {
+  React.act(() => root.render(<Harness input={rounded} dense={rounded} />)); React.act(() => button("Bend edges").click());
+  await React.act(async () => button("Auto-simplify outline").click());
+  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Maximum change from detected outline (mm)"]')!;
+  const balanced = Number(field().value);
+  expect(field().closest("details")!.open).toBe(false);
+  await React.act(async () => { const preset = host.querySelector<HTMLSelectElement>('[aria-label="Outline detail"]')!;
+    expect(preset.value).toBe("balanced"); preset.value = "smooth"; preset.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(Number(field().value)).toBeGreaterThan(balanced); expect(onCommit).not.toHaveBeenCalled();
+  React.act(() => field().closest("details")!.querySelector("summary")!.click());
+  await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About boundary allowance"]')!.click());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("detected boundary");
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("0.2 mm");
+  React.act(() => button("Cancel").click()); expect(onCommit).not.toHaveBeenCalled(); expect(saved).toBeUndefined();
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 const button = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!;
@@ -103,19 +123,35 @@ it.each(["Escape", "pointercancel", "lostpointercapture", "blur"])("discards a d
 });
 
 it("keeps clicks/selection out of history, then exposes handles and an exact split", () => {
-  render(); pointer(edge(), "pointerdown", 50, 10); pointer(svg(), "pointerup", 50, 10);
+  render(); pointer(host.querySelector('[data-curve-kind="point"]')!, "pointerdown", 10, 10); pointer(svg(), "pointerup", 10, 10);
   expect(onCommit).not.toHaveBeenCalled();
-  React.act(() => button("Curve").click());
+  React.act(() => { const select = host.querySelector<HTMLSelectElement>('[aria-label="Curve selection"]')!;
+    select.value = "edge:0"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  React.act(() => button("Add handles").click());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  React.act(() => button("Curve").click());
+  React.act(() => button("Add handles").click());
   expect(onCommit).toHaveBeenCalledTimes(1);
   expect(host.querySelectorAll('[data-testid="curve-control-handle"]')).toHaveLength(2);
   const before = sampleCurves(saved!);
-  React.act(() => button("Split edge").click());
+  React.act(() => button("Add midpoint").click());
   expect(saved![0].outer).toHaveLength(5);
   expect(sampleCurves(saved!)[0].outer).toContainEqual({ x: 50, y: 10 });
   expect(before[0].outer[0]).toEqual(saved![0].outer[0].point);
   expect(host.querySelector('[aria-label="Curve selection"]')).toHaveProperty("value", "point:1");
+});
+
+it.each([false, true])("keeps click-to-add and right-click-to-delete in curve editing (placed: %s)", placed => {
+  render(placed); React.act(() => button("Add handles").click());
+  const start = placed ? { x: 100, y: 290 } : { x: 50, y: 10 };
+  const before = onCommit.mock.calls.length;
+  pointer(edge(), "pointerdown", start.x, start.y); pointer(svg(), "pointerup", start.x, start.y);
+  expect(saved![0].outer).toHaveLength(5); expect(onCommit).toHaveBeenCalledTimes(before + 1);
+  expect(saved![0].outer[1].point.x).toBeCloseTo(50, 3); expect(saved![0].outer[1].in).toBeDefined(); expect(saved![0].outer[1].out).toBeDefined();
+  const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: start.x, clientY: start.y });
+  React.act(() => svg().dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true); expect(saved![0].outer).toHaveLength(4); expect(onCommit).toHaveBeenCalledTimes(before + 2);
+  React.act(() => svg().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1000, clientY: 1000 })));
+  expect(onCommit).toHaveBeenCalledTimes(before + 2);
 });
 
 it("cancels a touch edit when a second finger starts a pinch", () => {
@@ -129,12 +165,22 @@ it("cancels a touch edit when a second finger starts a pinch", () => {
   expect(navigation.onPointerMove).toHaveBeenCalledTimes(2); expect(navigation.onPointerUp).toHaveBeenCalledTimes(2);
 });
 
+it("keeps both fingers out of editing after a group drag becomes a pinch", () => {
+  render(); React.act(() => button("Select points").click());
+  const point = (index: number) => host.querySelector(`[data-curve-kind="point"][data-curve-index="${index}"]`)!;
+  for (const [index, x] of [[0, 10], [1, 90]]) { pointer(point(index), "pointerdown", x, 10, 1, "touch"); pointer(svg(), "pointerup", x, 10, 1, "touch"); }
+  pointer(point(0), "pointerdown", 10, 10, 1, "touch"); pointer(svg(), "pointermove", 25, 25, 1, "touch");
+  pointer(point(2), "pointerdown", 90, 90, 2, "touch"); pointer(svg(), "pointermove", 110, 110, 2, "touch");
+  pointer(svg(), "pointerup", 110, 110, 2, "touch"); pointer(svg(), "pointermove", 35, 35, 1, "touch"); pointer(svg(), "pointerup", 35, 35, 1, "touch");
+  expect(onCommit).not.toHaveBeenCalled(); expect(saved).toBeUndefined();
+});
+
 function startFitting(mode: "auto" | "range", units = 1, unit: "mm" | "px" = "mm") {
   React.act(() => root.render(<Harness input={rounded} units={units} unit={unit} />));
   expect(onCommit).not.toHaveBeenCalled();
-  React.act(() => button("Edit curves (prototype)").click());
+  React.act(() => button("Bend edges").click());
   expect(onCommit).not.toHaveBeenCalled();
-  React.act(() => button(mode === "auto" ? "Auto-fit contour" : "Fit selected points").click());
+  React.act(() => button(mode === "auto" ? "Auto-fit contour" : "Select a section").click());
 }
 function inputValue(selector: string, value: string) {
   const input = host.querySelector<HTMLInputElement | HTMLSelectElement>(selector)!;
@@ -186,11 +232,11 @@ it("selects a wrapped range with touch or menus without starting a drag", () => 
 
 it("invalidates a preview on tolerance/source/scale changes and reports invalid tolerance", () => {
   startFitting("auto");
-  inputValue('[aria-label="Maximum fit deviation (mm)"]', "0");
+  inputValue('[aria-label="Maximum change from current outline (mm)"]', "0");
   expect(button("Apply fit").disabled).toBe(true);
   React.act(() => button("Preview fit").click());
   expect(host.querySelector('[role="alert"]')!.textContent).toContain("positive");
-  inputValue('[aria-label="Maximum fit deviation (mm)"]', "0.1");
+  inputValue('[aria-label="Maximum change from current outline (mm)"]', "0.1");
   React.act(() => button("Preview fit").click());
   expect(button("Apply fit").disabled).toBe(false);
   React.act(() => root.render(<Harness input={rounded} units={2} />));
@@ -203,11 +249,11 @@ it("invalidates a preview on tolerance/source/scale changes and reports invalid 
 
 it("uses pixels before calibration and keeps unchanged contours out of history", () => {
   startFitting("auto", 1, "px");
-  expect(host.querySelector('[aria-label="Maximum fit deviation (px)"]')).toHaveProperty("value", "1");
+  expect(host.querySelector('[aria-label="Maximum change from current outline (px)"]')).toHaveProperty("value", "1");
   React.act(() => root.render(<Harness input={rounded} units={1} unit="mm" />));
   expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
   React.act(() => button("Auto-fit contour").click());
-  expect(host.querySelector('[aria-label="Maximum fit deviation (mm)"]')).toHaveProperty("value", "0.1");
+  expect(host.querySelector('[aria-label="Maximum change from current outline (mm)"]')).toHaveProperty("value", "0.1");
   React.act(() => button("Cancel fit").click());
   React.act(() => root.render(<Harness input={outline} />));
   React.act(() => button("Auto-fit contour").click());

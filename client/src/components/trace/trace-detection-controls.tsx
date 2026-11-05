@@ -47,23 +47,8 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
   };
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };
 
-  return <>
-    {!compact && <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1"><Label htmlFor="learned-outline" className="text-xs">Learned outer outline</Label>
-        <HelpHint label="learned outline">Try cleaner tool edges on white Pocketry calibration sheets. Traces the outer silhouette; use color detection for interior holes. Processing stays on your device.</HelpHint></div>
-      <Switch id="learned-outline" checked={trace.boundaryMethod === "teed"} disabled={processing}
-        onCheckedChange={enabled => request({ sensitivity, includeInteriorHoles: enabled ? false : includeInteriorHoles,
-          boundary: enabled ? "teed" : "color" })} />
-    </div>}
-    {!compact && <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1">
-        <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
-        <HelpHint label="interior holes">Trace openings inside the tool. Reflections are usually not holes. Changing this setting asks before replacing manual edits.</HelpHint>
-      </div>
-      <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
-        onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
-    </div>}
-    <div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
+  const tuning = <>
+<div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
       <LabelledSlider id={compact ? "mobile-sensitivity" : "sensitivity"} label="Sensitivity"
         // Stored values are threshold bias; invert only the control so existing traces retain their settings.
         value={128 - (draftSensitivity ?? sensitivity)} min={-127} max={128} step={1}
@@ -78,7 +63,32 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
     {trace.outline.length > 0 && <TraceSymmetryTool />}
-    {trace.curves && <p className="text-xs text-muted-foreground">Curve prototype: simplification, symmetry and trace margin are locked to preserve your curves. Use Bin clearance to adjust fit.</p>}
+    {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
+  </>;
+
+  return <>
+    {!compact && <div className="flex items-center justify-between gap-2">
+      <div className="w-full space-y-1.5">
+        <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>
+          <HelpHint label="outline detection method">Color contrast separates the tool from its background and can include interior holes. Tool edges is for the outside silhouette on white Pocketry calibration sheets; it uses an on-device model. Both methods find a boundary. Auto-simplify outline then fits straight lines and curves in a separate preview.</HelpHint></div>
+        <select id="outline-detection-method" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+          value={trace.boundaryMethod} disabled={processing}
+          onChange={event => { const boundary = event.target.value as "color" | "teed";
+            request({ sensitivity, includeInteriorHoles: boundary === "teed" ? false : includeInteriorHoles, boundary }); }}>
+          <option value="color">Color contrast</option>
+          <option value="teed">Tool edges · white sheet</option>
+        </select>
+      </div>
+    </div>}
+    {!compact && <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1">
+        <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
+        <HelpHint label="interior holes">Trace openings inside the tool. Reflections are usually not holes. Changing this setting asks before replacing manual edits.</HelpHint>
+      </div>
+      <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
+        onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
+    </div>}
+    {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Advanced detection settings</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>

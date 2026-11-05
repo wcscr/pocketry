@@ -71,6 +71,7 @@ import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { RingList } from "./ring-list";
 import { revealTraceStep } from "./reveal-trace-step";
 import { TracePanelSections } from "./trace-panel-sections";
+import { outlineCleanupUnavailable } from "./outline-cleanup";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 import { TraceRestartDialog } from "./trace-restart-dialog";
@@ -85,6 +86,7 @@ export interface TraceControlsPanelProps {
   active?: boolean;
   settingsSectionRequest?: { id: string };
   onCanvasInteraction?: () => void;
+  onSmoothOutline?: () => void;
   onReplaceImage: () => void;
   onStartOver: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
@@ -117,6 +119,7 @@ export function TraceControlsPanel({
   onRotateImage,
   onExport,
   onReprocess,
+  onSmoothOutline,
   onDetectMarkers,
   onApplyPerspective,
   settingsSectionRequest,
@@ -881,6 +884,13 @@ export function TraceControlsPanel({
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
           <TraceDetectionControls onReprocess={onReprocess} />
+          {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
+            <div className="flex items-center gap-1"><Button variant="default" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
+              data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
+              <Spline className="h-4 w-4" />Auto-simplify outline
+            </Button><HelpHint label="auto-simplify outline">Simplify the detected boundary with straight lines and smooth curves. Opens a preview with More detail, Balanced and Smoother choices. Cancel keeps the original; Apply is one undoable edit. This works after either detection method.</HelpHint></div>
+            {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
+          </div>}
           <Button variant="outline" size="sm" className="w-full"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
             onClick={() => { dispatch({ type: "ADD_CONTOUR" }); onCanvasInteraction(); }}
@@ -892,14 +902,14 @@ export function TraceControlsPanel({
             aria-pressed={store.mode === "edit" || store.mode === "remove"}
             onClick={() => { dispatch({ type: "SET_MODE", mode: "edit" }); onCanvasInteraction(); }}
             data-testid="button-edit-contour">
-            <Spline className="h-4 w-4" />Edit Contour
+            <Spline className="h-4 w-4" />Edit outline
           </Button>
 
           <div className="space-y-1.5" data-testid="detection-contours">
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Choose Add contour to start another trace with a four-point square, or Edit Contour to adjust an existing trace. Drag a point to move it; click an edge to add one; right-click a point to remove it. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
+                Auto-simplify outline previews automatic line and curve cleanup. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>
@@ -945,7 +955,7 @@ export function TraceControlsPanel({
             </Select>
           </div>
 
-          {store.curves && <p className="text-xs text-muted-foreground">Curve prototype: use Bin clearance to adjust fit without flattening your curves.</p>}
+          {store.curves && <p className="text-xs text-muted-foreground">Use Bin clearance to adjust fit while keeping your curves.</p>}
           <Button variant="outline" size="sm" className="w-full" disabled={!margin || !!store.curves}
             data-testid="button-reset-margin" onClick={() => handleMarginChange(0)}>Reset to zero</Button>
         </PanelSection>

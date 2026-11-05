@@ -919,6 +919,16 @@
       "typeCheck": "passed",
       "productionBuild": "passed",
       "hostedCI": "not run"
+    },
+    "outlineUX": {
+      "quickFiles": 223,
+      "quickTests": 3525,
+      "workflowFiles": 18,
+      "workflowTests": 611,
+      "typeCheck": "passed",
+      "productionBuild": "passed",
+      "hostedCI": "not run",
+      "scope": "Current interaction follow-up. Prior dense-reconstruction corpus and geometry/export records are retained with their original scope."
     }
   },
   "denseReconstruction": {
@@ -1024,5 +1034,38 @@
     "allUndirectedEdgesHaveTwoFaces": true,
     "positiveSignedVolume": true,
     "scope": "Actual Wolfbox reconstruction via Chrome source UI; synthetic ruler used for workflow/export validation, not physical fit."
+  },
+  "outlineUX": {
+    "source": {
+      "directActionWithoutEditor": true,
+      "presets": {
+        "balancedMm": 0.751,
+        "smootherMm": 1.502
+      },
+      "advancedAllowanceHidden": true,
+      "allowanceHint": "The maximum distance the simplified line or curve can move from the detected boundary. For example, 0.2 mm allows up to 0.2 mm of boundary change. Smaller values keep more detail. This is not tool measurement accuracy or clearance added around a pocket.",
+      "originalComparison": true,
+      "cancelUnchanged": true,
+      "applyOneUndo": true,
+      "shiftSelection": true,
+      "groupMoveOneUndo": true,
+      "groupUndoRestores": true,
+      "leftClickAdds": true,
+      "rightClickDeletes": true,
+      "rightClickUndoRestores": true,
+      "phoneVisibleSelectionToggle": true,
+      "phonePinchCancelsEdit": true,
+      "phoneNoOverflow": true,
+      "pageErrors": [],
+      "scope": "Real Wolfbox source UI on desktop and 390px viewport; synthetic ruler. No new phone speed measurement."
+    },
+    "production": {
+      "directAction": true,
+      "presets": true,
+      "advancedAllowanceHidden": true,
+      "allowanceHint": "The maximum distance the simplified line or curve can move from the detected boundary. For example, 0.2 mm allows up to 0.2 mm of boundary change. Smaller values keep more detail. This is not tool measurement accuracy or clearance added around a pocket.",
+      "nativeCurves": true,
+      "pageErrors": []
+    }
   }
 }

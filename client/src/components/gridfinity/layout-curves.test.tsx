@@ -82,7 +82,7 @@ it.each(["auto", "range"])("applies %s fitting once in Bin and restores the orig
   const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
   const before = store.history.stack.length;
   expect(library.shapes[0].curvesMm).toBeUndefined();
-  click("Edit curves (prototype)"); click(mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+  click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section");
   if (mode === "range") {
     for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
       const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;

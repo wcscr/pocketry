@@ -2,9 +2,28 @@
 
 Local implementation and evaluation, 2026-11-05. This record does not claim deployment or phone qualification.
 
-In Trace, select a region with white paper around the entire tool, then enable **Learned outer outline** in Outline settings. It is off by default. The setting is retained in browser recovery and across photo changes. This mode fills interior lettering/reflections as material and disables interior-hole detection. Use color detection when actual holes are needed. Re-detection asks before replacing manual edits, and Undo retains the previous outline.
+In Trace, select a region with white paper around the entire tool, then choose **Tool edges · white sheet** under **Find the outline using** in Outline settings. Color contrast is the default. The choice is retained in browser recovery and across photo changes. This mode fills interior lettering/reflections as material and disables interior-hole detection. Use color detection when actual holes are needed. Re-detection asks before replacing manual edits, and Undo retains the previous outline.
 
 The crop is drawn directly from original photo pixels into a canvas capped at 1024 pixels on its longest side. It respects the current rotation and perspective/alignment transform. It does not allocate a full-resolution temporary image. Detection coordinates map back per axis into the existing working image; calibration, photo-relative placement and the single export conversion stay in that frame.
+
+## Current interaction flow
+
+Detection chooses **Color contrast** or **Tool edges · white sheet**. Both find a boundary; neither automatically authors lines/curves. **Auto-simplify outline** is a direct action in Outline settings, without entering manual editing. Its preview offers **More detail / Balanced / Smoother**, original/preview comparison, and Apply/Cancel. Numeric control lives under **Advanced: boundary allowance** with a hover/focus/touch hint.
+
+**Maximum change from detected outline (mm)** bounds distance from the dense detected polygon before simplification, converted with the photo's calibration. A 0.2 mm allowance permits up to 0.2 mm of boundary movement; it does not add pocket clearance or certify true tool dimensions. Manual section fitting instead names its reference **current outline**, because it works on existing edited points.
+
+**Edit outline** groups Points and **Bend edges** tools in one panel with Done. Click-to-add and right-click-to-delete work on curves as well as polygon points. Shift-click/box selection, a visible touch selection toggle, group movement/deletion, and adjacent-section fitting share the highlighted points. Escape clears selection; Space/hand navigation and pinch stay separate from editing. A group drag is one undo step; cancellation and selection are not edits. The contour list shows editable anchor counts, not export sample counts.
+
+The reconstruction algorithm, default numeric allowance and 27-photo corpus are unchanged by this interaction follow-up. Earlier per-view comparisons/timings remain applicable to that same geometry pipeline; no new phone timing is claimed. Current UI verification and dependency review are recorded below.
+
+### Interaction follow-up verification and provenance
+
+- `npm run check` passed; `npm test -- --maxWorkers=4` passed **223 files / 3,525 tests**; `npm run test:workflows -- --maxWorkers=2` passed **18 files / 611 tests**. `npm run build` and `git diff --check` passed. Verification remains local-only.
+- New regressions cover group selection/movement in transformed coordinates and screen-space selection boxes on rotated, stretched pockets, wrapped/contiguous sections, atomic deletion with three-point minima, source/handle immutability, keyboard ownership, gesture cancellation, and a second finger taking over either a single-node or group edit. Existing Trace/Bin history, recovery, project and curve tests also pass.
+- Actual Wolfbox source-browser checks passed the direct auto-simplify action without entering manual editing, presets, hidden advanced allowance and its reference hint, original comparison, unchanged Cancel, one-step Apply, Shift selection, group move/Undo, click-to-add, right-click-to-delete and deletion Undo. The 390 px viewport passed visible selection and native browser two-finger cancellation without an outline/history change or horizontal overflow. The rebuilt static interface also passed the direct action, presets, hints, and native cubic source. These are browser/emulated-touch checks, not a physical-phone benchmark.
+- The previous local preview process stopped during an initial compiled check. After restarting the loopback preview, the compiled check passed; no detector or model changes were needed. The initial restricted test invocation could not open loopback ports; the final local run with port access passed completely.
+- The 27-photo reconstruction comparison and detailed CAD/export qualification above/below remain the preceding geometry evidence; this UI follow-up does not rerun or relabel their timings. No slicer/physical-fit, real-phone speed, publication or deployment claim is added.
+- Dependencies and third-party code/assets: **None added or changed**. Point selection and batch editing are original Pocketry code. The conventional Shift-click/box-selection interaction follows familiar vector editors without copying their implementation. The model and runtime are unchanged.
 
 ## Dense line-and-curve reconstruction — current behavior
 
@@ -28,7 +47,7 @@ A separate geometry-only Chrome heartbeat run performed 30 Wolfbox reconstructio
 
 The real Wolfbox source UI passed preview/cancel without source mutation, one-step Apply/Undo/Redo and handle recovery after reload. With a synthetic ruler for workflow testing, native SVG contained **21 cubic commands**, and the 1,276-triangle STL had positive volume and two incident faces at every undirected edge. The compiled production UI also passed reconstruction and native SVG download. These checks do not qualify physical fit or a printer/material combination.
 
-### Current local verification and provenance
+### Reconstruction-stage verification and provenance
 
 - `npm run check && npm test -- --maxWorkers=4`: **221 files, 3,505 tests passed**.
 - `npm run test:workflows -- --maxWorkers=2`: **18 files, 611 tests passed**.
@@ -48,7 +67,7 @@ The sensitivity control changes the edge-barrier threshold; a lower barrier thre
 
 ## Editable curves
 
-Learned detection keeps a dense boundary and a simplified polygon. Use **Edit Contour → Edit curves (prototype) → Reconstruct lines & curves → Apply fit** to rebuild from dense evidence. The older Auto-fit contour and selected-point actions remain separate tools for the current polygon. Keep Trace margin at zero. The preview has an adjustable maximum deviation and preserves sharp corners. Apply is one undoable edit; rejected previews do not change the source. Handles survive Trace recovery, separate pocket/hole transfer with photo positions, Bin revisions, and project backups. Project schema 60 accepts schema 59 and earlier supported files; Trace draft schema 2 accepts schema 1.
+Learned detection keeps a dense boundary and a simplified polygon. Use **Outline → Auto-simplify outline → Apply simplified outline** to rebuild from dense evidence. The older Auto-fit contour and selected-point actions remain separate tools for the current polygon. Keep Trace margin at zero. The preview has an adjustable maximum deviation and preserves sharp corners. Apply is one undoable edit; rejected previews do not change the source. Handles survive Trace recovery, separate pocket/hole transfer with photo positions, Bin revisions, and project backups. Project schema 60 accepts schema 59 and earlier supported files; Trace draft schema 2 accepts schema 1.
 
 Reconstruction bounds deviation against the dense detected boundary; the older Auto-fit contour and selected-point actions bound it against the current polygon. Neither reference is photographed ground truth. A tight bound and corner preservation can leave many anchors. Native cubic curves are retained in Trace SVG when no hole/material boolean is needed. Mesh/DXF paths use adaptive polygon samples. See [curve behavior, sampling and limitations](contour-curves-prototype.md).
 
@@ -93,7 +112,7 @@ Only the fixed TEED ONNX model and upstream MIT license are added; no npm depend
 
 ## Earlier integration and soft-mask verification
 
-- Soft-mask follow-up: `npm run check && npm test -- --maxWorkers=4`: 220 files, 3,487 tests passed on Node 22; `npm run build` and `git diff --check` passed. The full workflow and CAD suites below passed for the preceding integration; this follow-up changes only detector reconstruction and diagnostic reporting, and does not rerun those unchanged paths.
+- Soft-mask follow-up: `npm run check && npm test -- --maxWorkers=4`: 220 files, 3,487 tests passed on Node 22; `npm run build` and `git diff --check` passed. The full workflow and CAD suites below passed for the preceding integration; those measurements describe that earlier stage.
 - `npm run test:workflows -- --maxWorkers=2`: all 18 files, 611 tests passed. An initial asynchronous focus-scope teardown error was isolated; the affected export workflow and the final complete workflow run both passed cleanly.
 - `npm run test:geometry`: all 25 files, 329 tests passed (325 seconds).
 - `npm run build` and `git diff --check`: passed. The emitted model matches the pinned SHA-256; `dist/public/NOTICE.txt` contains the complete TEED MIT notice and the model license is served separately.

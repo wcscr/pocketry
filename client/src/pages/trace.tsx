@@ -108,6 +108,7 @@ function TraceWorkspace(): JSX.Element {
   const workflowLayout = inspectorEnabled && !isMobile;
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
+  const [outlineCleanupRequest, setOutlineCleanupRequest] = useState<{ id: number; sourceRevision: number }>();
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
     setPanelOpen(true);
@@ -782,6 +783,10 @@ function TraceWorkspace(): JSX.Element {
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
+            onSmoothOutline={() => {
+              dispatch({ type: "SET_MODE", mode: "pan" });
+              setOutlineCleanupRequest(previous => ({ id: (previous?.id ?? 0) + 1, sourceRevision: store.sourceRevision }));
+            }}
             onReplaceImage={() => photoInputRef.current?.click()}
             onStartOver={startOver}
             onRotateImage={handleRotateImage}
@@ -814,6 +819,7 @@ function TraceWorkspace(): JSX.Element {
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
+                  outlineCleanupRequest={outlineCleanupRequest}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={
