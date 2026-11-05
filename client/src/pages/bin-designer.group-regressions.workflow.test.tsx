@@ -7,6 +7,8 @@ import { parseProjectDoc } from "@shared/gridfinity/project";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import * as ProjectPersistence from "@/lib/project/persist";
 import { createPlacementGroup, type EditableObject } from "@/lib/gridfinity/object-arrangement";
+import wihaSample from "../../../samples/wiha-40mm-drivers/wiha-40mm-drivers.pocketry.json";
+import dewaltSample from "../../../samples/dewalt-right-angle-tools/dewalt-right-angle-tools.pocketry.json";
 
 const shape = rectangularShape("group-regression-tool", "Tool");
 const spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 8 });
@@ -174,5 +176,48 @@ it.each(["fit", "remove-and-fit"] as const)("preserves a separate pocket group d
     });
     clickBinHistory(container, "undo"); expect(current().cutouts).toEqual(all);
     expect(currentSpec()).toEqual(spec);
+  } finally { unmount(); }
+});
+
+it.each([["Wiha 40 mm drivers", wihaSample], ["DeWalt right-angle tools", dewaltSample]])("moves and rotates the grouped %s sample without a false floor error", async (_name, sample) => {
+  // Both samples keep valid surface-anchored floors just below the rigid 7 mm minimum.
+  const project = parseProjectDoc(sample)!;
+  const frame = createPlacementGroup(project.cutouts.map(cutout => ({ kind: "pocket", cutout,
+    shape: project.shapes.find(s => s.id === cutout.shapeId)! })), project.spec, "group");
+  const grouped = project.cutouts.map(c => ({ ...c, placementGroup: frame }));
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...project, cutouts: grouped, history: undefined });
+  const { container, unmount } = renderPage();
+  const depthModel = () => current().cutouts.map(({ position, rotationDeg, placementGroup, ...rest }) => rest);
+  /** Expand the collapsed canvas warnings and list each shown floor error. */
+  const floorErrors = () => {
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] > button');
+    if (toggle?.getAttribute("aria-expanded") === "false") React.act(() => toggle.click());
+    return [...container.querySelectorAll('[data-issue-code="too-deep"]')].map(issue => issue.textContent);
+  };
+  const original = grouped.map(({ position, rotationDeg, placementGroup, ...rest }) => rest);
+  try {
+    await flushHydration();
+    click(container, "view-toggle-2d");
+    selectPocket(container, grouped[0].id);
+    expect(floorErrors()).toEqual([]);
+    React.act(() => toolButton(container, "Move selected objects").click());
+    inputAxis(container, "Move Y by", "-5");
+    expect(current().cutouts.map(c => c.position.y)).toEqual(grouped.map(c => expect.closeTo(c.position.y - 5, 6)));
+    expect(floorErrors()).toEqual([]);
+    expect(depthModel()).toEqual(original);
+    const moved = current().cutouts;
+    React.act(() => toolButton(container, "Rotate selected objects").click());
+    for (const angle of ["15", "180"]) {
+      inputAxis(container, "Rotate Z by", angle);
+      expect(current().cutouts.map(c => c.placementGroup!.rotation[3])).toEqual(grouped.map(() => expect.closeTo(Math.cos(Number(angle) * Math.PI / 360), 9)));
+      expect(floorErrors()).toEqual([]);
+      expect(depthModel()).toEqual(original);
+    }
+    const rotated = current().cutouts;
+    clickBinHistory(container, "undo"); clickBinHistory(container, "undo");
+    expect(current().cutouts).toEqual(moved);
+    clickBinHistory(container, "undo"); expect(current().cutouts).toEqual(grouped);
+    for (let i = 0; i < 3; i++) clickBinHistory(container, "redo");
+    expect(current().cutouts).toEqual(rotated);
   } finally { unmount(); }
 });

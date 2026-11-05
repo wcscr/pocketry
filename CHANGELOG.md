@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix experimental groups reporting "Raise the pocket" after a group move or Z rotation. Moving or turning a group no longer changes pocket depth or elevation.
+
 ## 1.6.1 — 2026-11-05
 
 - Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.
