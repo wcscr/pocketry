@@ -1,119 +1,118 @@
-"""Render offline white-sheet benchmark JSONs as a self-contained HTML report.
-Usage: python render-teed-report.py RESULTS_DIR OUTPUT_HTML [BROWSER_JSON]
-Requires Pillow; no photographs leave the machine.
+"""Offline photo comparison report. Pillow required; no images leave the device.
+python scripts/render-teed-report.py RESULTS_DIR OUTPUT_HTML [BROWSER_JSON]
 """
 import base64
 import html
 import io
 import json
+import shutil
 import statistics
 import sys
 from pathlib import Path
 from PIL import Image
-
 root, destination = Path(sys.argv[1]), Path(sys.argv[2])
-summary = json.loads((root / 'summary.json').read_text())
-browser = json.loads(Path(sys.argv[3]).read_text()) if len(sys.argv) > 3 else None
+summary = json.loads((root/'summary.json').read_text())
+browser = json.loads(Path(sys.argv[3]).read_text()) if len(sys.argv)>3 else {}
 esc = html.escape
-colors = ['#ea1688', '#009bff', '#00be73']
 
-def xy(p): return f"{p['x']:.3f} {p['y']:.3f}"
-def polygon(r): return 'M' + 'L'.join(xy(p) for p in r) + 'Z'
-def cubic(r):
-    path = 'M' + xy(r[0]['point'])
-    for i, a in enumerate(r):
-        b = r[(i + 1) % len(r)]
-        if a.get('out') or b.get('in'):
-            def lerp(t): return {k: a['point'][k] * (1-t) + b['point'][k] * t for k in ['x','y']}
-            path += 'C' + ' '.join(xy(p) for p in [a.get('out', lerp(1/3)), b.get('in', lerp(2/3)), b['point']])
-        else: path += 'L' + xy(b['point'])
-    return path + 'Z'
+def xy(p): return f"{p['x']:.4f},{p['y']:.4f}"
+def controls(a,b):
+    p,q=a['point'],b['point']
+    return [p,a.get('out',{k:(2*p[k]+q[k])/3 for k in p}),b.get('in',{k:(p[k]+2*q[k])/3 for k in p}),q]
+def curve_path(r):
+    result='M'+xy(r[0]['point'])
+    for i,a in enumerate(r):
+        b=r[(i+1)%len(r)];cs=controls(a,b)
+        result+=('C'+' '.join(xy(p) for p in cs[1:])) if a.get('out') or b.get('in') else 'L'+xy(b['point'])
+    return result+'Z'
+def polygon(r): return 'M'+'L'.join(xy(p) for p in r)+'Z'
+def sampled(r):
+    ps=[]
+    for i,a in enumerate(r):
+        b=r[(i+1)%len(r)];cs=controls(a,b)
+        for j in range(40 if a.get('out') or b.get('in') else 1):
+            t=j/40;s=1-t
+            ps.append({k:s**3*cs[0][k]+3*s*s*t*cs[1][k]+3*s*t*t*cs[2][k]+t**3*cs[3][k] for k in ['x','y']})
+    return ps
 
-def picture(c, data, key=None, color=None):
-    path = ''
-    if key:
-        for shape in c[key] if key == 'curves' else c[key]['outline']:
-            path += (cubic if key == 'curves' else polygon)(shape['outer'])
-    return f'<svg viewBox="0 0 {c["width"]} {c["height"]}" role="img" aria-label="{esc(key or "photo")}"><image width="{c["width"]}" height="{c["height"]}" href="data:image/jpeg;base64,{data}"/><path d="{path}" fill="none" stroke="{color or "none"}" stroke-width="1.7" vector-effect="non-scaling-stroke"/></svg>'
+def area(curves):
+    total=0
+    for s in curves:
+        for index,r in enumerate([s['outer'],*s.get('holes',[])]):
+            ps=sampled(r);a=abs(sum(p['x']*q['y']-q['x']*p['y'] for p,q in zip(ps,ps[1:]+ps[:1])))/2
+            total+=a if index==0 else -a
+    return total
 
-def outer_area(outline):
-    return sum(abs(sum(a['x']*b['y']-b['x']*a['y'] for a,b in zip(s['outer'],s['outer'][1:]+s['outer'][:1])))/2 for s in outline)
+def as_curves(outline): return [{'outer':[{'point':p} for p in s['outer']],'holes':[[{'point':p} for p in r] for r in s.get('holes',[])]} for s in outline]
+def count(curves): return sum(len(s['outer'])+sum(len(r) for r in s.get('holes',[])) for s in curves)
+def picture(c,data,kind='photo',crop=False):
+    vb=f'0 0 {c["width"]} {c["height"]}'
+    if crop: vb=f'0 {c["height"]*.68} {c["width"]} {c["height"]*.34}'
+    result=f'<svg viewBox="{vb}" role="img" aria-label="{esc(kind)}"><image href="data:image/jpeg;base64,{data}" width="{c["width"]}" height="{c["height"]}"/>'
+    if kind=='previous':
+        for s in c['oldCurves']:
+            for r in [s['outer'],*s.get('holes',[])]: result+=f'<path d="{curve_path(r)}" fill="none" stroke="#e51686" stroke-width="1.7" vector-effect="non-scaling-stroke"/>'
+    elif kind=='mixed':
+        for s in c['curves']:
+            for r in [s['outer'],*s.get('holes',[])]:
+                for i,a in enumerate(r):
+                    b=r[(i+1)%len(r)];cs=controls(a,b);curved=bool(a.get('out') or b.get('in'))
+                    path='M'+xy(cs[0])+('C'+' '.join(xy(p) for p in cs[1:]) if curved else 'L'+xy(cs[3]))
+                    color='#00ae65' if curved else '#006ef5'
+                    result+=f'<path d="{path}" fill="none" stroke="{color}" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+    elif kind in ['baseline','dense','polygon']:
+        outline=c['baseline']['outline'] if kind=='baseline' else c.get('reconstructionSource',c['result']['rawOutline']) if kind=='dense' else c['result']['outline']
+        color='#e51686' if kind=='baseline' else '#69778a'
+        for s in outline: result+=f'<path d="{polygon(s["outer"])}" fill="none" stroke="{color}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>'
+    return result+'</svg>'
 
-def metric(samples):
-    return f'{statistics.median(samples):.1f} <small>({min(samples):.1f}–{max(samples):.1f})</small>'
+def metric(values): return f'{statistics.median(values):.1f} <small>({min(values):.1f}–{max(values):.1f})</small>'
+def notes(c):
+    messages=[]
+    if c['name'].startswith('wiha-150'): messages.append('Tight five-driver group: color fallback still misses shafts/contains printing. Fitting cannot recover missing segmentation; select each driver with paper around it.')
+    elif c['result']['refinement']['status']=='fallback': messages.append('TEED enclosure rejected; the original color detection is retained. Expand the selection or review the source photo.')
+    if c.get('fitError'): messages.append('Geometry reconstruction rejected by validation. The detected polygon is retained; no partial fit is applied.')
+    if c['name']=='mouldline-distant': messages.append('The tiny bright hooked tip remains a segmentation limitation.')
+    if c['name'].startswith('wire-strippers'): messages.append('Review the shadow spur below the left handle; bounded fitting preserves evidence outside its allowance rather than deleting it arbitrarily.')
+    if c['name']=='caliper-original': messages.append('Low-resolution metal beam/jaw detail remains limited.')
+    return ' '.join(messages) or 'Review against the photograph. Acceptance verifies software contracts, not physical dimensional accuracy.'
 
-def note(c):
-    n = c['name']
-    if n.startswith('wiha-150'):
-        return 'Group crop is too tight: sheet printing and crop edges link five drivers. Learned reconstruction is rejected; color detection still misses shafts. Select each driver separately with white paper around it.'
-    if n == 'mouldline-distant': return 'Very small crop: the bright hooked tip is not faithfully recovered. Select a larger original-pixel crop before using this outline.'
-    if c['result'].get('refinement', {}).get('status') == 'fallback':
-        return ('Color fallback: the learned enclosure touches opposite selection sides. Expand the region to include white paper around the complete tool.' if c['result']['refinement']['reason'] == 'selection-too-tight' else 'Color fallback: the learned mask fragmented an existing connected outline. Review the crop and sensitivity.')
-    if c.get('fitError'): return 'Curve preview rejected by the topology guard; retain the detected polygon or try a smaller deviation.'
-    if n in ['wire-strippers-original', 'wiha-50-original']:
-        return 'Outer silhouette improves, but a narrow shadow/edge spur remains. Review the tip and trim manually.'
-    if n == 'caliper-original': return 'The metal beam improves substantially. The tiny source crop still limits jaw/beam detail; prefer the crop-first view below.'
-    if n.startswith('wiha-') and not n.endswith('cropfirst'): return 'Shaft recovery is sensitive to source resolution. Compare the larger crop-first view when available.'
-    if n == 'gerber-close': return 'Both end recesses are retained; small shadow/edge spurs remain near the lower recess. Inspect before exporting.'
-    if n == 'wire-strippers-original-cropfirst': return 'Body and handles are connected correctly, but a shadow spur reaches the crop border below the left handle. Expand the selection and trim that spur.'
-    if n.endswith('cropfirst'): return 'Cropped from original pixels before reduction. This is the input strategy used by the new browser option.'
-    return 'Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.'
-
-cards, table, records = [], [], []
-cleanup_focus = ''
+cards=[];table=[];records=[];focus=''
+svg_directory=destination.parent/'reconstructed-svg'
+svg_directory.mkdir(parents=True,exist_ok=True)
 for row in summary['cases']:
-    c = json.loads((root / (row['name'] + '.json')).read_text())
-    image = Image.open(Path(c['path']).with_suffix('.png')).convert('RGB')
-    image.thumbnail((650,650))
-    encoded = io.BytesIO(); image.save(encoded, 'JPEG', quality=88)
-    data = base64.b64encode(encoded.getvalue()).decode()
-    status = c['result']['refinement']['status']
-    fit = 'rejected' if c.get('fitError') else 'preview available'
-    count = lambda o: sum(len(s['outer']) for s in o)
-    base_count = count(c['baseline']['outline'])
-    p_count = count(c['result']['outline'])
-    anchors = count(c['curves'])
-    previous_count = count(c['previousLearned']['outline']) if c.get('previousLearned') else p_count
-    previous_comparison = ''
-    previous_area = outer_area(c['previousLearned']['outline']) if c.get('previousLearned') else 0
-    area_change = 100 * (outer_area(c['result']['outline']) / previous_area - 1) if previous_area else 0
-    if c.get('previousLearned'):
-        previous_comparison = '<details><summary>Previous TEED vs corrected TEED</summary><div class="panes" style="grid-template-columns:repeat(2,minmax(0,1fr))"><figure><figcaption>Previous learned polygon</figcaption>'+picture(c,data,'previousLearned',colors[0])+'</figure><figure><figcaption>Corrected learned polygon</figcaption>'+picture(c,data,'result',colors[1])+'</figure></div><p>Enclosed area change vs previous TEED: '+f'{area_change:+.1f}%'+'. This describes boundary placement, not accuracy against the photo.</p></details>'
-        if c['name'] == 'airduster-body':
-            panes_focus = ''.join('<figure><figcaption>'+title+'</figcaption>'+picture(c,data,key,color)+'</figure>' for title,key,color in [('Previous TEED', 'previousLearned', colors[0]),('Corrected TEED', 'result', colors[1]),('Corrected curve preview', 'curves', colors[2])])
-            cleanup_focus = f'<section class="summary" id="mask-softening-fix"><h2>Airduster double-back: cause and correction</h2><p>The filled TEED silhouette was continuous. The old mask softener could cut a thin false slit through a four-pixel-wide edge band, sending the traced boundary down and back up the handle. A class-preserving interpolation kernel removes that discontinuity; the existing straight-line simplification now reduces this outline from {previous_count} to {p_count} points, with {anchors} fitted anchors. No additional model or global straightening is used.</p><div class="panes" style="grid-template-columns:repeat(3,minmax(0,1fr))">{panes_focus}</div><p>Other small spurs can still come from the edge map itself. This correction follows the filled mask rather than the previous edge-centering heuristic, so some boundaries shift outward slightly. Curve deviation is still against the polygon, not the photograph.</p></section>'
-    samples = c['samples']
-    # First model import belongs to the separately listed cold-start result.
-    warm = samples['learnedMs'][1:] if row['name'] == summary['coldFirstRun']['case'] else samples['learnedMs']
-    records.append({**row, 'baselinePoints':base_count, 'warmLearnedMs':warm, 'notes':note(c), 'heapCapacityBytes':c['wasmHeapCapacityBytes'], 'areaChangePercentVsPreviousLearned':area_change})
-    browser_row = next((b for b in (browser or {}).get('corpus', {}).get('cases', []) if b['name'] == row['name']), None)
-    browser_cell = f"{browser_row['learnedMs']:.1f} / {browser_row['cachedMs']:.1f}" if browser_row else 'pending'
-    browser_line = f"Chrome worker: color {browser_row['colorMs']:.1f} ms · fresh TEED {browser_row['learnedMs']:.1f} ms · cached {browser_row['cachedMs']:.1f} ms · fit {browser_row['fitMs']:.1f} ms (one pass)." if browser_row else ''
-    identifier = row['name']
-    table.append(f'<tr><th><a href="#{identifier}">{esc(identifier)}</a></th><td>{metric(samples["baselineMs"])}</td><td>{metric(warm)}</td><td>{metric(samples["cachedMs"])}</td><td>{metric(samples["fitMs"])}</td><td>{metric(samples["reconstructMs"]) if "reconstructMs" in samples else "—"}</td><td>{browser_cell}</td><td>{base_count} → {previous_count} → {p_count} → {anchors}</td><td>{status}; fit {fit}</td></tr>')
-    panes=''.join(f'<figure><figcaption>{title}</figcaption>{picture(c,data,key,color)}</figure>' for title,key,color in [
-        ('Photo',None,None),('Before · color + guarded GrabCut','baseline',colors[0]),
-        ('After · retained color fallback' if status == 'fallback' else 'After · learned outer outline','result',colors[1]),('Fit rejected · polygon retained' if c.get('fitError') else 'Curve preview · 0.6 input px','curves',colors[2])])
-    cards.append(f'<article id="{identifier}"><h2>{esc(identifier)}</h2><p>{c["width"]} × {c["height"]} input pixels · {status} · fit {fit} · {p_count} polygon points → {anchors} curve anchors</p><div class="panes">{panes}</div><p>{browser_line}</p>{previous_comparison}<p class="note">{esc(note(c))}</p><details><summary>Timing samples and checks</summary><pre>{esc(json.dumps({"nodeSamplesMs":samples,"browserSinglePassMs":browser_row,"refinement":c["result"]["refinement"],"fitError":c.get("fitError"),"WASMHeapCapacityBytes":c["wasmHeapCapacityBytes"]},indent=2))}</pre></details></article>')
+    c=json.loads((root/(row['name']+'.json')).read_text())
+    shutil.copyfile(root/(row['name']+'.svg'),svg_directory/(row['name']+'.svg'))
+    c['oldCurves']=c.get('previousLearned',{}).get('curves') or as_curves(c['result']['outline'])
+    photo=Image.open(Path(c['path']).with_suffix('.png')).convert('RGB');photo.thumbnail((650,650));buf=io.BytesIO();photo.save(buf,'JPEG',quality=88);data=base64.b64encode(buf.getvalue()).decode()
+    result=c.get('reconstruction');samples=c['samples'];status='retained polygon' if c.get('fitError') else 'reconstructed'
+    old_count=count(c['oldCurves']);new_count=count(c['curves']);old_area=area(c['oldCurves']);area_change=100*(area(c['curves'])/old_area-1) if old_area else 0
+    before_case=c.get('previousLearned',{});total=[a+b for a,b in zip(samples['learnedMs'],samples['fitMs'])]
+    browser_row=next((r for r in browser.get('corpus',{}).get('cases',[]) if r['name']==row['name']),None)
+    record={**row,'previousAnchors':old_count,'areaChangePercentVsPreviousCurves':area_change,'notes':notes(c),'totalMs':total,'heapCapacityBytes':c['wasmHeapCapacityBytes']};records.append(record)
+    primitives=f'{result["lines"]} L / {result["cubics"]} C' if result else '—'
+    table.append(f'<tr><th><a href="#{c["name"]}">{esc(c["name"])}</a></th><td>{metric(samples["learnedMs"])}</td><td>{metric(samples["cachedMs"])}</td><td>{metric(samples["fitMs"])}</td><td>{metric(total)}</td><td>{c["fitTolerancePx"]:.3f}</td><td>{old_count} → {new_count}</td><td>{primitives}</td><td>{status}</td></tr>')
+    panes=''.join('<figure><figcaption>'+title+'</figcaption>'+picture(c,data,key)+'</figure>' for title,key in [('Photo','photo'),('Before · fitting the coarse polygon','previous'),('After · lines (blue) / cubics (green)','mixed'),('Dense detected source','dense')])
+    extra=''.join('<figure><figcaption>'+title+'</figcaption>'+picture(c,data,key)+'</figure>' for title,key in [('Color + guarded GrabCut','baseline'),('Detected simplified polygon','polygon')])
+    line=f'{result["before"]} dense samples → {new_count} anchors · {primitives} · {result["smoothJoins"]} smooth joins · verified error ≤ {result["maxDeviation"]:.4f} input px' if result else 'Reconstruction rejected: '+esc(c.get('fitError',''))
+    browser_text='' if not browser_row else '<p>Chrome worker measurements: '+esc(json.dumps(browser_row))+'</p>'
+    cards.append(f'<article id="{c["name"]}"><h2>{esc(c["name"])}</h2><p>{line}</p><div class="panes">{panes}</div><p class="note">{esc(notes(c))}</p><p>Area change vs previous curve preview: {area_change:+.2f}%. This is a boundary-change diagnostic, not an accuracy score.</p>{browser_text}<p><a href="reconstructed-svg/{c["name"]}.svg">Unscaled native SVG preview</a> · pixel coordinates, no physical size is assigned.</p><details><summary>Color baseline and polygon comparison</summary><div class="pair">{extra}</div></details><details><summary>Timings and checks</summary><pre>{esc(json.dumps({"currentSamplesMs":samples,"previousFitSamplesMs":before_case.get("samples",{}).get("fitMs"),"previousFitTolerancePx":before_case.get("fitTolerancePx"),"fitTolerancePx":c["fitTolerancePx"],"fitReference":c.get("fitReference"),"reconstruction":result,"detection":c["result"]["refinement"],"fitError":c.get("fitError"),"capDiagnostics":row.get("capDiagnostics")},indent=2))}</pre></details></article>')
+    if c['name']=='airduster-body':
+        focus='<section class="summary" id="wolfbox-curves"><h2>Wolfbox handle: true curves around the bottom</h2><p>'+line+'</p><div class="triple">'+''.join('<figure><figcaption>'+title+'</figcaption>'+picture(c,data,key,crop)+'</figure>' for title,key,crop in [('Previous polygon-based fit','previous',False),('New line-and-curve reconstruction','mixed',False),('Rounded bottom · native cubic spans','mixed',True)])+'</div><p>Green edges are actual cubic Bézier segments in the editable source and native SVG, not merely a smoothed display polygon. The same fitting rules apply to all photos. Photo-specific cap checks are evaluation landmarks only.</p></section>'
 
-median = lambda key: statistics.median(statistics.median(r['samples'][key]) for r in records)
-accepted = sum(r['status']['status']=='accepted' for r in records)
-fits = sum(not r.get('fitError') for r in records)
-heap = max(r['heapCapacityBytes'] for r in records)/2**20
-browser_block = '<p>Browser timings pending.</p>' if browser is None else '<pre>'+esc(json.dumps(browser,indent=2))+'</pre>'
-page = f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pocketry · TEED outer outlines and curves</title>
-<style>body{{font:15px/1.5 system-ui;max-width:1700px;margin:32px auto;padding:0 24px;background:#f4f6fa;color:#142139}}h1{{font-size:30px}}h2{{font-size:20px}}a{{color:#1260a5}}.summary,article{{background:white;border:1px solid #d9e0eb;border-radius:10px;padding:20px;margin:22px 0}}.panes{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}figure{{margin:0;background:#e8edf2;border-radius:5px}}figcaption{{padding:8px;font-weight:600;font-size:13px}}svg{{display:block;width:100%;height:460px}}.note{{background:#f2f5fb;padding:12px}}table{{border-collapse:collapse;width:100%;font-size:13px}}th,td{{text-align:left;padding:8px;border-bottom:1px solid #d9e0eb}}small{{color:#607088;white-space:nowrap}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}}.scroll{{overflow-x:auto}}@media(max-width:950px){{.panes{{grid-template-columns:repeat(2,minmax(0,1fr))}}svg{{height:360px}}}}@media(max-width:500px){{.panes{{grid-template-columns:1fr}}body{{padding:0 10px}}}}</style>
-<h1>TEED outer outlines → editable curves</h1>{cleanup_focus}<p>Pocketry local integration review · 5 November 2026 · white calibration sheets only</p>
-<div class="summary"><p><b>{accepted}/27 learned reconstructions accepted; {27-accepted} color fallbacks. {fits}/27 curve previews available.</b> The tight five-driver group crops remain unsuitable, and some accepted results still need manual cleanup. These are 19 existing white-sheet crops plus 8 views cropped from original pixels first. Historical mat/checkerboard photos are excluded. Counts describe software acceptance, not 27 independently photographed tools or a ground-truth accuracy score.</p>
-<p><b>Mac Node {esc(summary['node'])}, shipped OpenCV CPU/WASM, three full corpus passes:</b> median per-case color time {median('baselineMs'):.1f} ms; fresh learned pipeline {median('learnedMs'):.1f} ms; cached adjustment {median('cachedMs'):.1f} ms; curve fitting {median('fitMs'):.1f} ms. Edge-to-mask reconstruction (inside the learned total): {median('reconstructMs'):.1f} ms. Table cells show median (min–max), in milliseconds. This is one process, sequential tests; occasional OS/browser activity can affect samples.</p>
-<p>OpenCV initialization: {summary['initializeMs']:.1f} ms, measured separately. First learned call including model import: {summary['coldFirstRun']['ms']:.1f} ms ({esc(summary['coldFirstRun']['case'])}); excluded from that row’s warm samples. All other fresh calls reuse the net but evict the single-image edge cache between corpus passes. Cached calls repeat the same frame, skipping inference while rebuilding the silhouette. Detail/smoothing use the existing polygon cache and need no model call.</p>
-<p>Model: 248,782 bytes (243 KiB), FP32, fixed 512 × 512. No additional inference runtime; uses Pocketry’s existing OpenCV WASM. Peak observed detection-worker WASM heap <em>capacity</em>: {heap:.0f} MiB; this is not live allocations, process RSS, or a phone measurement. Browser workers release after 30 seconds idle; cancellation terminates the worker. The browser also retains its main-thread calibration OpenCV heap (128 MiB), so the two observed heap capacities together reach about 394 MiB before images/JS. Actual iPhone/Android speed and memory remain unmeasured.</p>
-<p>Curve fitting is explicit and previewed; this report uses a conservative 0.6 <em>input-pixel</em> deviation against the detected polygon. It does not measure error against the photographed tool. Sharp corners remain, so anchor reductions may be modest. Rejected fits leave the polygon untouched. SVG can retain cubic curves; mesh/DXF exports use adaptive samples. No physical print or dimensional-fit qualification is claimed.</p>
-<p><a href="raw-edges.html">Earlier raw-edge comparison</a> · The learned option is off by default. Select a region with paper around the complete tool, enable <b>Learned outer outline</b>, then use <b>Edit Contour → Edit curves (prototype) → Auto-fit contour</b>.</p></div>
-<p>Chrome columns use one sequential pass through the real browser worker on this Mac. The first row includes model import; all later fresh rows reuse the net but run inference. Per-photo panels also list browser color and curve-fit time. These are separate runs from the three-pass Node measurements.</p><h2>Every white-sheet case · before / after and performance</h2><div class="scroll"><table><thead><tr><th>Tool / photo</th><th>Color ms</th><th>Fresh TEED ms</th><th>Cached ms</th><th>Fit ms</th><th>Mask reconstruction ms</th><th>Chrome fresh / cached ms</th><th>Color → previous TEED → corrected TEED → anchors</th><th>Result</th></tr></thead><tbody>{''.join(table)}</tbody></table></div>
-<details class="summary"><summary>Real browser worker / UI validation</summary><p>The animation heartbeat covers worker detection; photo decoding and the existing calibration preflight are outside that measurement.</p>{browser_block}</details>
-{''.join(cards)}<p>All images and results are embedded locally. No external photo upload is used.</p></html>'''
-destination.parent.mkdir(parents=True,exist_ok=True)
-destination.write_text(page)
-(root/'report-records.json').write_text(json.dumps(records,indent=2))
-print(destination, destination.stat().st_size, 'bytes')
+median=lambda k:statistics.median(statistics.median(r['samples'][k]) for r in records)
+accepted=sum(r['status']['status']=='accepted' for r in records);fitted=sum(not r.get('fitError') for r in records);heap=max(r['heapCapacityBytes'] for r in records)/2**20
+total=statistics.median(statistics.median(r['totalMs']) for r in records)
+page=f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pocketry · Dense lines and curves</title><style>
+body{{font:15px/1.5 system-ui;max-width:1700px;margin:28px auto;padding:0 22px;background:#f3f6fa;color:#142139}}a{{color:#1260a5}}h1{{font-size:30px}}h2{{font-size:21px}}.summary,article{{background:white;border:1px solid #d8e0eb;border-radius:10px;padding:20px;margin:22px 0}}.panes,.pair,.triple{{display:grid;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr))}}.pair{{grid-template-columns:repeat(2,minmax(0,1fr))}}.triple{{grid-template-columns:repeat(3,minmax(0,1fr))}}figure{{margin:0;background:#e8edf2;border-radius:5px}}figcaption{{padding:8px;font-weight:600;font-size:13px}}svg{{display:block;width:100%;height:460px}}.note{{background:#f1f5fb;padding:12px}}.scroll{{overflow:auto}}table{{border-collapse:collapse;width:100%;font-size:13px}}th,td{{padding:8px;text-align:left;border-bottom:1px solid #d8e0eb}}small{{white-space:nowrap;color:#5e6e83}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}}@media(max-width:950px){{.panes{{grid-template-columns:repeat(2,minmax(0,1fr))}}.triple{{grid-template-columns:1fr}}}}@media(max-width:500px){{.panes,.pair{{grid-template-columns:1fr}}body{{padding:0 10px}}}}
+</style><h1>Dense boundary → straight lines and true curves</h1><p>Pocketry local review · 5 November 2026 · white calibration sheets only</p>{focus}
+<div class="summary"><p><b>{fitted}/27 geometry previews valid; {27-fitted} retain their detected polygon. {accepted}/27 TEED reconstructions accepted; {27-accepted} keep color detection.</b> The set is 19 existing white-sheet crops plus eight original-pixel crop-first views, not 27 distinct tools. Historical mat/checkerboard photos are excluded. Poor segmentation remains poor evidence; fitting does not establish accuracy.</p>
+<p>The new explicit preview uses the dense boundary, finite straight-line checks, multiscale corner support and continuously verified cubic fitting. Curve joins are tangent-constrained and adjusted only within the selected allowance. Genuine corners remain. The visible default is at least 0.1 mm when calibrated (1 px otherwise), or the 75th-percentile dense sampling step when coarser. It never silently relaxes a selected tolerance. These uncalibrated report cases use input pixels; the older preview used 0.6 px against an already-simplified polygon, so the error references/budgets differ.</p>
+<p><b>Mac arm64 Node {esc(summary['node'])}, shipped CPU/WASM, three sequential corpus passes:</b> median fresh TEED {median('learnedMs'):.1f} ms; cached detection {median('cachedMs'):.1f} ms; geometry reconstruction {median('fitMs'):.1f} ms; complete fresh detection + geometry {total:.1f} ms. Table cells show median (min–max), in milliseconds. Color baseline median {median('baselineMs'):.1f} ms and mask reconstruction {median('reconstructMs'):.1f} ms remain recorded separately in per-case data.</p>
+<p>OpenCV initialization {summary['initializeMs']:.1f} ms is separate. First learned call including model import: {summary['coldFirstRun']['ms']:.1f} ms; other fresh calls reuse the net while evicting the image cache between corpus passes. Timing samples are local, uncontrolled desktop runs. Browser worker measurements are separate. Neither set establishes iPhone/Android speed.</p>
+<p>TEED model: 243 KiB, fixed FP32 512 × 512, no additional ML runtime. Observed WASM heap capacity {heap:.1f} MiB in the detector plus 128 MiB in main-thread calibration; this is not live allocations or total RSS. Geometry reconstruction itself uses dependency-free TypeScript in a cancellable worker, and does not load OpenCV/model assets when invoked alone.</p>
+<p>Use <b>Edit Contour → Edit curves (prototype) → Reconstruct lines &amp; curves</b>, review the allowance and preview, then Apply. Trace margin must be zero and the source unedited. Apply creates one undo step. Native cubic SVG and editable project backups retain handles; mesh/DXF outputs use adaptive samples. Error is measured against detected geometry, not photographed ground truth or manufacturing fit. Some residual joins/spurs remain when stronger smoothing would exceed the allowance.</p>
+<p><a href="before-line-curve-reconstruction.html">Previous soft-mask report</a> · <a href="before-soft-mask-fix.html">Earlier soft-mask baseline</a> · <a href="raw-edges.html">Raw edge comparison</a></p></div>
+<h2>Every white-sheet comparison and timing</h2><div class="scroll"><table><thead><tr><th>Tool / view</th><th>Fresh TEED ms</th><th>Cached ms</th><th>Geometry ms</th><th>Fresh + geometry ms</th><th>Allowance input px</th><th>Before → after anchors</th><th>Lines / cubics</th><th>Geometry result</th></tr></thead><tbody>{''.join(table)}</tbody></table></div>
+<details class="summary"><summary>Browser, export and local verification records</summary><pre>{esc(json.dumps(browser,indent=2))}</pre></details>{''.join(cards)}<p>All photographs and results are embedded locally. No photo upload is used. No slicer, physical-print or dimensional-fit qualification is claimed.</p></html>'''
+destination.parent.mkdir(parents=True,exist_ok=True);destination.write_text(page);(root/'report-records.json').write_text(json.dumps(records,indent=2));print(destination,destination.stat().st_size,'bytes')

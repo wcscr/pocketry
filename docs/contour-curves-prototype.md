@@ -23,6 +23,16 @@ editing restriction.
   preserves them for separate pockets and holes, retaining their photo positions. Existing polygon
   projects keep their original vertices until an explicit curve edit.
 
+## Reconstructing a detected photo outline
+
+Trace offers **Edit Contour → Edit curves (prototype) → Reconstruct lines & curves** after a fresh detection, with margin zero and no manual contour edits. This explicitly reconstructs all detected contours from their dense source. It does not run automatically on detection, load or save. The existing selected-point and coarse-contour fitting actions remain available separately.
+
+The reconstruction first finds persistent corners using arc-length neighborhoods at two scales. It prefers supported finite straight runs and fits Bézier spans elsewhere, then refits curved spans using shared tangents and the neighboring straight-line directions. Smooth joins are accepted only when the adjusted spans still satisfy the selected allowance. Fitting can retain small corners/spurs when removing them would exceed that allowance; it does not infer perfect circular arcs or hidden tool geometry.
+
+Preview shows the dense reference and green candidate, with straight/cubic counts. **Max deviation** is in mm after calibration and px otherwise. The visible initial value is at least 0.1 mm (1 px uncalibrated), or the typical dense sampling step if coarser. It can be edited; the algorithm never silently increases a selected bound. The bound is against the dense detected polygon, not the photograph. Cubic error is checked continuously along every source edge; line checks include finite endpoints and reverse progress. Winding, intersections, hole relationships and budgets are also checked. Topology checks use adaptive samples and are not an exact proof for arbitrarily tiny features.
+
+Reconstruction runs in a cancellable worker without loading a new ML runtime. Cancel, Escape, changing the source/scale/ring or changing the allowance discards a pending preview. Apply commits the entire result as one undoable edit; any rejected contour keeps the entire previous source. Handles use the existing recovery, project, handoff and export representation. Undo to the original detected outline before reconstructing again after manual edits.
+
 ## Fitting existing points
 
 Both editors offer two explicit actions after entering curve editing:

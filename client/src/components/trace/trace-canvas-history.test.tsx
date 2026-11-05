@@ -322,7 +322,7 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); restoreCoordinates(); }
   });
 
-  it.each(["auto", "range"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
+  it.each(["auto", "range", "reconstruct"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -332,11 +332,19 @@ describe("TraceCanvas edit history", () => {
     const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
-      React.act(() => { trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace!.dispatch({ type: "SET_MODE", mode: "edit" }); });
+      React.act(() => {
+        if (mode === "reconstruct") {
+          const dense: Outline = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
+          trace!.dispatch({ type: "DETECTED", imageUrl: trace!.imageUrl, outline: rounded, rawOutline: dense, svg: "", region: trace!.region });
+        } else trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded });
+        trace!.dispatch({ type: "SET_MODE", mode: "edit" });
+      });
       const before = trace!.history.stack.length;
       const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
       expect(trace!.curves).toBeUndefined();
-      click("Edit curves (prototype)"); click(mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+      click("Edit curves (prototype)");
+      if (mode === "reconstruct") await React.act(async () => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Reconstruct lines & curves")!.click());
+      else click(mode === "auto" ? "Auto-fit contour" : "Fit selected points");
       if (mode === "range") {
         for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
           const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;

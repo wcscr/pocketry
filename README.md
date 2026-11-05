@@ -86,6 +86,11 @@ symmetry, and trace margin are locked once curves are authored. Use Bin clearanc
 to adjust fit. Trace SVG retains native curves when no hole/material boolean is needed; solid exports and DXF use sampled
 outlines. See [prototype scope and verification](docs/contour-curves-prototype.md).
 
+For a fresh detection, **Reconstruct lines & curves** fits straight segments and
+true curves directly from the dense boundary. Review the visible maximum deviation
+and preview, then Apply as one undoable edit. Keep Trace margin at zero and
+reconstruct before manual contour edits.
+
 In curve editing, **Fit selected points** lets you choose the first and last point
 of a connected section, then **Preview fit**. **Swap ends** selects the other way
 around the contour. **Auto-fit contour** previews fitting the chosen outer contour

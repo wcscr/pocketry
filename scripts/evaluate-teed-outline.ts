@@ -6,8 +6,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { detectOutline } from "../client/src/lib/detect/pipeline";
 import { createTeedDetector, loadTeedModel } from "../client/src/lib/detect/teed";
-import { curvesFromOutline, type CurveOutline } from "../shared/geometry/curves";
-import { fitContour } from "../shared/geometry/curve-fit";
+import { curvesFromOutline, curveControls, evaluateCurve, type CurveOutline } from "../shared/geometry/curves";
+import { reconstructDetectedOutline, recommendedReconstructionTolerance, type ReconstructionResult } from "../shared/geometry/contour-reconstruction";
 import { generateOutlineSVG } from "../client/src/lib/export/svg";
 import { outsideSilhouettes } from "../client/src/lib/geometry/outline";
 interface Photo { name: string; path: string; width: number; height: number; group: string; variant?: string }
@@ -36,10 +36,14 @@ try {
     const elapsed = performance.now() - start;
     result.outline = outsideSilhouettes(result.outline);
     const sourceCurves = curvesFromOutline(result.outline);
+    const dense = outsideSilhouettes(result.rawOutline);
+    const fitTolerancePx = Math.max(...dense.flatMap(s => [s.outer, ...s.holes]).map(r => recommendedReconstructionTolerance(r)));
     let curves: CurveOutline = sourceCurves, fitError: string | undefined;
+    let reconstruction: Omit<ReconstructionResult, "curves"> | undefined;
     const fitStarted = performance.now();
     try {
-      for (let i = 0; i < curves.length; i++) curves = fitContour(curves, { shapeIndex: i, ringIndex: -1 }, { kind: "auto" }, 0.6).curves;
+      const fitted = reconstructDetectedOutline(sourceCurves, dense, fitTolerancePx);
+      const { curves: next, ...details } = fitted; curves = next; reconstruction = details;
     } catch (error) { curves = sourceCurves; fitError = String(error); }
     const fitMs = performance.now() - fitStarted;
     const cachedStarted = performance.now();
@@ -54,15 +58,19 @@ try {
     if (round === 2) {
       const previous = process.argv[4] ? JSON.parse(readFileSync(resolve(process.argv[4], c.name + ".json"), "utf8")) : undefined;
       const previousLearned = previous ? { outline: previous.result.outline, curves: previous.curves,
-        samples: previous.samples, fitError: previous.fitError } : undefined;
+        samples: previous.samples, fitError: previous.fitError, fitTolerancePx: previous.fitTolerancePx } : undefined;
       writeFileSync(resolve(output, c.name + ".json"), JSON.stringify({ ...c, baseline, result, curves, fitError, previousLearned,
-        fitTolerancePx: 0.6, elapsedMs: elapsed, fitMs, samples, wasmHeapCapacityBytes: cv.HEAPU8.buffer.byteLength }));
+        fitTolerancePx, fitReference: "dense detected boundary", reconstructionSource: dense, reconstruction, elapsedMs: elapsed, fitMs, samples, wasmHeapCapacityBytes: cv.HEAPU8.buffer.byteLength }));
       writeFileSync(resolve(output, c.name + ".svg"), generateOutlineSVG(result.outline,
         { width: c.width, height: c.height, curves, fill: "none", stroke: "#00d4ff", strokeWidth: 1 }));
+      const capDiagnostics = c.name.startsWith("airduster-body") && !fitError ? curves.flatMap(s => s.outer.map((a, i, r) => ({
+        curved: !!(a.out || r[(i + 1) % r.length].in), smooth: !!a.smooth, point: evaluateCurve(curveControls(r, i), .5),
+      }))).filter(s => s.point.y > c.height * .9).map(({ curved, smooth }) => ({ curved, smooth })) : undefined;
+      if (capDiagnostics && (!capDiagnostics.length || capDiagnostics.some(s => !s.curved))) throw new Error("Wolfbox bottom was not reconstructed as curves: " + c.name);
       rows.push({ name: c.name, status: result.refinement, elapsedMs: elapsed, samples,
       previousPoints: previousLearned?.outline.reduce((n: number, s: { outer: unknown[] }) => n + s.outer.length, 0),
       polygons: result.outline.length, beforePoints: result.outline.reduce((n, s) => n + s.outer.length, 0),
-      afterAnchors: curves.reduce((n, s) => n + s.outer.length, 0), fitError });
+      afterAnchors: curves.reduce((n, s) => n + s.outer.length, 0), fitError, fitTolerancePx, reconstruction, capDiagnostics });
     }
     console.log("round", round + 1, c.name, result.refinement?.status, Math.round(elapsed) + "ms", fitError ?? "fit ok");
   }

@@ -4,15 +4,17 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useCurveEditor } from "./use-curve-editor";
 import { curveControls, evaluateCurve, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import type { Outline } from "@shared/geometry/types";
+import * as photoWorker from "@/lib/detect/worker-client";
 
 const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
 let root: Root, host: HTMLDivElement, saved: CurveOutline | undefined;
 const onCommit = vi.fn(), navigation = { onPointerDown: vi.fn(), onPointerMove: vi.fn(), onPointerUp: vi.fn(), onPointerCancel: vi.fn(), startPan: vi.fn() };
 const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
-function Harness({ placed = false, input = outline, units = 1, unit = "mm", contextKey = "source" }: { placed?: boolean; input?: Outline; units?: number; unit?: "mm" | "px"; contextKey?: string }) {
+function Harness({ placed = false, input = outline, units = 1, unit = "mm", contextKey = "source", dense }: { placed?: boolean; input?: Outline; units?: number; unit?: "mm" | "px"; contextKey?: string; dense?: Outline }) {
   const [curves, setCurves] = React.useState<CurveOutline>();
   saved = curves;
   const editor = useCurveEditor({ outline: input, curves, enabled: true, contextKey, scale: 1, tolerance: 0.025,
+    reconstructionSource: dense,
     fitUnitsPerUnit: units, fitUnit: unit,
     viewport: navigation,
     fromClient: (x, y) => placed ? { x: (200 - x) / 2, y: 300 - y } : { x, y },
@@ -24,6 +26,41 @@ function Harness({ placed = false, input = outline, units = 1, unit = "mm", cont
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.clearAllMocks(); saved = undefined;
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+});
+
+it("reconstructs from dense evidence in an explicit preview and applies one edit", async () => {
+  const dense = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
+  React.act(() => root.render(<Harness input={rounded} dense={dense} />));
+  React.act(() => button("Edit curves (prototype)").click());
+  await React.act(async () => button("Reconstruct lines & curves").click());
+  expect(host.querySelector('[data-testid="reconstruction-source"]')).not.toBeNull();
+  expect(host.textContent).toContain("256 →");
+  expect(onCommit).not.toHaveBeenCalled();
+  expect(host.querySelector('[data-testid="curve-fit-preview"]')!.getAttribute("d")).toContain("C");
+  React.act(() => button("Apply fit").click());
+  expect(onCommit).toHaveBeenCalledTimes(1);
+  expect(onCommit.mock.calls[0][1]).toBe("Reconstruct lines and curves");
+  expect(saved![0].outer.length).toBeLessThan(rounded[0].outer.length);
+});
+
+it("cancels a pending reconstruction and ignores its late worker result", async () => {
+  vi.stubGlobal("Worker", class {});
+  let finish!: (value: never) => void, signal: AbortSignal | undefined;
+  const invoke = vi.spyOn(photoWorker, "reconstructInWorker").mockImplementation((_payload, inputSignal) => {
+    signal = inputSignal; return new Promise(resolve => { finish = resolve; });
+  });
+  try {
+    React.act(() => root.render(<Harness input={rounded} dense={rounded} />));
+    React.act(() => button("Edit curves (prototype)").click());
+    await React.act(async () => button("Reconstruct lines & curves").click());
+    expect(host.textContent).toContain("Reconstructing contour");
+    expect(button("Apply fit").disabled).toBe(true);
+    React.act(() => button("Cancel fit").click());
+    expect(signal?.aborted).toBe(true);
+    await React.act(async () => finish({ curves: [], changed: true } as never));
+    expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
+    expect(onCommit).not.toHaveBeenCalled();
+  } finally { invoke.mockRestore(); }
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 const button = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!;

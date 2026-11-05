@@ -187,7 +187,7 @@ export function fitContour(source: CurveOutline, ref: RingRef, request: CurveFit
 /** Topology guard on fine adaptive samples. Fitting's deviation bound above is
  * continuous; intersection/containment checks use these polygon approximations.
  */
-function validateFittedContour(before: CurveOutline, after: CurveOutline, ref: RingRef, tolerance: number, budget: () => void): void {
+export function validateFittedContour(before: CurveOutline, after: CurveOutline, ref: RingRef, tolerance: number, budget: () => void): void {
   const flat = (outline: CurveOutline) => outline.flatMap((s, shapeIndex) => [
     { ring: s.outer, shapeIndex, ringIndex: -1 }, ...s.holes.map((ring, ringIndex) => ({ ring, shapeIndex, ringIndex }))]);
   const sources = flat(before), target = sources.findIndex(r => r.shapeIndex === ref.shapeIndex && r.ringIndex === ref.ringIndex);

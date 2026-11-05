@@ -282,6 +282,8 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
 
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
   const curveEditor = useCurveEditor({
+    reconstructionSource: !store.curves && !store.processing && (store.margin ?? 0) === 0 &&
+      !store.history.stack[store.history.index]?.hasManualEdits && store.rawOutline.length ? store.rawOutline : undefined,
     outline, curves: store.curves, enabled: (mode === "edit" || mode === "remove") && outline.length > 0,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,

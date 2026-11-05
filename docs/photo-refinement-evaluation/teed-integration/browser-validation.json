@@ -107,438 +107,763 @@
     "defaultToleranceNoOpVerified": true
   },
   "corpus": {
-    "scope": "Chrome 156 headless on macOS, one sequential pass, 27 white-sheet views. First color includes worker/CV startup; first learned includes model import. Other rows reuse the net. Not phone timings.",
+    "scope": "Chrome 156 headless on macOS. One sequential pass over all 27 unchanged white-sheet inputs; geometry runs through the real worker RPC. First color includes worker/CV startup; first learned includes model import. Other learned rows reuse the net. Not phone timings.",
     "cases": [
       {
         "name": "airduster-nozzle",
-        "colorMs": 212,
-        "learnedMs": 905.6999998092651,
-        "cachedMs": 36.200000286102295,
-        "reconstructMs": 24.699999809265137,
-        "fitMs": 1.3999996185302734,
+        "colorMs": 328.7000002861023,
+        "learnedMs": 1274.6999998092651,
+        "cachedMs": 52.40000009536743,
+        "fitMs": 29.200000286102295,
+        "totalMs": 1303.9000000953674,
+        "edgeMaskMs": 33.09999990463257,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1426,
+          "after": 43,
+          "maxDeviation": 0.9666534427322591,
+          "lines": 7,
+          "cubics": 36,
+          "corners": 20,
+          "smoothJoins": 23,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "airduster-body",
-        "colorMs": 68.09999990463257,
-        "learnedMs": 763.7999997138977,
-        "cachedMs": 44,
-        "reconstructMs": 22.5,
-        "fitMs": 0.40000009536743164,
+        "colorMs": 95.90000009536743,
+        "learnedMs": 1063.5,
+        "cachedMs": 51.59999990463257,
+        "fitMs": 26,
+        "totalMs": 1089.5,
+        "edgeMaskMs": 28.799999713897705,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
         },
+        "geometry": {
+          "before": 1602,
+          "after": 24,
+          "maxDeviation": 0.9945943368434701,
+          "lines": 3,
+          "cubics": 21,
+          "corners": 5,
+          "smoothJoins": 18,
+          "changed": true
+        },
         "cached": true,
+        "capDiagnostics": [
+          {
+            "curved": true,
+            "smooth": true
+          },
+          {
+            "curved": true,
+            "smooth": true
+          }
+        ],
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "airduster-pair",
-        "colorMs": 136.2000002861023,
-        "learnedMs": 787.4000000953674,
-        "cachedMs": 48.89999961853027,
-        "reconstructMs": 20.700000286102295,
-        "fitMs": 0.6000003814697266,
+        "colorMs": 174.09999990463257,
+        "learnedMs": 1075.9000000953674,
+        "cachedMs": 65.19999980926514,
+        "fitMs": 30.199999809265137,
+        "totalMs": 1106.0999999046326,
+        "edgeMaskMs": 32.80000019073486,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 2052,
+          "after": 42,
+          "maxDeviation": 0.9752304905376733,
+          "lines": 9,
+          "cubics": 33,
+          "corners": 11,
+          "smoothJoins": 29,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "airduster-angle-nozzle",
-        "colorMs": 52.60000038146973,
-        "learnedMs": 765.1999998092651,
-        "cachedMs": 30.59999990463257,
-        "reconstructMs": 19.09999990463257,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 72.5,
+        "learnedMs": 1069.1999998092651,
+        "cachedMs": 48.80000019073486,
+        "fitMs": 15.399999618530273,
+        "totalMs": 1084.5999994277954,
+        "edgeMaskMs": 28.399999618530273,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1052,
+          "after": 15,
+          "maxDeviation": 0.911154917938114,
+          "lines": 3,
+          "cubics": 12,
+          "corners": 5,
+          "smoothJoins": 10,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "ryobi-original",
-        "colorMs": 63.19999980926514,
-        "learnedMs": 776.5,
-        "cachedMs": 42.90000009536743,
-        "reconstructMs": 26,
-        "fitMs": 0.40000009536743164,
+        "colorMs": 87.7999997138977,
+        "learnedMs": 1086.7000002861023,
+        "cachedMs": 60,
+        "fitMs": 30,
+        "totalMs": 1116.7000002861023,
+        "edgeMaskMs": 36.799999713897705,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 2080,
+          "after": 47,
+          "maxDeviation": 0.997980159318885,
+          "lines": 13,
+          "cubics": 34,
+          "corners": 10,
+          "smoothJoins": 34,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "mouldline-original",
-        "colorMs": 12.300000190734863,
-        "learnedMs": 711.5,
-        "cachedMs": 13.299999713897705,
-        "reconstructMs": 5,
-        "fitMs": 0.20000028610229492,
+        "colorMs": 17.40000009536743,
+        "learnedMs": 1007.3999996185303,
+        "cachedMs": 18.699999809265137,
+        "fitMs": 8.5,
+        "totalMs": 1015.8999996185303,
+        "edgeMaskMs": 6.600000381469727,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1022,
+          "after": 20,
+          "maxDeviation": 0.9989130305740122,
+          "lines": 5,
+          "cubics": 15,
+          "corners": 2,
+          "smoothJoins": 16,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "stapler-original",
-        "colorMs": 55.89999961853027,
-        "learnedMs": 779.1000003814697,
-        "cachedMs": 76.5,
-        "reconstructMs": 10.299999713897705,
-        "fitMs": 0.6999998092651367,
+        "colorMs": 83.5,
+        "learnedMs": 1117.3000001907349,
+        "cachedMs": 112.5,
+        "fitMs": 20.90000009536743,
+        "totalMs": 1138.2000002861023,
+        "edgeMaskMs": 14.599999904632568,
+        "tolerance": 1.003861286659279,
         "refinement": {
           "status": "fallback",
           "reason": "selection-too-tight",
           "iterations": 0,
           "cached": false
         },
+        "geometry": {
+          "before": 1710,
+          "after": 97,
+          "maxDeviation": 1.0017722715623858,
+          "lines": 21,
+          "cubics": 76,
+          "corners": 22,
+          "smoothJoins": 71,
+          "changed": true
+        },
         "cached": true,
-        "fitError": "The fit would cross or touch another contour edge. Try a smaller deviation.",
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "caliper-original",
-        "colorMs": 13.800000190734863,
-        "learnedMs": 746.0999999046326,
-        "cachedMs": 33,
-        "reconstructMs": 27.299999713897705,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 19.800000190734863,
+        "learnedMs": 1040.1999998092651,
+        "cachedMs": 47.19999980926514,
+        "fitMs": 9.600000381469727,
+        "totalMs": 1049.8000001907349,
+        "edgeMaskMs": 38,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 2046,
+          "after": 28,
+          "maxDeviation": 0.9616813032347724,
+          "lines": 9,
+          "cubics": 19,
+          "corners": 17,
+          "smoothJoins": 10,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "mouldline-distant",
-        "colorMs": 6.400000095367432,
-        "learnedMs": 724.4000000953674,
-        "cachedMs": 13.699999809265137,
-        "reconstructMs": 8.099999904632568,
-        "fitMs": 0.3000001907348633,
+        "colorMs": 8.099999904632568,
+        "learnedMs": 1003.5,
+        "cachedMs": 20.40000009536743,
+        "fitMs": 13.299999713897705,
+        "totalMs": 1016.7999997138977,
+        "edgeMaskMs": 10.099999904632568,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1218,
+          "after": 26,
+          "maxDeviation": 0.9747039362849353,
+          "lines": 3,
+          "cubics": 23,
+          "corners": 6,
+          "smoothJoins": 19,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "wiha-150-original",
-        "colorMs": 40.59999990463257,
-        "learnedMs": 752.5,
-        "cachedMs": 58.59999990463257,
-        "reconstructMs": 10.900000095367432,
-        "fitMs": 0.8000001907348633,
+        "colorMs": 57,
+        "learnedMs": 1070.7000002861023,
+        "cachedMs": 87.2000002861023,
+        "fitMs": 26.799999713897705,
+        "totalMs": 1097.5,
+        "edgeMaskMs": 14.300000190734863,
+        "tolerance": 1.0021922996189907,
         "refinement": {
           "status": "fallback",
           "reason": "selection-too-tight",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 2472,
+          "after": 80,
+          "maxDeviation": 1.0015808054403772,
+          "lines": 29,
+          "cubics": 51,
+          "corners": 26,
+          "smoothJoins": 42,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "bessey-original",
-        "colorMs": 11.400000095367432,
-        "learnedMs": 724.1999998092651,
-        "cachedMs": 21.90000009536743,
-        "reconstructMs": 13.200000286102295,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 15.800000190734863,
+        "learnedMs": 1022.5,
+        "cachedMs": 32.89999961853027,
+        "fitMs": 12.200000286102295,
+        "totalMs": 1034.7000002861023,
+        "edgeMaskMs": 19.800000190734863,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1286,
+          "after": 21,
+          "maxDeviation": 0.9956108777009497,
+          "lines": 5,
+          "cubics": 16,
+          "corners": 8,
+          "smoothJoins": 12,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 193331200
       },
       {
         "name": "gerber-close",
-        "colorMs": 141.09999990463257,
-        "learnedMs": 746.6000003814697,
-        "cachedMs": 41.09999990463257,
-        "reconstructMs": 17.09999990463257,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 208.39999961853027,
+        "learnedMs": 1080.7000002861023,
+        "cachedMs": 66.30000019073486,
+        "fitMs": 27.399999618530273,
+        "totalMs": 1108.0999999046326,
+        "edgeMaskMs": 28.40000009536743,
+        "tolerance": 1.171875,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1712,
+          "after": 79,
+          "maxDeviation": 1.1707317073170742,
+          "lines": 5,
+          "cubics": 74,
+          "corners": 14,
+          "smoothJoins": 65,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "gerber-distant",
-        "colorMs": 15,
-        "learnedMs": 736.4000000953674,
-        "cachedMs": 35.80000019073486,
-        "reconstructMs": 11.200000286102295,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 22.699999809265137,
+        "learnedMs": 1063,
+        "cachedMs": 53.90000009536743,
+        "fitMs": 9.300000190734863,
+        "totalMs": 1072.3000001907349,
+        "edgeMaskMs": 16.90000009536743,
+        "tolerance": 1.0077822185373186,
         "refinement": {
           "status": "fallback",
           "reason": "fragmented-outline",
           "iterations": 0,
           "cached": false
         },
+        "geometry": {
+          "before": 554,
+          "after": 42,
+          "maxDeviation": 1.0055964479856687,
+          "lines": 8,
+          "cubics": 34,
+          "corners": 11,
+          "smoothJoins": 29,
+          "changed": true
+        },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "wiha-60-original",
-        "colorMs": 6.800000190734863,
-        "learnedMs": 701.8000001907349,
-        "cachedMs": 12.099999904632568,
-        "reconstructMs": 5,
-        "fitMs": 0,
+        "colorMs": 9.400000095367432,
+        "learnedMs": 1018.3000001907349,
+        "cachedMs": 18.199999809265137,
+        "fitMs": 9.800000190734863,
+        "totalMs": 1028.1000003814697,
+        "edgeMaskMs": 7.099999904632568,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1020,
+          "after": 15,
+          "maxDeviation": 0.9779780340472513,
+          "lines": 3,
+          "cubics": 12,
+          "corners": 3,
+          "smoothJoins": 11,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "wiha-50-original",
-        "colorMs": 5.800000190734863,
-        "learnedMs": 724.8000001907349,
-        "cachedMs": 12.099999904632568,
-        "reconstructMs": 5.199999809265137,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 7.900000095367432,
+        "learnedMs": 1037.5999999046326,
+        "cachedMs": 17.200000286102295,
+        "fitMs": 6.799999713897705,
+        "totalMs": 1044.3999996185303,
+        "edgeMaskMs": 7.300000190734863,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 960,
+          "after": 16,
+          "maxDeviation": 0.9753522243213609,
+          "lines": 5,
+          "cubics": 11,
+          "corners": 3,
+          "smoothJoins": 11,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "wiha-40-original",
-        "colorMs": 5.599999904632568,
-        "learnedMs": 725.6000003814697,
-        "cachedMs": 13.299999713897705,
-        "reconstructMs": 5.799999713897705,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 7.099999904632568,
+        "learnedMs": 1036.1999998092651,
+        "cachedMs": 18.299999713897705,
+        "fitMs": 8.900000095367432,
+        "totalMs": 1045.0999999046326,
+        "edgeMaskMs": 7.699999809265137,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 898,
+          "after": 14,
+          "maxDeviation": 0.7740586884929164,
+          "lines": 0,
+          "cubics": 14,
+          "corners": 3,
+          "smoothJoins": 11,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "wire-strippers-original",
-        "colorMs": 50.30000019073486,
-        "learnedMs": 735.9000000953674,
-        "cachedMs": 23,
-        "reconstructMs": 9.700000286102295,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 69.09999990463257,
+        "learnedMs": 1053,
+        "cachedMs": 34.40000009536743,
+        "fitMs": 17,
+        "totalMs": 1070,
+        "edgeMaskMs": 14,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1782,
+          "after": 57,
+          "maxDeviation": 0.9935892399330197,
+          "lines": 8,
+          "cubics": 49,
+          "corners": 17,
+          "smoothJoins": 39,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "airduster-body-early",
-        "colorMs": 42.19999980926514,
-        "learnedMs": 746,
-        "cachedMs": 31.700000286102295,
-        "reconstructMs": 17.800000190734863,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 59.30000019073486,
+        "learnedMs": 1064.9000000953674,
+        "cachedMs": 47,
+        "fitMs": 17.09999990463257,
+        "totalMs": 1082,
+        "edgeMaskMs": 24.90000009536743,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
         },
+        "geometry": {
+          "before": 1524,
+          "after": 22,
+          "maxDeviation": 0.9579485250327118,
+          "lines": 3,
+          "cubics": 19,
+          "corners": 4,
+          "smoothJoins": 18,
+          "changed": true
+        },
         "cached": true,
+        "capDiagnostics": [
+          {
+            "curved": true,
+            "smooth": true
+          },
+          {
+            "curved": true,
+            "smooth": true
+          }
+        ],
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "airduster-nozzle-early",
-        "colorMs": 24.90000009536743,
-        "learnedMs": 767.2999997138977,
-        "cachedMs": 25.100000381469727,
-        "reconstructMs": 12.300000190734863,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 31.09999990463257,
+        "learnedMs": 1033.9000000953674,
+        "cachedMs": 31.800000190734863,
+        "fitMs": 8.599999904632568,
+        "totalMs": 1042.5,
+        "edgeMaskMs": 17.299999713897705,
+        "tolerance": 1,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1392,
+          "after": 29,
+          "maxDeviation": 0.9762397064554957,
+          "lines": 3,
+          "cubics": 26,
+          "corners": 15,
+          "smoothJoins": 14,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "airduster-nozzle-cropfirst",
-        "colorMs": 267.80000019073486,
-        "learnedMs": 782.5999999046326,
-        "cachedMs": 54,
-        "reconstructMs": 12.900000095367432,
-        "fitMs": 0.5,
+        "colorMs": 375.6000003814697,
+        "learnedMs": 1111.0999999046326,
+        "cachedMs": 93.40000009536743,
+        "fitMs": 11.800000190734863,
+        "totalMs": 1122.9000000953674,
+        "edgeMaskMs": 19.40000009536743,
+        "tolerance": 1.5654252986609665,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1418,
+          "after": 61,
+          "maxDeviation": 1.5575890326620765,
+          "lines": 13,
+          "cubics": 48,
+          "corners": 27,
+          "smoothJoins": 33,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "ryobi-original-cropfirst",
-        "colorMs": 356.09999990463257,
-        "learnedMs": 806.5999999046326,
-        "cachedMs": 72.69999980926514,
-        "reconstructMs": 25,
-        "fitMs": 0.3000001907348633,
+        "colorMs": 477,
+        "learnedMs": 1121.8000001907349,
+        "cachedMs": 105.30000019073486,
+        "fitMs": 32.09999990463257,
+        "totalMs": 1153.9000000953674,
+        "edgeMaskMs": 35.90000009536743,
+        "tolerance": 1.567430466437285,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 2074,
+          "after": 69,
+          "maxDeviation": 1.5525403081096232,
+          "lines": 10,
+          "cubics": 59,
+          "corners": 10,
+          "smoothJoins": 57,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       },
       {
         "name": "caliper-original-cropfirst",
-        "colorMs": 299.19999980926514,
-        "learnedMs": 1056.8000001907349,
-        "cachedMs": 344,
-        "reconstructMs": 18.59999990463257,
-        "fitMs": 1,
+        "colorMs": 406.40000009536743,
+        "learnedMs": 1483.6999998092651,
+        "cachedMs": 468.59999990463257,
+        "fitMs": 39,
+        "totalMs": 1522.6999998092651,
+        "edgeMaskMs": 26.5,
+        "tolerance": 1.3707320124663318,
         "refinement": {
           "status": "fallback",
           "reason": "selection-too-tight",
           "iterations": 0,
           "cached": false
         },
+        "fitError": "The fit would cross or touch another contour edge. Try a smaller deviation.",
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       },
       {
         "name": "wiha-150-original-cropfirst",
-        "colorMs": 182.5,
-        "learnedMs": 916.1999998092651,
-        "cachedMs": 216.90000009536743,
-        "reconstructMs": 10.300000190734863,
-        "fitMs": 0.7999997138977051,
+        "colorMs": 267.5,
+        "learnedMs": 1341.8999996185303,
+        "cachedMs": 313.5,
+        "fitMs": 94.19999980926514,
+        "totalMs": 1436.0999994277954,
+        "edgeMaskMs": 15,
+        "tolerance": 1.0020242793413838,
         "refinement": {
           "status": "fallback",
           "reason": "selection-too-tight",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 7788,
+          "after": 258,
+          "maxDeviation": 1.0017286097603768,
+          "lines": 59,
+          "cubics": 199,
+          "corners": 42,
+          "smoothJoins": 189,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       },
       {
         "name": "wiha-60-original-cropfirst",
-        "colorMs": 76.59999990463257,
-        "learnedMs": 750.7000002861023,
-        "cachedMs": 21.199999809265137,
-        "reconstructMs": 5,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 112,
+        "learnedMs": 1065,
+        "cachedMs": 33,
+        "fitMs": 9.099999904632568,
+        "totalMs": 1074.0999999046326,
+        "edgeMaskMs": 7.400000095367432,
+        "tolerance": 1.5625,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 1024,
+          "after": 28,
+          "maxDeviation": 1.523237619586549,
+          "lines": 6,
+          "cubics": 22,
+          "corners": 8,
+          "smoothJoins": 19,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       },
       {
         "name": "wiha-50-original-cropfirst",
-        "colorMs": 74.40000009536743,
-        "learnedMs": 747.2999997138977,
-        "cachedMs": 20.90000009536743,
-        "reconstructMs": 6.200000286102295,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 104.2000002861023,
+        "learnedMs": 1042.3999996185303,
+        "cachedMs": 30.90000009536743,
+        "fitMs": 8.699999809265137,
+        "totalMs": 1051.0999994277954,
+        "edgeMaskMs": 6.900000095367432,
+        "tolerance": 1.5625,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 952,
+          "after": 25,
+          "maxDeviation": 1.550372599040761,
+          "lines": 7,
+          "cubics": 18,
+          "corners": 6,
+          "smoothJoins": 15,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       },
       {
         "name": "wiha-40-original-cropfirst",
-        "colorMs": 81.90000009536743,
-        "learnedMs": 736.0999999046326,
-        "cachedMs": 21.600000381469727,
-        "reconstructMs": 5.599999904632568,
-        "fitMs": 0.09999990463256836,
+        "colorMs": 115,
+        "learnedMs": 1036.7999997138977,
+        "cachedMs": 32.59999990463257,
+        "fitMs": 13.599999904632568,
+        "totalMs": 1050.3999996185303,
+        "edgeMaskMs": 7.699999809265137,
+        "tolerance": 1.5625,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
+        },
+        "geometry": {
+          "before": 888,
+          "after": 29,
+          "maxDeviation": 1.5406451501464815,
+          "lines": 7,
+          "cubics": 22,
+          "corners": 7,
+          "smoothJoins": 20,
+          "changed": true
         },
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       },
       {
         "name": "wire-strippers-original-cropfirst",
-        "colorMs": 140.90000009536743,
-        "learnedMs": 775.0999999046326,
-        "cachedMs": 35.5,
-        "reconstructMs": 10,
-        "fitMs": 0.5,
+        "colorMs": 196.90000009536743,
+        "learnedMs": 1069.8000001907349,
+        "cachedMs": 53,
+        "fitMs": 21.200000286102295,
+        "totalMs": 1091.0000004768372,
+        "edgeMaskMs": 13.300000190734863,
+        "tolerance": 1.5625,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
           "iterations": 0,
           "cached": false
         },
+        "fitError": "The fit would cross or touch another contour edge. Try a smaller deviation.",
         "cached": true,
         "workerHeapCapacityBytes": 278396928
       }
@@ -583,6 +908,121 @@
       "corpusViews": 27,
       "previousWorkflowAndGeometrySuites": "unchanged paths, not rerun for this follow-up",
       "serializedSTLTwoFacesPerEdge": true
+    },
+    "denseReconstruction": {
+      "quickFiles": 221,
+      "quickTests": 3505,
+      "workflowFiles": 18,
+      "workflowTests": 611,
+      "geometryFiles": 25,
+      "geometryTests": 329,
+      "typeCheck": "passed",
+      "productionBuild": "passed",
+      "hostedCI": "not run"
     }
+  },
+  "denseReconstruction": {
+    "lifecycle": {
+      "cancelled": "WorkerCancelledError",
+      "retryLines": 4,
+      "heartbeat": {
+        "frames": 2180,
+        "maxGap": 83.29999999999927,
+        "last": 37711.1,
+        "active": true
+      }
+    },
+    "geometryOnlyWorkerLoadedCV": false,
+    "pageErrors": [],
+    "modelRequests": 1
+  },
+  "reconstructionUI": {
+    "photo": "airduster-body",
+    "initialPreview": [
+      "No bin project yet",
+      "1602 \u2192 31 points. 10 lines \u00b7 21 curves.  Deviation \u2264 0.7508 mm. Green is the preview."
+    ],
+    "allowanceMm": 0.751,
+    "previewDidNotSave": true,
+    "cancelDidNotSave": true,
+    "applyOneUndo": true,
+    "undoRedoAndRecovery": true,
+    "bottom": [
+      {
+        "curved": true,
+        "smooth": true
+      },
+      {
+        "curved": true,
+        "smooth": true
+      },
+      {
+        "curved": true,
+        "smooth": true
+      }
+    ],
+    "svgAndSTLDownloaded": true,
+    "anchors": 31,
+    "pageErrors": [],
+    "scope": "Chrome 156 source UI with synthetic ruler length; workflow/export validation, not a calibrated manufacturing file."
+  },
+  "geometryResponsiveness": {
+    "scope": "Geometry-only worker RPC after warmup; fixture transfer/import and TEED inference excluded. 30 sequential Wolfbox reconstructions on desktop Chrome.",
+    "frames": 20,
+    "maxFrameGapMs": 16.799999999999955,
+    "timesMs": [
+      21.59999990463257,
+      19.699999809265137,
+      17.5,
+      19.300000190734863,
+      15.900000095367432,
+      19.699999809265137,
+      18.40000009536743,
+      20.5,
+      13.699999809265137,
+      9,
+      8.700000286102295,
+      9.400000095367432,
+      8.5,
+      8.599999904632568,
+      8.299999713897705,
+      9.200000286102295,
+      8.5,
+      8.599999904632568,
+      8.199999809265137,
+      8.400000095367432,
+      8.300000190734863,
+      8.099999904632568,
+      8.099999904632568,
+      8.400000095367432,
+      8.5,
+      8.300000190734863,
+      10.299999713897705,
+      8.200000286102295,
+      8.199999809265137,
+      8.300000190734863
+    ],
+    "loadedOpenCV": false
+  },
+  "reconstructionProduction": {
+    "photo": "airduster-body",
+    "preview": [
+      "No bin project yet",
+      "1602 \u2192 31 points. 10 lines \u00b7 21 curves.  Deviation \u2264 0.7508 mm. Green is the preview."
+    ],
+    "allowanceMm": 0.751,
+    "nativeCubicSource": true,
+    "svgDownloaded": true,
+    "modelNoticeDelivered": true,
+    "pageErrors": [],
+    "scope": "Compiled production UI on local preview; synthetic ruler for workflow validation."
+  },
+  "reconstructionExports": {
+    "svgCubicEdges": 21,
+    "stlTriangles": 1276,
+    "stlBytes": 63884,
+    "allUndirectedEdgesHaveTwoFaces": true,
+    "positiveSignedVolume": true,
+    "scope": "Actual Wolfbox reconstruction via Chrome source UI; synthetic ruler used for workflow/export validation, not physical fit."
   }
 }

@@ -3,6 +3,7 @@ import type { MessageEndpoint, WorkerMessage } from "../worker/protocol";
 import { createDetectionClient } from "./worker-client";
 import { createDetectionHandlers } from "./worker-handlers";
 import { createWorkerOpenCVLoader } from "./opencv-worker";
+import { curvesFromOutline } from "@shared/geometry/curves";
 
 const image = { width: 2, height: 2, data: new Uint8ClampedArray(16).fill(255) };
 function endpoint() {
@@ -22,6 +23,18 @@ function endpoint() {
 afterEach(() => vi.useRealTimers());
 
 describe("photo worker lifecycle", () => {
+  it("runs geometry reconstruction without loading OpenCV and keeps caller geometry intact", async () => {
+    const dense = [{ outer: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 30 }, { x: 0, y: 30 }], holes: [] }];
+    const source = curvesFromOutline(dense), payload = { source, dense, tolerance: 0.2 }, before = structuredClone(payload);
+    const load = vi.fn();
+    const result = await createDetectionHandlers(load).reconstruct(payload, { signal: new AbortController().signal, progress: () => {} });
+    expect(result.lines).toBe(4); expect(result.cubics).toBe(0); expect(load).not.toHaveBeenCalled(); expect(payload).toEqual(before);
+    const e = endpoint(), client = createDetectionClient(() => e.port), controller = new AbortController();
+    const pending = client.reconstruct(payload, controller.signal);
+    expect(e.sent[0]).toMatchObject({ kind: "call", method: "reconstruct", payload });
+    const rejected = expect(pending).rejects.toMatchObject({ name: "WorkerCancelledError" });
+    controller.abort(); await rejected; expect(e.terminate).toHaveBeenCalledOnce(); expect(payload).toEqual(before); client.dispose();
+  });
   it("transfers a copy, strips the signal, and reuses a warm worker", async () => {
     const e = endpoint();const spawn = vi.fn(() => e.port);
     const client = createDetectionClient(spawn);

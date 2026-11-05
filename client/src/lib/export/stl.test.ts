@@ -1,6 +1,7 @@
 import { ringBounds } from "@shared/geometry/rings";
 import type { Outline, Point } from "@shared/geometry/types";
 import { curvesFromOutline, editCurves, sampleCurves } from "@shared/geometry/curves";
+import { reconstructDetectedOutline } from "@shared/geometry/contour-reconstruction";
 import { fitContour } from "@shared/geometry/curve-fit";
 import { describe, expect, it } from "vitest";
 
@@ -324,6 +325,20 @@ describe("writeBinarySTL — normals", () => {
 });
 
 describe("generateSTL — solid", () => {
+  it("exports a dense reconstructed rounded handle as a closed solid with the expected volume", async () => {
+    const side = Array.from({ length: 101 }, (_, i) => ({ x: 20, y: 80 * i / 101 }));
+    const cap = Array.from({ length: 128 }, (_, i) => ({ x: 20 * Math.cos(i * Math.PI / 128), y: 80 + 20 * Math.sin(i * Math.PI / 128) }));
+    const left = side.map(p => ({ x: -20, y: 80 - p.y }));
+    const top = Array.from({ length: 40 }, (_, i) => ({ x: -20 + i, y: 0 }));
+    const dense = [{ outer: [...top, ...side, ...cap, ...left], holes: [] }];
+    const result = reconstructDetectedOutline(curvesFromOutline(dense), dense, 0.2);
+    expect(result.cubics).toBeGreaterThanOrEqual(2);
+    const bytes = await generateSTL(sampleCurves(result.curves, 0.025), { heightMm: 3, scale: { mmPerPx: 1, imageHeight: 110 } });
+    const { facets } = parseSTL(bytes);
+    expect(topology(facets)).toMatchObject({ watertight: true, genus: 0 });
+    expect(Math.abs(signedVolume(facets) - (40 * 80 + Math.PI * 20 ** 2 / 2) * 3)).toBeLessThan(40);
+  });
+
   it("exports auto-fitted outer and hole curves as a watertight solid with the expected volume", async () => {
     const circle = (r: number) => Array.from({ length: 96 }, (_, i) => ({ x: 50 + r * Math.cos(i * Math.PI / 48), y: 50 + r * Math.sin(i * Math.PI / 48) }));
     const source = curvesFromOutline([{ outer: circle(30), holes: [circle(10).reverse()] }]);

@@ -6,6 +6,36 @@ In Trace, select a region with white paper around the entire tool, then enable *
 
 The crop is drawn directly from original photo pixels into a canvas capped at 1024 pixels on its longest side. It respects the current rotation and perspective/alignment transform. It does not allocate a full-resolution temporary image. Detection coordinates map back per axis into the existing working image; calibration, photo-relative placement and the single export conversion stay in that frame.
 
+## Dense line-and-curve reconstruction — current behavior
+
+The general reconstruction module is `shared/geometry/contour-reconstruction.ts`. It contains no tool names, photo coordinates, preferred axes or image-specific branches. It matches selected components to their dense sources by bounds, detects persistent corners with two arc-length support scales, prefers finite line segments with distance and reversal checks, then fits cubics elsewhere. A second pass constrains curved spans to shared tangents and adjacent line directions; any join adjustment is reverified against the same allowance. Some unresolved short joins may remain when stronger smoothing would exceed the bound.
+
+Line error is bounded against finite chords; continuous projection covers the chord and source edges in both directions. Cubic error uses Bernstein control-hull bounds on the difference between each cubic subsegment and its original source edge, after monotone reparameterization. A successful preview reports a conservative continuous approximation bound. Adaptive topology checks additionally reject winding changes, crossings/touches and changed hole relationships; they are sampled checks, not a mathematical proof about arbitrarily tiny features.
+
+The visible default allowance is at least 0.1 mm when calibrated (1 px otherwise), or the dense ring's 75th-percentile sample step if coarser. It is editable and is never silently increased. Reconstruction of all fresh detected contours is atomic: any failure retains the original source; no partial fit is applied. Manual/curve edits disable the command until Undo or re-detection restores the fresh source. The existing project schema and curve representation are unchanged.
+
+The dedicated worker RPC reuses the detection worker when warm and supports termination, supersession, timeout, idle cleanup and retry. Geometry-only requests do not initialize OpenCV or download a model. Source, scale/ring/context changes, Cancel and Escape invalidate pending previews. Apply is one undoable edit; editable handles survive recovery and Trace → Bin transfer.
+
+### Corpus and Wolfbox cap evidence
+
+All **27 unchanged white-sheet views** were evaluated in three Node/WASM corpus passes and a separate real Chrome worker pass. **25/27** geometry previews validate; the original-pixel caliper and wire-stripper crops retain their detected polygons after topology rejection. The existing detector still accepts 22/27 learned silhouettes and keeps five color fallbacks. Successful fitting does not repair poor segmentation or establish accuracy against the photograph.
+
+For the Wolfbox body, 1,602 dense samples reconstruct into **24 anchors: 3 lines and 21 cubic spans**, with 18 tangent-continuous joins and five persistent corners at a visible 1 input-pixel allowance. Its bottom evaluation spans are curved with smooth joins. The earlier body photograph also has a curved cap (22 anchors, 3 lines, 19 cubics). These photo-specific cap checks are validation landmarks only; they do not affect fitting. Synthetic rounded handles also pass at 0°, 37°, 90°, 137°, 180° and 270°, plus tests for scale, true straight corners, narrow recesses/shafts, holes, reordered objects, atomic rejection and preservation of authored geometry.
+
+Median per-view Node timings: **939.1 ms** fresh TEED, **52.2 ms** cached detection, **12.9 ms** geometry reconstruction, and **951.9 ms** fresh TEED + geometry. OpenCV initialization (164.2 ms) is separate; the first learned call including model import was 1,078.5 ms. The separate Chrome corpus pass measured medians of **1,064.9 ms** learned detection and **15.4 ms** geometry RPC under local desktop load. Per-view samples and allowances are recorded in the adjacent benchmark/browser JSON. No phone timing is claimed.
+
+A separate geometry-only Chrome heartbeat run performed 30 Wolfbox reconstructions after warmup, excluding fixture decoding, inference and import; its largest sampled frame gap was **16.8 ms**. That worker did not load OpenCV. The wider corpus heartbeat includes fixture conversion/import and is recorded with its different scope; it is not substituted for this focused responsiveness measurement.
+
+The real Wolfbox source UI passed preview/cancel without source mutation, one-step Apply/Undo/Redo and handle recovery after reload. With a synthetic ruler for workflow testing, native SVG contained **21 cubic commands**, and the 1,276-triangle STL had positive volume and two incident faces at every undirected edge. The compiled production UI also passed reconstruction and native SVG download. These checks do not qualify physical fit or a printer/material combination.
+
+### Current local verification and provenance
+
+- `npm run check && npm test -- --maxWorkers=4`: **221 files, 3,505 tests passed**.
+- `npm run test:workflows -- --maxWorkers=2`: **18 files, 611 tests passed**.
+- `npm run test:geometry`: **25 files, 329 tests passed**. The quick suite also exports an analytic reconstructed rounded handle and verifies watertight topology and physical volume.
+- `npm run build` and `git diff --check`: passed. Model hash and delivered MIT notice remain unchanged.
+- Dependencies and third-party assets: **None added or changed**. The reconstruction is original Pocketry geometry code using the existing curve representation and validation helpers; no model or geometry library is added. No hosted CI, publication/deployment, slicer check or physical print is claimed.
+
 ## Edge map to silhouette
 
 The worker imports a fixed 512 × 512 FP32 TEED graph through the already shipped OpenCV DNN runtime. The optional model is 248,782 bytes. No npm dependency or second inference runtime is added. Input uses letterboxed BGR byte values minus the upstream channel means, without division by 255. Replicated borders avoid a synthetic padding edge.
@@ -18,13 +48,13 @@ The sensitivity control changes the edge-barrier threshold; a lower barrier thre
 
 ## Editable curves
 
-Learned detection produces a polygon. Curve fitting remains explicitly opt-in: **Edit Contour → Edit curves (prototype) → Auto-fit contour → Apply fit**. Keep Trace margin at zero. The preview has an adjustable maximum deviation and preserves sharp corners. Apply is one undoable edit; rejected previews do not change the source. Handles survive Trace recovery, separate pocket/hole transfer with photo positions, Bin revisions, and project backups. Project schema 60 accepts schema 59 and earlier supported files; Trace draft schema 2 accepts schema 1.
+Learned detection keeps a dense boundary and a simplified polygon. Use **Edit Contour → Edit curves (prototype) → Reconstruct lines & curves → Apply fit** to rebuild from dense evidence. The older Auto-fit contour and selected-point actions remain separate tools for the current polygon. Keep Trace margin at zero. The preview has an adjustable maximum deviation and preserves sharp corners. Apply is one undoable edit; rejected previews do not change the source. Handles survive Trace recovery, separate pocket/hole transfer with photo positions, Bin revisions, and project backups. Project schema 60 accepts schema 59 and earlier supported files; Trace draft schema 2 accepts schema 1.
 
-The fitting bound is against the current polygon, not the photograph. A tight bound and corner preservation can leave many anchors. Native cubic curves are retained in Trace SVG when no hole/material boolean is needed. Mesh/DXF paths use adaptive polygon samples. See [curve behavior, sampling and limitations](contour-curves-prototype.md).
+Reconstruction bounds deviation against the dense detected boundary; the older Auto-fit contour and selected-point actions bound it against the current polygon. Neither reference is photographed ground truth. A tight bound and corner preservation can leave many anchors. Native cubic curves are retained in Trace SVG when no hole/material boolean is needed. Mesh/DXF paths use adaptive polygon samples. See [curve behavior, sampling and limitations](contour-curves-prototype.md).
 
 ## White-sheet evaluation and reproduction
 
-The evaluation uses 19 existing white-sheet crops plus eight views cropped from original pixels first (27 views, not 27 distinct tools). Historical mat/checkerboard images are excluded. Compare color plus guarded GrabCut with TEED outer silhouettes, then preview explicit fitting at 0.6 input pixels. The same `outsideSilhouettes` function used by Trace removes holes/islands before fitting. Different input resolutions are not equivalent physical error bounds. No complete ground-truth masks are available.
+The evaluation uses 19 existing white-sheet crops plus eight views cropped from original pixels first (27 views, not 27 distinct tools). Historical mat/checkerboard images are excluded. Compare color plus guarded GrabCut with TEED outer silhouettes, then reconstruct from dense evidence at the same visible default allowance used by the UI. The previous coarse-polygon fit used 0.6 input pixels and is preserved for comparison; its error reference and allowance differ. The same `outsideSilhouettes` function used by Trace removes holes/islands before fitting. Different input resolutions are not equivalent physical error bounds. No complete ground-truth masks are available.
 
 Run with Node 22 from the repository root, supplying the local photo manifest rather than committing personal photo paths:
 
@@ -35,11 +65,11 @@ python scripts/render-teed-report.py RESULTS_DIR REPORT_HTML BROWSER_VALIDATION_
 
 The manifest has `name`, `path` (RGBA bytes), `width`, `height`, and `group: "original"`; historical names contain `-mat-`. A PNG with the same stem supplies the report photo. The evaluator makes three sequential corpus passes, evicting its single-frame cache between fresh inferences, then measures one cached reconstruction per pass. Model import and OpenCV initialization are listed separately. The renderer embeds every before/after image, native cubic preview, acceptance/fallback status, point/anchor counts, timing samples and visual review notes in one offline HTML file.
 
-When previous results are supplied, the report also retains previous-TEED/corrected-TEED overlays for every view. Reconstruction timing is included separately within total learned-detection time.
+When previous results are supplied, the report retains the previous curve preview for every view. Edge-mask reconstruction is measured within learned-detection time; dense line-and-curve reconstruction is measured separately and added for the combined timing.
 
 Per-view timing records, browser validation and observed limits accompany this document in `photo-refinement-evaluation/teed-integration/`. Mac CPU/WASM timings do not establish iPhone/Android speed or memory. WASM heap capacity is reported separately from live allocation/RSS. The browser retains a separate 128 MiB calibration heap alongside the detection worker; this cost must be included in phone qualification. Review tiny shafts, tool tips, cast shadows and sheet markings manually. Slicer and physical fit checks remain separate.
 
-## General soft-mask correction
+## Earlier stage: general soft-mask correction
 
 A maintainer screenshot exposed a long doubled-back segment on the airduster handle. Stage-by-stage reproduction showed that the filled mask was continuous; the artifact appeared in the score-field conversion, before polygon simplification or cubic fitting. The old interior/exterior distance blend had a hard three-model-pixel cutoff. A four-pixel-wide learned edge band could become foreground/background/foreground across its width, creating an artificial slit and an outer sliver. The existing corner preservation then retained the false sharp turns.
 
@@ -47,9 +77,9 @@ The replacement uses the same symmetric separable `[1, 6, 1]` interpolation kern
 
 The existing tolerance-based straight-line simplification now operates on a coherent silhouette. No extra inference model, convex hull, symmetry, global line detection or forced straightening is added. The airduster polygon drops from 44 to 32 points (41 to 29 fitted anchors), the crop-first Ryobi from 171 to 94 points, and close Gerber from 149 to 92 points. The same 22/27 views pass learned reconstruction guards; curve previews improve from 25/27 to 26/27. The stapler retains its rejected curve preview and original polygon. All 27 unchanged white-sheet inputs were re-evaluated, including all existing fallbacks, and visually compared with the prior TEED result.
 
-The correction follows the filled mask rather than the previous edge-centering heuristic. It therefore changes boundary placement slightly: the median enclosed-area change over accepted views is +4.0% (maximum +10.5%), recorded per view as a diagnostic, not a quality score. Thin-shaft masks can show larger relative area changes. No ground-truth dimensional validation is available, and remaining model-edge/shadow spurs need review. Future line/curve recognition should use an explicit deviation bound and preserve genuine corners and recesses; fewer vertices alone is not a success criterion.
+The correction follows the filled mask rather than the previous edge-centering heuristic. It therefore changes boundary placement slightly: the median enclosed-area change over accepted views is +4.0% (maximum +10.5%), recorded per view as a diagnostic, not a quality score. Thin-shaft masks can show larger relative area changes. No ground-truth dimensional validation is available, and remaining model-edge/shadow spurs need review. The dense reconstruction stage now uses an explicit deviation bound and preserves supported corners and recesses; fewer vertices alone is not a success criterion.
 
-## Updated measurements
+## Soft-mask baseline measurements (before dense reconstruction)
 
 Mac arm64 Node 22 CPU/WASM, three sequential corpus passes: median per-view color total **71.3 ms**, fresh learned total **867.2 ms**, cached learned total **45.8 ms**, reconstruction inside that total **15.5 ms**, and curve fitting **0.3 ms**. OpenCV initialization was 121.2 ms; the first learned call including model import was 990.2 ms. Chrome 156’s separate single corpus pass measured medians of **750.7 ms** fresh, **33.0 ms** cached and **11.2 ms** reconstruction. These are separate local runs, not a controlled speedup comparison with the earlier build or phone timings.
 
@@ -61,7 +91,7 @@ For the soft-mask follow-up, dependencies and third-party assets: **None added o
 
 Only the fixed TEED ONNX model and upstream MIT license are added; no npm dependency/transitive version changes. TEED source revision `40fa4b1391dc6424f88989d0ca75d5b592c8681d` distributes `checkpoints/BIPED/5/5_model.pth` alongside its MIT license (copyright 2022 Xavier Soria Poma). It provides no separate weights license or model card. The integration relies on that repository-level license; it does not imply a separate audit of training-data rights. No dataset or Python implementation is redistributed. MIT permits AGPL and proprietary integration with retained attribution; it does not expand third-party rights through Pocketry's CLA. Full license, source/checkpoint/export hashes and conversion details are in `NOTICE` and the served model license. Generated `NOTICE.txt` must retain this section in the production build.
 
-## Local verification
+## Earlier integration and soft-mask verification
 
 - Soft-mask follow-up: `npm run check && npm test -- --maxWorkers=4`: 220 files, 3,487 tests passed on Node 22; `npm run build` and `git diff --check` passed. The full workflow and CAD suites below passed for the preceding integration; this follow-up changes only detector reconstruction and diagnostic reporting, and does not rerun those unchanged paths.
 - `npm run test:workflows -- --maxWorkers=2`: all 18 files, 611 tests passed. An initial asynchronous focus-scope teardown error was isolated; the affected export workflow and the final complete workflow run both passed cleanly.

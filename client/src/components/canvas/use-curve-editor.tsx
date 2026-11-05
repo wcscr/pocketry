@@ -10,6 +10,7 @@ import { useCurveFitting } from "./use-curve-fitting";
 type Target = { kind: "edge" | "point" | "in" | "out"; index: number };
 interface Options {
   outline: Outline;
+  reconstructionSource?: Outline;
   curves?: CurveOutline;
   enabled: boolean;
   contextKey: string;
@@ -30,7 +31,7 @@ const identity = (p: Point) => p;
 
 /** Shared editing interaction. All gesture drafts are local until pointer-up;
  * cancel, selection and pointer clicks never create source revisions. */
-export function useCurveEditor({ outline, curves, enabled, contextKey, scale, tolerance,
+export function useCurveEditor({ outline, curves, reconstructionSource, enabled, contextKey, scale, tolerance,
   fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint,
   fitUnitsPerUnit = 1, fitUnit = "mm" }: Options) {
   const [started, setStarted] = useState(false);
@@ -67,7 +68,7 @@ export function useCurveEditor({ outline, curves, enabled, contextKey, scale, to
   };
   const edit = (change: CurveEdit, label: string) => commit(editCurves(base, ringRef, change), label);
   const fitting = useCurveFitting({ source: base, ringRef, enabled: active, contextKey, unitsPerUnit: fitUnitsPerUnit,
-    unit: fitUnit, scale, toCanvas, onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
+    unit: fitUnit, scale, toCanvas, reconstructionSource, onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
   useEffect(() => { if (fitting.open) cancel(); }, [fitting.open]);
   const down = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
     if (!active) return false;
