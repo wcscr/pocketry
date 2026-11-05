@@ -695,7 +695,7 @@ export function BinViewport({
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 mx-auto w-fit max-w-[80%] rounded-md bg-destructive/90 px-3 py-1.5 text-xs text-destructive-foreground shadow">
           {error}
           {onPositionText && <Button variant="outline" size="sm" className="pointer-events-auto ml-2 text-foreground" onClick={onPositionText}>Position text in Layout</Button>}
-          {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2" onClick={onRetryPreview}>Retry preview</Button>}
+          {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2 text-foreground" onClick={onRetryPreview}>Retry preview</Button>}
         </div>
       ) : null}
     </div>

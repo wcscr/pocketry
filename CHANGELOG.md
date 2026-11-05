@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.6.2 — 2026-11-05
+
+- A label that doesn't fit no longer blanks the 3D preview: the bin still previews, the label is outlined in Layout and listed with a link to place it, and export waits until it is fixed. New text starts in a clear spot instead of over a pocket.
+- Labels on sub-bin tabs follow their sub-bin when you change rows, columns or bin size. Fix the invisible "Retry preview" button.
+
 ## 1.6.1 — 2026-11-05
 
 - Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.

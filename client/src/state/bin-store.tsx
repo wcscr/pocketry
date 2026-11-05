@@ -1,5 +1,5 @@
 import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
-import { moveTextsWithLabelTabRecess } from "@shared/gridfinity/label-tab-surfaces";
+import { textsAfterLabelTabEdit } from "@shared/gridfinity/label-tab-surfaces";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
@@ -103,6 +103,12 @@ export interface BinState {
  * the visible state but deliberately leave this document unchanged, allowing
  * expensive consumers such as the geometry worker to wait for release.
  */
+/** Labels follow their shelves whenever an edit moves them (grid, recess, slant, resize). */
+function withLabelsOnTabs(state: Pick<BinState, "history" | "spec">, spec: BinSpec): BinSpec {
+  spec.surfaceTexts = textsAfterLabelTabEdit(getCommittedBinDoc(state).spec, state.spec, spec);
+  return spec;
+}
+
 export function getCommittedBinDoc(
   state: Pick<BinState, "history">,
 ): BinDoc {
@@ -607,7 +613,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         doc.spec.labelTab = { ...doc.spec.labelTab, wall: defaultLabelTabWall(doc.spec) };
       }
       if (!action.patch.surfaceTexts) {
-        doc.spec.surfaceTexts = moveTextsWithLabelTabRecess(state.spec, doc.spec);
+        withLabelsOnTabs(state, doc.spec);
       }
       if ("fillHeightPercent" in action.patch) {
         const previous = getCommittedBinDoc(state);
@@ -630,12 +636,12 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       return commit(
         state,
         {
-          spec: parseBinSpec({
+          spec: withLabelsOnTabs(state, parseBinSpec({
             ...state.spec,
             gridX: action.gridX,
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
-          }),
+          })),
           cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement => {
             const colored: CutoutPlacement = { ...cutout, colorFloorAxis: cutout.colorFloorAxis ?? "insertion" };
             return defaultPocketFloorThicknessMm(state.spec) !== defaultPocketFloorThicknessMm({ flatBottom: false })
@@ -827,13 +833,13 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       return commit(
         state,
         {
-          spec: parseBinSpec({
+          spec: withLabelsOnTabs(state, parseBinSpec({
             ...state.spec,
             ...action.specPatch,
             gridX: action.gridX,
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
-          }),
+          })),
           ...objects,
         },
         action.historyLabel ?? "Arrange tool pockets",
@@ -937,21 +943,19 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     case "SET_EDITOR_MODE":
       return { ...state, editorMode: action.editorMode,
         drawDepthMm: action.editorMode.startsWith("draw-") ? action.drawDepthMm : undefined };
-    case "SET_GRID":
+    case "SET_GRID": {
+      const spec = parseBinSpec({
+        ...state.spec,
+        gridX: action.gridX,
+        gridY: action.gridY,
+        footprint: { kind: "rectangle" },
+      });
       return commit(
         state,
-        {
-          spec: parseBinSpec({
-            ...state.spec,
-            gridX: action.gridX,
-            gridY: action.gridY,
-            footprint: { kind: "rectangle" },
-          }),
-          cutouts: state.cutouts,
-          fingerHoles: state.fingerHoles,
-        },
+        { spec: withLabelsOnTabs(state, spec), cutouts: state.cutouts, fingerHoles: state.fingerHoles },
         action.historyLabel ?? "Resize bin",
       );
+    }
     case "UNDO": {
       if (state.history.index <= 0) return state;
       const index = state.history.index - 1;

@@ -355,6 +355,9 @@ describe("BinDesignerPage", () => {
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
       expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
       if (mobile && layout === "standard") expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+      // New text starts clear of the central pocket rather than on top of it.
+      const start = vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0].position;
+      expect(Math.abs(start.y)).toBeGreaterThan(50);
       if (!mobile) {
         for (const tool of ['[aria-label="Pan layout"]', '[data-testid="button-layout-ruler"]']) {
           React.act(() => container.querySelector<HTMLButtonElement>(tool)!.click());
@@ -383,13 +386,49 @@ describe("BinDesignerPage", () => {
       pointer("pointermove", 0);
       pointer("pointerup", 0);
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
-      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
+      const moved = current().surfaceTexts[0].position;
+      expect(moved.x).toBeCloseTo(start.x, 6);
+      expect(moved.y).toBeCloseTo(start.y + 60, 6);
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket.cutout]);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 0 });
+      expect(current().surfaceTexts[0].position).toEqual(start);
       clickBinHistory(container, "redo");
-      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
+      expect(current().surfaceTexts[0].position).toEqual(moved);
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("keeps the preview when a label cannot be built and sends the user to place it", async () => {
+    const pocket = createBasicPocket("rectangle", { x: -8, y: -50 }, { x: 8, y: 50 }, "driver")!;
+    const stranded = surfaceTextSchema.parse({ id: "wiha", text: "Wiha", position: { x: 0, y: 0 } });
+    const other = surfaceTextSchema.parse({ id: "other", text: "40 mm", position: { x: 0, y: 62 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridPitch: "half", gridX: 2, gridY: 7, heightUnits: 3, surfaceTexts: [other, stranded] }),
+      cutouts: [pocket.cutout], shapes: [pocket.shape],
+    });
+    binGeometryMock.validationIssues = [{ code: "surface-text-placement", severity: "error", surfaceTextIds: ["wiha"],
+      message: "Text “Wiha” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size." }];
+    const { container, unmount } = renderPage({ mobile: false, experimental: false });
+    try {
+      await flushHydration();
+      // The build reported the label instead of failing: no preview error banner, one model error.
+      expect(container.textContent).not.toContain("Detailed preview failed");
+      const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+      React.act(() => warnings.querySelector<HTMLButtonElement>("button[aria-expanded]")!.click());
+      const action = warnings.querySelector<HTMLButtonElement>('[data-issue-code="surface-text-placement"]')!;
+      expect(action.textContent).toContain("Position text in Layout");
+      React.act(() => action.click());
+      expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+      const hit = (id: string) => container.querySelector(`[data-testid="surface-text-hit-${id}"]`)!;
+      expect(hit("wiha").getAttribute("data-invalid")).toBe("true");
+      expect(hit("other").hasAttribute("data-invalid")).toBe(false);
+      expect(hit("wiha").getAttribute("pointer-events")).toBe("all");
+      openSettingsSection(document.body, "text");
+      expect([...document.querySelectorAll('[data-testid="surface-text-issue"]')].map(item => item.textContent))
+        .toEqual([binGeometryMock.validationIssues[0].message]);
+      openSettingsSection(document.body, "export");
+      const blocked = document.querySelector('[data-testid="export-blocked-reasons"] [data-export-issue="surface-text-placement"]')!;
+      expect(blocked.textContent).toContain("Position text in Layout");
+    } finally { unmount(); }
   });
 
   it.each([

@@ -80,7 +80,9 @@ describe("label-tab text placement", () => {
     expect(labelTabSurfaces({ ...spec, labelTab: { ...spec.labelTab!, frontRim: false } }).length).toBeGreaterThan(0);
     await withKernel(kernel => {
       const body = kernel.arena.track(kernel.Manifold.cube([1, 1, 1]));
-      expect(() => buildSurfaceTexts(kernel, spec, body)).toThrow("Increase Tab depth or turn off Front rim");
+      const built = buildSurfaceTexts(kernel, spec, body);
+      expect(built.parts).toEqual([]);
+      expect(built.issues.map(issue => issue.message).join()).toContain("Increase Tab depth or turn off Front rim");
     });
     expect(spec.surfaceTexts).toEqual([requested]);
   });
@@ -93,8 +95,9 @@ describe("label-tab text placement", () => {
     expect(labelTabSurfaces(tooLow)).toEqual([]);
     await withKernel(kernel => {
       const body = kernel.arena.track(kernel.Manifold.cube([1, 1, 1]));
-      expect(() => buildSurfaceTexts(kernel, absent, body)).toThrow("Enable label tabs in Construction");
-      expect(() => buildSurfaceTexts(kernel, tooLow, body)).toThrow("Reduce Recess, increase bin height, or choose another label-tab placement");
+      expect(buildSurfaceTexts(kernel, absent, body).issues.map(issue => issue.message).join()).toContain("Enable label tabs in Construction");
+      expect(buildSurfaceTexts(kernel, tooLow, body).issues.map(issue => issue.message).join())
+        .toContain("Reduce Recess, increase bin height, or choose another label-tab placement");
     });
     expect(absent.surfaceTexts).toEqual([requested]);
     expect(tooLow.surfaceTexts).toEqual([requested]);

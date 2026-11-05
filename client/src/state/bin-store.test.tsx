@@ -78,6 +78,39 @@ describe("bin store", () => {
     act(() => store().dispatch({ type: "REDO" }));
     expect(store().spec).toEqual(after);
   });
+  it("keeps each label on its sub-bin when rows or columns change, through live edits, undo and resize", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridPitch: "half", gridX: 4, gridY: 4, heightUnits: 5.5,
+      fill: "none", lip: "none", wallSlant: { axis: "y", angleDeg: 30 }, compartments: { rows: 2, columns: 3 },
+      labelTab: { wall: "south", scope: "compartments", recessMm: 0.5, frontRim: true } } }));
+    const labels = labelTabSurfaces(store().spec).map(surface => {
+      const b = ringBounds(surface.ring)!;
+      return surfaceTextSchema.parse({ id: surface.key, text: "M2x8", sizeMm: 3.2, surface: "label-tab",
+        position: { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } });
+    });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels } }));
+    const before = store().spec;
+    const centreOf = (key: string) => {
+      const b = ringBounds(labelTabSurfaces(store().spec).find(surface => surface.key === key)!.ring)!;
+      return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+    };
+    const columns = (value: number, transient = false) => act(() => store().dispatch({ type: "PATCH_SPEC", transient,
+      patch: { compartments: { ...store().spec.compartments, columns: value } } }));
+    // A slider-style gesture passes through grids that strand labels, then settles on four columns.
+    columns(1, true); columns(12, true); columns(4, true); columns(4);
+    for (const key of ["r0c0", "r0c2", "r1c1"]) {
+      const label = store().spec.surfaceTexts.find(item => item.id === key)!;
+      expect(label.position.x).toBeCloseTo(centreOf(key).x, 6);
+      expect(label.position.y).toBeCloseTo(centreOf(key).y, 6);
+      expect(label.sizeMm).toBe(3.2);
+    }
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec).toEqual(before);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { compartments: { ...store().spec.compartments, rows: 3 } } }));
+    expect(store().spec.surfaceTexts.find(item => item.id === "r1c2")!.position.y).toBeCloseTo(centreOf("r1c2").y, 6);
+    act(() => store().dispatch({ type: "SET_GRID", gridX: 6, gridY: 4 }));
+    expect(store().spec.surfaceTexts.find(item => item.id === "r0c1")!.position.x).toBeCloseTo(centreOf("r0c1").x, 6);
+  });
   it("preserves saved and manually anchored tabs when the wall slant changes", () => {
     const { store, act } = mountBin();
     for (const tab of [

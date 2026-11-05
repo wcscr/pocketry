@@ -1,6 +1,6 @@
 import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
-import { buildSurfaceTexts } from "./surface-text";
+import { buildSurfaceTexts, type SurfaceTextPart } from "./surface-text";
 import { validateTiltedSolids } from "./validate-tilted-solids";
 import { validateRetainedMaterial } from "./validate-retained-material";
 import { validateInsertionPaths, type PocketInsertionPath } from "./validate-insertion-paths";
@@ -314,7 +314,7 @@ export function buildBinWithCutouts(
   materialParts: BinMaterialParts | null;
   /** Original bin and individual labels for multipart 3MF exports. */
   bodySolid: Manifold;
-  textParts: ReturnType<typeof buildSurfaceTexts>;
+  textParts: SurfaceTextPart[];
   cutoutReports: CutoutBuildReport[];
   validationIssues: ValidationIssue[];
 } {
@@ -456,7 +456,10 @@ export function buildBinWithCutouts(
   }
 
   const bodySolid = solid;
-  const textParts = spec.surfaceTexts.length ? buildSurfaceTexts(kernel, spec, bodySolid) : [];
+  // A misplaced label is reported, not fatal: the bin still previews without it.
+  const { parts: textParts, issues: textIssues } = spec.surfaceTexts.length
+    ? buildSurfaceTexts(kernel, spec, bodySolid) : { parts: [], issues: [] };
+  validationIssues.push(...textIssues);
   if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
   if (layout) validationIssues.push(...validateInsertionPaths(kernel, solid, insertionPaths, layout.cutouts, layout.shapesById,
     textParts.map(part => part.solid)));

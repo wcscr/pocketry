@@ -25,6 +25,7 @@ import { createPortal } from "react-dom";
 import { ZodError } from "zod";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import {
@@ -457,6 +458,8 @@ export function BinControlsPanel({
     return cancel;
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
+  // Fit tests and alignment SVGs contain no lettering, so misplaced labels do not block them.
+  const hasNonTextErrors = issues.some((issue) => issue.severity === "error" && !issue.surfaceTextIds?.length);
   const showNoCutoutsWarning = spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
@@ -706,7 +709,7 @@ export function BinControlsPanel({
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
+                  disabled={exporting || hasNonTextErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
                   onClick={() =>
                     setPendingExport({
                       title: "Save surface fit test STL?",
@@ -2153,6 +2156,10 @@ export function BinControlsPanel({
           hint="Add raised text to label tabs or solid fill. Hollow bins require label tabs. Drag text in Layout, clear of openings. Double-click a label to edit its text. You can position text even when the 3D preview cannot build."
           summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={spec.surfaceTexts.length > 0} className="scroll-mt-16">
           <SurfaceTextControls onPositionText={onPositionText} />
+          {/* Misplaced labels are left out of the preview and block export until moved. */}
+          {issues.filter(issue => issue.surfaceTextIds?.length).map(issue =>
+            <p key={`${issue.code}-${issue.surfaceTextIds!.join(",")}-${issue.message}`} role="alert" className="text-xs text-destructive"
+              data-testid="surface-text-issue">{issue.message}</p>)}
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
         </PanelSection>
 
@@ -2448,7 +2455,8 @@ export function BinControlsPanel({
               {issues.filter(issue => issue.severity === "error").map((issue, index) => <li key={`${issue.code}-${index}`}>
                 <button type="button" className="min-h-11 w-full rounded border bg-background px-3 py-2 text-left text-xs leading-relaxed hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-export-issue={issue.code} onClick={() => onRevealIssue(issue)}>
-                  {issue.message}<span className="mt-1 block font-medium underline">Show settings to fix this</span>
+                  {issue.message}<span className="mt-1 block font-medium underline">{issueSettingsTarget(issue.code)?.label
+                    ?? (issue.surfaceTextIds?.length ? "Position text in Layout" : "Show settings to fix this")}</span>
                 </button>
               </li>)}
             </ul>
@@ -2536,7 +2544,7 @@ export function BinControlsPanel({
                     confirmLabel: "Download SVG",
                     onConfirm: (includeProject) => onExportLayout("svg", includeProject),
                   })}
-                  disabled={Boolean(spec.pegBottom) && (exporting || hasErrors)}
+                  disabled={Boolean(spec.pegBottom) && (exporting || hasNonTextErrors)}
                   data-testid="button-layout-svg"
                 >
                   {spec.pegBottom ? "Save alignment SVG" : "Save SVG"}
