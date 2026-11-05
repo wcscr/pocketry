@@ -2,9 +2,18 @@
 
 ## Unreleased
 
-## 1.8.0 — 2026-11-05
+## 1.7.3 — 2026-11-05
 
 - Add a Bambu / Prusa 3MF export that combines parts into one model, keeps Bambu's color mapping, and preserves painted filament regions in PrusaSlicer 2.9.7 and 3.0 alpha13. Regular multi-color export retains separate named parts.
+
+## 1.7.2 — 2026-11-05
+
+- Fix "Raise the pocket" errors after moving an experimental group or rotating pockets about Z. Moving or turning pockets no longer changes their depth or elevation.
+
+## 1.7.1 — 2026-11-05
+
+- A label that doesn't fit no longer blanks the 3D preview: the bin still previews, the label is outlined in Layout and listed with a link to place it, and export waits until it is fixed. New text starts in a clear spot instead of over a pocket, and on lipped bins clear of the stacking lip's overhang.
+- Labels on sub-bin tabs follow their sub-bin when you change rows, columns or bin size. Labels whose tab disappears stay flagged until you restore that tab or move them, including after reopening a saved project. Fix the invisible "Retry preview" button.
 
 ## 1.7.0 — 2026-11-05
 

@@ -12,7 +12,7 @@ import {
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { pocketTransformChanged, pocketTransformPatch, pocketTransformWires, type EditablePocket } from "./pocket-transform";
+import { pocketTransformChanged, pocketTransformPatch, pocketTransformWires, zTurnDeg, type EditablePocket } from "./pocket-transform";
 
 export type ObjectRef = { kind: "pocket" | "finger"; id: string };
 export type EditableObject = ({ kind: "pocket" } & EditablePocket) | { kind: "finger"; hole: FingerHole };
@@ -84,16 +84,27 @@ function transformGroup(objects: readonly EditableObject[], spec: BinSpec, delta
   const frame: ObjectGroup = { ...group, pivot: { x: movedPivot.x, y: movedPivot.y, z: movedPivot.z },
     rotation: rotation.clone().multiply(new Quaternion(...group.rotation)).normalize().toArray() as ObjectGroup["rotation"] };
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  // An XY move or a turn about Z changes no height. Like ungrouped edits, keep
+  // each pocket's depth model, including a legacy surface anchor.
+  const turnDeg = zTurnDeg(rotation), planar = turnDeg !== null && Math.abs(delta.z) <= 1e-8;
   const edits: ObjectEdits = { cutouts: [], fingerHoles: [], placementOnly: true };
   for (const object of objects) {
     if (object.kind === "finger") {
       const next = point(new Vector3(object.hole.center.x, object.hole.center.y, top));
       if (![tidy(next.x), tidy(next.y)].every(Number.isFinite)) return null;
       edits.fingerHoles.push({ ...object.hole, center: { x: tidy(next.x), y: tidy(next.y) },
-        rotationDeg: (object.hole.rotationDeg ?? 0) + 2 * Math.atan2(rotation.z, rotation.w) * 180 / Math.PI, placementGroup: frame });
+        rotationDeg: (object.hole.rotationDeg ?? 0) + (turnDeg ?? 0), placementGroup: frame });
       continue;
     }
     if (object.cutout.profileBottom) return null;
+    if (planar) {
+      // Position is the body's XY origin for both legacy and rigid poses.
+      const next = point(new Vector3(object.cutout.position.x, object.cutout.position.y, top));
+      const patch = pocketTransformPatch(object.cutout, object.shape, spec, { x: next.x, y: next.y, z: top }, rotation, turnDeg === 0 ? "translate" : "rotate");
+      if (!patch) return null;
+      edits.cutouts.push({ ...object.cutout, ...patch, placementGroup: frame });
+      continue;
+    }
     const rigid = rigidPocket(object.cutout, object.shape, spec);
     const source = pocketSourceRings(object.shape.outlineMm, rigid, top).flat();
     const minimum = Math.min(...source.map(v => rotatePocketVector(v, rigid).z));

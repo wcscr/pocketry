@@ -236,3 +236,31 @@ export function mapRing(ring: Ring, fn: (point: Point) => Point): Ring {
 export function isValidRing(ring: Ring): boolean {
   return ring.length >= 3;
 }
+
+/**
+ * The part of `subject` inside the convex ring `convex` (Sutherland–Hodgman).
+ * `subject` may be concave; where the overlap has several pieces they come back
+ * joined along `convex`'s edges, so treat the result as a vertex set (its
+ * bounds are exact) rather than as a clean outline. Either winding works.
+ */
+export function clipRingToConvex(subject: Ring, convex: Ring): Ring {
+  const sign = Math.sign(doubleSignedArea(convex));
+  if (sign === 0) return [];
+  let result: Ring = subject;
+  for (let i = 0, j = convex.length - 1; i < convex.length && result.length; j = i++) {
+    const a = convex[j], b = convex[i];
+    const side = (p: Point) => sign * ((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x));
+    const input = result;
+    result = [];
+    for (let k = 0, l = input.length - 1; k < input.length; l = k++) {
+      const p = input[l], q = input[k];
+      const sp = side(p), sq = side(q);
+      if (sp >= 0 !== sq >= 0) {
+        const t = sp / (sp - sq);
+        result.push({ x: p.x + t * (q.x - p.x), y: p.y + t * (q.y - p.y) });
+      }
+      if (sq >= 0) result.push(q);
+    }
+  }
+  return result;
+}
