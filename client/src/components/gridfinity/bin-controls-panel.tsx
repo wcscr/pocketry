@@ -2779,9 +2779,14 @@ export function BinControlsPanel({
                 </span>
               </span>
             </Button>
+            <div id="bambu-multicolor-import-warning" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-bambu-color-warning">
+              <p className="font-medium">Bambu Studio 2.9.1.70: multi-color import issue</p>
+              <p className="mt-1">This version currently does not import Pocketry’s multi-color 3MF colors correctly. A fix is in progress. <a href="https://github.com/wcscr/pocketry/issues/211" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Follow the fix</a>.</p>
+            </div>
             <Button
               className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
               disabled={exporting || hasErrors || !hasSelectedMulticolor}
+              aria-describedby="bambu-multicolor-import-warning"
               onClick={() => {
                 setThreeMfDialogOpen(false);
                 onExport("3mf-multicolor", includeThreeMfProject);
