@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { maskFromEdges } from "./edge-mask";
+import { traceIsoRings } from "../geometry/trace";
+import { buildOutline, pointInOutline } from "../geometry/outline";
 
 const width = 72, height = 88;
 function fixture(inside: (x: number, y: number) => boolean, seeded = inside) {
@@ -13,6 +15,34 @@ function fixture(inside: (x: number, y: number) => boolean, seeded = inside) {
 }
 const rectangle = (x: number, y: number) => x >= 12 && x <= 58 && y >= 10 && y <= 76;
 describe("learned outer silhouette reconstruction", () => {
+  it.each([0, 1, 2, 3])("does not cut a slit through changing edge thickness (quarter-turn %s)", turns => {
+    const edges = new Float32Array(width * height), seeds = new Uint8Array(edges.length);
+    for (let y = 10; y <= 76; y++) for (let x = 12; x <= 58; x++) {
+      const leftWidth = y >= 30 && y <= 60 ? 4 : 3;
+      edges[y * width + x] = x < 12 + leftWidth || x > 55 || y < 13 || y > 73 ? 1 : 0;
+      seeds[y * width + x] = x >= 20 && x <= 50 && y >= 20 && y <= 66 ? 1 : 0;
+    }
+    const rotatedWidth = turns % 2 ? height : width, rotatedHeight = turns % 2 ? width : height;
+    const rotate = (x: number, y: number) => turns === 0 ? { x, y } : turns === 1 ? { x: height - 1 - y, y: x }
+      : turns === 2 ? { x: width - 1 - x, y: height - 1 - y } : { x: y, y: width - 1 - x };
+    const unrotate = (x: number, y: number) => turns === 0 ? { x, y } : turns === 1 ? { x: y, y: height - 1 - x }
+      : turns === 2 ? { x: width - 1 - x, y: height - 1 - y } : { x: width - 1 - y, y: x };
+    const rotatedEdges = new Float32Array(edges.length), rotatedSeeds = new Uint8Array(seeds.length);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const p = rotate(x, y), target = p.y * rotatedWidth + p.x;
+      rotatedEdges[target] = edges[y * width + x]; rotatedSeeds[target] = seeds[y * width + x];
+    }
+    const result = maskFromEdges(rotatedEdges, rotatedWidth, rotatedHeight, rotatedSeeds);
+    const outline = buildOutline(traceIsoRings(result.score, rotatedWidth, rotatedHeight, { iso: 128 }));
+    expect(result.reason).toBeUndefined();
+    expect(outline).toHaveLength(1);
+    expect(outline[0].holes).toHaveLength(0);
+    // This location was inside the filled mask, but the old three-pixel
+    // distance cutoff turned it into background beside an outer sliver.
+    expect(pointInOutline(outline, rotate(13, 45))).toBe(true);
+    const side = outline[0].outer.map(p => unrotate(p.x, p.y)).filter(p => p.x < 16 && p.y > 20 && p.y < 66);
+    expect(Math.max(...side.map(p => p.x)) - Math.min(...side.map(p => p.x))).toBeLessThan(0.1);
+  });
   it("fills internal lettering while retaining an open jaw recess", () => {
     const inside = (x: number, y: number) => rectangle(x, y) && !(x >= 31 && x <= 39 && y <= 38);
     const { edges, seeds } = fixture(inside);

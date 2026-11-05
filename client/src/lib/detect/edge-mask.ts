@@ -49,30 +49,6 @@ function closeSmallGaps(mask: Uint8Array, width: number, height: number): Uint8A
   return closed;
 }
 
-/** Chamfer distance to marked pixels, used only within the narrow edge band. */
-function distanceTo(seeds: Uint8Array, width: number, height: number): Float32Array {
-  const d = Float32Array.from(seeds, v => v ? 0 : 1e6), diagonal = Math.SQRT2;
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const i = y * width + x;
-    if (x) d[i] = Math.min(d[i], d[i - 1] + 1);
-    if (y) {
-      d[i] = Math.min(d[i], d[i - width] + 1);
-      if (x) d[i] = Math.min(d[i], d[i - width - 1] + diagonal);
-      if (x + 1 < width) d[i] = Math.min(d[i], d[i - width + 1] + diagonal);
-    }
-  }
-  for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) {
-    const i = y * width + x;
-    if (x + 1 < width) d[i] = Math.min(d[i], d[i + 1] + 1);
-    if (y + 1 < height) {
-      d[i] = Math.min(d[i], d[i + width] + 1);
-      if (x) d[i] = Math.min(d[i], d[i + width - 1] + diagonal);
-      if (x + 1 < width) d[i] = Math.min(d[i], d[i + width + 1] + diagonal);
-    }
-  }
-  return d;
-}
-
 /**
  * Exterior paper floods through low-edge regions. Bounded enclosures become
  * candidate tools; colour seeds select them without clipping new shafts to the
@@ -129,17 +105,23 @@ export function maskFromEdges(edges: Float32Array, width: number, height: number
     return { score: new Uint8Array(count), mask, reason: "selection-too-tight" };
   }
 
-  // Split a thick edge band between its interior and exterior rather than
-  // tracing its outermost pixel. Preserve sub-resolution thin branches where
-  // no reliable interior side exists; never erode them out of the silhouette.
-  const inside = Uint8Array.from(mask, (v, i) => v && !closed[i] ? 1 : 0);
-  const outside = Uint8Array.from(mask, v => v ? 0 : 1);
-  const toInside = distanceTo(inside, width, height), toOutside = distanceTo(outside, width, height);
-  const score = Uint8Array.from(mask, v => v ? 255 : 0);
-  for (let i = 0; i < count; i++) {
-    if (mask[i] && closed[i] && toInside[i] <= 3 && toOutside[i] <= 3) {
-      score[i] = Math.round(255 * toOutside[i] / (toInside[i] + toOutside[i]));
+  // Soften interpolation without changing the filled silhouette. The previous
+  // interior/exterior blend had a hard three-pixel cutoff: a four-pixel edge
+  // band could become foreground/background/foreground across its width. The
+  // tracer then followed the artificial slit down and back up a straight side.
+  // This separable [1, 6, 1] kernel has >50% weight at its centre, so neither a
+  // thin shaft nor an interior pixel can change class at iso 128. It rounds
+  // subpixel crossings while preserving the binary mask's foreground samples.
+  const score = new Uint8Array(count);
+  const weights = [1, 6, 1];
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    let sum = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = Math.max(0, Math.min(width - 1, x + dx));
+      const yy = Math.max(0, Math.min(height - 1, y + dy));
+      sum += mask[yy * width + xx] * weights[dx + 1] * weights[dy + 1];
     }
+    score[y * width + x] = Math.round(255 * sum / 64);
   }
   return { score, mask };
 }

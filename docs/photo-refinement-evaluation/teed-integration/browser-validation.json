@@ -102,17 +102,20 @@
     "curvePreviewApplied": true,
     "oneStepUndo": true,
     "redoAndReloadPreserveHandles": true,
-    "anchors": 167
+    "anchors": 63,
+    "explicitPreviewToleranceMm": 0.3,
+    "defaultToleranceNoOpVerified": true
   },
   "corpus": {
     "scope": "Chrome 156 headless on macOS, one sequential pass, 27 white-sheet views. First color includes worker/CV startup; first learned includes model import. Other rows reuse the net. Not phone timings.",
     "cases": [
       {
         "name": "airduster-nozzle",
-        "colorMs": 189.89999961853027,
-        "learnedMs": 812.6000003814697,
-        "cachedMs": 59.69999980926514,
-        "fitMs": 1.0999999046325684,
+        "colorMs": 212,
+        "learnedMs": 905.6999998092651,
+        "cachedMs": 36.200000286102295,
+        "reconstructMs": 24.699999809265137,
+        "fitMs": 1.3999996185302734,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -124,10 +127,11 @@
       },
       {
         "name": "airduster-body",
-        "colorMs": 60.09999990463257,
-        "learnedMs": 714.5999999046326,
-        "cachedMs": 65.2000002861023,
-        "fitMs": 0.2999997138977051,
+        "colorMs": 68.09999990463257,
+        "learnedMs": 763.7999997138977,
+        "cachedMs": 44,
+        "reconstructMs": 22.5,
+        "fitMs": 0.40000009536743164,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -139,10 +143,11 @@
       },
       {
         "name": "airduster-pair",
-        "colorMs": 118.19999980926514,
-        "learnedMs": 753.0999999046326,
-        "cachedMs": 80.7000002861023,
-        "fitMs": 0.7999997138977051,
+        "colorMs": 136.2000002861023,
+        "learnedMs": 787.4000000953674,
+        "cachedMs": 48.89999961853027,
+        "reconstructMs": 20.700000286102295,
+        "fitMs": 0.6000003814697266,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -154,9 +159,10 @@
       },
       {
         "name": "airduster-angle-nozzle",
-        "colorMs": 48,
-        "learnedMs": 731.8000001907349,
-        "cachedMs": 62.59999990463257,
+        "colorMs": 52.60000038146973,
+        "learnedMs": 765.1999998092651,
+        "cachedMs": 30.59999990463257,
+        "reconstructMs": 19.09999990463257,
         "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "accepted",
@@ -169,10 +175,11 @@
       },
       {
         "name": "ryobi-original",
-        "colorMs": 55.40000009536743,
-        "learnedMs": 739.9000000953674,
-        "cachedMs": 93.80000019073486,
-        "fitMs": 0.2999997138977051,
+        "colorMs": 63.19999980926514,
+        "learnedMs": 776.5,
+        "cachedMs": 42.90000009536743,
+        "reconstructMs": 26,
+        "fitMs": 0.40000009536743164,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -184,10 +191,11 @@
       },
       {
         "name": "mouldline-original",
-        "colorMs": 11.300000190734863,
-        "learnedMs": 662.6999998092651,
-        "cachedMs": 19.800000190734863,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 12.300000190734863,
+        "learnedMs": 711.5,
+        "cachedMs": 13.299999713897705,
+        "reconstructMs": 5,
+        "fitMs": 0.20000028610229492,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -199,10 +207,11 @@
       },
       {
         "name": "stapler-original",
-        "colorMs": 50.69999980926514,
-        "learnedMs": 712.6000003814697,
-        "cachedMs": 71.39999961853027,
-        "fitMs": 0.7000002861022949,
+        "colorMs": 55.89999961853027,
+        "learnedMs": 779.1000003814697,
+        "cachedMs": 76.5,
+        "reconstructMs": 10.299999713897705,
+        "fitMs": 0.6999998092651367,
         "refinement": {
           "status": "fallback",
           "reason": "selection-too-tight",
@@ -215,9 +224,10 @@
       },
       {
         "name": "caliper-original",
-        "colorMs": 13.300000190734863,
-        "learnedMs": 715.7999997138977,
-        "cachedMs": 68.80000019073486,
+        "colorMs": 13.800000190734863,
+        "learnedMs": 746.0999999046326,
+        "cachedMs": 33,
+        "reconstructMs": 27.299999713897705,
         "fitMs": 0.19999980926513672,
         "refinement": {
           "status": "accepted",
@@ -230,10 +240,11 @@
       },
       {
         "name": "mouldline-distant",
-        "colorMs": 5.299999713897705,
-        "learnedMs": 665.7000002861023,
-        "cachedMs": 25,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 6.400000095367432,
+        "learnedMs": 724.4000000953674,
+        "cachedMs": 13.699999809265137,
+        "reconstructMs": 8.099999904632568,
+        "fitMs": 0.3000001907348633,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -245,10 +256,11 @@
       },
       {
         "name": "wiha-150-original",
-        "colorMs": 37.09999990463257,
-        "learnedMs": 700.1000003814697,
-        "cachedMs": 52.799999713897705,
-        "fitMs": 0.5999999046325684,
+        "colorMs": 40.59999990463257,
+        "learnedMs": 752.5,
+        "cachedMs": 58.59999990463257,
+        "reconstructMs": 10.900000095367432,
+        "fitMs": 0.8000001907348633,
         "refinement": {
           "status": "fallback",
           "reason": "selection-too-tight",
@@ -260,10 +272,11 @@
       },
       {
         "name": "bessey-original",
-        "colorMs": 10.099999904632568,
-        "learnedMs": 689.7000002861023,
-        "cachedMs": 42.799999713897705,
-        "fitMs": 0.20000028610229492,
+        "colorMs": 11.400000095367432,
+        "learnedMs": 724.1999998092651,
+        "cachedMs": 21.90000009536743,
+        "reconstructMs": 13.200000286102295,
+        "fitMs": 0.19999980926513672,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -275,10 +288,11 @@
       },
       {
         "name": "gerber-close",
-        "colorMs": 131.89999961853027,
-        "learnedMs": 719.9000000953674,
-        "cachedMs": 67.09999990463257,
-        "fitMs": 0.3000001907348633,
+        "colorMs": 141.09999990463257,
+        "learnedMs": 746.6000003814697,
+        "cachedMs": 41.09999990463257,
+        "reconstructMs": 17.09999990463257,
+        "fitMs": 0.19999980926513672,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -290,9 +304,10 @@
       },
       {
         "name": "gerber-distant",
-        "colorMs": 13.800000190734863,
-        "learnedMs": 704.6999998092651,
-        "cachedMs": 58.90000009536743,
+        "colorMs": 15,
+        "learnedMs": 736.4000000953674,
+        "cachedMs": 35.80000019073486,
+        "reconstructMs": 11.200000286102295,
         "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "fallback",
@@ -305,9 +320,10 @@
       },
       {
         "name": "wiha-60-original",
-        "colorMs": 6.199999809265137,
-        "learnedMs": 661.9000000953674,
-        "cachedMs": 20.09999990463257,
+        "colorMs": 6.800000190734863,
+        "learnedMs": 701.8000001907349,
+        "cachedMs": 12.099999904632568,
+        "reconstructMs": 5,
         "fitMs": 0,
         "refinement": {
           "status": "accepted",
@@ -320,9 +336,10 @@
       },
       {
         "name": "wiha-50-original",
-        "colorMs": 4.900000095367432,
-        "learnedMs": 655.3999996185303,
-        "cachedMs": 19.300000190734863,
+        "colorMs": 5.800000190734863,
+        "learnedMs": 724.8000001907349,
+        "cachedMs": 12.099999904632568,
+        "reconstructMs": 5.199999809265137,
         "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "accepted",
@@ -335,10 +352,11 @@
       },
       {
         "name": "wiha-40-original",
-        "colorMs": 4.5,
-        "learnedMs": 662.0999999046326,
-        "cachedMs": 20.40000009536743,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 5.599999904632568,
+        "learnedMs": 725.6000003814697,
+        "cachedMs": 13.299999713897705,
+        "reconstructMs": 5.799999713897705,
+        "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -346,14 +364,14 @@
           "cached": false
         },
         "cached": true,
-        "fitError": "The fit would cross or touch another contour edge. Try a smaller deviation.",
         "workerHeapCapacityBytes": 231997440
       },
       {
         "name": "wire-strippers-original",
-        "colorMs": 43,
-        "learnedMs": 683.2999997138977,
-        "cachedMs": 38.30000019073486,
+        "colorMs": 50.30000019073486,
+        "learnedMs": 735.9000000953674,
+        "cachedMs": 23,
+        "reconstructMs": 9.700000286102295,
         "fitMs": 0.19999980926513672,
         "refinement": {
           "status": "accepted",
@@ -366,10 +384,11 @@
       },
       {
         "name": "airduster-body-early",
-        "colorMs": 37.69999980926514,
-        "learnedMs": 704.5,
-        "cachedMs": 58.80000019073486,
-        "fitMs": 0.19999980926513672,
+        "colorMs": 42.19999980926514,
+        "learnedMs": 746,
+        "cachedMs": 31.700000286102295,
+        "reconstructMs": 17.800000190734863,
+        "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -381,10 +400,11 @@
       },
       {
         "name": "airduster-nozzle-early",
-        "colorMs": 19.40000009536743,
-        "learnedMs": 689.8000001907349,
-        "cachedMs": 42.39999961853027,
-        "fitMs": 0.10000038146972656,
+        "colorMs": 24.90000009536743,
+        "learnedMs": 767.2999997138977,
+        "cachedMs": 25.100000381469727,
+        "reconstructMs": 12.300000190734863,
+        "fitMs": 0.19999980926513672,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -396,9 +416,10 @@
       },
       {
         "name": "airduster-nozzle-cropfirst",
-        "colorMs": 231.30000019073486,
-        "learnedMs": 716.9000000953674,
-        "cachedMs": 70.69999980926514,
+        "colorMs": 267.80000019073486,
+        "learnedMs": 782.5999999046326,
+        "cachedMs": 54,
+        "reconstructMs": 12.900000095367432,
         "fitMs": 0.5,
         "refinement": {
           "status": "accepted",
@@ -411,10 +432,11 @@
       },
       {
         "name": "ryobi-original-cropfirst",
-        "colorMs": 313,
-        "learnedMs": 766.6999998092651,
-        "cachedMs": 107.40000009536743,
-        "fitMs": 0.40000009536743164,
+        "colorMs": 356.09999990463257,
+        "learnedMs": 806.5999999046326,
+        "cachedMs": 72.69999980926514,
+        "reconstructMs": 25,
+        "fitMs": 0.3000001907348633,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -426,9 +448,10 @@
       },
       {
         "name": "caliper-original-cropfirst",
-        "colorMs": 267.5,
-        "learnedMs": 958.1999998092651,
-        "cachedMs": 305.5,
+        "colorMs": 299.19999980926514,
+        "learnedMs": 1056.8000001907349,
+        "cachedMs": 344,
+        "reconstructMs": 18.59999990463257,
         "fitMs": 1,
         "refinement": {
           "status": "fallback",
@@ -441,9 +464,10 @@
       },
       {
         "name": "wiha-150-original-cropfirst",
-        "colorMs": 168.59999990463257,
-        "learnedMs": 846.6999998092651,
-        "cachedMs": 192.2000002861023,
+        "colorMs": 182.5,
+        "learnedMs": 916.1999998092651,
+        "cachedMs": 216.90000009536743,
+        "reconstructMs": 10.300000190734863,
         "fitMs": 0.7999997138977051,
         "refinement": {
           "status": "fallback",
@@ -456,24 +480,10 @@
       },
       {
         "name": "wiha-60-original-cropfirst",
-        "colorMs": 67.5,
-        "learnedMs": 676,
-        "cachedMs": 29.59999990463257,
-        "fitMs": 0.3000001907348633,
-        "refinement": {
-          "status": "accepted",
-          "reason": "teed-edges",
-          "iterations": 0,
-          "cached": false
-        },
-        "cached": true,
-        "workerHeapCapacityBytes": 278396928
-      },
-      {
-        "name": "wiha-50-original-cropfirst",
-        "colorMs": 64.90000009536743,
-        "learnedMs": 668.6999998092651,
-        "cachedMs": 26.5,
+        "colorMs": 76.59999990463257,
+        "learnedMs": 750.7000002861023,
+        "cachedMs": 21.199999809265137,
+        "reconstructMs": 5,
         "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "accepted",
@@ -485,11 +495,28 @@
         "workerHeapCapacityBytes": 278396928
       },
       {
+        "name": "wiha-50-original-cropfirst",
+        "colorMs": 74.40000009536743,
+        "learnedMs": 747.2999997138977,
+        "cachedMs": 20.90000009536743,
+        "reconstructMs": 6.200000286102295,
+        "fitMs": 0.19999980926513672,
+        "refinement": {
+          "status": "accepted",
+          "reason": "teed-edges",
+          "iterations": 0,
+          "cached": false
+        },
+        "cached": true,
+        "workerHeapCapacityBytes": 278396928
+      },
+      {
         "name": "wiha-40-original-cropfirst",
-        "colorMs": 71.7999997138977,
-        "learnedMs": 670.7000002861023,
-        "cachedMs": 27.699999809265137,
-        "fitMs": 0.3000001907348633,
+        "colorMs": 81.90000009536743,
+        "learnedMs": 736.0999999046326,
+        "cachedMs": 21.600000381469727,
+        "reconstructMs": 5.599999904632568,
+        "fitMs": 0.09999990463256836,
         "refinement": {
           "status": "accepted",
           "reason": "teed-edges",
@@ -501,9 +528,10 @@
       },
       {
         "name": "wire-strippers-original-cropfirst",
-        "colorMs": 126.59999990463257,
-        "learnedMs": 692.1000003814697,
-        "cachedMs": 46.39999961853027,
+        "colorMs": 140.90000009536743,
+        "learnedMs": 775.0999999046326,
+        "cachedMs": 35.5,
+        "reconstructMs": 10,
         "fitMs": 0.5,
         "refinement": {
           "status": "accepted",
@@ -517,12 +545,12 @@
     ]
   },
   "exports": {
-    "svgCubicEdges": 2,
-    "stlTriangles": 688,
-    "stlBytes": 34484,
+    "svgCubicEdges": 6,
+    "stlTriangles": 440,
+    "stlBytes": 22084,
     "allUndirectedEdgesHaveTwoFaces": true,
-    "signedVolumeMm3": 318678.42308752146,
-    "scope": "Browser export using a synthetic ruler length for workflow validation; not a dimensionally calibrated manufacturing file."
+    "signedVolumeMm3": 326671.2116903238,
+    "scope": "Soft-mask follow-up, Chrome Trace UI with an explicit 0.3 mm preview tolerance and synthetic ruler length; workflow validation, not calibrated manufacturing output."
   },
   "mainThreadOpenCVHeapCapacityBytes": 134217728,
   "productionUI": {
@@ -530,7 +558,9 @@
     "curvePreviewApply": true,
     "nativeCubicSVGExport": true,
     "deliveredMITNotice": true,
-    "scope": "Chrome 156 headless, local production build, same white-sheet Ryobi photo."
+    "scope": "Chrome 156 headless, local production build, same white-sheet Ryobi photo.",
+    "softMaskFixVerified": true,
+    "explicitPreviewToleranceMm": 0.3
   },
   "localVerification": {
     "quickTests": 3483,
@@ -539,6 +569,20 @@
     "typeCheck": "passed",
     "productionBuild": "passed",
     "diffCheck": "passed",
-    "hostedCI": "not run"
+    "hostedCI": "not run",
+    "softMaskFix": {
+      "quickTests": 3487,
+      "typeCheck": "passed",
+      "productionBuild": "passed",
+      "regressionQuarterTurns": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "corpusViews": 27,
+      "previousWorkflowAndGeometrySuites": "unchanged paths, not rerun for this follow-up",
+      "serializedSTLTwoFacesPerEdge": true
+    }
   }
 }

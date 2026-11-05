@@ -37,7 +37,7 @@ export async function loadTeedModel(signal?: AbortSignal, request: typeof fetch 
 
 interface NativeMat { delete(): void; data: Uint8Array; data32F: Float32Array }
 interface NativeNet { delete(): void; setInput(blob: NativeMat): void; forward(): NativeMat }
-export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean }
+export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean; reconstructionMs?: number }
 
 /** A worker owns one warm net and one bounded image embedding (edge map) cache.
  * Native nets are released explicitly by dispose; worker termination also frees
@@ -96,9 +96,11 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
         }
         // Sensitivity selects an edge barrier, never an Otsu threshold on edges.
         const threshold = Math.max(0.48, Math.min(0.85, 0.60 + ((options.sensitivity ?? 128) - 128) / 500));
+        const reconstructStarted = performance.now();
         const result = maskFromEdges(edges, width, height, seeds, threshold);
-        if (result.reason) return { reason: result.reason, cached };
-        return { cached, field: { score: result.score, width, height,
+        const reconstructionMs = performance.now() - reconstructStarted;
+        if (result.reason) return { reason: result.reason, cached, reconstructionMs };
+        return { cached, reconstructionMs, field: { score: result.score, width, height,
           scale: width / roi.width, scaleY: height / roi.height,
           offsetX: roi.x, offsetY: roi.y, iso: 128, otsu: 128 } };
       } catch (error) {

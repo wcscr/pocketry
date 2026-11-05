@@ -158,6 +158,7 @@ async function segment(
         try {
           const result = await detector.segment(cv, image, options, field);
           timings.learnedEdges = now() - began;
+          if (result.reconstructionMs !== undefined) timings.reconstruct = result.reconstructionMs;
           return { field: result.field ?? field, baseline: result.field ? field : undefined, engine: "opencv", refinement: {
             status: result.field ? "accepted" : result.reason === "alpha-mask" ? "skipped" : "fallback",
             reason: result.reason ?? "teed-edges", iterations: 0, cached: result.cached,
