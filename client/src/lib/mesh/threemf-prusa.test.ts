@@ -71,3 +71,54 @@ describe("Prusa 3MF painting", () => {
     expect(() => writeThreeMf(Array.from({ length: 256 }, () => colored("#abcdef")), OPTIONS)).not.toThrow();
   });
 });
+
+describe("Prusa color-preview project", () => {
+  const preview = { ...OPTIONS, prusaColorPreview: true };
+  const legacyPath = "Metadata/Slic3r_PE.config";
+  const projectPath = "Metadata/PrusaSlicer3_project.json";
+
+  it("sets matching slots and RGB colors in both versions without changing geometry or painting", () => {
+    const objects = [colored("#bfbfbf"), { name: "Default", mesh }, colored("#000000"), colored("#BFBFBF")];
+    const entries = unzipSync(writeThreeMf(objects, preview));
+    const base = unzipSync(writeThreeMf(objects, OPTIONS));
+    expect(entries["3D/3dmodel.model"]).toEqual(base["3D/3dmodel.model"]);
+    expect(entries[FACETS_PATH]).toEqual(base[FACETS_PATH]);
+    expect(writeThreeMf(objects, preview)).toEqual(writeThreeMf(objects, preview));
+    const legacy = Object.fromEntries(strFromU8(entries[legacyPath]).split("\n")
+      .filter(line => line.includes(" = ")).map(line => line.slice(2).split(" = ")));
+    expect(legacy.filament_colour).toBe("#BFBFBF;#000000");
+    expect(legacy.extruder_colour).toBe(legacy.filament_colour);
+    expect(legacy.nozzle_diameter.split(",")).toHaveLength(2);
+    expect(legacy.extruder_offset.split(",")).toHaveLength(2);
+    expect(legacy.printer_settings_id).toContain("choose your printer");
+    const container = JSON.parse(strFromU8(entries[projectPath])).config_containers[0];
+    expect(container.preset.hw_config.tool_count).toBe(2);
+    expect(container.preset.hw_config.config_short_name).toBe(container.preset.hw_config.config_name);
+    expect(Object.keys(container.preset.hw_config.tools)).toEqual(["0", "1"]);
+    expect(container.preset.materials).toHaveLength(2);
+    expect(container.preset.tools).toHaveLength(2);
+    expect(container.configuration.filament_settings.filament_colour).toEqual(["#BFBFBF", "#000000"]);
+    expect(container.configuration.project_settings.extruder_colour).toEqual(["#BFBFBF", "#000000"]);
+    expect(container.configuration.printer_settings.extruder_offset).toEqual([[0, 0], [0, 0]]);
+    expect(strFromU8(entries["[Content_Types].xml"])).toContain('Extension="config" ContentType="text/plain"');
+  });
+
+  it.each([1, 17, 255])("keeps all %i display slots aligned with paint slots", count => {
+    const entries = unzipSync(writeThreeMf(palette(count), preview));
+    const container = JSON.parse(strFromU8(entries[projectPath])).config_containers[0];
+    expect(container.preset.hw_config.tool_count).toBe(count);
+    expect(container.preset.materials).toHaveLength(count);
+    expect(container.configuration.filament_settings.filament_colour).toEqual(palette(count).map(object => object.material!.displayColor.toUpperCase()));
+  });
+
+  it("fits the preview bed around original coordinates and omits projects with no colors", () => {
+    const wide = { ...colored("#ffffff"), mesh: { ...mesh, positions: [-230, 0, 0, 1, 410, 0, 0, 1, 0] } };
+    const entries = unzipSync(writeThreeMf([wide], preview));
+    const container = JSON.parse(strFromU8(entries[projectPath])).config_containers[0];
+    expect(container.configuration.printer_settings.bed_shape).toEqual([[-430, -430], [430, -430], [430, 430], [-430, 430]]);
+    const plain = unzipSync(writeThreeMf([{ name: "Plain", mesh }], preview));
+    expect(plain[projectPath]).toBeUndefined();
+    expect(plain[legacyPath]).toBeUndefined();
+    expect(() => writeThreeMf([wide], { combineObjects: true, prusaColorPreview: true })).toThrow("requires combined objects and painting");
+  });
+});

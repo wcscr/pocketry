@@ -243,6 +243,7 @@ describe("BinDesignerPage", () => {
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
     ["bambu-3mf", "-compatible-multicolor", "3mf"],
+    ["prusa-3mf", "-prusa-color-preview", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.6mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.6mm-thick", "stl"],
     ["fit-check", "-Left-wrench-fit-template-0.6mm", "stl"],
@@ -300,12 +301,12 @@ describe("BinDesignerPage", () => {
       if (kind.endsWith("3mf")) {
         expect(bambuWarning?.textContent).toContain("Bambu Studio 2.9.1.70");
         expect(bambuWarning?.textContent).toContain("Regular Multi-color 3MF loses colors on separate parts");
-        expect(bambuWarning?.textContent).toContain("Use Bambu / Prusa 3MF below to keep colors in one model");
+        expect(bambuWarning?.textContent).toContain("Use Bambu 3MF below to keep colors in one model");
         expect(bambuWarning?.textContent).toContain("A fix for separate-part imports is in progress");
         expect(bambuWarning?.querySelector("a")?.getAttribute("href")).toBe("https://github.com/wcscr/pocketry/issues/211");
         expect(document.querySelector('[data-testid="button-export-multicolor-3mf"]')?.getAttribute("aria-describedby")).toBe(bambuWarning?.id);
         expect(document.querySelector('[data-testid="button-export-bambu-3mf"]')?.textContent).toContain("no longer separate named parts");
-        expect(document.querySelector('[data-testid="button-export-bambu-3mf"]')?.textContent).toContain("select a multicolor printer and set your filament colors");
+        expect(document.querySelector('[data-testid="button-export-prusa-3mf"]')?.textContent).toContain("select your actual printer and print settings before printing");
       } else {
         expect(bambuWarning).toBeNull();
       }
@@ -323,7 +324,7 @@ describe("BinDesignerPage", () => {
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
       expect(model.size).toBeGreaterThan(84);
-      if (kind === "bambu-3mf") {
+      if (kind === "bambu-3mf" || kind === "prusa-3mf") {
         const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as ArrayBuffer);
@@ -335,6 +336,13 @@ describe("BinDesignerPage", () => {
         expect(xml.match(/<object /g)).toHaveLength(1);
         expect(xml).toContain('pid="1" p1="1"');
         expect(entries["Metadata/model_settings.config"]).toBeUndefined();
+        if (kind === "prusa-3mf") {
+          expect(strFromU8(entries["Metadata/Slic3r_PE.config"])).toContain("filament_colour =");
+          expect(JSON.parse(strFromU8(entries["Metadata/PrusaSlicer3_project.json"])).config_containers[0].preset.hw_config.tool_count).toBeGreaterThan(1);
+        } else {
+          expect(entries["Metadata/Slic3r_PE.config"]).toBeUndefined();
+          expect(entries["Metadata/PrusaSlicer3_project.json"]).toBeUndefined();
+        }
         expect(xml).toContain('slic3rpe:mmu_segmentation="8"');
         expect(JSON.parse(strFromU8(entries["Metadata/Slic3r_facets_annotation.json"]))[0].mmSegmentationFacets)
           .toEqual(expect.arrayContaining([{ triangle: expect.any(Number), dividing: "8" }]));

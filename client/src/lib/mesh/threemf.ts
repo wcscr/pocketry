@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from "fflate";
+import { prusaColorProject } from "./prusa-color-project";
 
 /**
  * 3MF writer — the default mesh export format (per the plan: smaller than
@@ -7,7 +8,7 @@ import { strToU8, zipSync } from "fflate";
  * the core spec plus the standard Materials extension for display colors.
  * Slicer support varies; combineObjects provides a per-face color alternative
  * for Bambu Studio 2.9.1.70, which drops uniform component assignments.
- * prusaPaint adds filament-region assignments for PrusaSlicer 2.9.7 and 3.0 alpha13.
+ * prusaPaint adds filament-region assignments for PrusaSlicer 2.9.7 and 3.0 alpha12/13.
  *
  * The writer accepts **multiple objects** and emits one `<object>` plus one
  * `<build>` item each. That is the multicolor hook from the plan: when the
@@ -45,10 +46,14 @@ export interface ThreeMfOptions {
    * Preserves vertex identities and geometry, but not separate named parts.
    * Takes precedence over `assemble`. */
   combineObjects?: boolean;
-  /** Add PrusaSlicer 2.9.7/3.0 alpha13 painting alongside standard colors (up to 255).
+  /** Add PrusaSlicer 2.9.7/3.0 alpha12/13 painting alongside standard colors (up to 255).
    * Requires combineObjects; filament slots follow the deduplicated palette.
-   * Does not embed printer, filament, or process settings. */
+   * On its own, does not embed printer, filament, or process settings. */
   prusaPaint?: boolean;
+  /** Set up palette slots/colors using a labeled preview printer project.
+   * Requires combineObjects and prusaPaint. Open as a project in PrusaSlicer;
+   * select the actual printer and print settings before printing. */
+  prusaColorPreview?: boolean;
 }
 
 const MODEL_PATH = "3D/3dmodel.model";
@@ -99,6 +104,9 @@ export function writeThreeMf(
   if (options.prusaPaint && !options.combineObjects) {
     throw new Error("writeThreeMf: Prusa painting requires combined objects");
   }
+  if (options.prusaColorPreview && (!options.prusaPaint || !options.combineObjects)) {
+    throw new Error("writeThreeMf: Prusa color preview requires combined objects and painting");
+  }
   for (const object of objects) validateMesh(object);
 
   const palette = collectMaterials(objects);
@@ -121,6 +129,20 @@ export function writeThreeMf(
   }
   if (painting !== null) {
     entries[PRUSA_FACETS_PATH] = strToU8(painting.annotations);
+  }
+  if (options.prusaColorPreview && painting !== null) {
+    // Fit the preview bed around existing coordinates without moving the model.
+    let extent = 100;
+    for (const object of objects) {
+      for (let i = 0; i < object.mesh.positions.length; i++) {
+        if (i % 3 !== 2) extent = Math.max(extent, Math.abs(object.mesh.positions[i]) + 20);
+      }
+    }
+    for (const [path, content] of Object.entries(prusaColorProject(palette.colors, Math.ceil(extent)))) {
+      entries[path] = strToU8(content);
+    }
+    entries["[Content_Types].xml"] = strToU8(CONTENT_TYPES.replace("</Types>",
+      ' <Default Extension="json" ContentType="application/json"/>\n <Default Extension="config" ContentType="text/plain"/>\n</Types>'));
   }
   return zipSync(
     entries,

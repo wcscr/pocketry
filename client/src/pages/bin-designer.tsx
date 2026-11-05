@@ -1008,16 +1008,17 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "stl", includeProject: boolean) => {
+    async (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
-        const slicerCompatible = format === "3mf-bambu";
+        const prusaColorPreview = format === "3mf-prusa";
+        const slicerCompatible = format === "3mf-bambu" || prusaColorPreview;
         const multicolor = format === "3mf-multicolor" || slicerCompatible;
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          slicerCompatible ? "compatible-multicolor" : multicolor ? "multicolor" : "",
+          prusaColorPreview ? "prusa-color-preview" : slicerCompatible ? "compatible-multicolor" : multicolor ? "multicolor" : "",
         );
         const includePocketFloors =
           multicolor &&
@@ -1104,6 +1105,7 @@ function BinDesignerWorkspace(): JSX.Element {
               assemble: true,
               combineObjects: slicerCompatible,
               prusaPaint: slicerCompatible,
+              prusaColorPreview,
             },
           );
           downloadModelWithProject(
@@ -1142,7 +1144,7 @@ function BinDesignerWorkspace(): JSX.Element {
         }
         toast({
           title: "Saved",
-          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${slicerCompatible ? "a Bambu / Prusa multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${prusaColorPreview ? "a Prusa color preview 3MF" : slicerCompatible ? "a Bambu multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
