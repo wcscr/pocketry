@@ -6,7 +6,7 @@ import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimWidthMm, l
 import { BASE_HEIGHT, binHeightMm, binWallHeightMm, D_WALL, stackingLipReachMm } from "./standard";
 import type { BinSpec } from "./types";
 import { wallSlantHeightMm, wallSlantOutlineMm } from "./wall-slant";
-import { surfaceTextSurface } from "./surface-text";
+import { surfaceTextPositionSchema, surfaceTextSurface } from "./surface-text";
 
 /** Shelf tops remain horizontal when the walls lean. */
 export function labelTabTopZ(spec: BinSpec): number {
@@ -19,7 +19,7 @@ export interface LabelTabSurface {
   /** Rounded/custom boundary that clips the rectangular shelf in Layout. */
   clip: Ring;
   z: number;
-  rotationDeg: number;
+  rotationDeg: 0 | 90;
   /** Stable identity across edits: "outer" for the boundary tab, "r{row}c{column}" for sub-bin tabs. */
   key: string;
 }
@@ -53,7 +53,7 @@ export function labelTabSurfaces(spec: BinSpec): LabelTabSurface[] {
     }];
   }
   const clip = wallSlantOutlineMm(spec, compartments ? footprintOuterRingMm(spec) : footprintInteriorRingMm(spec), z);
-  return placements.flatMap(({ x, y, start, length, depth, rotation, key }) => {
+  return placements.flatMap<LabelTabSurface>(({ x, y, start, length, depth, rotation, key }) => {
     depth -= labelTabFrontRimWidthMm(spec, depth);
     const angle = rotation * Math.PI / 180;
     const ring = wallSlantOutlineMm(spec, [
@@ -116,22 +116,45 @@ const writingBounds = (spec: BinSpec, surface: LabelTabSurface, textHeightMm: nu
  * of the shelf's writing area (clear of a stacking lip). Covers recess edits on
  * slanted walls and sub-bin grid changes.
  * Text remains rigid, at its authored size and rotation. A label whose shelf
- * no longer exists, or turned 90°, stays where it is; the build reports it.
- * Returns `next.surfaceTexts` itself when nothing moves.
+ * no longer exists, or turned 90°, stays where it is and remembers its old
+ * shelf, so the build reports it even if another shelf occupies that position.
+ * Restoring the old shelf restores its placement; manual moves clear the anchor.
+ * Returns `next.surfaceTexts` itself when placement and ownership are unchanged.
  */
 export function moveTextsWithLabelTabs(previous: BinSpec, next: BinSpec): BinSpec["surfaceTexts"] {
-  if (!previous.labelTab || !next.labelTab || !next.surfaceTexts.length) return next.surfaceTexts;
+  if (!next.surfaceTexts.length) return next.surfaceTexts;
   const before = labelTabSurfaces(previous);
-  if (!before.length) return next.surfaceTexts;
   const after = new Map(labelTabSurfaces(next).map(surface => [surface.key, surface]));
   let moved = false;
   const texts = next.surfaceTexts.map(label => {
     if (surfaceTextSurface(previous, label) !== "label-tab" || surfaceTextSurface(next, label) !== "label-tab") return label;
+    if (label.orphanedTab) {
+      const anchor = label.orphanedTab, to = after.get(anchor.key);
+      if (!to || to.rotationDeg !== anchor.rotationDeg) return label;
+      const bounds = writingBounds(next, to, label.heightMm);
+      if (!bounds) return label;
+      const position = surfaceTextPositionSchema.safeParse({
+        x: (bounds.minX + bounds.maxX) / 2 + anchor.offset.x,
+        y: (bounds.minY + bounds.maxY) / 2 + anchor.offset.y,
+      });
+      // Imported anchors must not turn a valid label position into an invalid document.
+      if (!position.success) return label;
+      const { orphanedTab: _anchor, ...restored } = label;
+      moved = true;
+      return { ...restored, position: position.data };
+    }
     const from = before.find(surface => pointOnLabelTab(label.position, surface));
     const to = from && after.get(from.key);
-    if (!from || !to || to.rotationDeg !== from.rotationDeg) return label;
-    const a = writingBounds(previous, from, label.heightMm), b = writingBounds(next, to, label.heightMm);
-    if (!a || !b) return label;
+    if (!from) return label;
+    const a = writingBounds(previous, from, label.heightMm);
+    if (!a) return label;
+    if (!to || to.rotationDeg !== from.rotationDeg) {
+      moved = true;
+      return { ...label, orphanedTab: { key: from.key, rotationDeg: from.rotationDeg,
+        offset: { x: label.position.x - (a.minX + a.maxX) / 2, y: label.position.y - (a.minY + a.maxY) / 2 } } };
+    }
+    const b = writingBounds(next, to, label.heightMm);
+    if (!b) return label;
     const dx = (b.minX + b.maxX - a.minX - a.maxX) / 2, dy = (b.minY + b.maxY - a.minY - a.maxY) / 2;
     if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return label;
     moved = true;
@@ -163,18 +186,20 @@ const shelfInputs = (spec: BinSpec) => JSON.stringify({ ...spec, surfaceTexts: n
  * independently since that commit. Tab size edits never move text.
  */
 export function textsAfterLabelTabEdit(committed: BinSpec, current: BinSpec, next: BinSpec): BinSpec["surfaceTexts"] {
-  if (!next.labelTab || !next.surfaceTexts.some(label => surfaceTextSurface(next, label) === "label-tab")) return next.surfaceTexts;
+  if (!next.surfaceTexts.some(label => surfaceTextSurface(next, label) === "label-tab")) return next.surfaceTexts;
   const follow = (from: BinSpec, to: BinSpec, texts: BinSpec["surfaceTexts"]) => shelfInputs(from) === shelfInputs(to)
     ? texts : moveTextsWithLabelTabs(from, withTabSizeOf({ ...to, surfaceTexts: texts }, from.labelTab));
   const source = sameLabels(follow(committed, current, committed.surfaceTexts), current.surfaceTexts) ? committed : current;
-  const positions = new Map(follow(source, next, source.surfaceTexts).map(label => [label.id, label.position]));
-  // Take only positions: parsing `next` may have retargeted other fields (e.g. hollow → label tabs).
+  const placements = new Map(follow(source, next, source.surfaceTexts).map(label => [label.id, label]));
+  // Take only placement and shelf ownership: parsing `next` may have retargeted other fields.
   let changed = false;
   const texts = next.surfaceTexts.map(label => {
-    const position = positions.get(label.id);
-    if (!position || (Math.abs(position.x - label.position.x) < 1e-9 && Math.abs(position.y - label.position.y) < 1e-9)) return label;
+    const placement = placements.get(label.id);
+    if (!placement || (Math.abs(placement.position.x - label.position.x) < 1e-9 && Math.abs(placement.position.y - label.position.y) < 1e-9
+      && JSON.stringify(placement.orphanedTab) === JSON.stringify(label.orphanedTab))) return label;
     changed = true;
-    return { ...label, position };
+    const { orphanedTab: _anchor, ...rest } = label;
+    return { ...rest, position: placement.position, ...(placement.orphanedTab ? { orphanedTab: placement.orphanedTab } : {}) };
   });
   return changed ? texts : next.surfaceTexts;
 }
