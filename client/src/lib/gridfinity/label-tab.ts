@@ -1,5 +1,5 @@
 import { buildCompartments } from "./compartments";
-import { buildWallRing } from "./wall";
+import { buildWallRing, buildWallSection } from "./wall";
 import { compartmentHeightMm, compartmentLabelTabPlacements } from "@shared/gridfinity/compartments";
 import { BASE_HEIGHT } from "@shared/gridfinity/standard";
 import { footprintOuterSection } from "./footprint-section";
@@ -71,6 +71,31 @@ export function buildLabelTabFrontRimRegion(kernel: Kernel, spec: BinSpec,
   const depth = Math.min(depthMm, top - BASE_HEIGHT);
   if (section.isEmpty() || depth <= 0) return null;
   const column = arena.track(arena.track(section.extrude(depth)).translate([0, 0, top - depth]));
+  return arena.track(column.intersect(tab));
+}
+
+/** Thin color layer below exposed shelf faces, in the upright frame. The
+ * actual tab supplies custom-footprint clipping and attached fragments. Remove
+ * raised front edges, wall mounts and dividers before extruding the face, so
+ * color never leaks into the frame even when its requested depth is large. */
+export function buildLabelTabBackgroundRegion(kernel: Kernel, spec: BinSpec,
+  segments: number, depthMm: number): Manifold | null {
+  const top = labelTabTopZ(spec);
+  if (!spec.labelTab || !Number.isFinite(depthMm) || depthMm <= 0 || top <= BASE_HEIGHT
+    || (spec.fill === "solid" && infillTopZ(spec) >= top - 1e-8)) return null;
+  const tab = buildLabelTab(kernel, spec, segments);
+  if (!tab || tab.isEmpty()) return null;
+  const { arena } = kernel;
+  const epsilon = Math.min(0.01, (top - BASE_HEIGHT) / 2);
+  const frontHeight = labelTabFrontRimHeightMm(spec);
+  let face = arena.track(arena.track(tab.slice(top - epsilon))
+    .subtract(arena.track(tab.slice(top + (frontHeight > 0 ? frontHeight / 2 : epsilon)))));
+  face = arena.track(face.subtract(buildWallSection(kernel, spec, segments)));
+  const compartments = buildCompartments(kernel, spec, segments);
+  if (compartments) face = arena.track(face.subtract(arena.track(compartments.slice(top - epsilon))));
+  if (face.isEmpty()) return null;
+  const depth = Math.min(depthMm, top - BASE_HEIGHT);
+  const column = arena.track(arena.track(face.extrude(depth)).translate([0, 0, top - depth]));
   return arena.track(column.intersect(tab));
 }
 

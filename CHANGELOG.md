@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.7.0 — 2026-11-05
+
+- Choose independent label-background colors, with adjustable material thickness, in the preview and multicolor 3MF exports. Existing labels keep their body color.
+
 ## 1.6.0 — 2026-11-05
 
 - Add hollow-bin compartments, dividers, scoop bottoms, and rounded floor edges, with optional divider-top coloring.

@@ -54,7 +54,7 @@ describe("parseProjectDoc", () => {
     const old = parseProjectDoc({ ...VALID, schemaVersion: 57, spec: before, cutouts: [],
       history: { index: 0, stack: [{ label: "Original", doc: { spec: before, cutouts: [], fingerHoles: [] } }] } })!;
     expect(old).not.toBeNull();
-    expect(old.schemaVersion).toBe(58);
+    expect(old.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(old.spec.labelTab).toEqual(before.labelTab);
     expect(old.history!.stack[0].doc.spec.labelTab).toEqual(before.labelTab);
     const small = parseBinSpec({ ...before, labelTab: { ...before.labelTab, width: "full", depthMm: 5, widthMm: 12 } });
