@@ -1,0 +1,187 @@
+1
+00:00:00,050 --> 00:00:02,560
+Start with photographs of the tools you want to trace.
+
+2
+00:00:02,560 --> 00:00:07,098
+Photograph tools on the provided templates to make scaling easier.
+
+3
+00:00:07,098 --> 00:00:14,137
+Here are the photographs we took of the air duster, adapters, and angled nozzle.
+
+4
+00:00:14,137 --> 00:00:22,179
+Some of the shadowing isn’t ideal. We’ll correct it when editing the outlines.
+
+5
+00:00:22,179 --> 00:00:35,343
+Start with a new project. We’ll build this bin from the tool outlines.
+
+6
+00:00:35,343 --> 00:00:42,015
+Print the calibration sheet at 100% and check its 100 mm reference bar.
+
+7
+00:00:42,015 --> 00:00:47,539
+Follow the physical edge of the tool. Shadows and reflections can distort the trace.
+
+8
+00:00:47,539 --> 00:00:52,389
+Right-click to remove extra points. Keep the corners that define the real tool.
+
+9
+00:00:52,389 --> 00:01:07,488
+Drag points to refine the shape, using the real tool and its measurements as your guide.
+
+10
+00:01:07,488 --> 00:01:14,236
+Click an edge to add a needed corner, then drag the new point into position.
+
+11
+00:01:14,236 --> 00:01:25,955
+Check reflective areas carefully. The pocket should follow the outside edge.
+
+12
+00:01:25,955 --> 00:01:32,909
+Right-click to remove extra points. Keep the corners that define the real tool.
+
+13
+00:01:32,909 --> 00:01:53,798
+Drag points to refine the shape, using the real tool and its measurements as your guide.
+
+14
+00:01:53,798 --> 00:02:17,390
+Click an edge to add a needed corner, then drag the new point into position.
+
+15
+00:02:17,390 --> 00:02:28,400
+Remove the false notch while preserving the nozzle’s real corners.
+
+16
+00:02:28,400 --> 00:02:32,541
+Right-click to remove extra points. Keep the corners that define the real tool.
+
+17
+00:02:32,541 --> 00:02:42,140
+Drag points to refine the shape, using the real tool and its measurements as your guide.
+
+18
+00:02:42,140 --> 00:02:50,203
+Click an edge to add a needed corner, then drag the new point into position.
+
+19
+00:02:50,203 --> 00:03:00,823
+Set the bin footprint, then size the pockets before fine-tuning their positions.
+
+20
+00:03:00,823 --> 00:03:09,694
+Drag each pocket into a rough position. We’ll check the size and gaps next.
+
+21
+00:03:09,694 --> 00:03:23,014
+Use position and rotation to arrange the tools with room around each pocket.
+
+22
+00:03:23,014 --> 00:03:36,200
+Round the pocket edges. Adjust clearance after trying the printed fit check.
+
+23
+00:03:36,200 --> 00:03:42,668
+In addition to the photos, we’ll create a pocket for the USB cable using Finger access.
+
+24
+00:03:42,668 --> 00:04:00,141
+Measure the coiled cable, then set the slot’s width, length, and depth. Calipers help with depth.
+
+25
+00:04:00,141 --> 00:04:15,200
+Measure the real tool with calipers. Compare its length, handle width, and head width with the outline.
+
+26
+00:04:15,200 --> 00:04:20,865
+Keep proportions links width and length. Unlock it when the X and Y corrections differ.
+
+27
+00:04:20,865 --> 00:04:34,952
+Use your measured dimensions to size the other tools. These values are for this example.
+
+28
+00:04:34,952 --> 00:04:42,352
+Export a thin fit check now, before committing to the full bin.
+
+29
+00:04:42,352 --> 00:04:50,588
+Tool outlines uses less material to check the three photographed tools.
+
+30
+00:04:50,588 --> 00:05:01,434
+Choose Full surface to include the USB cable pocket created with Finger access.
+
+31
+00:05:01,434 --> 00:05:05,466
+The fit-check files are saved. Print at 100% scale and try the real tools.
+
+32
+00:05:05,466 --> 00:05:10,524
+Place the real tools in the printed fit check. Use the fit and your measurements to guide adjustments.
+
+33
+00:05:10,524 --> 00:05:14,729
+If needed, adjust the contour, size, or clearance and print another fit check.
+
+34
+00:05:14,729 --> 00:05:21,427
+A thin fit check tests the openings. Measure pocket depth and tool seating separately.
+
+35
+00:05:21,427 --> 00:05:31,926
+Adjust pocket depth based on measurements of each real tool. Use calipers for accurate depth measurements.
+
+36
+00:05:31,926 --> 00:05:55,323
+Add two more finger-access scoops so the tools are easy to lift out.
+
+37
+00:05:55,323 --> 00:06:09,478
+Use a gray body with black pocket floors and a black rim.
+
+38
+00:06:09,478 --> 00:06:12,346
+The black floor layer reaches the recesses between the base feet.
+
+39
+00:06:12,346 --> 00:06:15,264
+Reduce pocket depth from 39 to 38.5 mm to leave more floor underneath.
+
+40
+00:06:15,264 --> 00:06:19,171
+The warning clears. The tool sits 0.5 mm higher; check that seating depth.
+
+41
+00:06:19,171 --> 00:06:30,924
+Inspect the rounded edges, pocket floors, cable pocket, and finger scoops.
+
+42
+00:06:30,924 --> 00:06:38,823
+Cross-section View helps inspect the interior. The exported model remains whole.
+
+43
+00:06:38,823 --> 00:06:44,153
+After the real tools fit and pocket depths are checked, export the full bin.
+
+44
+00:06:44,153 --> 00:06:49,739
+Save the finished bin and an editable project backup.
+
+45
+00:06:49,739 --> 00:06:55,116
+Keep the editable project with the print file. Check the slicer preview before printing.
+
+46
+00:06:55,116 --> 00:07:00,957
+Use Project → Export project to save another editable backup later.
+
+47
+00:07:00,957 --> 00:07:05,337
+Print the fit test first. Then check the full model in your slicer.

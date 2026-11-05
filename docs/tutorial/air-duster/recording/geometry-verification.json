@@ -1,0 +1,254 @@
+{
+  "appCommit": "3b72a380b6d24e0213194b34138f4e359fcf48b1",
+  "projectName": "Air Duster Tutorial",
+  "reference": "reference/Airduster-Tutorial.pocketry.json",
+  "boundaryMethod": "Symmetric distance from final unrotated scaled outline boundaries to the supplied editable reference; samples at most 0.25 mm apart. Excludes rounding, clearance, and finger holes. This is geometric comparison, not physical fit validation.",
+  "pockets": [
+    {
+      "name": "Air Duster",
+      "widthMm": 87.83,
+      "lengthMm": 145.57,
+      "position": {
+        "x": 33.49,
+        "y": 3.55
+      },
+      "rotationDeg": 0,
+      "depth": {
+        "mode": "mm",
+        "value": 38.5
+      },
+      "clearanceMm": 0,
+      "pointCount": 31,
+      "boundaryMaxMm": 0.11082940829876566,
+      "boundaryP95Mm": 0.07293762512200039
+    },
+    {
+      "name": "Adapters",
+      "widthMm": 36.74,
+      "lengthMm": 113.31999999999998,
+      "position": {
+        "x": -15.69,
+        "y": -20.35
+      },
+      "rotationDeg": 0.5299999999999727,
+      "depth": {
+        "mode": "mm",
+        "value": 34
+      },
+      "clearanceMm": 0,
+      "pointCount": 57,
+      "boundaryMaxMm": 0.12038764281233033,
+      "boundaryP95Mm": 0.06379679939676017
+    },
+    {
+      "name": "Angled Nozzle",
+      "widthMm": 45.43,
+      "lengthMm": 52.75,
+      "position": {
+        "x": -42,
+        "y": 47.89
+      },
+      "rotationDeg": 143.03999999999996,
+      "depth": {
+        "mode": "mm",
+        "value": 34
+      },
+      "clearanceMm": 0,
+      "pointCount": 22,
+      "boundaryMaxMm": 0.09501960728135479,
+      "boundaryP95Mm": 0.060077831146472596
+    }
+  ],
+  "spec": {
+    "gridX": 4,
+    "gridY": 4,
+    "gridPitch": "full",
+    "footprint": {
+      "kind": "rectangle"
+    },
+    "heightUnits": 6.5,
+    "lip": "standard",
+    "fill": "solid",
+    "flatBottom": false,
+    "magnetHoles": false,
+    "magnetCrushRibs": false,
+    "screwHoles": false,
+    "labelTab": null
+  },
+  "fingerHoles": [
+    {
+      "id": "26012821-89c1-4ca9-b19a-2716645aac0b",
+      "name": "USB Cable",
+      "center": {
+        "x": -60.06,
+        "y": -21.21
+      },
+      "diameterMm": 17.44,
+      "depthMm": 37.3,
+      "topFilletMm": 1,
+      "bottomFilletMm": 1.2,
+      "cornerRoundMm": 1,
+      "lengthMm": 103.59,
+      "rotationDeg": 88.5,
+      "slotEnds": "flat",
+      "kind": "flat-ended-straight"
+    },
+    {
+      "id": "a3b7d679-8218-48a6-a833-815e5932bfeb",
+      "center": {
+        "x": -0.08,
+        "y": -25.27
+      },
+      "diameterMm": 22.43,
+      "kind": "oblong-deep-scoop",
+      "depthMm": 32.7,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "slotEnds": "rounded",
+      "lengthMm": 153.36,
+      "rotationDeg": 0.20999999999997954
+    },
+    {
+      "id": "2cb715f6-2830-4fb8-9a70-14383b2d73b3",
+      "center": {
+        "x": -39.78,
+        "y": 68.13
+      },
+      "diameterMm": 22,
+      "kind": "deep-scoop",
+      "depthMm": 33.5,
+      "topFilletMm": 0,
+      "bottomFilletMm": 0,
+      "slotEnds": "rounded"
+    }
+  ],
+  "exports": [
+    {
+      "filename": "Air-Duster-Tutorial-bin-4x4x6.5-surface-fit-test-1.2mm-2026-09-15_16-16-02-920.stl",
+      "bytes": 3847484,
+      "sha256": "bef1e7c23457131f1c900c8a4e1fa53a864f9fa9eb99d536cd872b61e64d6210",
+      "triangles": 76948,
+      "boundsMm": [
+        [
+          -83.75,
+          -83.75,
+          0.0
+        ],
+        [
+          83.75,
+          83.75,
+          1.2000000476837158
+        ]
+      ],
+      "thicknessMm": 1.2000000476837158
+    },
+    {
+      "filename": "Air-Duster-Tutorial-bin-4x4x6.5-tool-outlines-5mm-wide-1.2mm-thick-2026-09-15_16-15-52-087.stl",
+      "bytes": 3898784,
+      "sha256": "3f39658634222ef0b010c72f90e0080b057a2d716d8e5a4ca9d85b1af1243f8b",
+      "triangles": 77974,
+      "boundsMm": [
+        [
+          -64.85606384277344,
+          -83.02784729003906,
+          0.0
+        ],
+        [
+          83.40460205078125,
+          82.33499145507812,
+          1.2000000476837158
+        ]
+      ],
+      "thicknessMm": 1.2000000476837158
+    },
+    {
+      "filename": "Air-Duster-Tutorial-bin-4x4x6.5-multicolor-2026-09-15_16-18-19-214.3mf",
+      "bytes": 1790616,
+      "sha256": "601ac36c464637da8e13e31e83eba0d945d13039be77e5dcc5dadd4931675642",
+      "unit": "millimeter",
+      "objects": [
+        {
+          "name": "Gridfinity bin 4x4x6.5 body",
+          "vertices": 77606,
+          "triangles": 155208,
+          "edgesUsedOtherThanTwice": 0,
+          "boundsMm": [
+            [
+              -83.75,
+              -83.75,
+              0.0
+            ],
+            [
+              83.75,
+              83.75,
+              48.4514732
+            ]
+          ]
+        },
+        {
+          "name": "Gridfinity bin 4x4x6.5 pocket floors",
+          "vertices": 824,
+          "triangles": 1636,
+          "edgesUsedOtherThanTwice": 0,
+          "boundsMm": [
+            [
+              -57.6315231,
+              -75.8274384,
+              5.19999981
+            ],
+            [
+              76.2044983,
+              75.1349945,
+              10.3000002
+            ]
+          ]
+        },
+        {
+          "name": "Gridfinity bin 4x4x6.5 stacking rim top",
+          "vertices": 1907,
+          "triangles": 3814,
+          "edgesUsedOtherThanTwice": 0,
+          "boundsMm": [
+            [
+              -83.75,
+              -83.75,
+              47.8014717
+            ],
+            [
+              83.75,
+              83.75,
+              49.0514717
+            ]
+          ]
+        },
+        {
+          "name": "Pocketry multi-color Gridfinity bin 4x4x6.5",
+          "vertices": 0,
+          "triangles": 0
+        }
+      ]
+    }
+  ],
+  "lineageCheckpoints": [
+    "checkpoint-06-layout.json",
+    "checkpoint-before-07.json",
+    "checkpoint-before-11.json",
+    "checkpoint-before-10.json",
+    "checkpoint-before-06.json",
+    "checkpoint-13-final.json",
+    "checkpoint-before-09.json",
+    "checkpoint-before-13.json",
+    "checkpoint-before-05.json",
+    "checkpoint-before-12.json",
+    "checkpoint-before-08.json"
+  ],
+  "workflow": {
+    "photographedTools": 3,
+    "fingerAccessPockets": 3,
+    "usbCreatedUsingFingerAccess": true,
+    "rulerMeasurements": 3,
+    "laterContourReplacements": 0,
+    "fitPhotoPlaceholder": true,
+    "physicalFitVerified": false
+  }
+}
