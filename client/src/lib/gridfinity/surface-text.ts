@@ -31,9 +31,13 @@ export function surfaceTextZ(spec: BinSpec, label?: SurfaceText): number {
  * centred on the part of the shelf clear of the stacking lip's overhang.
  * Only newly created/explicitly retargeted labels move; saved positions stay intact. */
 export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): SurfaceText {
+  if (label.orphanedTab) {
+    const { orphanedTab: _anchor, ...placed } = label;
+    label = placed;
+  }
   const surfaces = labelTabSurfaces(spec);
   for (const surface of surfaces) {
-    if (spec.surfaceTexts.some(other => other.id !== label.id && surfaceTextSurface(spec, other) === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
+    if (spec.surfaceTexts.some(other => other.id !== label.id && !other.orphanedTab && surfaceTextSurface(spec, other) === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
     const area = labelTabWritingArea(spec, surface, label.heightMm);
     if (!area) continue;
     const { bounds } = area;
@@ -152,6 +156,10 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
     const onTab = surfaceTextSurface(spec, label) === "label-tab";
     if (onTab && !tabsAvailable) {
       needsTab.push(label);
+      continue;
+    }
+    if (onTab && label.orphanedTab) {
+      report(label, `Text “${surfaceTextName(label)}” no longer has its original label tab. Restore that tab or move the label onto another tab in Layout.`);
       continue;
     }
     try {

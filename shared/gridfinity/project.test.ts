@@ -8,6 +8,8 @@ import { DEFAULT_BIN_MATERIALS } from "./materials";
 import { binWallThicknessMm } from "./standard";
 import { arbitrarySizePatch, gridSizeFromArbitrary } from "./bin-size";
 import airdusterV9 from "./fixtures/airduster-v9.pocketry.json";
+import { labelledTabGrid } from "./label-tab.test-support";
+import { textsAfterLabelTabEdit } from "./label-tab-surfaces";
 
 const VALID = {
   schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -49,6 +51,30 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it("upgrades v59 labels and preserves stranded-tab ownership in projects and history", () => {
+    const before = labelledTabGrid();
+    const legacy = parseProjectDoc({ ...VALID, schemaVersion: 59, spec: before, shapes: [], cutouts: [] })!;
+    expect(legacy.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(legacy.spec).toEqual(before);
+    const after = parseBinSpec({ ...before, compartments: { ...before.compartments, columns: 2 } });
+    after.surfaceTexts = textsAfterLabelTabEdit(before, before, after);
+    const doc = { ...legacy, spec: after, history: { index: 1, stack: [before, after].map(spec => ({
+      label: "Change columns", doc: { spec, cutouts: [], fingerHoles: [] },
+    })) } };
+    const restored = parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(doc))))!;
+    expect(restored).toEqual(doc);
+    expect(restored.spec.surfaceTexts[0].orphanedTab?.key).toBe("r0c2");
+    expect(restored.history!.stack[1].doc.spec.surfaceTexts[0].orphanedTab).toEqual(after.surfaceTexts[0].orphanedTab);
+    expect(parseProjectDoc({ ...doc, history: undefined, spec: { ...after, surfaceTexts: [{ ...after.surfaceTexts[0],
+      orphanedTab: { ...after.surfaceTexts[0].orphanedTab!, offset: { x: Infinity, y: 0 } } }] } })).toBeNull();
+    // A finite but out-of-range imported offset stays flagged instead of corrupting the next edit.
+    const imported = parseProjectDoc({ ...doc, history: undefined, spec: { ...after, surfaceTexts: [{ ...after.surfaceTexts[0],
+      orphanedTab: { ...after.surfaceTexts[0].orphanedTab!, offset: { x: 1e6, y: 0 } } }] } })!;
+    const expanded = parseBinSpec({ ...imported.spec, compartments: before.compartments });
+    expanded.surfaceTexts = textsAfterLabelTabEdit(imported.spec, imported.spec, expanded);
+    expect(expanded.surfaceTexts[0]).toEqual(imported.spec.surfaceTexts[0]);
+    expect(parseBinSpec(expanded)).toEqual(expanded);
+  });
   it("migrates omitted tab sizes and round-trips requested sizes in every history snapshot", () => {
     const before = parseBinSpec({ ...VALID.spec, labelTab: { width: "center", recessMm: 0.5, frontRim: true } });
     const old = parseProjectDoc({ ...VALID, schemaVersion: 57, spec: before, cutouts: [],

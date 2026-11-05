@@ -8,6 +8,7 @@ import { validateBinSpec, labelTabStripMm } from "./validate";
 import { ringBounds } from "../geometry/rings";
 import { surfaceTextSchema } from "./surface-text";
 import { TAB_DEPTH_MM, TAB_WIDTH_NOMINAL_MM, TAB_SUPPORT_HEIGHT_MM, TAB_SUPPORT_ANGLE_DEG } from "./standard";
+import { labelledTabGrid } from "./label-tab.test-support";
 
 describe("label tab sizing", () => {
   const bin = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", lip: "none",
@@ -199,8 +200,10 @@ describe("labels follow their sub-bin when the grid changes", () => {
     for (const label of before.surfaceTexts) {
       const [row, column] = label.id.slice(1).split("c").map(Number);
       const moved = after.surfaceTexts.find(item => item.id === label.id)!;
-      expect({ ...moved, position: label.position }).toEqual(label);
+      const { orphanedTab, ...design } = moved;
+      expect({ ...design, position: label.position }).toEqual(label);
       if (row < rows && column < columns) {
+        expect(orphanedTab).toBeUndefined();
         expect(shelfOf(after, label.id)).toBe(label.id);
         const b = ringBounds(labelTabSurfaces(after).find(surface => surface.key === label.id)!.ring)!;
         expect(moved.position.x).toBeCloseTo((b.minX + b.maxX) / 2 + 0.4);
@@ -208,7 +211,27 @@ describe("labels follow their sub-bin when the grid changes", () => {
       } else {
         // Its sub-bin is gone: the label stays put and the build reports it.
         expect(moved.position).toEqual(label.position);
+        expect(orphanedTab?.key).toBe(label.id);
       }
+    }
+  });
+
+  it.each(["none", "standard"] as const)("remembers removed rows and columns across committed edits with %s lip", lip => {
+    for (const [rows, columns, nextRows, nextColumns] of [[1, 3, 1, 2], [3, 1, 2, 1]]) {
+      const before = labelledTabGrid(rows, columns, lip);
+      let after = parseBinSpec({ ...before, compartments: { ...before.compartments, rows: nextRows, columns: nextColumns } });
+      after.surfaceTexts = textsAfterLabelTabEdit(before, before, after);
+      expect(after.surfaceTexts[0].position).toEqual(before.surfaceTexts[0].position);
+      expect(after.surfaceTexts[0].orphanedTab?.key).toBe(`r${rows - 1}c${columns - 1}`);
+      // Other committed edits must not infer ownership from the unchanged coordinates.
+      const resized = parseBinSpec({ ...after, gridX: 3, gridY: 3 });
+      resized.surfaceTexts = textsAfterLabelTabEdit(after, after, resized);
+      expect(resized.surfaceTexts).toEqual(after.surfaceTexts);
+      const restored = parseBinSpec({ ...resized, gridX: before.gridX, gridY: before.gridY, compartments: before.compartments });
+      restored.surfaceTexts = textsAfterLabelTabEdit(resized, resized, restored);
+      expect(restored.surfaceTexts[0].orphanedTab).toBeUndefined();
+      expect(restored.surfaceTexts[0].position.x).toBeCloseTo(before.surfaceTexts[0].position.x, 9);
+      expect(restored.surfaceTexts[0].position.y).toBeCloseTo(before.surfaceTexts[0].position.y, 9);
     }
   });
 

@@ -9,8 +9,9 @@ import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
-import { labelTabSurfaces } from "@shared/gridfinity/label-tab-surfaces";
+import { labelTabSurfaces, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
 import { ringBounds } from "@shared/geometry/rings";
+import { labelledTabGrid } from "@shared/gridfinity/label-tab.test-support";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
@@ -58,6 +59,49 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("restores a stranded label's original tab after save, reload, grid restoration, undo and redo", () => {
+    const { store, act } = mountBin();
+    const original = labelledTabGrid();
+    act(() => store().dispatch({ type: "HYDRATE", spec: original, cutouts: [] }));
+    const columns = (value: number, transient = false) => act(() => store().dispatch({ type: "PATCH_SPEC", transient,
+      patch: { compartments: { ...store().spec.compartments, columns: value } } }));
+    columns(2, true); columns(1, true); columns(2);
+    const orphan = store().spec.surfaceTexts[0];
+    expect(orphan.orphanedTab?.key).toBe("r0c2");
+    expect(orphan.position).toEqual(original.surfaceTexts[0].position);
+    const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+      ...getCommittedBinDoc(store()), shapes: [], history: store().history })))!;
+    act(() => store().dispatch({ type: "HYDRATE", ...saved }));
+    columns(3);
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+    expect(store().spec.surfaceTexts[0].position.x).toBeCloseTo(original.surfaceTexts[0].position.x, 9);
+    expect(store().spec.surfaceTexts[0].position.y).toBeCloseTo(original.surfaceTexts[0].position.y, 9);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.surfaceTexts[0]).toEqual(orphan);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+  });
+
+  it("keeps stranded-label warnings through wording edits and clears them only on explicit placement", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "HYDRATE", spec: labelledTabGrid(), cutouts: [] }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { compartments: { ...store().spec.compartments, columns: 2 } } }));
+    const orphan = { ...store().spec.surfaceTexts[0], text: "D", sizeMm: 2 };
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [orphan] } }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toEqual(orphan.orphanedTab);
+    const moved = { ...orphan, position: { ...orphan.position, x: orphan.position.x - 1 } };
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [moved] }, transient: true }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+    // Pointer-up can still carry the original drag snapshot's anchor.
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [moved] } }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { compartments: { ...store().spec.compartments, columns: 3 } } }));
+    const label = store().spec.surfaceTexts[0];
+    expect(labelTabSurfaces(store().spec).find(surface => pointOnLabelTab(label.position, surface))?.key).toBe("r0c1");
+    act(() => store().dispatch({ type: "UNDO" }));
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toEqual(orphan.orphanedTab);
+  });
   it("moves shelf labels once across transient recess edits, commit, undo and redo", () => {
     const { store, act } = mountBin();
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fill: "none", lip: "none",

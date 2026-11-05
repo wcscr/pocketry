@@ -13,6 +13,12 @@ project or removing solid fill retargets its labels to tab height without moving
 rotating, or resizing them. Fill changes and their label updates undo together.
 If tabs are disabled or clipped away,
 tab text stays recoverable and export explains which surface needs restoring.
+When rows or columns change, tab labels follow the same sub-bin. A label whose
+tab disappears stays at its current position, is outlined in Layout, and blocks
+export even if another tab happens to sit underneath it. Restore its original
+tab to reattach it, or move the label onto another tab in Layout. This ownership
+is retained in saved projects and undo history (schema 60); editing only the
+wording or size does not dismiss the warning.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised

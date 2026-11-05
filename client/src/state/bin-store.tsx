@@ -109,6 +109,14 @@ function withLabelsOnTabs(state: Pick<BinState, "history" | "spec">, spec: BinSp
   return spec;
 }
 
+/** Moving a stranded label explicitly assigns its location; wording/size edits do not. */
+function afterSurfaceTextPlacementEdit(previous: SurfaceText | undefined, next: SurfaceText): SurfaceText {
+  if (!next.orphanedTab || (previous?.orphanedTab && previous.position.x === next.position.x
+    && previous.position.y === next.position.y && previous.surface === next.surface)) return next;
+  const { orphanedTab: _anchor, ...placed } = next;
+  return placed;
+}
+
 export function getCommittedBinDoc(
   state: Pick<BinState, "history">,
 ): BinDoc {
@@ -612,7 +620,10 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       if (doc.spec.labelTab?.autoWall && !doc.spec.labelTab.edge) {
         doc.spec.labelTab = { ...doc.spec.labelTab, wall: defaultLabelTabWall(doc.spec) };
       }
-      if (!action.patch.surfaceTexts) {
+      if (action.patch.surfaceTexts) {
+        doc.spec.surfaceTexts = doc.spec.surfaceTexts.map(label =>
+          afterSurfaceTextPlacementEdit(state.spec.surfaceTexts.find(previous => previous.id === label.id), label));
+      } else {
         withLabelsOnTabs(state, doc.spec);
       }
       if ("fillHeightPercent" in action.patch) {
