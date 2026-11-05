@@ -14,6 +14,7 @@ describe("saved project materials", () => {
   it("round-trips the full appearance with independent text color and design history", () => {
     const doc = { ...design, materials: { ...DEFAULT_BIN_MATERIALS,
       binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321",
+      labelBackgroundColor: "#eee8da", labelBackgroundThicknessMm: 0.8,
       colorPocketFloors: false, colorStackingRim: false, colorDividerTops: true,
       pocketFloorThicknessMm: 1.2, stackingRimThicknessMm: 2.5, borderWidthMm: 3,
     }, history: { index: 0, stack: [{ label: "Opened", doc: {
@@ -69,6 +70,7 @@ describe("saved project materials", () => {
     { colorPocketFloors: "false" }, { colorStackingRim: 1 }, { colorDividerTops: "true" },
     { pocketFloorThicknessMm: 0 }, { pocketFloorThicknessMm: 3.1 },
     { stackingRimThicknessMm: 8 }, { borderWidthMm: -1 }, { borderWidthMm: 21 },
+    { labelBackgroundColor: "ivory" }, { labelBackgroundThicknessMm: 0.1 }, { labelBackgroundThicknessMm: 3.1 },
     { unknown: true },
   ])("rejects invalid material settings %j", invalid => {
     expect(parseProjectDoc({ ...design, materials: { ...DEFAULT_BIN_MATERIALS, ...invalid } })).toBeNull();
@@ -85,5 +87,22 @@ it("keeps old saved materials off without losing colors or compound history", ()
   const parsed = parseProjectDoc(legacy)!;
   expect(parsed.materials!.colorDividerTops).toBe(false);
   expect(parsed.history!.stack[0].materialChange!.after).toMatchObject({ colorDividerTops: false, stackingRimColor: "#123456" });
+  expect(JSON.stringify(legacy)).toBe(before);
+});
+
+
+it("migrates version 58 label colors without changing faces, dimensions, lettering or history", () => {
+  const { labelBackgroundColor: _color, labelBackgroundThicknessMm: _depth, ...legacyMaterials } = DEFAULT_BIN_MATERIALS;
+  const spec = parseBinSpec({ ...design.spec, labelTab: { scope: "compartments", recessMm: 0.5, frontRim: true, depthMm: 13 } });
+  const legacy = { ...design, schemaVersion: 58, spec, materials: legacyMaterials, history: { index: 0, stack: [{
+    label: "Opened", doc: { spec, cutouts: [], fingerHoles: [] },
+    materialChange: { before: legacyMaterials, after: { ...legacyMaterials, binColor: "#35393c" } },
+  }] } };
+  const before = JSON.stringify(legacy);
+  const opened = parseProjectDoc(legacy)!;
+  expect(opened.spec).toEqual(spec);
+  expect(opened.materials).toMatchObject({ labelBackgroundColor: null, labelBackgroundThicknessMm: 0.6 });
+  expect(opened.history!.stack[0].materialChange!.after).toMatchObject({ labelBackgroundColor: null, labelBackgroundThicknessMm: 0.6, binColor: "#35393c" });
+  expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(opened))))).toEqual(opened);
   expect(JSON.stringify(legacy)).toBe(before);
 });

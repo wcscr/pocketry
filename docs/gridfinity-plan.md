@@ -18,7 +18,7 @@ for user-visible changes.
 | Pockets and access | Independent placement/size/depth, split depths, retained-material holes, finger access, contour editing, and auto-arrange | [Split pockets](split-pockets.md), [placement schema](../shared/gridfinity/cutout.ts) |
 | 3D placement | XYZ rotation/elevation and optional vertical or object-axis insertion clearance | [Rotation](pocket-rotation.md), [insertion paths](pocket-insertion-paths.md) |
 | Labels | Raised text and hardware symbols on filled surfaces or label shelves; hollow-bin labels use shelves | [Hardware symbols and label surfaces](hardware-symbols.md) |
-| Materials | Body, floor/interior, rim/top-border, optional divider-top, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
+| Materials | Body, floor/interior, rim/top-border, optional divider-top, label-background, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
 | Fixtures | Wham Bam Systems ULTIM8-compatible pegs, arbitrary dimensions, and 1:1 alignment SVG | [Jig geometry and export](ultim8-peg-bottom.md) |
 | Persistence | Browser-local autosave, named library, undo/redo, project and library import/export | [Project schema/migrations](../shared/gridfinity/project.ts), [project storage](../client/src/lib/project/) |
 | Output | Single- or multi-color 3MF, STL, thin fit checks, and SVG/DXF layouts | [DXF](dxf-compatibility.md), [mesh writers](../client/src/lib/mesh/) |

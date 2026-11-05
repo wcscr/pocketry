@@ -299,9 +299,12 @@ describe("BinDesignerPage", () => {
       const bambuWarning = document.querySelector('[data-testid="export-bambu-color-warning"]');
       if (kind.endsWith("3mf")) {
         expect(bambuWarning?.textContent).toContain("Bambu Studio 2.9.1.70");
-        expect(bambuWarning?.textContent).toContain("A fix is in progress");
+        expect(bambuWarning?.textContent).toContain("Regular Multi-color 3MF loses colors on separate parts");
+        expect(bambuWarning?.textContent).toContain("Use Bambu-compatible 3MF below to keep colors in one model");
+        expect(bambuWarning?.textContent).toContain("A fix for separate-part imports is in progress");
         expect(bambuWarning?.querySelector("a")?.getAttribute("href")).toBe("https://github.com/wcscr/pocketry/issues/211");
         expect(document.querySelector('[data-testid="button-export-multicolor-3mf"]')?.getAttribute("aria-describedby")).toBe(bambuWarning?.id);
+        expect(document.querySelector('[data-testid="button-export-bambu-3mf"]')?.textContent).toContain("no longer separate named parts");
       } else {
         expect(bambuWarning).toBeNull();
       }

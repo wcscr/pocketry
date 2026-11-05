@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-## 1.6.2 — 2026-11-05
+## 1.8.0 — 2026-11-05
 
 - Add a temporary Bambu-compatible 3MF export that keeps colors in Bambu Studio 2.9.1.70 by combining parts into one model. Regular multi-color export retains separate named parts.
+
+## 1.7.0 — 2026-11-05
+
+- Choose independent label-background colors, with adjustable material thickness, in the preview and multicolor 3MF exports. Existing labels keep their body color.
 
 ## 1.6.1 — 2026-11-05
 
