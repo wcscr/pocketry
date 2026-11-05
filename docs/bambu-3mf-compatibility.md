@@ -38,3 +38,18 @@ The metric bin check also included the separate label-background correction
 in [PR #208](https://github.com/wcscr/pocketry/pull/208): its color mask extends
 through the shelf surface to avoid a microscopic body skin over the color layer.
 That geometry correction is independent of this 3MF packaging workaround.
+
+## Portability and print settings
+
+The compatibility file uses standard 3MF geometry and per-face colors, but
+slicer support for those colors varies. A local PrusaSlicer 2.9.6 command-line
+import/export accepted the combined bin as manifold geometry, but did not
+preserve its color assignments. Regular separate-part exports also lost color
+assignments in that check. This option is qualified for the Bambu version above;
+it does not establish automatic multicolor support in PrusaSlicer.
+
+Sparse infill density is a slicing setting. Bambu Studio and PrusaSlicer store
+such settings in their own project metadata; there is no shared infill setting
+these import paths reliably apply. Pocketry's current exports leave process,
+printer, and filament settings to the slicer. Any future automatic print-setting
+export needs explicit, separately tested compatibility handling for each slicer.
