@@ -1,21 +1,22 @@
 # Sample projects
 
-All of these sample projects are real designs that have been physically printed.
+These sample projects include physically printed designs and editable variants.
 Browse the editable Pocketry designs, printable 3MF exports, and photos below.
 Start with a project to see how its pockets are arranged, or download a 3MF to
 open in your slicer.
 
 [Open Pocketry](https://pocketry.xyz) · [Back to the project](../README.md)
 
-In Pocketry, choose **Open sample projects** on Welcome or **Open sample projects or library** in Trace. In **Library**, choose **Sample Library** to open one editable sample or add all 16 projects alongside your existing library. Save or export existing work when prompted.
+In Pocketry, choose **Open sample projects** on Welcome or **Open sample projects or library** in Trace. In **Library**, choose **Sample Library** to open one editable sample or add all 17 projects alongside your existing library. Save or export existing work when prompted.
 
-**[Download all 16 projects as one library](pocketry-sample-library.json)** for a portable copy.
+**[Download all 17 projects as one library](pocketry-sample-library.json)** for a portable copy.
 Open the file on GitHub and choose **Download raw file**, then in Pocketry use
 **Library → Import library**. Keep **Merge with current library** selected to
 add the designs alongside your existing projects, then select a design to open it.
 
 | Design | Preview / printed bin | Files | Highlights |
 | --- | :---: | --- | --- |
+| [Craftsman 25' tape measure](craftsman-tape-measure/) | <a href="craftsman-tape-measure/"><img src="craftsman-tape-measure/photos/printed-bin-loaded-placeholder.svg" width="152" height="100" alt="Craftsman tape measure bin: printed photo coming soon"></a> | [JSON](craftsman-tape-measure/craftsman-tape-measure.pocketry.json)<br>[3MF](craftsman-tape-measure/craftsman-tape-measure.3mf) | Body pocket and deeper belt-clip relief; raised label; print photos coming soon |
 | [Bessey and Gerber](bessey-gerber/) | <a href="bessey-gerber/photos/printed-bin-loaded.jpg"><img src="bessey-gerber/photos/printed-bin-loaded.jpg" width="89" height="100" alt="Original printed combined Bessey and Gerber bin"></a> | [JSON](bessey-gerber/bessey-gerber.pocketry.json)<br>[3MF](bessey-gerber/bessey-gerber.3mf) | Combined bin and individual bins for each tool on one example page |
 | [Mini socket set](mini-socket-set/) | <a href="mini-socket-set/photos/printed-bin-loaded-portrait.jpg"><img src="mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="76" height="100" alt="Finished mini socket set bin with its reused pre-cut shadowbox"></a> | [JSON](mini-socket-set/mini-socket-set.pocketry.json)<br>[3MF](mini-socket-set/mini-socket-set.3mf) | Reuses the pre-cut shadowbox that came with the toolset |
 | [Wiha 40 mm drivers](wiha-40mm-drivers/) | <a href="wiha-40mm-drivers/photos/printed-bin-loaded.jpg"><img src="wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="59" height="100" alt="Finished Wiha 40 mm driver bin"></a> | [JSON](wiha-40mm-drivers/wiha-40mm-drivers.pocketry.json)<br>[3MF](wiha-40mm-drivers/wiha-40mm-drivers.3mf) | Four linked pockets in the same direction; half-pitch footprint |
@@ -52,6 +53,9 @@ Pocketry projects save their colors too. Neither file supplies your printer's
 filament or process settings.
 
 ## Print photos
+
+The Craftsman tape measure example has placeholders for loaded-bin and empty-pocket
+photos, to be replaced when the printed-design photographs are available.
 
 The original 13 designs include photographs of their finished bins. The 40 mm and
 50 mm Wiha samples show the loaded bins; the 60 mm sample also shows a pocket
