@@ -278,9 +278,10 @@ No linter is configured yet (prefer ESLint when one lands).
 - Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
 - Server state via TanStack Query; local state via React hooks; routing via wouter.
 - Image processing runs client-side (canvas + OpenCV.js); keep heavy processing off the server.
-- Detection has **one** pipeline (`lib/detect/pipeline.ts`) with two interchangeable
-  backends — OpenCV and pure JS — that must stay behaviourally equivalent. The JS one is
-  a real fallback and the reference implementation, not a degraded second mode. Never
+- Detection has **one** pipeline (`lib/detect/pipeline.ts`) with behaviourally
+  equivalent base segmentation backends — OpenCV and pure JS. Guarded CPU GrabCut
+  may refine the baseline when OpenCV is available; rejection or unavailability
+  preserves the original pipeline. Keep the JS baseline complete and never
   reintroduce a parallel "experimental" path.
 - OpenCV and manifold are **injected, never imported** by geometry code (`cv` and
   `Kernel` are parameters). That is what lets the same modules run on the main thread, in

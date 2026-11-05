@@ -1,0 +1,115 @@
+{
+  "images": [
+    {
+      "image": "craftsman",
+      "size": 512,
+      "torchMs": 126.95045815780759,
+      "padding": [
+        0,
+        170,
+        512,
+        171
+      ]
+    },
+    {
+      "image": "craftsman",
+      "size": 256,
+      "torchMs": 31.07408294454217,
+      "padding": [
+        0,
+        85,
+        256,
+        85
+      ]
+    },
+    {
+      "image": "folding-knife",
+      "size": 512,
+      "torchMs": 129.84516704455018,
+      "padding": [
+        0,
+        122,
+        512,
+        267
+      ]
+    },
+    {
+      "image": "folding-knife",
+      "size": 256,
+      "torchMs": 32.70862530916929,
+      "padding": [
+        0,
+        61,
+        256,
+        134
+      ]
+    },
+    {
+      "image": "gerber",
+      "size": 512,
+      "torchMs": 132.5929998420179,
+      "padding": [
+        92,
+        0,
+        328,
+        512
+      ]
+    },
+    {
+      "image": "gerber",
+      "size": 256,
+      "torchMs": 31.335290987044573,
+      "padding": [
+        46,
+        0,
+        164,
+        256
+      ]
+    },
+    {
+      "image": "wiha-40mm",
+      "size": 512,
+      "torchMs": 129.44787507876754,
+      "padding": [
+        163,
+        0,
+        186,
+        512
+      ]
+    },
+    {
+      "image": "wiha-40mm",
+      "size": 256,
+      "torchMs": 32.79370767995715,
+      "padding": [
+        81,
+        0,
+        93,
+        256
+      ]
+    },
+    {
+      "image": "wiha-50mm",
+      "size": 512,
+      "torchMs": 127.44383327662945,
+      "padding": [
+        163,
+        0,
+        186,
+        512
+      ]
+    },
+    {
+      "image": "wiha-50mm",
+      "size": 256,
+      "torchMs": 30.334084294736385,
+      "padding": [
+        81,
+        0,
+        93,
+        256
+      ]
+    }
+  ],
+  "strideShiftMaxError": 0.0
+}
