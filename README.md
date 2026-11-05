@@ -81,6 +81,14 @@ Use **Construction → Base & mounting → Bottom → Flat bottom** for a standa
 drag pockets into place and add finger access where needed. Select a pocket to
 adjust its size, position, and depth.
 
+Use **Add pocket → Import SVG pocket** for a closed vector outline. SVG physical
+units set its size; use the optional width override for unitless artwork. Choose
+a pocket depth, then place and edit it like any other pocket. Files stay local;
+stroke widths are ignored and referenced resources, effects, and open paths are rejected.
+
+SVG parsing uses [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser)
+and [svgpath](https://github.com/fontello/svgpath), both MIT licensed.
+
 ![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes
