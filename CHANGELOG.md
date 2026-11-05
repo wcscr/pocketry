@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fix experimental groups reporting "Raise the pocket" after a group move or Z rotation. Moving or turning a group no longer changes pocket depth or elevation.
+- Fix "Raise the pocket" errors after moving an experimental group or rotating pockets about Z. Moving or turning pockets no longer changes their depth or elevation.
 
 ## 1.6.1 — 2026-11-05
 

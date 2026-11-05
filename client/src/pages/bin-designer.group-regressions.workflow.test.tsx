@@ -179,13 +179,15 @@ it.each(["fit", "remove-and-fit"] as const)("preserves a separate pocket group d
   } finally { unmount(); }
 });
 
-it.each([["Wiha 40 mm drivers", wihaSample], ["DeWalt right-angle tools", dewaltSample]])("moves and rotates the grouped %s sample without a false floor error", async (_name, sample) => {
+const samples = [["Wiha 40 mm drivers", wihaSample], ["DeWalt right-angle tools", dewaltSample]] as const;
+it.each(samples.flatMap(([name, sample]) => [true, false].map(grouped => ({ name, sample, grouped }))))(
+  "moves and rotates every pocket of the $name sample without a false floor error (grouped: $grouped)", async ({ sample, grouped }) => {
   // Both samples keep valid surface-anchored floors just below the rigid 7 mm minimum.
   const project = parseProjectDoc(sample)!;
   const frame = createPlacementGroup(project.cutouts.map(cutout => ({ kind: "pocket", cutout,
     shape: project.shapes.find(s => s.id === cutout.shapeId)! })), project.spec, "group");
-  const grouped = project.cutouts.map(c => ({ ...c, placementGroup: frame }));
-  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...project, cutouts: grouped, history: undefined });
+  const initial = grouped ? project.cutouts.map(c => ({ ...c, placementGroup: frame })) : project.cutouts;
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...project, cutouts: initial, history: undefined });
   const { container, unmount } = renderPage();
   const depthModel = () => current().cutouts.map(({ position, rotationDeg, placementGroup, ...rest }) => rest);
   /** Expand the collapsed canvas warnings and list each shown floor error. */
@@ -194,29 +196,37 @@ it.each([["Wiha 40 mm drivers", wihaSample], ["DeWalt right-angle tools", dewalt
     if (toggle?.getAttribute("aria-expanded") === "false") React.act(() => toggle.click());
     return [...container.querySelectorAll('[data-issue-code="too-deep"]')].map(issue => issue.textContent);
   };
-  const original = grouped.map(({ position, rotationDeg, placementGroup, ...rest }) => rest);
+  const original = initial.map(({ position, rotationDeg, placementGroup, ...rest }) => rest);
+  const turnedBy = (deg: number) => initial.map(() => expect.closeTo(Math.cos(deg * Math.PI / 180), 9));
   try {
     await flushHydration();
     click(container, "view-toggle-2d");
-    selectPocket(container, grouped[0].id);
+    selectPocket(container, initial[0].id);
+    // A group selects all members; otherwise include the rest from the pocket list.
+    if (!grouped) for (const cutout of initial.slice(1)) React.act(() =>
+      container.querySelector<HTMLInputElement>(`[data-testid="cutout-row-${cutout.id}"] input[type="checkbox"]`)!.click());
     expect(floorErrors()).toEqual([]);
     React.act(() => toolButton(container, "Move selected objects").click());
     inputAxis(container, "Move Y by", "-5");
-    expect(current().cutouts.map(c => c.position.y)).toEqual(grouped.map(c => expect.closeTo(c.position.y - 5, 6)));
+    // Ungrouped fields offset each pocket from its as-drawn pose; a group from its frame.
+    const dy = grouped ? -5 : current().cutouts[0].position.y - initial[0].position.y;
+    expect(dy).not.toBeCloseTo(0);
+    expect(current().cutouts.map(c => c.position.y)).toEqual(initial.map(c => expect.closeTo(c.position.y + dy, 6)));
     expect(floorErrors()).toEqual([]);
     expect(depthModel()).toEqual(original);
     const moved = current().cutouts;
     React.act(() => toolButton(container, "Rotate selected objects").click());
-    for (const angle of ["15", "180"]) {
-      inputAxis(container, "Rotate Z by", angle);
-      expect(current().cutouts.map(c => c.placementGroup!.rotation[3])).toEqual(grouped.map(() => expect.closeTo(Math.cos(Number(angle) * Math.PI / 360), 9)));
+    for (const angle of [15, 180]) {
+      inputAxis(container, "Rotate Z by", String(angle));
+      expect(current().cutouts.map((c, i) => Math.cos((c.rotationDeg - initial[i].rotationDeg) * Math.PI / 180))).toEqual(turnedBy(angle));
+      if (grouped) expect(current().cutouts.map(c => c.placementGroup!.rotation[3])).toEqual(turnedBy(angle / 2));
       expect(floorErrors()).toEqual([]);
       expect(depthModel()).toEqual(original);
     }
     const rotated = current().cutouts;
     clickBinHistory(container, "undo"); clickBinHistory(container, "undo");
     expect(current().cutouts).toEqual(moved);
-    clickBinHistory(container, "undo"); expect(current().cutouts).toEqual(grouped);
+    clickBinHistory(container, "undo"); expect(current().cutouts).toEqual(initial);
     for (let i = 0; i < 3; i++) clickBinHistory(container, "redo");
     expect(current().cutouts).toEqual(rotated);
   } finally { unmount(); }

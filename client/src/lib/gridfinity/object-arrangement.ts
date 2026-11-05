@@ -12,7 +12,7 @@ import {
 } from "@shared/gridfinity/cutout";
 import { resolvePocketSplit } from "@shared/gridfinity/pocket-split";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { pocketTransformChanged, pocketTransformPatch, pocketTransformWires, type EditablePocket } from "./pocket-transform";
+import { pocketTransformChanged, pocketTransformPatch, pocketTransformWires, zTurnDeg, type EditablePocket } from "./pocket-transform";
 
 export type ObjectRef = { kind: "pocket" | "finger"; id: string };
 export type EditableObject = ({ kind: "pocket" } & EditablePocket) | { kind: "finger"; hole: FingerHole };
@@ -28,8 +28,6 @@ export const objectRef = (object: EditableObject): ObjectRef => ({ kind: object.
 export const sameObject = (a: ObjectRef, b: ObjectRef): boolean => a.kind === b.kind && a.id === b.id;
 const identity = { position: { x: 0, y: 0 }, rotationDeg: 0, scaleX: 1, scaleY: 1, mirrored: false };
 const tidy = (v: number) => Math.round(v * 1e6) / 1e6;
-/** Keep accumulated group turns in the (-180, 180] range used by Euler readback. */
-const wrapDegrees = (deg: number) => { const wrapped = ((deg + 180) % 360 + 360) % 360 - 180; return wrapped === -180 ? 180 : wrapped; };
 
 export function objectOutline(object: EditableObject): Outline {
   return object.kind === "pocket" ? transformOutlinePlacement(object.shape.outlineMm, object.cutout)
@@ -86,29 +84,25 @@ function transformGroup(objects: readonly EditableObject[], spec: BinSpec, delta
   const frame: ObjectGroup = { ...group, pivot: { x: movedPivot.x, y: movedPivot.y, z: movedPivot.z },
     rotation: rotation.clone().multiply(new Quaternion(...group.rotation)).normalize().toArray() as ObjectGroup["rotation"] };
   const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
-  const turnDeg = 2 * Math.atan2(rotation.z, rotation.w) * 180 / Math.PI;
-  // An XY move or a turn about Z changes no height. Keep each pocket's depth
-  // model, including a legacy surface anchor: materializing it would hold an
-  // unchanged floor to the rigid minimum, as for an ungrouped XY move.
-  const planar = Math.abs(delta.z) <= 1e-8 && Math.abs(rotation.x) <= 1e-8 && Math.abs(rotation.y) <= 1e-8;
+  // An XY move or a turn about Z changes no height. Like ungrouped edits, keep
+  // each pocket's depth model, including a legacy surface anchor.
+  const turnDeg = zTurnDeg(rotation), planar = turnDeg !== null && Math.abs(delta.z) <= 1e-8;
   const edits: ObjectEdits = { cutouts: [], fingerHoles: [], placementOnly: true };
   for (const object of objects) {
     if (object.kind === "finger") {
       const next = point(new Vector3(object.hole.center.x, object.hole.center.y, top));
       if (![tidy(next.x), tidy(next.y)].every(Number.isFinite)) return null;
       edits.fingerHoles.push({ ...object.hole, center: { x: tidy(next.x), y: tidy(next.y) },
-        rotationDeg: (object.hole.rotationDeg ?? 0) + turnDeg, placementGroup: frame });
+        rotationDeg: (object.hole.rotationDeg ?? 0) + (turnDeg ?? 0), placementGroup: frame });
       continue;
     }
     if (object.cutout.profileBottom) return null;
     if (planar) {
-      // Position is the body's XY origin for both legacy and rigid poses, and a
-      // world-Z turn composes into rotationDeg ahead of any tilt.
+      // Position is the body's XY origin for both legacy and rigid poses.
       const next = point(new Vector3(object.cutout.position.x, object.cutout.position.y, top));
-      const position = { x: tidy(next.x), y: tidy(next.y) };
-      const rotationDeg = turnDeg === 0 ? object.cutout.rotationDeg : wrapDegrees(object.cutout.rotationDeg + turnDeg);
-      if (![position.x, position.y, rotationDeg].every(Number.isFinite)) return null;
-      edits.cutouts.push({ ...object.cutout, position, rotationDeg, placementGroup: frame });
+      const patch = pocketTransformPatch(object.cutout, object.shape, spec, { x: next.x, y: next.y, z: top }, rotation, turnDeg === 0 ? "translate" : "rotate");
+      if (!patch) return null;
+      edits.cutouts.push({ ...object.cutout, ...patch, placementGroup: frame });
       continue;
     }
     const rigid = rigidPocket(object.cutout, object.shape, spec);
