@@ -42,10 +42,14 @@ describe("editable project from a Trace export", () => {
     const shape = restored.shapes[0];
     expect(shape.curvesMm).toEqual(project.shapes[0].curvesMm);
     expect(shape.curvesMm![0].outer).toHaveLength(4);
-    expect(shape.curvesMm![0].holes).toHaveLength(1);
+    expect(shape.curvesMm![0].holes).toHaveLength(0);
+    const holePlacement = restored.cutouts.find(c => c.role === "hole")!;
+    const holeShape = restored.shapes.find(s => s.id === holePlacement.shapeId)!;
+    expect(holeShape.curvesMm![0].outer).toHaveLength(source[0].holes[0].length);
+    expect(holeShape.outlineMm).toEqual(sampleCurves(holeShape.curvesMm!));
     expect(shape.outlineMm).toEqual(sampleCurves(shape.curvesMm!));
     expect(signedArea(shape.outlineMm[0].outer)).toBeGreaterThan(0);
-    expect(signedArea(shape.outlineMm[0].holes[0])).toBeLessThan(0);
+    expect(signedArea(holeShape.outlineMm[0].outer)).toBeGreaterThan(0);
     const imageCurve = curveControls(source[0].outer, 0), modelCurve = curveControls(shape.curvesMm![0].outer, 2);
     // Compare displacements so the shared bbox-centering translation cancels.
     const imageStart = evaluateCurve(imageCurve, 0), modelStart = evaluateCurve(modelCurve, 1);
@@ -60,9 +64,9 @@ describe("editable project from a Trace export", () => {
     expect(local.x).toBeCloseTo(handle.x, 9); expect(local.y).toBeCloseTo(handle.y, 9);
     const revisedCurves = editCurves(shape.curvesMm!, ref, { kind: "split", index: 2, t: 0.5 });
     const revision = reviseTracedShape(shape, shape.outlineMm, "new-revision", revisedCurves);
-    const withRevision = { ...restored, shapes: [...restored.shapes, revision], cutouts: [{ ...placement, shapeId: revision.id }] };
+    const withRevision = { ...restored, shapes: [...restored.shapes, revision], cutouts: [holePlacement, { ...placement, shapeId: revision.id }] };
     expect(parseProjectDoc(JSON.parse(JSON.stringify(withRevision)))!.shapes.map(s => s.curvesMm))
-      .toEqual([shape.curvesMm, revision.curvesMm]);
+      .toEqual([...restored.shapes.map(s => s.curvesMm), revision.curvesMm]);
     expect(() => reviseTracedShape(shape, outline, "flattened")).toThrow("preserve");
     const svg = generateOutlineSVG(outline, { width: 100, height: 100, mmPerPx: 0.5, curves: source });
     expect(svg).toContain("C"); expect(svg).toContain('width="50mm"'); expect(svg).toContain('fill-rule="evenodd"');

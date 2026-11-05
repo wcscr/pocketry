@@ -20,7 +20,7 @@ editing restriction.
   Escape, pointer cancellation, focus loss, and a second finger cancel a draft.
   Blank-space dragging pans; Shift/Space/middle-drag and pinch remain available.
 - Trace recovery and portable Pocketry projects preserve handles. Add to bin
-  preserves them whether tools are separated or combined. Existing polygon
+  preserves them for separate pockets and holes, retaining their photo positions. Existing polygon
   projects keep their original vertices until an explicit curve edit.
 
 ## Fitting existing points
@@ -74,7 +74,7 @@ independent lengths.
 
 Trace stores the authoritative source as `curves` in image coordinates and in
 every affected undo entry. Draft version 2 accepts version 1. Bin shapes store
-`curvesMm`; project schema 38 migrates version 37 and earlier supported files.
+`curvesMm`; project schema 60 migrates version 59 and earlier supported files.
 The scale/Y-flip boundary transforms anchors and handles together once, then
 centres the shape. Reversing winding swaps incoming/outgoing handles. Pocket
 placement, mirroring and scale stay separate from the immutable shape source.
@@ -97,7 +97,7 @@ scale, offsets, kernel simplification and mesh serialization are separate steps.
   disabled while curves are present. Bin clearance offsets derived geometry
   while retaining the source. Ordinary re-detection replaces the authored trace;
   its previous edit can be recovered with Undo.
-- Native cubic output is implemented for Trace SVG. Trace DXF/STL and Bin
+- Native cubic output is implemented for Trace SVG when no hole/material boolean is needed. Trace DXF/STL and Bin
   SVG/DXF/STL/3MF continue through sampled polygon geometry. DXF does not emit
   splines, and mesh formats do not retain editable handles. Use a Pocketry
   project backup for later editing.
@@ -109,7 +109,7 @@ scale, offsets, kernel simplification and mesh serialization are separate steps.
 Focused tests cover exact cubic subdivision (including the closing segment),
 finite-chord sampling of loops/overshoot, winding and affine transforms, gesture
 commit/cancel/pinch behavior, Trace canvas undo, draft recovery, project migration,
-queue recovery, both handoff grouping modes, Bin revisions, and native Trace SVG.
+queue recovery, separate pocket/hole handoff and photo placement, Bin revisions, and native Trace SVG.
 Fitting tests cover selected/wrapped runs, automatic corner protection, continuous
 deviation, holes, stretched placements, opt-in preview/cancel, one-step undo in
 both editors, saved fitted sources, and watertight STL output of fitted rings.

@@ -13,6 +13,29 @@ class NoopResizeObserver implements ResizeObserver {
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
+it("enables learned silhouettes explicitly, suppresses holes, and preserves the choice for a new photo", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore;
+  const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+  const host = document.createElement("div"); document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    expect(trace.boundaryMethod).toBe("color");
+    React.act(() => trace.dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true }));
+    await React.act(async () => host.querySelector<HTMLButtonElement>("#learned-outline")!.click());
+    expect(trace.boundaryMethod).toBe("teed");
+    expect(trace.includeInteriorHoles).toBe(false);
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed" });
+    React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:new", fileName: "next tool" }));
+    expect(trace.boundaryMethod).toBe("teed");
+    expect(trace.includeInteriorHoles).toBe(false);
+  } finally { React.act(() => root.unmount()); }
+});
+
 it.each([false, true])("higher sensitivity includes more while preserving stored settings (compact=%s)", async compact => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);

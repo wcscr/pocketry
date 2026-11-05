@@ -1,6 +1,5 @@
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
-import { pointInRing, ringArea } from "@shared/geometry/rings";
 
 import { detectOutline } from "./detect/pipeline";
 import { detectInWorker } from "./detect/worker-client";
@@ -10,7 +9,9 @@ import {
   flattenOutline,
   outlineBounds,
   outlineFromPoints,
+  outsideSilhouettes,
 } from "./geometry/outline";
+export { outsideSilhouettes } from "./geometry/outline";
 import { generateOutlineSVG } from "./export/svg";
 
 export type { Point, Outline };
@@ -44,6 +45,8 @@ export interface Region extends Rect {}
 export interface CroppedRegionInfo {
   originalRegion: Region;
   isCropped: boolean;
+  /** Crop-first source pixels map back to the unchanged Trace working frame. */
+  toWorking?: { x: number; y: number };
 }
 
 function isCroppedRegionInfo(
@@ -132,15 +135,6 @@ export interface ProcessResult {
   timings: DetectResult["timings"];
 }
 
-/** Detector rings are disjoint or nested. Filling a hole also absorbs any
- * islands inside it, so they must not become overlapping pockets. */
-export function outsideSilhouettes(outline: Outline): Outline {
-  const areas = outline.map((shape) => ringArea(shape.outer));
-  return outline.filter((shape, index) => !outline.some((other, otherIndex) =>
-    areas[otherIndex] > areas[index] && pointInRing(other.outer, shape.outer[0]),
-  )).map((shape) => ({ ...shape, holes: [] }));
-}
-
 /** A margin or simplification can seal a narrow bay into a new hole. Keep an
  * outside-only contour hole-free, while preserving existing intentional holes. */
 export function withoutNewInteriorHoles(outline: Outline, baseline: Outline): Outline {
@@ -159,14 +153,19 @@ export async function processImage(
   // detector applies itself.
   const cropped = isCroppedRegionInfo(region);
   const roi = cropped ? null : (region ?? null);
+  const toWorking = cropped ? region.toWorking ?? { x: 1, y: 1 } : { x: 1, y: 1 };
+  const detectionOptions: DetectOptions = { ...detect, roi,
+    tolerancePx: detect.tolerancePx === undefined ? undefined : detect.tolerancePx / Math.max(toWorking.x, toWorking.y),
+    occlusions: detect.occlusions?.map(ring => ring.map(p => ({ x: p.x / toWorking.x, y: p.y / toWorking.y }))),
+  };
 
   let result: DetectResult;
   try {
     // Node tests and non-browser consumers can still call the injected pipeline.
     // Every supported browser runs segmentation and tracing in the worker.
     result = typeof Worker === "undefined"
-      ? await detectOutline(imageData, { ...detect, roi, engine: "js", refine: "none" })
-      : await detectInWorker(imageData, { ...detect, roi });
+      ? await detectOutline(imageData, { ...detectionOptions, engine: "js", refine: "none" })
+      : await detectInWorker(imageData, detectionOptions);
   } catch (error) {
     if (detect.signal?.aborted || (error instanceof Error &&
       (error.name === "AbortError" || error.name === "WorkerCancelledError"))) throw error;
@@ -188,6 +187,11 @@ export async function processImage(
     onNotice?.("Review the edge beneath the measurement aid",
       "The aid was removed from the trace. The edge it covers is estimated from the visible outline; check those points, or retake the photo with the aid fully inside the tool.");
   }
+  if (detect.boundary === "teed" && result.refinement?.status === "fallback") {
+    onNotice?.("Using color detection", result.refinement.reason === "teed-unavailable"
+      ? "Learned outlines could not be loaded. Your photo was traced with the color detector."
+      : "A reliable learned outer outline could not be closed. Color detection was used; try a region with white paper around the whole tool.");
+  }
 
   const origin = cropped
     ? { x: region.originalRegion.x, y: region.originalRegion.y }
@@ -196,8 +200,10 @@ export async function processImage(
   const silhouette = (outline: Outline): Outline => options.includeInteriorHoles
     ? outline
     : outsideSilhouettes(outline);
-  let outline = translate(silhouette(result.outline), origin);
-  let rawOutline = translate(silhouette(result.rawOutline), origin);
+  const mapToWorking = (value: Outline) => value.map(s => ({ outer: s.outer.map(p => ({ x: p.x * toWorking.x, y: p.y * toWorking.y })),
+    holes: s.holes.map(r => r.map(p => ({ x: p.x * toWorking.x, y: p.y * toWorking.y }))) }));
+  let outline = translate(mapToWorking(silhouette(result.outline)), origin);
+  let rawOutline = translate(mapToWorking(silhouette(result.rawOutline)), origin);
 
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
@@ -212,7 +218,7 @@ export async function processImage(
   return {
     outline,
     rawOutline,
-    estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x + origin.x, y: p.y + origin.y }))),
+    estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x * toWorking.x + origin.x, y: p.y * toWorking.y + origin.y }))),
     svg: generateOutlineSVG(outline, {
       width: imageData.width,
       height: imageData.height,

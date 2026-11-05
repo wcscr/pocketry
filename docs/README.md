@@ -32,6 +32,7 @@ and internal refactors usually need no changelog entry.
   [insertion clearance](pocket-insertion-paths.md), and [split pockets](split-pockets.md).
 - [Hardware symbols and label surfaces](hardware-symbols.md).
 - [ULTIM8-compatible fixtures](ultim8-peg-bottom.md).
+- [Learned outer outlines](teed-outline-integration.md) and [editable curves](contour-curves-prototype.md).
 - [Contour symmetry](contour-symmetry-prototype.md) and
   [calibration aids](calibration/object-reference-strip.md).
 - [DXF compatibility](dxf-compatibility.md) and [import limits](import-limits.md).

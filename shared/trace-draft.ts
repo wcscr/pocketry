@@ -66,6 +66,7 @@ export const traceDraftSchema = z.object({
     history: z.object({ stack: z.array(historyEntry).min(1).max(50), index: finite.int().nonnegative() })
       .refine((value) => value.index < value.stack.length),
     sensitivity: finite.min(0).max(255), includeInteriorHoles: z.boolean(),
+    boundaryMethod: z.enum(["color", "teed"]).default("color"),
     tolerancePx: finite.nonnegative(), smoothing: finite.nonnegative(), margin,
     calibration: calibration.nullable(), pendingAutoCalibration: calibration.nullable(),
     pendingPaperCalibration: calibration.nullable(), pendingAidRequiresPerspective: z.boolean(),

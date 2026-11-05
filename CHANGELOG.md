@@ -1,10 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — 2026-11-05
 
-- Fit a selected run of points or explicitly Auto-fit a contour into editable curves in Trace and Bin. Preview the result with an adjustable maximum deviation; Apply is one undoable edit. Preserve corners, existing curves, and other contours.
-
-- Prototype editable Bézier contours in Trace and Bin: bend edges, edit handles, split curves, and preserve curve sources through saving, undo/redo, and Trace → Bin transfer.
+- Opt into learned outer outlines for tools on white calibration sheets. Use original photo pixels within the selected region, run the tiny TEED model on-device in a cancellable worker, and fall back to color detection when a boundary cannot be reconstructed safely.
+- Edit Bézier contours in Trace and Bin, with explicit curve-fitting previews and adjustable deviation. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
 
 ## 1.7.0 — 2026-11-05
 

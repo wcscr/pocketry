@@ -142,6 +142,7 @@ export interface TraceState {
 
   /** Bias on the automatic threshold; 128 is "trust the automatic level". */
   sensitivity: number;
+  boundaryMethod: "color" | "teed";
   includeInteriorHoles: boolean;
   /** Ramer-Douglas-Peucker tolerance, source pixels. */
   tolerancePx: number;
@@ -216,6 +217,7 @@ export const initialTraceState: TraceState = {
     index: 0,
   },
   sensitivity: 128,
+  boundaryMethod: "color",
   includeInteriorHoles: false,
   tolerancePx: 1.2,
   smoothing: 1,
@@ -300,6 +302,7 @@ export type TraceAction =
   | { type: "REGION_COMMITTED" }
   | { type: "SET_PROCESSING"; processing: boolean }
   | { type: "SET_SENSITIVITY"; sensitivity: number }
+  | { type: "SET_BOUNDARY_METHOD"; method: "color" | "teed" }
   | { type: "SET_TOLERANCE"; tolerancePx: number }
   | { type: "SET_SMOOTHING"; smoothing: number }
   | { type: "SET_MARGIN"; margin: Margin }
@@ -540,6 +543,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         fileName: action.fileName,
         // Keep refinement preferences; reset the image-dependent sensitivity.
         sensitivity: 128,
+        boundaryMethod: state.boundaryMethod,
         includeInteriorHoles: state.includeInteriorHoles,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
@@ -681,6 +685,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...initialTraceState,
         sourceRevision: state.sourceRevision + 1,
         sensitivity: state.sensitivity,
+        boundaryMethod: state.boundaryMethod,
       };
 
     case "DETECTED":
@@ -963,6 +968,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 
     case "SET_SENSITIVITY":
       return { ...state, sensitivity: action.sensitivity };
+    case "SET_BOUNDARY_METHOD":
+      return { ...state, boundaryMethod: action.method };
 
     case "SET_INCLUDE_INTERIOR_HOLES":
       return { ...state, includeInteriorHoles: action.include };
@@ -1129,6 +1136,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         imageSize: action.imageSize,
         autoCalibrationAttemptedImageUrl: action.imageUrl,
         sensitivity: state.sensitivity,
+        boundaryMethod: state.boundaryMethod,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
@@ -1173,6 +1181,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // Detect sheet action remains available if the user wants another try.
         autoCalibrationAttemptedImageUrl: state.perspectiveOriginalImageUrl,
         sensitivity: state.sensitivity,
+        boundaryMethod: state.boundaryMethod,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
         margin: state.margin,

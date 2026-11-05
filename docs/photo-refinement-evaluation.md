@@ -1,5 +1,7 @@
 # Photo boundary refinement — local evaluation, 2026-11-05
 
+**Historical record:** this describes the earlier GrabCut baseline. The broader white-sheet tests subsequently led to an opt-in TEED integration; see [current behavior and evaluation](teed-outline-integration.md). The earlier single-photo neural conclusion below does not describe the current branch.
+
 This change enables real, mask-seeded **CPU/WASM GrabCut** in the existing detector. It improves the Gerber sides while retaining the detected lower recess. TEED was successfully exported and run through the shipped OpenCV DNN, but the measured boundary proposals did not improve on guarded GrabCut, so **no neural model, runtime, download, or enhancement switch ships**.
 
 The [expanded example-library report](photo-refinement-evaluation/library/README.md) adds **57 before/after detections**, including all 27 published photos, with seven paired warm timing runs per method and a visual assessment of each case. Its [standalone HTML](photo-refinement-evaluation/library/report.html) has searchable side-by-side panels.

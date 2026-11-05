@@ -1,0 +1,1164 @@
+[
+  {
+    "name": "airduster-nozzle",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 734.007749999997,
+    "samples": {
+      "baselineMs": [
+        143.788375,
+        37.63416700000016,
+        37.728125000001455
+      ],
+      "learnedMs": [
+        871.2327499999999,
+        737.874791000002,
+        734.007749999997
+      ],
+      "cachedMs": [
+        79.66662499999984,
+        60.557709000000614,
+        60.18104199999652
+      ],
+      "fitMs": [
+        1.454665999999861,
+        0.16212499999892316,
+        0.12849999999889405
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 46,
+    "afterAnchors": 45,
+    "baselinePoints": 36,
+    "warmLearnedMs": [
+      737.874791000002,
+      734.007749999997
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "airduster-body",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 750.8381660000014,
+    "samples": {
+      "baselineMs": [
+        76.05158300000016,
+        69.86770900000192,
+        66.7467089999991
+      ],
+      "learnedMs": [
+        752.9440000000002,
+        750.7616249999992,
+        750.8381660000014
+      ],
+      "cachedMs": [
+        77.57245799999964,
+        76.8395840000012,
+        77.50366699999722
+      ],
+      "fitMs": [
+        0.3172079999999369,
+        0.17850000000180444,
+        0.1512910000019474
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 44,
+    "afterAnchors": 41,
+    "baselinePoints": 75,
+    "warmLearnedMs": [
+      752.9440000000002,
+      750.7616249999992,
+      750.8381660000014
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "airduster-pair",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 770.8887090000062,
+    "samples": {
+      "baselineMs": [
+        131.66987500000005,
+        131.87633300000016,
+        130.7399579999983
+      ],
+      "learnedMs": [
+        769.3293749999998,
+        772.9491249999992,
+        770.8887090000062
+      ],
+      "cachedMs": [
+        94.85220799999979,
+        97.91912500000035,
+        95.10291600000346
+      ],
+      "fitMs": [
+        0.6306250000002365,
+        0.3609580000011192,
+        0.32745799999975134
+      ]
+    },
+    "polygons": 2,
+    "beforePoints": 99,
+    "afterAnchors": 93,
+    "baselinePoints": 136,
+    "warmLearnedMs": [
+      769.3293749999998,
+      772.9491249999992,
+      770.8887090000062
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "airduster-angle-nozzle",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 747.6603329999998,
+    "samples": {
+      "baselineMs": [
+        56.746917000000394,
+        56.25987499999974,
+        56.238375000000815
+      ],
+      "learnedMs": [
+        744.1874579999999,
+        750.3658329999998,
+        747.6603329999998
+      ],
+      "cachedMs": [
+        74.4034999999999,
+        76.8784169999999,
+        75.09216700000252
+      ],
+      "fitMs": [
+        0.13370800000029703,
+        0.09529199999815319,
+        0.08754100000078324
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 23,
+    "afterAnchors": 22,
+    "baselinePoints": 69,
+    "warmLearnedMs": [
+      744.1874579999999,
+      750.3658329999998,
+      747.6603329999998
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "ryobi-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 787.2848749999976,
+    "samples": {
+      "baselineMs": [
+        76.36929199999986,
+        74.21745799999917,
+        73.81212500000402
+      ],
+      "learnedMs": [
+        785.4902499999998,
+        789.9726249999985,
+        787.2848749999976
+      ],
+      "cachedMs": [
+        109.96666699999969,
+        106.96279199999844,
+        108.11491699999897
+      ],
+      "fitMs": [
+        0.4913329999999405,
+        0.4329170000019076,
+        0.21937500000058208
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 94,
+    "afterAnchors": 87,
+    "baselinePoints": 64,
+    "warmLearnedMs": [
+      785.4902499999998,
+      789.9726249999985,
+      787.2848749999976
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "mouldline-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 697.447417000003,
+    "samples": {
+      "baselineMs": [
+        20.72437500000069,
+        20.38774999999805,
+        20.681207999994513
+      ],
+      "learnedMs": [
+        695.17425,
+        695.6497500000005,
+        697.447417000003
+      ],
+      "cachedMs": [
+        27.379167000000052,
+        27.73283299999821,
+        26.194750000002387
+      ],
+      "fitMs": [
+        0.20650000000023283,
+        0.07233300000007148,
+        0.08266699999512639
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 23,
+    "afterAnchors": 23,
+    "baselinePoints": 18,
+    "warmLearnedMs": [
+      695.17425,
+      695.6497500000005,
+      697.447417000003
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "stapler-original",
+    "status": {
+      "status": "fallback",
+      "reason": "selection-too-tight",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 772.5663330000025,
+    "samples": {
+      "baselineMs": [
+        72.3520840000001,
+        70.10008299999754,
+        70.87754199999472
+      ],
+      "learnedMs": [
+        770.0442499999999,
+        767.3112910000018,
+        772.5663330000025
+      ],
+      "cachedMs": [
+        96.02729100000033,
+        93.49616699999751,
+        94.14291599999706
+      ],
+      "fitMs": [
+        0.7082920000002559,
+        0.4287499999991269,
+        0.37358300000050804
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 81,
+    "afterAnchors": 81,
+    "fitError": "Error: The fit would cross or touch another contour edge. Try a smaller deviation.",
+    "baselinePoints": 81,
+    "warmLearnedMs": [
+      770.0442499999999,
+      767.3112910000018,
+      772.5663330000025
+    ],
+    "notes": "Color fallback: the learned enclosure touches opposite selection sides. Expand the region to include white paper around the complete tool.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "caliper-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 756.3180829999983,
+    "samples": {
+      "baselineMs": [
+        22.193833000000268,
+        22.151834000000235,
+        22.036541000001307
+      ],
+      "learnedMs": [
+        753.3892500000002,
+        752.0267090000016,
+        756.3180829999983
+      ],
+      "cachedMs": [
+        88.77108399999997,
+        84.07408299999952,
+        83.7690419999999
+      ],
+      "fitMs": [
+        0.1435830000000351,
+        0.11204200000065612,
+        0.0957909999997355
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 31,
+    "afterAnchors": 30,
+    "baselinePoints": 39,
+    "warmLearnedMs": [
+      753.3892500000002,
+      752.0267090000016,
+      756.3180829999983
+    ],
+    "notes": "The metal beam improves substantially. The tiny source crop still limits jaw/beam detail; prefer the crop-first view below.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "mouldline-distant",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 699.838499999998,
+    "samples": {
+      "baselineMs": [
+        13.189000000000306,
+        12.511916000003112,
+        12.465874999994412
+      ],
+      "learnedMs": [
+        698.7069169999995,
+        699.1324999999997,
+        699.838499999998
+      ],
+      "cachedMs": [
+        35.22295900000063,
+        29.483541000001424,
+        29.99970800000301
+      ],
+      "fitMs": [
+        0.177958000000217,
+        0.10420799999701558,
+        0.10312500000145519
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 23,
+    "afterAnchors": 22,
+    "baselinePoints": 16,
+    "warmLearnedMs": [
+      698.7069169999995,
+      699.1324999999997,
+      699.838499999998
+    ],
+    "notes": "Very small crop: the bright hooked tip is not faithfully recovered. Select a larger original-pixel crop before using this outline.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-150-original",
+    "status": {
+      "status": "fallback",
+      "reason": "selection-too-tight",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 750.500291999997,
+    "samples": {
+      "baselineMs": [
+        58.480750000000626,
+        52.234749999995984,
+        52.20241700000042
+      ],
+      "learnedMs": [
+        746.6413339999999,
+        748.0988750000033,
+        750.500291999997
+      ],
+      "cachedMs": [
+        74.29700000000048,
+        73.22954200000095,
+        72.25904099999752
+      ],
+      "fitMs": [
+        0.9376249999986612,
+        0.757499999999709,
+        0.579875000003085
+      ]
+    },
+    "polygons": 8,
+    "beforePoints": 69,
+    "afterAnchors": 62,
+    "baselinePoints": 69,
+    "warmLearnedMs": [
+      746.6413339999999,
+      748.0988750000033,
+      750.500291999997
+    ],
+    "notes": "Group crop is too tight: sheet printing and crop edges link five drivers. Learned reconstruction is rejected; color detection still misses shafts. Select each driver separately with white paper around it.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "bessey-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 729.2241250000006,
+    "samples": {
+      "baselineMs": [
+        16.90283400000044,
+        17.218875000005937,
+        18.379542000002402
+      ],
+      "learnedMs": [
+        758.4912499999991,
+        728.0239589999983,
+        729.2241250000006
+      ],
+      "cachedMs": [
+        56.13816699999916,
+        53.64041699999507,
+        54.4739999999947
+      ],
+      "fitMs": [
+        0.16858399999910034,
+        0.13404199999786215,
+        0.1457910000026459
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 29,
+    "afterAnchors": 26,
+    "baselinePoints": 59,
+    "warmLearnedMs": [
+      758.4912499999991,
+      728.0239589999983,
+      729.2241250000006
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "gerber-close",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 766.4486659999966,
+    "samples": {
+      "baselineMs": [
+        180.53420899999946,
+        164.40412500000093,
+        165.06245900000067
+      ],
+      "learnedMs": [
+        770.4355420000011,
+        765.6510419999977,
+        766.4486659999966
+      ],
+      "cachedMs": [
+        91.09137499999997,
+        85.87691700000141,
+        84.78716700000223
+      ],
+      "fitMs": [
+        0.8040000000000873,
+        0.4531669999996666,
+        0.5045830000017304
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 149,
+    "afterAnchors": 135,
+    "baselinePoints": 67,
+    "warmLearnedMs": [
+      770.4355420000011,
+      765.6510419999977,
+      766.4486659999966
+    ],
+    "notes": "Both end recesses are retained; small shadow/edge spurs remain near the lower recess. Inspect before exporting.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "gerber-distant",
+    "status": {
+      "status": "fallback",
+      "reason": "fragmented-outline",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 769.6152090000032,
+    "samples": {
+      "baselineMs": [
+        23.75841599999876,
+        23.762749999994412,
+        23.614957999998296
+      ],
+      "learnedMs": [
+        763.416459,
+        765.4175419999956,
+        769.6152090000032
+      ],
+      "cachedMs": [
+        86.8370419999992,
+        91.05574999999953,
+        87.203333999998
+      ],
+      "fitMs": [
+        0.166957999999795,
+        0.14633300000423333,
+        0.11212499999965075
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 33,
+    "afterAnchors": 32,
+    "baselinePoints": 33,
+    "warmLearnedMs": [
+      763.416459,
+      765.4175419999956,
+      769.6152090000032
+    ],
+    "notes": "Color fallback: the learned mask fragmented an existing connected outline. Review the crop and sensitivity.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-60-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 694.7015420000025,
+    "samples": {
+      "baselineMs": [
+        13.85479099999975,
+        12.474167000000307,
+        14.103167000001122
+      ],
+      "learnedMs": [
+        693.5239589999983,
+        693.9665410000016,
+        694.7015420000025
+      ],
+      "cachedMs": [
+        25.839708999999857,
+        25.639125000001513,
+        25.769375000003492
+      ],
+      "fitMs": [
+        0.11275000000023283,
+        0.08108299999730662,
+        0.07449999999516876
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 14,
+    "afterAnchors": 13,
+    "baselinePoints": 12,
+    "warmLearnedMs": [
+      693.5239589999983,
+      693.9665410000016,
+      694.7015420000025
+    ],
+    "notes": "Shaft recovery is sensitive to source resolution. Compare the larger crop-first view when available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-50-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 692.4080420000028,
+    "samples": {
+      "baselineMs": [
+        12.521499999998923,
+        12.40137500000128,
+        12.34454199999891
+      ],
+      "learnedMs": [
+        692.7924999999996,
+        693.0946669999976,
+        692.4080420000028
+      ],
+      "cachedMs": [
+        25.46362500000032,
+        26.75625000000582,
+        24.961499999997613
+      ],
+      "fitMs": [
+        0.09512499999982538,
+        0.09904100000130711,
+        0.08158300000650343
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 18,
+    "afterAnchors": 17,
+    "baselinePoints": 9,
+    "warmLearnedMs": [
+      692.7924999999996,
+      693.0946669999976,
+      692.4080420000028
+    ],
+    "notes": "Outer silhouette improves, but a narrow shadow/edge spur remains. Review the tip and trim manually.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-40-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 692.2462910000031,
+    "samples": {
+      "baselineMs": [
+        11.819916000000376,
+        11.299209000004339,
+        12.20929199999955
+      ],
+      "learnedMs": [
+        693.7320409999993,
+        699.8867089999985,
+        692.2462910000031
+      ],
+      "cachedMs": [
+        25.8403330000001,
+        25.92220900000393,
+        25.88445900000079
+      ],
+      "fitMs": [
+        0.13737500000024738,
+        0.12470800000301097,
+        0.09612500000366708
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 18,
+    "afterAnchors": 18,
+    "fitError": "Error: The fit would cross or touch another contour edge. Try a smaller deviation.",
+    "baselinePoints": 9,
+    "warmLearnedMs": [
+      693.7320409999993,
+      699.8867089999985,
+      692.2462910000031
+    ],
+    "notes": "Curve preview rejected by the topology guard; retain the detected polygon or try a smaller deviation.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wire-strippers-original",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 723.2587910000002,
+    "samples": {
+      "baselineMs": [
+        60.487042000000656,
+        59.172082999997656,
+        60.46625000000495
+      ],
+      "learnedMs": [
+        724.9757090000003,
+        727.291916000002,
+        723.2587910000002
+      ],
+      "cachedMs": [
+        49.98204199999964,
+        54.98391700000502,
+        49.987708000000566
+      ],
+      "fitMs": [
+        0.3099160000001575,
+        0.3148749999963911,
+        0.19808300001022872
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 101,
+    "afterAnchors": 96,
+    "baselinePoints": 69,
+    "warmLearnedMs": [
+      724.9757090000003,
+      727.291916000002,
+      723.2587910000002
+    ],
+    "notes": "Outer silhouette improves, but a narrow shadow/edge spur remains. Review the tip and trim manually.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "airduster-body-early",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 750.5410830000037,
+    "samples": {
+      "baselineMs": [
+        54.540499999999156,
+        55.80483299999469,
+        54.78520900000876
+      ],
+      "learnedMs": [
+        747.3843749999996,
+        750.140250000004,
+        750.5410830000037
+      ],
+      "cachedMs": [
+        74.43120799999997,
+        77.45308400000067,
+        73.14683399999922
+      ],
+      "fitMs": [
+        0.19729199999892444,
+        0.16141699999570847,
+        0.1412080000009155
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 38,
+    "afterAnchors": 35,
+    "baselinePoints": 26,
+    "warmLearnedMs": [
+      747.3843749999996,
+      750.140250000004,
+      750.5410830000037
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "airduster-nozzle-early",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 728.9374169999937,
+    "samples": {
+      "baselineMs": [
+        32.14574999999968,
+        32.2042500000025,
+        30.40520799999649
+      ],
+      "learnedMs": [
+        726.4780830000018,
+        727.5764169999966,
+        728.9374169999937
+      ],
+      "cachedMs": [
+        58.18445799999972,
+        54.78545899999881,
+        54.744917000003625
+      ],
+      "fitMs": [
+        0.1876250000022992,
+        0.17599999999947613,
+        0.11470900000131223
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 44,
+    "afterAnchors": 41,
+    "baselinePoints": 37,
+    "warmLearnedMs": [
+      726.4780830000018,
+      727.5764169999966,
+      728.9374169999937
+    ],
+    "notes": "Review the complete boundary at full size before exporting; no ground-truth accuracy score is available.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "airduster-nozzle-cropfirst",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 771.8553749999992,
+    "samples": {
+      "baselineMs": [
+        291.6584159999984,
+        292.122749999995,
+        292.352458999987
+      ],
+      "learnedMs": [
+        776.5095000000001,
+        773.8796670000011,
+        771.8553749999992
+      ],
+      "cachedMs": [
+        96.28162499999962,
+        101.06462499999907,
+        97.4895409999881
+      ],
+      "fitMs": [
+        0.48008300000219606,
+        0.37070800000219606,
+        0.33145800000056624
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 124,
+    "afterAnchors": 115,
+    "baselinePoints": 78,
+    "warmLearnedMs": [
+      776.5095000000001,
+      773.8796670000011,
+      771.8553749999992
+    ],
+    "notes": "Cropped from original pixels before reduction. This is the input strategy used by the new browser option.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "ryobi-original-cropfirst",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 818.6744590000017,
+    "samples": {
+      "baselineMs": [
+        395.02545800000007,
+        383.6693749999977,
+        381.3328749999928
+      ],
+      "learnedMs": [
+        830.8301250000004,
+        818.3762920000008,
+        818.6744590000017
+      ],
+      "cachedMs": [
+        134.6494590000002,
+        134.70149999999558,
+        144.47283299999253
+      ],
+      "fitMs": [
+        0.597208999999566,
+        0.5233750000043074,
+        0.530125000004773
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 171,
+    "afterAnchors": 157,
+    "baselinePoints": 112,
+    "warmLearnedMs": [
+      830.8301250000004,
+      818.3762920000008,
+      818.6744590000017
+    ],
+    "notes": "Cropped from original pixels before reduction. This is the input strategy used by the new browser option.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "caliper-original-cropfirst",
+    "status": {
+      "status": "fallback",
+      "reason": "selection-too-tight",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 1053.492624999999,
+    "samples": {
+      "baselineMs": [
+        327.2714159999996,
+        330.29120800000237,
+        327.28995900000155
+      ],
+      "learnedMs": [
+        1050.237333000001,
+        1052.3943749999962,
+        1053.492624999999
+      ],
+      "cachedMs": [
+        374.45279200000004,
+        378.09212500000285,
+        377.0868749999936
+      ],
+      "fitMs": [
+        1.1202499999999418,
+        1.1897079999980633,
+        1.0148329999938142
+      ]
+    },
+    "polygons": 4,
+    "beforePoints": 277,
+    "afterAnchors": 260,
+    "baselinePoints": 277,
+    "warmLearnedMs": [
+      1050.237333000001,
+      1052.3943749999962,
+      1053.492624999999
+    ],
+    "notes": "Color fallback: the learned enclosure touches opposite selection sides. Expand the region to include white paper around the complete tool.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-150-original-cropfirst",
+    "status": {
+      "status": "fallback",
+      "reason": "selection-too-tight",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 930.2719579999975,
+    "samples": {
+      "baselineMs": [
+        217.43174999999974,
+        217.30858399999852,
+        217.66787499999919
+      ],
+      "learnedMs": [
+        924.4893329999977,
+        924.0091670000038,
+        930.2719579999975
+      ],
+      "cachedMs": [
+        250.20483299999978,
+        250.1635829999941,
+        250.47754199999326
+      ],
+      "fitMs": [
+        0.984667000000627,
+        0.9012910000019474,
+        1.5495839999930467
+      ]
+    },
+    "polygons": 12,
+    "beforePoints": 175,
+    "afterAnchors": 166,
+    "baselinePoints": 175,
+    "warmLearnedMs": [
+      924.4893329999977,
+      924.0091670000038,
+      930.2719579999975
+    ],
+    "notes": "Group crop is too tight: sheet printing and crop edges link five drivers. Learned reconstruction is rejected; color detection still misses shafts. Select each driver separately with white paper around it.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-60-original-cropfirst",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 708.9138329999987,
+    "samples": {
+      "baselineMs": [
+        92.73737500000061,
+        92.638374999995,
+        95.06020799999533
+      ],
+      "learnedMs": [
+        707.9175829999986,
+        705.2153330000001,
+        708.9138329999987
+      ],
+      "cachedMs": [
+        36.87383400000181,
+        36.735749999999825,
+        37.15099999999802
+      ],
+      "fitMs": [
+        0.2582079999992857,
+        0.2706250000046566,
+        0.4032080000033602
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 116,
+    "afterAnchors": 107,
+    "baselinePoints": 45,
+    "warmLearnedMs": [
+      707.9175829999986,
+      705.2153330000001,
+      708.9138329999987
+    ],
+    "notes": "Cropped from original pixels before reduction. This is the input strategy used by the new browser option.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-50-original-cropfirst",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 707.1781250000058,
+    "samples": {
+      "baselineMs": [
+        94.40591700000004,
+        89.17641699999513,
+        89.05449999999837
+      ],
+      "learnedMs": [
+        710.2711249999993,
+        702.3397499999992,
+        707.1781250000058
+      ],
+      "cachedMs": [
+        35.243875000000116,
+        33.31895800000348,
+        42.65841599999112
+      ],
+      "fitMs": [
+        0.40199999999822467,
+        0.16733299999759765,
+        0.21612500000628643
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 71,
+    "afterAnchors": 65,
+    "baselinePoints": 39,
+    "warmLearnedMs": [
+      710.2711249999993,
+      702.3397499999992,
+      707.1781250000058
+    ],
+    "notes": "Cropped from original pixels before reduction. This is the input strategy used by the new browser option.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wiha-40-original-cropfirst",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 708.0980410000047,
+    "samples": {
+      "baselineMs": [
+        97.6885000000002,
+        95.23200000000361,
+        101.36687499999243
+      ],
+      "learnedMs": [
+        705.3074159999996,
+        706.1060409999991,
+        708.0980410000047
+      ],
+      "cachedMs": [
+        40.36833299999853,
+        35.933208000002196,
+        36.07804199999373
+      ],
+      "fitMs": [
+        0.2627910000010161,
+        0.24237499999435386,
+        0.24579199998697732
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 54,
+    "afterAnchors": 48,
+    "baselinePoints": 43,
+    "warmLearnedMs": [
+      705.3074159999996,
+      706.1060409999991,
+      708.0980410000047
+    ],
+    "notes": "Cropped from original pixels before reduction. This is the input strategy used by the new browser option.",
+    "heapCapacityBytes": 278396928
+  },
+  {
+    "name": "wire-strippers-original-cropfirst",
+    "status": {
+      "status": "accepted",
+      "reason": "teed-edges",
+      "iterations": 0,
+      "cached": false
+    },
+    "elapsedMs": 740.7307500000024,
+    "samples": {
+      "baselineMs": [
+        161.50004199999967,
+        161.68824999999924,
+        172.68629100000544
+      ],
+      "learnedMs": [
+        734.0960840000007,
+        738.1766669999997,
+        740.7307500000024
+      ],
+      "cachedMs": [
+        62.33766699999978,
+        61.97491599999921,
+        66.46670900000026
+      ],
+      "fitMs": [
+        0.706624999998894,
+        0.568542000000889,
+        0.68195799998648
+      ]
+    },
+    "polygons": 1,
+    "beforePoints": 168,
+    "afterAnchors": 153,
+    "baselinePoints": 101,
+    "warmLearnedMs": [
+      734.0960840000007,
+      738.1766669999997,
+      740.7307500000024
+    ],
+    "notes": "Body and handles are connected correctly, but a shadow spur reaches the crop border below the left handle. Expand the selection and trim that spur.",
+    "heapCapacityBytes": 278396928
+  }
+]

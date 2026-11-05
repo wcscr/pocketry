@@ -163,7 +163,7 @@ function TraceWorkspace(): JSX.Element {
   const workingImageMax = store.perspectiveCorrection
     ? RECTIFIED_IMAGE_MAX
     : IMAGE_CANVAS_MAX;
-  const { source, getImageData, getDetectionFrame } = useImageSource(
+  const { source, getImageData, getDetectionFrame, getToolDetectionFrame } = useImageSource(
     store.imageUrl,
     store.fileName,
     workingImageMax,
@@ -198,6 +198,7 @@ function TraceWorkspace(): JSX.Element {
   const runDetection = useCallback(async (settings?: {
     sensitivity: number;
     includeInteriorHoles: boolean;
+    boundary?: "color" | "teed";
   }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
@@ -211,7 +212,9 @@ function TraceWorkspace(): JSX.Element {
         : null;
     if (!region) return;
 
-    const imageData = getImageData(region);
+    const boundary = settings?.boundary ?? store.boundaryMethod;
+    const toolFrame = boundary === "teed" ? getToolDetectionFrame(region) : null;
+    const imageData = toolFrame?.imageData ?? getImageData(region);
     if (!imageData) return;
 
     const request = ++detectionRequest.current;
@@ -247,11 +250,12 @@ function TraceWorkspace(): JSX.Element {
       const result = await processImage(imageData, {
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
-          ? { originalRegion: region, isCropped: true }
+          ? { originalRegion: toolFrame?.region ?? region, isCropped: true, toWorking: toolFrame?.toWorking }
           : null,
         margin: store.margin,
         calibration: store.calibration,
         detect: {
+          boundary,
           signal: controller.signal,
           occlusions,
           sensitivity: settings?.sensitivity ?? store.sensitivity,
@@ -300,6 +304,8 @@ function TraceWorkspace(): JSX.Element {
     store.calibration,
     store.sensitivity,
     store.includeInteriorHoles,
+    store.boundaryMethod,
+    getToolDetectionFrame,
     store.tolerancePx,
     store.smoothing,
     store.fileName,
@@ -655,8 +661,8 @@ function TraceWorkspace(): JSX.Element {
       const backup = includeProject
         ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0, store.curves), null, 2)], { type: "application/json" })
         : null;
-      const exportOutline = outline.some(part => part.holes.length)
-        ? await withKernel(kernel => traceMaterialOutline(kernel, outline)) : outline;
+      const exportOutline = sampled.some(part => part.holes.length)
+        ? await withKernel(kernel => traceMaterialOutline(kernel, sampled)) : sampled;
       let model: Blob;
       if (exportFormat === "svg") {
         model = new Blob([generateOutlineSVG(exportOutline, {

@@ -16,6 +16,8 @@ export interface ImageLike {
 export type DetectEngine = "opencv" | "js";
 
 export interface DetectOptions {
+  /** Optional learned outer silhouettes for tools on white calibration sheets. */
+  boundary?: "color" | "teed";
   /** Validated calibration carriers, in input-image pixels. Their contents are unknown. */
   occlusions?: readonly Ring[];
   /** Restrict detection to this region of the image. */
@@ -102,8 +104,10 @@ export interface ScoreField {
   score: Uint8Array;
   width: number;
   height: number;
-  /** Segmentation-space pixels per source pixel (<= 1 when downscaled). */
+  /** Segmentation-space pixels per source pixel; models may also upscale. */
   scale: number;
+  /** Exact vertical mapping when model dimensions were rounded independently. */
+  scaleY?: number;
   /** Source-space origin of the segmented region. */
   offsetX: number;
   offsetY: number;
@@ -130,4 +134,5 @@ export interface RefinementReport {
   reason: string;
   iterations: number;
   changedPixels?: number;
+  cached?: boolean;
 }

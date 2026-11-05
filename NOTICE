@@ -507,3 +507,42 @@ Sources and upstream licence information:
   https://www.alpinelinux.org/about/
 
 The runtime serves Pocketry's LICENSE.txt and NOTICE.txt alongside the app.
+
+================================================================================
+TEED learned edge model — MIT
+================================================================================
+
+Optional, on-device outer-outline detection bundles a fixed 512x512 ONNX export
+of TEED's BIPED checkpoint checkpoints/BIPED/5/5_model.pth.
+Source: https://github.com/xavysp/TEED
+Revision: 40fa4b1391dc6424f88989d0ca75d5b592c8681d
+Checkpoint SHA-256: 0322caf70f588355aaaf59c2bf5872b21a4b7e9f679971a7a3bb1f69b56a01ba
+ONNX SHA-256: f1a4f305356f9752e1a9af0f43f067ecb93ab4f27c8a5ed7beb9b37970797837
+Asset: /models/teed/teed-512-f1a4f305.onnx
+Conversion: fixed FP32 NCHW input, ONNX opset 13, fused output with sigmoid.
+The upstream repository distributes this checkpoint alongside its MIT license;
+no separate weights license or model card is provided. No training dataset or
+Python training/inference implementation is redistributed with the application.
+The upstream license is also served at /models/teed/LICENSE.txt.
+
+MIT License
+
+Copyright (c) 2022 Xavier Soria Poma
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

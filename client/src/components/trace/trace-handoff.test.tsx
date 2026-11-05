@@ -90,18 +90,19 @@ it("queues photo-relative centres in millimetres with one Y flip for separate po
   expect(a[0].bboxMm).toEqual(b[0].bboxMm);
 });
 
-it.each([false, true])("preserves editable curves in the actual handoff (combined: %s)", combined => {
+it("preserves editable curves and photo placement in the actual separate-pocket handoff", () => {
   const curves = editCurves(curvesFromOutline([trace.outline[0], trace.outline[0]]), { shapeIndex: 1, ringIndex: -1 },
     { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -5 } });
   trace = { ...trace, curves, outline: sampleCurves(curves), margin: 0 };
   render();
-  if (combined) React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  expect(host.querySelector('input[type="checkbox"]')).toBeNull();
   add();
   const sources = mocks.addShape.mock.calls.flatMap(call => call[0].curvesMm as CurveOutline);
   expect(sources).toHaveLength(2);
   expect(sources.map(s => s.outer.length)).toEqual([4, 4]);
   expect(sources[0].outer.some(a => a.in || a.out)).toBe(false);
   expect(sources[1].outer.some(a => a.in || a.out)).toBe(true);
+  expect(mocks.addShape.mock.calls[0][3].batchId).toBe(mocks.addShape.mock.calls[1][3].batchId);
 });
 
 it.each(["scale", "processing", "empty", "uncalibrated"])("retains the %s handoff guard", guard => {

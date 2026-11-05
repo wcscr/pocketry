@@ -72,13 +72,18 @@ Draw a **Region** around each tool and refine its **Outline**. Add clearance wit
 **Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
 there was estimated. You’ll set pocket depths in Bin.
 
+For tools on white Pocketry calibration sheets, try **Learned outer outline**
+in Outline settings. It samples the selected region from original photo pixels
+and runs a small TEED model on your device. Review tips and shadows; rejected
+boundaries retain color detection. See [behavior and measured limits](docs/teed-outline-integration.md).
+
 For the curve prototype, choose **Edit contours → Edit curves (prototype)** in
 Trace, or **Edit contour → Edit curves (prototype)** in Bin. Drag an edge to bend
 it, move its handles, or use **Split edge**, **Straight**, **Smooth**, and **Corner**.
 Curves stay editable in Trace recovery, Add to bin, and saved Pocketry projects,
 including undo/redo. Trace margin must be zero before starting; simplification,
 symmetry, and trace margin are locked once curves are authored. Use Bin clearance
-to adjust fit. Trace SVG retains native curves; solid exports and DXF use sampled
+to adjust fit. Trace SVG retains native curves when no hole/material boolean is needed; solid exports and DXF use sampled
 outlines. See [prototype scope and verification](docs/contour-curves-prototype.md).
 
 In curve editing, **Fit selected points** lets you choose the first and last point
