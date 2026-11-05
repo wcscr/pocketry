@@ -1002,12 +1002,12 @@ function BinDesignerWorkspace(): JSX.Element {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
-        const bambuCompatible = format === "3mf-bambu";
-        const multicolor = format === "3mf-multicolor" || bambuCompatible;
+        const slicerCompatible = format === "3mf-bambu";
+        const multicolor = format === "3mf-multicolor" || slicerCompatible;
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          bambuCompatible ? "bambu-multicolor" : multicolor ? "multicolor" : "",
+          slicerCompatible ? "compatible-multicolor" : multicolor ? "multicolor" : "",
         );
         const includePocketFloors =
           multicolor &&
@@ -1092,7 +1092,8 @@ function BinDesignerWorkspace(): JSX.Element {
             {
               title: `Pocketry multi-color Gridfinity bin ${label}`,
               assemble: true,
-              combineObjects: bambuCompatible,
+              combineObjects: slicerCompatible,
+              prusaPaint: slicerCompatible,
             },
           );
           downloadModelWithProject(
@@ -1131,7 +1132,7 @@ function BinDesignerWorkspace(): JSX.Element {
         }
         toast({
           title: "Saved",
-          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${bambuCompatible ? "a Bambu-compatible multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${slicerCompatible ? "a Bambu / Prusa multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {

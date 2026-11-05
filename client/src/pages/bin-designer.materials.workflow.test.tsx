@@ -829,6 +829,9 @@ it.each(["multicolor", "bambu"])("saves and exports independent label background
       expect(xml).toContain('pid="1" p1="0"');
       expect(xml).toContain('pid="1" p1="1"');
       expect(entries["Metadata/model_settings.config"]).toBeUndefined();
+      expect(xml).toContain('slic3rpe:mmu_segmentation="4"');
+      expect(xml).toContain('slic3rpe:mmu_segmentation="8"');
+      expect(entries["Metadata/Slic3r_facets_annotation.json"]).toBeDefined();
     } else {
       expect(xml).toContain('label backgrounds');
       expect(xml.match(/<mesh>/g)).toHaveLength(2);

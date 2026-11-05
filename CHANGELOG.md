@@ -4,7 +4,7 @@
 
 ## 1.8.0 — 2026-11-05
 
-- Add a temporary Bambu-compatible 3MF export that keeps colors in Bambu Studio 2.9.1.70 by combining parts into one model. Regular multi-color export retains separate named parts.
+- Add a Bambu / Prusa 3MF export that combines parts into one model, keeps Bambu's color mapping, and preserves painted filament regions in PrusaSlicer 2.9.7 and 3.0 alpha13. Regular multi-color export retains separate named parts.
 
 ## 1.7.0 — 2026-11-05
 

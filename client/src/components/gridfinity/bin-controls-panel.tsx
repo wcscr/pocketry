@@ -2781,7 +2781,7 @@ export function BinControlsPanel({
             </Button>
             <div id="bambu-multicolor-import-warning" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-bambu-color-warning">
               <p className="font-medium">Bambu Studio 2.9.1.70: separate-part color issue</p>
-              <p className="mt-1">Regular Multi-color 3MF loses colors on separate parts in this version. Use Bambu-compatible 3MF below to keep colors in one model. A fix for separate-part imports is in progress. <a href="https://github.com/wcscr/pocketry/issues/211" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Follow the fix</a>.</p>
+              <p className="mt-1">Regular Multi-color 3MF loses colors on separate parts in this version. Use Bambu / Prusa 3MF below to keep colors in one model. A fix for separate-part imports is in progress. <a href="https://github.com/wcscr/pocketry/issues/211" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Follow the fix</a>.</p>
             </div>
             <Button
               className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
@@ -2826,8 +2826,8 @@ export function BinControlsPanel({
             >
               <Palette className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">Bambu-compatible 3MF</span>
-                <span className="block text-[11px] font-normal text-muted-foreground">Temporary option for Bambu Studio 2.9.1.70. Keeps colors in one model; body, labels, and text are no longer separate named parts.</span>
+                <span className="block text-sm font-medium">Bambu / Prusa 3MF</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">One model with painted color regions; body, labels, and text are no longer separate named parts. In PrusaSlicer, select a multicolor printer and set your filament colors.</span>
               </span>
             </Button>
           </div>

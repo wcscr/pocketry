@@ -107,15 +107,21 @@ it.each([{ heightUnits: 4, recessMm: 0.5 }, { heightUnits: 4, recessMm: 0.8 }, {
   expect(xml).toContain('#242628FF');
   expect(xml).toContain('#BFC2C4FF');
   expect(xml).toContain('Label background');
-  // The Bambu workaround must retain the same independently printable regions
+  // Slicer-compatible painting must retain the same independently printable regions
   // when body and lettering share a color and only label backgrounds differ.
-  const combined = strFromU8(unzipSync(writeThreeMf(parts, { combineObjects: true }))["3D/3dmodel.model"]);
+  const paintedEntries = unzipSync(writeThreeMf(parts, { combineObjects: true, prusaPaint: true }));
+  const combined = strFromU8(paintedEntries["3D/3dmodel.model"]);
   expect(combined.match(/<mesh>/g)).toHaveLength(1);
   expect(combined.match(/<m:color /g)).toHaveLength(2);
   const backgroundTriangles = exported.materialMeshes!.labelBackground!.indices.length / 3;
   const totalTriangles = parts.reduce((sum, part) => sum + part.mesh.indices.length / 3, 0);
   expect(combined.match(/pid="1" p1="1"/g)).toHaveLength(backgroundTriangles);
   expect(combined.match(/pid="1" p1="0"/g)).toHaveLength(totalTriangles - backgroundTriangles);
+  const facets: { triangle: number; dividing: string }[] = JSON.parse(strFromU8(paintedEntries["Metadata/Slic3r_facets_annotation.json"]))[0].mmSegmentationFacets;
+  expect(facets).toHaveLength(totalTriangles);
+  expect(facets.map(face => face.triangle)).toEqual(Array.from({ length: totalTriangles }, (_, index) => index));
+  expect(facets.filter(face => face.dividing === "8")).toHaveLength(backgroundTriangles);
+  expect(facets.filter(face => face.dividing === "4")).toHaveLength(totalTriangles - backgroundTriangles);
   // Volumes and closed edges do not catch a microscopic body skin that
   // collapses onto the colored shelf after Float32 serialization. Probe the
   // actual 3MF triangles above every shelf, including the reported 0.8 mm case.
