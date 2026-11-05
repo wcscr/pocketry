@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420" role="img" aria-labelledby="title description">
+  <title id="title">Printed bin pocket — photo coming soon</title>
+  <desc id="description">Placeholder for a photograph of the empty Craftsman tape measure bin showing its body pocket and belt-clip relief.</desc>
+  <rect width="640" height="420" rx="16" fill="#f4f4f5"/>
+  <rect x="20" y="20" width="600" height="380" rx="12" fill="none" stroke="#a1a1aa" stroke-width="2" stroke-dasharray="8 8"/>
+  <g fill="none" stroke="#71717a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M285 151h15l8-12h24l8 12h15v44h-70z"/>
+    <circle cx="320" cy="173" r="12"/>
+  </g>
+  <g text-anchor="middle" font-family="Arial, sans-serif">
+    <text x="320" y="242" font-size="24" font-weight="600" fill="#27272a">Printed bin pocket</text>
+    <text x="320" y="277" font-size="18" fill="#52525b">Photo coming soon</text>
+  </g>
+</svg>

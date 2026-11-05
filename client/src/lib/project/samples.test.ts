@@ -17,8 +17,8 @@ beforeEach(async () => { memory.clear(); await loadProjectDoc(); });
 it("loads and migrates every bundled sample without writing to the browser library", async () => {
   const before = new Map(memory);
   const samples = await loadSampleLibrary();
-  expect(samples.projects).toHaveLength(16);
-  expect(new Set(samples.projects.map(project => project.id)).size).toBe(16);
+  expect(samples.projects).toHaveLength(17);
+  expect(new Set(samples.projects.map(project => project.id)).size).toBe(17);
   for (const project of samples.projects) {
     expect(project.doc.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(project.doc.name).toBe(project.name);
@@ -34,10 +34,10 @@ it("adds the full collection without replacing an existing project or its active
   const before = await exportProjectLibrary();
   const active = await loadProjectDoc();
   const result = await importProjectLibrary(samples, "merge");
-  expect(result.imported).toBe(16);
+  expect(result.imported).toBe(17);
   expect(result.renamed).toBe(1);
   expect(result.library.activeProjectId).toBe(existing.activeProjectId);
-  expect(result.library.projects).toHaveLength(17);
+  expect(result.library.projects).toHaveLength(18);
   expect(await loadProjectDoc()).toEqual(active);
   const exported = await exportProjectLibrary();
   expect(exported.projects.find(project => project.id === existing.activeProjectId)).toEqual(before.projects[0]);

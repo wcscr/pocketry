@@ -32,7 +32,7 @@ it.each(labeledSamples)("keeps $slug labels supported and exportable in the down
       })),
     ], { assemble: true });
     const model = strFromU8(unzipSync(bytes)["3D/3dmodel.model"]);
-    for (const text of wording) expect(model).toContain(`name="Text: ${text}"`);
+    for (const text of wording) expect(model).toContain(`name="Text: ${text.replaceAll("'", "&apos;")}"`);
     expect(model.match(/<component /g)).toHaveLength(wording.length + 1);
     expect(model.match(/<item /g)).toHaveLength(1);
     expect(model).toContain(project.spec.textColor!.toUpperCase());

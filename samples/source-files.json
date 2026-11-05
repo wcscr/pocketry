@@ -855,12 +855,40 @@
           ]
         }
       ]
+    },
+    {
+      "directory": "craftsman-tape-measure",
+      "model": {
+        "file": "craftsman-tape-measure.3mf",
+        "sourceFile": "Craftsman-Tape-Measure---25-bin-5x5x4.5-half-multicolor-2026-10-17_12-34-24-592.3mf",
+        "sha256": "728ab6e3c9787dddddecafe7e6f3c8c88aac5ea8b60a4cca831a6bc329573e0a"
+      },
+      "project": {
+        "file": "craftsman-tape-measure.pocketry.json",
+        "sourceFile": "Craftsman-Tape-Measure---25-bin-5x5x4.5-half-multicolor-2026-10-17_12-34-24-592.pocketry.json",
+        "sha256": "3e752abac3288365f6260b811c5f444186805a4d6fec774ec1b611e25b744382",
+        "processing": "Migrated to the current project schema; renamed for the sample catalog; removed undo history, transform origins, and unused shapes. Placed pocket geometry, depths, label, and colors retained from the original project accompanying the 3MF export."
+      },
+      "photos": [],
+      "photoStatus": "Printed-bin photographs pending; the two SVG placeholders are illustrations, not print evidence.",
+      "previews": [
+        {
+          "file": "photos/printed-bin-loaded-placeholder.svg",
+          "sha256": "2d579c99a53bab0ce574898ce148e57b599422620181cc02459b8740e7b92987",
+          "processing": "Repository-authored SVG placeholder for a future printed-bin photograph; not print evidence."
+        },
+        {
+          "file": "photos/printed-bin-pocket-placeholder.svg",
+          "sha256": "9b9225b51d32026953406d0cdfbf9ddd22325445f44e07fb463f5f94d58a61b9",
+          "processing": "Repository-authored SVG placeholder for a future printed-bin photograph; not print evidence."
+        }
+      ]
     }
   ],
   "library": {
     "file": "pocketry-sample-library.json",
-    "projectCount": 10,
-    "description": "All ten sample project JSONs, included verbatim in Pocketry library-backup format.",
-    "sha256": "22e35df52a788e8bc37c5efc71467b23bf664e9e65227efaf2c8f3ac98f3b8d3"
+    "projectCount": 17,
+    "description": "All 17 sample project JSONs, included verbatim in Pocketry library-backup format.",
+    "sha256": "0c61e6edb0a3ba643741f90c788e2dec8a6401c0da7191b5ffb9ac8d22b4b78a"
   }
 }
