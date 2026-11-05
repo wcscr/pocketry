@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6.1 — 2026-11-05
+
+- Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.
+
 ## 1.6.0 — 2026-11-05
 
 - Add hollow-bin compartments, dividers, scoop bottoms, and rounded floor edges, with optional divider-top coloring.
