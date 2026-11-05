@@ -294,6 +294,15 @@ describe("BinDesignerPage", () => {
         container.querySelector<HTMLButtonElement>(`[data-testid="${button}"]`)!.click();
       });
       expect(downloadBlob).not.toHaveBeenCalled();
+      const bambuWarning = document.querySelector('[data-testid="export-bambu-color-warning"]');
+      if (kind.endsWith("3mf")) {
+        expect(bambuWarning?.textContent).toContain("Bambu Studio 2.9.1.70");
+        expect(bambuWarning?.textContent).toContain("A fix is in progress");
+        expect(bambuWarning?.querySelector("a")?.getAttribute("href")).toBe("https://github.com/wcscr/pocketry/issues/211");
+        expect(document.querySelector('[data-testid="button-export-multicolor-3mf"]')?.getAttribute("aria-describedby")).toBe(bambuWarning?.id);
+      } else {
+        expect(bambuWarning).toBeNull();
+      }
       const checkbox = document.querySelector<HTMLButtonElement>('[data-testid="checkbox-export-project"]')!;
       expect(checkbox.getAttribute("aria-checked")).toBe("false");
       if (includeProject) React.act(() => checkbox.click());
