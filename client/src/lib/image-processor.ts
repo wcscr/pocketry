@@ -3,6 +3,7 @@ import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
 import { pointInRing, ringArea } from "@shared/geometry/rings";
 
 import { detectOutline } from "./detect/pipeline";
+import { detectInWorker } from "./detect/worker-client";
 import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
 import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
 import {
@@ -161,8 +162,14 @@ export async function processImage(
 
   let result: DetectResult;
   try {
-    result = await detectOutline(imageData, { ...detect, roi });
+    // Node tests and non-browser consumers can still call the injected pipeline.
+    // Every supported browser runs segmentation and tracing in the worker.
+    result = typeof Worker === "undefined"
+      ? await detectOutline(imageData, { ...detect, roi, engine: "js", refine: "none" })
+      : await detectInWorker(imageData, { ...detect, roi });
   } catch (error) {
+    if (detect.signal?.aborted || (error instanceof Error &&
+      (error.name === "AbortError" || error.name === "WorkerCancelledError"))) throw error;
     onNotice?.(
       "Detection failed",
       error instanceof Error ? error.message : String(error),
@@ -173,7 +180,7 @@ export async function processImage(
   if (result.engine === "js" && detect.engine !== "js") {
     onNotice?.(
       "Using the fallback detector",
-      "OpenCV could not be loaded, so detection ran in JavaScript. Results are the same but slower.",
+      "OpenCV could not be loaded, so detection used the basic JavaScript outline without automatic boundary refinement.",
     );
   }
 

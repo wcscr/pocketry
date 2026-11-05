@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.7.0 — 2026-11-05
+
+- Automatically refine photo outlines with guarded, mask-seeded GrabCut in a cancellable worker. Preserve detected recesses, thin features and holes, and retain the original outline when refinement is unreliable.
+
 ## 1.6.1 — 2026-11-05
 
 - Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.

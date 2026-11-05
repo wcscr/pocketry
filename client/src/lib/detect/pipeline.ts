@@ -9,7 +9,8 @@ import {
 import { traceIsoRings } from "../geometry/trace";
 import { loadOpenCV } from "../opencv";
 import { buildScoreFieldJS, maskFromScore } from "./segment-js";
-import { buildScoreFieldOpenCV } from "./segment-opencv";
+import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
+import { checkDetectionAbort, detectionCheckpoint, refineWithGrabCut } from "./grabcut";
 import { restoreOccludedScore } from "./occlusions";
 import {
   DETECT_DEFAULTS,
@@ -18,6 +19,7 @@ import {
   type DetectResult,
   type ImageLike,
   type ScoreField,
+  type RefinementReport,
 } from "./types";
 
 /**
@@ -28,22 +30,37 @@ import {
  * a convex hull, so it could not represent a concave outline at all; the other
  * kept only the largest `RETR_EXTERNAL` contour, so it could not represent
  * holes. Both are gone. There is now one path, and its OpenCV and pure-JS
- * backends are behaviourally equivalent — the JS one is a genuine fallback
- * rather than a degraded second mode.
+ * base segmentation backends are behaviourally equivalent. When OpenCV is
+ * available, guarded GrabCut may refine that shared baseline; the JS fallback
+ * retains the complete original pipeline without this optional solver stage.
  */
 export async function detectOutline(
   image: ImageLike,
   options: DetectOptions = {},
+  runtime: { loadCV: () => Promise<OpenCV> } = { loadCV: loadOpenCV },
 ): Promise<DetectResult> {
+  checkDetectionAbort(options.signal);
   const timings: Record<string, number> = {};
 
-  const { field, engine } = await segment(image, options, timings);
+  let { field, engine, refinement, baseline } = await segment(image, options, timings, runtime.loadCV);
   throwIfAborted(options.signal);
   const estimatedEdgeRegions: Ring[] = [];
   const inferredOccludedEdge = options.occlusions?.length
     ? time(timings, "occlusions", () => restoreOccludedScore(field, options.occlusions!, estimatedEdgeRegions)) : false;
 
-  const rawOutline = time(timings, "trace", () => traceToOutline(field, options));
+  let rawOutline = time(timings, "trace", () => traceToOutline(field, options));
+  if (baseline && refinement?.status === "accepted") {
+    const original = time(timings, "validateTopology", () => traceToOutline(baseline, options));
+    // Polygon thresholds are relative to each parent (especially holes in a
+    // small second object). Check the actual normalized rings as well as the
+    // raster graph, before exposing any refined result to the editor.
+    if (original.length !== rawOutline.length || original.some((shape, i) =>
+      shape.holes.length !== rawOutline[i].holes.length)) {
+      field = baseline;
+      rawOutline = original;
+      refinement = { ...refinement, status: "fallback", reason: "outline-topology" };
+    }
+  }
   throwIfAborted(options.signal);
 
   const outline = time(timings, "refine", () => refineOutline(rawOutline, options, field));
@@ -57,6 +74,7 @@ export async function detectOutline(
     otsuThreshold: field.otsu,
     engine,
     timings,
+    refinement,
     debug: options.debug ? buildDebug(field) : undefined,
   };
 }
@@ -107,23 +125,36 @@ async function segment(
   image: ImageLike,
   options: DetectOptions,
   timings: Record<string, number>,
-): Promise<{ field: ScoreField; engine: DetectEngine }> {
+  loadCV: () => Promise<OpenCV>,
+): Promise<{ field: ScoreField; baseline?: ScoreField; engine: DetectEngine; refinement?: RefinementReport }> {
   const requested = options.engine ?? DETECT_DEFAULTS.engine;
 
   if (requested !== "js") {
     try {
-      const cv = await loadOpenCV();
+      const loadStarted = now();
+      const cv = await loadCV();
+      timings.initialize = now() - loadStarted;
+      await detectionCheckpoint(options.signal);
       const started = now();
       const field = buildScoreFieldOpenCV(cv, image, options);
       timings.segment = now() - started;
+      if ((options.refine ?? DETECT_DEFAULTS.refine) === "grabcut") {
+        const refineStarted = now();
+        const refined = await refineWithGrabCut(cv, image, field, options);
+        timings.grabcut = now() - refineStarted;
+        return { field: refined.field, baseline: field, engine: "opencv", refinement: refined.report };
+      }
       return { field, engine: "opencv" };
     } catch (error) {
+      checkDetectionAbort(options.signal);
+      if (error instanceof Error && error.name === "AbortError") throw error;
       if (requested === "opencv") throw error;
       // "auto": fall through to the pure-JS backend. Same algorithm, slower.
       console.warn("[detect] OpenCV unavailable, using the JS backend:", error);
     }
   }
 
+  await detectionCheckpoint(options.signal);
   const started = now();
   const field = buildScoreFieldJS(image, options);
   timings.segment = now() - started;

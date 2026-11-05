@@ -300,6 +300,9 @@ Pocketry redistributes an OpenCV.js bundle at
 `client/public/opencv/opencv.js`, built from unmodified OpenCV 4.11.0
 sources with the stock JS module whitelist (which includes the aruco API in
 `objdetect`) — see `scripts/build-opencv-js.sh`.
+The generated UMD wrapper selects `globalThis` so the same bundle can load in
+module workers; `scripts/patch-opencv-worker.cjs` reproduces this packaging-only
+adaptation. OpenCV algorithms and the embedded WASM are unchanged.
 
 Pocketry also pins a small amount of OpenCV-generated data: 28 custom
 4x4 marker patterns used by calibration-sheet v2 and the object measurement aids

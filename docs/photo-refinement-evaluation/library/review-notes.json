@@ -1,0 +1,230 @@
+{
+  "wolfbox-mf70-airduster-kit-printed-bin-loaded": {
+    "assessment": "Bin-edge cleanup",
+    "note": "Visible trimming of the upper bin-edge shadow. Tools overlap their recesses, so the full tool shapes cannot be scored here."
+  },
+  "wolfbox-mf70-airduster-kit-printed-bin-pocket": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "dewalt-right-angle-tools-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "ryobi-cutter-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "ryobi-cutter-printed-bin-pocket": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "caliper-storage-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "caliper-storage-printed-bin-pocket": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "stapler-printed-bin-loaded": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "stapler-printed-bin-pocket": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "wire-strippers-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "wire-strippers-printed-bin-pocket": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "klein-voltage-tester-printed-bin-loaded": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "klein-voltage-tester-printed-bin-pocket": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "mouldline-remover-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "mouldline-remover-printed-bin-pocket": {
+    "assessment": "Background confusion remains",
+    "note": "Wood grain still affects the small tool tip and bin edge. The accepted subtraction does not solve that ambiguity."
+  },
+  "wiha-drivers-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "wiha-drivers-printed-bin-pocket": {
+    "assessment": "Small cleanup",
+    "note": "Small outer-edge trimming; the visible isolated screwdriver shafts are retained. Bin and tool outlines remain mixed in this full-frame selection."
+  },
+  "wiha-drivers-stacked-bins-in-drawer": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "mini-socket-set-printed-bin-loaded-portrait": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "mini-socket-set-printed-bin-pocket-portrait": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "mini-socket-set-printed-bin-empty-portrait": {
+    "assessment": "Bin-interior cleanup",
+    "note": "Texture noise around the rectangular interior boundary is reduced. This is an empty bin, not a tool-silhouette accuracy case."
+  },
+  "wiha-40mm-drivers-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "wiha-50mm-drivers-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "wiha-60mm-drivers-printed-bin-loaded": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "wiha-60mm-drivers-printed-bin-pocket": {
+    "assessment": "Print-photo stress case",
+    "note": "Full-frame detection mixes bin boundaries with internal contrast. This print photo is a stress case, not a full tool-silhouette accuracy measurement."
+  },
+  "wiha-60mm-drivers-printed-bin-loaded-current": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "bessey-gerber-printed-bin-loaded": {
+    "assessment": "Limited benefit",
+    "note": "Some texture/contrast regions shrink. The bin dominates the outer contour and loaded tools are partly occluded; this cannot validate their full outline."
+  },
+  "airduster-nozzle": {
+    "assessment": "Visible cleanup",
+    "note": "Side and lower shadow/jagged pixels are reduced. Reflective strips still appear as false interior holes in the initial mask."
+  },
+  "airduster-body": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "airduster-pair": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "airduster-angle-nozzle": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "ryobi-original": {
+    "assessment": "Limited benefit",
+    "note": "Small subtraction; the baseline still misses dark handle/metal geometry and includes corner-marker fragments. The complete tool is not recovered."
+  },
+  "mouldline-original": {
+    "assessment": "Negligible change",
+    "note": "Only three mask pixels change. The same silhouette and false interior hole remain."
+  },
+  "stapler-original": {
+    "assessment": "Small cleanup",
+    "note": "Small edge trimming with the narrow side feature retained. Interior contrast regions remain holes in both results."
+  },
+  "caliper-original": {
+    "assessment": "Baseline failure remains",
+    "note": "The dark display/body is traced, but the faint long metal beam is missing in both results. GrabCut cannot add missing foreground."
+  },
+  "mouldline-distant": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "wiha-150-original": {
+    "assessment": "Baseline failure remains",
+    "note": "Handle-edge cleanup is small; several faint shafts are fragmented or absent in both outputs."
+  },
+  "bessey-original": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "gerber-close": {
+    "assessment": "Visible improvement",
+    "note": "Substantial side-shadow cleanup while both detected end recesses remain open. The existing sparse landmark evaluation supports this change."
+  },
+  "gerber-distant": {
+    "assessment": "Unchanged: fallback",
+    "note": "The proposal was rejected and the exact baseline retained. Existing missed geometry, shadow or false holes therefore remain."
+  },
+  "wiha-60-original": {
+    "assessment": "Small change",
+    "note": "Minor handle/edge changes; the faint shaft remains difficult. No claim of recovered shaft accuracy is supported."
+  },
+  "wiha-50-original": {
+    "assessment": "Negligible change",
+    "note": "Nine mask pixels change. The faint shaft missed by baseline remains missing."
+  },
+  "wiha-40-original": {
+    "assessment": "Negligible change",
+    "note": "Six mask pixels change. The faint shaft missed by baseline remains missing."
+  },
+  "wire-strippers-original": {
+    "assessment": "Small cleanup",
+    "note": "Handle and head edges remain visually similar; the central recess stays open. Lettering/contrast holes remain in the baseline."
+  },
+  "airduster-body-early": {
+    "assessment": "Small cleanup",
+    "note": "Slight trimming at the handle/body outline. Large highlight-shaped false holes remain in both outputs."
+  },
+  "airduster-nozzle-early": {
+    "assessment": "Small cleanup",
+    "note": "Limited side/rib-edge cleanup, with the original reflective interior holes retained."
+  },
+  "caliper-mat-20260812_164339": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "caliper-mat-20260812_164350": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "caliper-mat-20260812_171044": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "caliper-mat-20260812_171049": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "caliper-mat-20260812_171808": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "caliper-mat-20260812_171814": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "wire-mat-20260812_173148": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "wire-mat-20260812_173156": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "wire-mat-20260817_124249": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "wire-mat-20260817_124240": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  },
+  "wire-mat-20260817_124246": {
+    "assessment": "Background stress case",
+    "note": "The old checkerboard competes with the tool as foreground. This does not establish a usable tool silhouette or an accuracy improvement."
+  }
+}

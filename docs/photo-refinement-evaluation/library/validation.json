@@ -1,0 +1,393 @@
+{
+  "caseCount": 57,
+  "passed": true,
+  "checks": [
+    "mask-size",
+    "no-growth",
+    "shell-and-hole-topology",
+    "two-iteration-budget",
+    "exact-fallback"
+  ],
+  "summary": [
+    {
+      "group": "original",
+      "cases": 19,
+      "accepted": 13,
+      "fallback": 6,
+      "baselineMedianMs": 7.821292000007816,
+      "refinedMedianMs": 45.13949999999022,
+      "addedMedianMs": 37.318207999982405,
+      "medianRatio": 5.388655236612004,
+      "p95AddedMs": 139.26225389999155,
+      "maxAddedMs": 172.76629200000025
+    },
+    {
+      "group": "legacy",
+      "cases": 11,
+      "accepted": 6,
+      "fallback": 5,
+      "baselineMedianMs": 51.73054199999751,
+      "refinedMedianMs": 261.25879099999656,
+      "addedMedianMs": 199.77749899999617,
+      "medianRatio": 5.178511526131177,
+      "p95AddedMs": 256.7030834999996,
+      "maxAddedMs": 258.34287499999846
+    },
+    {
+      "group": "published",
+      "cases": 27,
+      "accepted": 18,
+      "fallback": 9,
+      "baselineMedianMs": 39.97950000000128,
+      "refinedMedianMs": 215.67354200000045,
+      "addedMedianMs": 175.5264590000006,
+      "medianRatio": 5.6488273874744515,
+      "p95AddedMs": 314.85934109999545,
+      "maxAddedMs": 319.39395800000057
+    }
+  ],
+  "cases": [
+    {
+      "name": "airduster-nozzle",
+      "removedPixels": 539,
+      "removedFraction": 0.051362683438155136,
+      "status": "accepted"
+    },
+    {
+      "name": "airduster-body",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "airduster-pair",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "airduster-angle-nozzle",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "ryobi-original",
+      "removedPixels": 289,
+      "removedFraction": 0.025554867804403573,
+      "status": "accepted"
+    },
+    {
+      "name": "mouldline-original",
+      "removedPixels": 3,
+      "removedFraction": 0.0007905138339920949,
+      "status": "accepted"
+    },
+    {
+      "name": "stapler-original",
+      "removedPixels": 147,
+      "removedFraction": 0.0038378194919458006,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-original",
+      "removedPixels": 94,
+      "removedFraction": 0.047522750252780584,
+      "status": "accepted"
+    },
+    {
+      "name": "mouldline-distant",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "wiha-150-original",
+      "removedPixels": 198,
+      "removedFraction": 0.015389398414425617,
+      "status": "accepted"
+    },
+    {
+      "name": "bessey-original",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "gerber-close",
+      "removedPixels": 6340,
+      "removedFraction": 0.07457244348255664,
+      "status": "accepted"
+    },
+    {
+      "name": "gerber-distant",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "wiha-60-original",
+      "removedPixels": 99,
+      "removedFraction": 0.06003638568829594,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-50-original",
+      "removedPixels": 9,
+      "removedFraction": 0.00734094616639478,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-40-original",
+      "removedPixels": 6,
+      "removedFraction": 0.006458557588805167,
+      "status": "accepted"
+    },
+    {
+      "name": "wire-strippers-original",
+      "removedPixels": 178,
+      "removedFraction": 0.006364188923450964,
+      "status": "accepted"
+    },
+    {
+      "name": "airduster-body-early",
+      "removedPixels": 84,
+      "removedFraction": 0.004870412245607932,
+      "status": "accepted"
+    },
+    {
+      "name": "airduster-nozzle-early",
+      "removedPixels": 40,
+      "removedFraction": 0.004395604395604396,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-mat-20260812_164339",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "caliper-mat-20260812_164350",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "caliper-mat-20260812_171044",
+      "removedPixels": 1280,
+      "removedFraction": 0.008710742114396543,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-mat-20260812_171049",
+      "removedPixels": 5742,
+      "removedFraction": 0.04008684785568176,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-mat-20260812_171808",
+      "removedPixels": 929,
+      "removedFraction": 0.007428137368568345,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-mat-20260812_171814",
+      "removedPixels": 1865,
+      "removedFraction": 0.022101608143820436,
+      "status": "accepted"
+    },
+    {
+      "name": "wire-mat-20260812_173148",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "wire-mat-20260812_173156",
+      "removedPixels": 1101,
+      "removedFraction": 0.006376657148979793,
+      "status": "accepted"
+    },
+    {
+      "name": "wire-mat-20260817_124249",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "wire-mat-20260817_124240",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "wire-mat-20260817_124246",
+      "removedPixels": 2029,
+      "removedFraction": 0.012715024283252389,
+      "status": "accepted"
+    },
+    {
+      "name": "wolfbox-mf70-airduster-kit-printed-bin-loaded",
+      "removedPixels": 4264,
+      "removedFraction": 0.012723838397703502,
+      "status": "accepted"
+    },
+    {
+      "name": "wolfbox-mf70-airduster-kit-printed-bin-pocket",
+      "removedPixels": 1667,
+      "removedFraction": 0.006405822496848966,
+      "status": "accepted"
+    },
+    {
+      "name": "dewalt-right-angle-tools-printed-bin-loaded",
+      "removedPixels": 171,
+      "removedFraction": 0.0008704992389494958,
+      "status": "accepted"
+    },
+    {
+      "name": "ryobi-cutter-printed-bin-loaded",
+      "removedPixels": 2750,
+      "removedFraction": 0.012198746412459579,
+      "status": "accepted"
+    },
+    {
+      "name": "ryobi-cutter-printed-bin-pocket",
+      "removedPixels": 671,
+      "removedFraction": 0.0024015748031496064,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-storage-printed-bin-loaded",
+      "removedPixels": 156,
+      "removedFraction": 0.0005447631153466055,
+      "status": "accepted"
+    },
+    {
+      "name": "caliper-storage-printed-bin-pocket",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "stapler-printed-bin-loaded",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "stapler-printed-bin-pocket",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "wire-strippers-printed-bin-loaded",
+      "removedPixels": 2235,
+      "removedFraction": 0.012865456680539485,
+      "status": "accepted"
+    },
+    {
+      "name": "wire-strippers-printed-bin-pocket",
+      "removedPixels": 541,
+      "removedFraction": 0.003418662993131078,
+      "status": "accepted"
+    },
+    {
+      "name": "klein-voltage-tester-printed-bin-loaded",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "klein-voltage-tester-printed-bin-pocket",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "mouldline-remover-printed-bin-loaded",
+      "removedPixels": 321,
+      "removedFraction": 0.004027047709851839,
+      "status": "accepted"
+    },
+    {
+      "name": "mouldline-remover-printed-bin-pocket",
+      "removedPixels": 609,
+      "removedFraction": 0.00628262529143541,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-drivers-printed-bin-loaded",
+      "removedPixels": 1134,
+      "removedFraction": 0.008090926603737237,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-drivers-printed-bin-pocket",
+      "removedPixels": 2653,
+      "removedFraction": 0.017378260470844085,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-drivers-stacked-bins-in-drawer",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "mini-socket-set-printed-bin-loaded-portrait",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "mini-socket-set-printed-bin-pocket-portrait",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "mini-socket-set-printed-bin-empty-portrait",
+      "removedPixels": 7169,
+      "removedFraction": 0.03552122404284943,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-40mm-drivers-printed-bin-loaded",
+      "removedPixels": 1654,
+      "removedFraction": 0.06682558280473516,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-50mm-drivers-printed-bin-loaded",
+      "removedPixels": 59,
+      "removedFraction": 0.003223867548221409,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-60mm-drivers-printed-bin-loaded",
+      "removedPixels": 5,
+      "removedFraction": 8.1913499344692e-05,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-60mm-drivers-printed-bin-pocket",
+      "removedPixels": 680,
+      "removedFraction": 0.009753019133128711,
+      "status": "accepted"
+    },
+    {
+      "name": "wiha-60mm-drivers-printed-bin-loaded-current",
+      "removedPixels": 0,
+      "removedFraction": 0.0,
+      "status": "fallback"
+    },
+    {
+      "name": "bessey-gerber-printed-bin-loaded",
+      "removedPixels": 2961,
+      "removedFraction": 0.014478368017524643,
+      "status": "accepted"
+    }
+  ]
+}
