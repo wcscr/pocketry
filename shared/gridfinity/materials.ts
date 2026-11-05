@@ -7,6 +7,7 @@ export const STACKING_RIM_COLOR = POCKET_FLOOR_COLOR;
 
 /** Material regions replace existing volume downward from the original surface. */
 export const MULTICOLOR_FLOOR_THICKNESS_MM = 0.6;
+export const MULTICOLOR_LABEL_THICKNESS_MM = 0.6;
 export const MULTICOLOR_RIM_THICKNESS_MM = 1.25;
 export const MULTICOLOR_BORDER_WIDTH_MM = D_WALL;
 export const MULTICOLOR_BORDER_MAX_WIDTH_MM = 20;
@@ -24,6 +25,9 @@ export const binMaterialsSchema = z.object({
   binColor: colorSchema,
   pocketFloorColor: colorSchema,
   stackingRimColor: colorSchema,
+  /** Null follows the bin body; older projects keep their existing label faces. */
+  labelBackgroundColor: colorSchema.nullable().default(null),
+  labelBackgroundThicknessMm: z.number().min(MULTICOLOR_MIN_THICKNESS_MM).max(MULTICOLOR_FLOOR_MAX_THICKNESS_MM).default(MULTICOLOR_LABEL_THICKNESS_MM),
   colorPocketFloors: z.boolean(),
   colorStackingRim: z.boolean(),
   /** Extend the rim color across internal divider tops; older designs retain body-colored dividers. */
@@ -40,6 +44,8 @@ export const DEFAULT_BIN_MATERIALS: Readonly<BinMaterials> = Object.freeze({
   binColor: BIN_BODY_COLOR,
   pocketFloorColor: POCKET_FLOOR_COLOR,
   stackingRimColor: STACKING_RIM_COLOR,
+  labelBackgroundColor: null,
+  labelBackgroundThicknessMm: MULTICOLOR_LABEL_THICKNESS_MM,
   colorPocketFloors: true,
   colorStackingRim: true,
   colorDividerTops: false,

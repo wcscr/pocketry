@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.7.0 — 2026-11-05
+
+- Choose independent label-background colors, with adjustable material thickness, in the preview and multicolor 3MF exports. Existing labels keep their body color.
+
 ## 1.6.1 — 2026-11-05
 
 - Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.

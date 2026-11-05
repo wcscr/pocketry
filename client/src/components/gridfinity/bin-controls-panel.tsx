@@ -251,6 +251,10 @@ export interface BinControlsPanelProps {
   onSectionChange: (section: BuildBinSection | null) => void;
   colorPocketFloors: boolean;
   onColorPocketFloorsChange: (enabled: boolean) => void;
+  labelBackgroundColor: string | null;
+  onLabelBackgroundColorChange: (color: string | null) => void;
+  labelBackgroundThicknessMm: number;
+  onLabelBackgroundThicknessChange: (thicknessMm: number) => void;
   binColor: string;
   onBinColorChange: (color: string) => void;
   pocketFloorColor: string;
@@ -335,6 +339,10 @@ export function BinControlsPanel({
   onStackingRimThicknessChange,
   borderWidthMm,
   onBorderWidthChange,
+  labelBackgroundColor,
+  onLabelBackgroundColorChange,
+  labelBackgroundThicknessMm,
+  onLabelBackgroundThicknessChange,
   pocketEditorRequest = 0,
   keepBinSize = false,
   onKeepBinSizeChange,
@@ -482,22 +490,24 @@ export function BinControlsPanel({
   const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasColorablePocket);
   const floorColorLabel = spec.fill === "none" ? "Bin floor" : cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
   const hasSelectedRimColor = colorStackingRim;
+  const hasSelectedLabelColor = !!spec.labelTab && labelBackgroundColor !== null;
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
   const materialColors = [
     { id: "input-bin-color", label: isJig ? "Fixture body" : "Bin body", color: binColor },
     { id: "input-pocket-floor-color", label: floorColorLabel, color: pocketFloorColor },
     { id: "input-stacking-rim-color", label: rimColorLabel, color: stackingRimColor },
+    { id: "input-label-background-color", label: "Label background", color: labelBackgroundColor ?? binColor },
     { id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor },
   ];
   const hasMaterialEdits = Object.entries({
     binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim, colorDividerTops,
-    pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
+    pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, labelBackgroundColor, labelBackgroundThicknessMm,
   }).some(([key, value]) => value !== DEFAULT_BIN_MATERIALS[key as keyof typeof DEFAULT_BIN_MATERIALS]);
   const hasSelectedMulticolor =
-    hasSelectedFloorColor || hasSelectedRimColor || spec.surfaceTexts.length > 0;
+    hasSelectedFloorColor || hasSelectedRimColor || hasSelectedLabelColor || spec.surfaceTexts.length > 0;
   const activeColorCount =
-    new Set([binColor, ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
+    new Set([binColor, ...(hasSelectedLabelColor ? [labelBackgroundColor!] : []), ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
       ...(hasSelectedRimColor ? [stackingRimColor] : []), ...(spec.surfaceTexts.length ? [spec.textColor ?? edgeBandColor] : [])]
       .map(color => color.toLowerCase())).size;
 
@@ -2180,6 +2190,30 @@ export function BinControlsPanel({
               onChange={onBinColorChange}
             />
           </div>
+          <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-label-background">
+            <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Label background" htmlFor="input-label-background-color"
+                hint="Colors the flat label-tab faces beneath text and symbols. Raised borders follow the rim setting. By default, label faces match the bin body." />
+              <MaterialColorSwatch id="input-label-background-color" sources={materialColors} label="Label background"
+                value={labelBackgroundColor ?? binColor} disabled={!spec.labelTab} onChange={onLabelBackgroundColorChange} />
+            </div>
+            {!spec.labelTab && <p className="text-xs text-muted-foreground">Add a label tab to color its background. Your color choice is retained.</p>}
+            {labelBackgroundColor !== null && <>
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs"
+                onClick={() => onLabelBackgroundColorChange(null)}>Use bin-body color</Button>
+              <div className="flex items-center justify-between gap-3">
+                <SettingLabel label="Color thickness" htmlFor="input-label-background-thickness"
+                  hint="Replaces material beneath the label face without changing its height or the lettering." />
+                <div className="flex items-center gap-1.5">
+                  <DraftNumberInput id="input-label-background-thickness" className="h-7 w-20 text-right text-xs"
+                    value={labelBackgroundThicknessMm} min={MULTICOLOR_MIN_THICKNESS_MM} max={MULTICOLOR_FLOOR_MAX_THICKNESS_MM}
+                    step={0.2} disabled={!spec.labelTab} onValueChange={onLabelBackgroundThicknessChange}
+                    aria-label="Label background color thickness in millimetres" />
+                  <span className="text-[11px] text-muted-foreground">mm down</span>
+                </div>
+              </div>
+            </>}
+          </div>
           <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
             <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Text color" htmlFor="input-text-color" hint="Applies to all surface text in the preview and multi-color 3MF. By default, text matches the edge band." />
@@ -2250,8 +2284,8 @@ export function BinControlsPanel({
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <SettingLabel label={rimColorLabel} hint={spec.lip === "standard"
-                  ? "Separate material below the original rim surface. Raised label-tab front edges share this color and depth; recessed label surfaces keep the bin-body color."
-                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height. Raised label-tab front edges share this color and depth; recessed label surfaces keep the bin-body color."} />
+                  ? "Separate material below the original rim surface. Raised label-tab front edges share this color and depth; label faces use their separate background setting."
+                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height. Raised label-tab front edges share this color and depth; label faces use their separate background setting."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -2771,11 +2805,12 @@ export function BinControlsPanel({
                         hasSelectedRimColor
                           ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`
                           : null,
+                        hasSelectedLabelColor ? `label backgrounds (${labelBackgroundThicknessMm} mm thick)` : null,
                         spec.surfaceTexts.length ? "colored text parts" : null,
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Add surface text, or enable a floor, rim, or border color in Materials & Colors first."}
+                    : "Add surface text, or choose a label background, floor, rim, or border color in Materials & Colors first."}
                 </span>
               </span>
             </Button>
