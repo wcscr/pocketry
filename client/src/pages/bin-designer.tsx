@@ -167,8 +167,9 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!isMobile || panelOpen) setSettingsSectionRequest({ id: "bin-settings-text" });
     if (!inspectorPrototype && !isMobile) setPanelOpen(true);
   };
-  const positionText = () => {
-    dispatch({ type: "SELECT_SURFACE_TEXT", id: bin.selectedSurfaceTextId });
+  /** Open Layout placement for one label (a reported issue) or the current selection. */
+  const positionTextFor = (id: string | null) => {
+    dispatch({ type: "SELECT_SURFACE_TEXT", id });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     setTextPositionRequest(request => request + 1);
@@ -176,6 +177,8 @@ function BinDesignerWorkspace(): JSX.Element {
     // The standard mobile drawer covers the canvas; return to it for dragging.
     setPanelOpen(!isMobile);
   };
+  // Also passed as a click handler, so never forward the event as an id.
+  const positionText = () => positionTextFor(bin.selectedSurfaceTextId);
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
   }, [bin.editorMode, isMobile, setPanelOpen]);
@@ -202,7 +205,8 @@ function BinDesignerWorkspace(): JSX.Element {
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
   const { materials } = bin;
   const { binColor, pocketFloorColor, stackingRimColor, colorPocketFloors,
-    colorStackingRim, colorDividerTops, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
+    colorStackingRim, colorDividerTops, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
+    labelBackgroundColor, labelBackgroundThicknessMm } = materials;
   const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
@@ -252,6 +256,10 @@ function BinDesignerWorkspace(): JSX.Element {
     if (settings) {
       setPanelOpen(true);
       setSettingsSectionRequest(settings);
+      return;
+    }
+    if (issue.surfaceTextIds?.length) {
+      positionTextFor(issue.surfaceTextIds.find(id => id !== bin.selectedSurfaceTextId) ?? issue.surfaceTextIds[0]);
       return;
     }
     if (issue.cutoutIds?.length) {
@@ -519,6 +527,7 @@ function BinDesignerWorkspace(): JSX.Element {
     textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
+    labelBackgroundGeometry,
     hasPocketFloor,
     hasStackingRim,
     builtSpec,
@@ -539,14 +548,18 @@ function BinDesignerWorkspace(): JSX.Element {
     PREVIEW_QUALITY,
     committedLayout,
     section,
-    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, colorDividerTops },
+    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, colorDividerTops,
+      labelBackgroundThicknessMm: labelBackgroundColor !== null ? labelBackgroundThicknessMm : undefined },
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
   // Pure and worker validation can both report the same invalid insertion.
-  const issues = [...layoutIssues, ...solidIssues.filter(issue => !layoutIssues.some(local =>
+  // A label deleted since the last build no longer needs its stale issue.
+  const issues = [...layoutIssues, ...solidIssues.filter(issue => !issue.surfaceTextIds?.length
+    || issue.surfaceTextIds.some(id => spec.surfaceTexts.some(label => label.id === id))).filter(issue => !layoutIssues.some(local =>
     local.code === issue.code && local.message === issue.message && local.severity === issue.severity
     && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)))];
+  const invalidSurfaceTextIds = new Set(issues.flatMap(issue => issue.severity === "error" ? issue.surfaceTextIds ?? [] : []));
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
     return shape ? [{ cutout, shape }] : [];
@@ -1010,9 +1023,11 @@ function BinDesignerWorkspace(): JSX.Element {
           colorPocketFloors &&
           (exportProjectDoc.spec.fill === "none" ||
             exportProjectDoc.cutouts.some(hasColorablePocketSurfaces));
+        const includeLabelBackground = multicolor && labelBackgroundColor !== null && !!exportProjectDoc.spec.labelTab;
         const includeStackingRim =
           multicolor && colorStackingRim;
         const result = await buildOnce(EXPORT_QUALITY, {
+          labelBackgroundMaterialThicknessMm: includeLabelBackground ? labelBackgroundThicknessMm : undefined,
           pocketFloorMaterialThicknessMm: includePocketFloors
             ? pocketFloorThicknessMm
             : undefined,
@@ -1029,9 +1044,9 @@ function BinDesignerWorkspace(): JSX.Element {
           material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
         }));
         if (multicolor) {
-          if (!result.materialMeshes && (includePocketFloors || includeStackingRim)) {
+          if (!result.materialMeshes && (includePocketFloors || includeStackingRim || includeLabelBackground)) {
             throw new Error(
-              "This bin has no printable floor, rim, or border color volume.",
+              "This bin has no printable label background, floor, rim, or border color volume.",
             );
           }
           const objects: ThreeMfObject[] = [
@@ -1064,6 +1079,13 @@ function BinDesignerWorkspace(): JSX.Element {
                 name: rimName,
                 displayColor: stackingRimColor as `#${string}`,
               },
+            });
+          }
+          if (includeLabelBackground && result.materialMeshes?.labelBackground) {
+            objects.push({
+              name: `Gridfinity bin ${label} label backgrounds`,
+              mesh: result.materialMeshes.labelBackground,
+              material: { name: "Label background", displayColor: labelBackgroundColor as `#${string}` },
             });
           }
           // A wide, deep border can color all of a small bin. Keep its chosen
@@ -1144,6 +1166,8 @@ function BinDesignerWorkspace(): JSX.Element {
       stackingRimColor,
       edgeBandColor,
       stackingRimThicknessMm,
+      labelBackgroundColor,
+      labelBackgroundThicknessMm,
       borderWidthMm,
       toast,
     ],
@@ -1318,6 +1342,10 @@ function BinDesignerWorkspace(): JSX.Element {
           onColorPocketFloorsChange={colorPocketFloors => patchMaterials({ colorPocketFloors })}
           binColor={binColor}
           onBinColorChange={binColor => patchMaterials({ binColor })}
+          labelBackgroundColor={labelBackgroundColor}
+          onLabelBackgroundColorChange={labelBackgroundColor => patchMaterials({ labelBackgroundColor })}
+          labelBackgroundThicknessMm={labelBackgroundThicknessMm}
+          onLabelBackgroundThicknessChange={labelBackgroundThicknessMm => patchMaterials({ labelBackgroundThicknessMm })}
           pocketFloorColor={pocketFloorColor}
           onPocketFloorColorChange={pocketFloorColor => patchMaterials({ pocketFloorColor })}
           pocketFloorThicknessMm={pocketFloorThicknessMm}
@@ -1378,6 +1406,8 @@ function BinDesignerWorkspace(): JSX.Element {
               }}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
+              labelBackgroundGeometry={labelBackgroundGeometry}
+              labelBackgroundColor={labelBackgroundColor ?? binColor}
               textGeometries={textGeometries}
               selectedSurfaceTextId={bin.selectedSurfaceTextId}
               onSelectSurfaceText={editSurfaceText}
@@ -1411,7 +1441,8 @@ function BinDesignerWorkspace(): JSX.Element {
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest}
+              invalidSurfaceTextIds={invalidSurfaceTextIds} />
           )}
           <ViewToggle
             viewMode={viewMode}

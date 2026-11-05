@@ -72,11 +72,12 @@ export function CanvasWarnings({ issues, holeIds, selectedCutoutId, selectedFing
             const objectAction = issue.cutoutIds?.length
               ? issue.cutoutIds.length > 1 ? `Show ${retained === issue.cutoutIds.length ? "holes" : retained ? "objects" : "pockets"} · click to switch`
                 : retained ? "Edit hole" : "Edit pocket"
-              : issue.fingerHoleIds?.length ? "Edit finger access" : "Open bin settings";
+              : issue.fingerHoleIds?.length ? "Edit finger access"
+              : issue.surfaceTextIds?.length ? "Position text in Layout" : "Open bin settings";
             return (
               <button
                 type="button"
-                key={`${issue.code}-${issue.cutoutIds?.join(",") ?? issue.fingerHoleIds?.join(",") ?? index}`}
+                key={`${issue.code}-${issue.cutoutIds?.join(",") ?? issue.fingerHoleIds?.join(",") ?? issue.surfaceTextIds?.join(",") ?? index}`}
                 data-issue-code={issue.code}
                 data-selected={selected || undefined}
                 onClick={() => onRevealIssue(issue)}

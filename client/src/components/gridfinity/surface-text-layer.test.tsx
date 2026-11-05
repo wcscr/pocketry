@@ -245,3 +245,24 @@ it("uses selected Move/Rotate tools on the label body, with snapping and complet
   React.act(()=>store().dispatch({type:'UNDO'}));
   expect(store().spec.surfaceTexts[0]).toEqual(ui.label);
 });
+
+describe("rejected labels", () => {
+  it("outlines only the labels the build left out", () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    let store!: BinStore;
+    function Scene({ invalid }: { invalid?: ReadonlySet<string> }) { store = useBin(); return <svg><SurfaceTextLayer interactive invalidIds={invalid} /></svg>; }
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      React.act(() => root.render(<BinProvider><Scene /></BinProvider>));
+      const labels = ["ok", "bad"].map((id, i) => surfaceTextSchema.parse({ id, text: id, position: { x: 0, y: i * 20 } }));
+      React.act(() => store.dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels } }));
+      React.act(() => root.render(<BinProvider><Scene invalid={new Set(["bad"])} /></BinProvider>));
+      const hit = (id: string) => host.querySelector(`[data-testid="surface-text-hit-${id}"]`)!;
+      expect(hit("bad").getAttribute("data-invalid")).toBe("true");
+      expect(hit("bad").getAttribute("class")).toContain("stroke-destructive");
+      expect(hit("ok").hasAttribute("data-invalid")).toBe(false);
+    } finally { React.act(() => root.unmount()); host.remove(); }
+  });
+});

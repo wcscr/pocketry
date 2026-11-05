@@ -350,7 +350,17 @@ export default function About(): JSX.Element {
         </section>
 
         <p className="flex items-center justify-center gap-2 text-center text-sm leading-6 text-muted-foreground">
-          <span>Pocketry was developed using OpenAI Codex.</span>
+          <span>
+            Pocketry was developed with assistance from OpenAI Codex and{" "}
+            <a
+              href="https://claude.com/claude-code"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Anthropic Claude
+            </a>.
+          </span>
           <a
             href="https://openai.com/index/gpt-6-astra/"
             target="_blank"
