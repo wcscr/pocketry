@@ -82,10 +82,10 @@ it.each(["outer", "compartments"] as const)("clips deep %s backgrounds to a cust
   });
 });
 
-it("exports six label backgrounds with rim colors off, independent text, and matching preview volumes", async () => {
-  const spec = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 4, fill: "none", lip: "none",
+it.each([{ heightUnits: 4, recessMm: 0.5 }, { heightUnits: 4, recessMm: 0.8 }, { heightUnits: 5.5, recessMm: 0.5 }])("exports six clean label backgrounds for %j, with independent text and matching preview volumes", async ({ heightUnits, recessMm }) => {
+  const spec = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits, fill: "none", lip: "none",
     wallSlant: { axis: "y", angleDeg: 30 }, bottomFilletRadiusMm: 8, compartments: { rows: 2, columns: 3 },
-    labelTab: { wall: "south", scope: "compartments", recessMm: 0.5, frontRim: true } });
+    labelTab: { wall: "south", scope: "compartments", recessMm, frontRim: true } });
   for (let i = 0; i < 6; i++) spec.surfaceTexts.push(placeSurfaceTextOnTab(spec, surfaceTextSchema.parse({
     id: String(i), text: "M2x8", font: "helvetiker-bold", sizeMm: 3.2, heightMm: 0.5, position: { x: 0, y: 0 } })));
   const request: BuildBinRequest = { spec, quality: EXPORT_QUALITY, labelBackgroundMaterialThicknessMm: 0.6 };
@@ -107,6 +107,18 @@ it("exports six label backgrounds with rim colors off, independent text, and mat
   expect(xml).toContain('#242628FF');
   expect(xml).toContain('#BFC2C4FF');
   expect(xml).toContain('Label background');
+  // Volumes and closed edges do not catch a microscopic body skin that
+  // collapses onto the colored shelf after Float32 serialization. Probe the
+  // actual 3MF triangles above every shelf, including the reported 0.8 mm case.
+  const meshes = [...xml.matchAll(/<mesh>([\s\S]*?)<\/mesh>/g)];
+  for (const surface of labelTabSurfaces(spec)) {
+    const bounds = ringBounds(surface.ring)!;
+    const x = (bounds.minX + bounds.maxX) / 2 + 3;
+    const y = (bounds.minY + bounds.maxY) / 2;
+    expect(highestSurfaceAt(meshes[0][1], x, y)).toBeCloseTo(labelTabTopZ(spec) - 0.6, 5);
+    expect(highestSurfaceAt(meshes[1][1], x, y)).toBeCloseTo(labelTabTopZ(spec), 5);
+  }
+
   const section = (await getHandler()({ ...request, section: { axis: "x", offsetMm: 0 } }, context())).value;
   expect(previewMeshVolume(section.materialMeshes!.labelBackground!)).toBeLessThan(previewMeshVolume(preview.value.materialMeshes!.labelBackground!));
 });
@@ -114,3 +126,20 @@ it("exports six label backgrounds with rim colors off, independent text, and mat
 it.each([0, -1, 3.1, NaN, Infinity])("rejects invalid worker label color thickness %s", async depth => {
   await expect(getHandler()({ spec: parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3 }), quality: PREVIEW_QUALITY, labelBackgroundMaterialThicknessMm: depth }, context())).rejects.toThrow("Label-background material thickness");
 });
+
+/** Intersect a vertical ray with serialized triangles, without rebuilding CSG. */
+function highestSurfaceAt(meshXml: string, x: number, y: number): number {
+  const vertices = [...meshXml.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g)]
+    .map(match => match.slice(1).map(Number));
+  let highest = -Infinity;
+  for (const match of meshXml.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"[^>]*\/>/g)) {
+    const [a, b, c] = match.slice(1).map(index => vertices[Number(index)]);
+    const determinant = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+    if (Math.abs(determinant) < 1e-12) continue;
+    const u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / determinant;
+    const v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / determinant;
+    const w = 1 - u - v;
+    if (Math.min(u, v, w) >= -1e-7) highest = Math.max(highest, u * a[2] + v * b[2] + w * c[2]);
+  }
+  return highest;
+}

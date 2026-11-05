@@ -107,3 +107,9 @@ compartment tabs and slanted bins. Tabs buried in solid fill have no exposed
 background to color. The setting is retained when tabs are disabled. Multicolor
 3MF includes a separate label-background material; single-color exports retain
 the same complete shape. Older projects continue to use the body color.
+
+The color mask extends just through the shelf surface before intersecting the
+finished bin. Body and rim subtraction use that same mask, avoiding coincident
+faces that can leave a thin body-colored skin over the label after serialization.
+Geometry qualification checks the serialized shelf surfaces at both 4U and 5.5U,
+including 0.5 mm and 0.8 mm recesses, plus deep layers on custom footprints.

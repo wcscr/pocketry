@@ -456,7 +456,9 @@ export function buildBinWithCutouts(
       clippedRim = arena.track(clippedRim.subtract(pocketFloors));
     }
     // The face color takes precedence over unusually wide perimeter bands.
-    if (labelBackground) clippedRim = arena.track(clippedRim.subtract(labelBackground));
+    // Use the same untrimmed face mask as the body subtraction so coincident
+    // intermediate faces cannot leave color skins along a wide rim.
+    if (labelBackground) clippedRim = arena.track(clippedRim.subtract(labelBackgroundRegion!));
     if (!clippedRim.isEmpty()) stackingRim = clippedRim;
   }
 

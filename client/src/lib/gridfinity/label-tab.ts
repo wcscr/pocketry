@@ -95,8 +95,11 @@ export function buildLabelTabBackgroundRegion(kernel: Kernel, spec: BinSpec,
   if (compartments) face = arena.track(face.subtract(arena.track(compartments.slice(top - epsilon))));
   if (face.isEmpty()) return null;
   const depth = Math.min(depthMm, top - BASE_HEIGHT);
-  const column = arena.track(arena.track(face.extrude(depth)).translate([0, 0, top - depth]));
-  return arena.track(column.intersect(tab));
+  // Cut through the shelf surface, rather than ending on it. A coincident
+  // upper face can leave a microscopic body skin that collapses onto the
+  // colored face at the Float32 export boundary. The caller intersects this
+  // mask with the finished bin to recover the exact printable color layer.
+  return arena.track(arena.track(face.extrude(depth + epsilon)).translate([0, 0, top - depth]));
 }
 
 /** Builds the tab solid for `spec.labelTab`, or null when absent. */
