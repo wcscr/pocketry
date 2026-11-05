@@ -7,8 +7,9 @@
 - Add hollow-bin compartments, dividers, scoop bottoms, and rounded floor edges, with optional divider-top coloring.
 - Add adjustable, recessed label tabs with front rims, raised text, and 18 hardware symbols from [GFLabel](https://github.com/ndevenish/gflabel), including support for slanted compartments and multicolor export.
 - Support taller bins up to 60U, automatic wall thickness, and experimental slanted walls with single-wall tilts and support wedges.
-- Add Wham Bam Systems ULTIM8-compatible fixtures with arbitrary millimetre dimensions, configurable peg bottoms, and 1:1 SVG alignment layouts.
-- Add manually drawn Trace contours and preserve photo layouts as separate editable pockets and holes. Experimental groups move and rotate objects together while geometry-linked copies keep independent positions.
+- Add Wham Bam Systems ULTIM8-compatible fixtures with arbitrary millimeter dimensions, configurable peg bottoms, and 1:1 SVG alignment layouts.
+- Add manually drawn Trace contours and preserve photo layouts as separate editable pockets and holes.  This can be used to add multi-level pockets for things like a belt clip on a tape measure (example print forthcoming).
+- Experimental groups move and rotate objects together while geometry-linked copies keep independent positions.
 - Improve tilted-pocket geometry and insertion clearance, plus floor/interior coloring in previews and multicolor 3MF exports.
 
 ## 1.5.1 — 2026-10-16
