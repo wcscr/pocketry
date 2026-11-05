@@ -4,7 +4,7 @@
 
 ## 1.7.1 — 2026-11-05
 
-- A label that doesn't fit no longer blanks the 3D preview: the bin still previews, the label is outlined in Layout and listed with a link to place it, and export waits until it is fixed. New text starts in a clear spot instead of over a pocket.
+- A label that doesn't fit no longer blanks the 3D preview: the bin still previews, the label is outlined in Layout and listed with a link to place it, and export waits until it is fixed. New text starts in a clear spot instead of over a pocket, and on lipped bins clear of the stacking lip's overhang.
 - Labels on sub-bin tabs follow their sub-bin when you change rows, columns or bin size. Fix the invisible "Retry preview" button.
 
 ## 1.7.0 — 2026-11-05

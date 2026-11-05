@@ -11,7 +11,9 @@ import type { Outline, Ring } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 import { infillTopZ } from "@shared/gridfinity/fill";
-import { labelTabSurfaces, labelTabTopZ, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
+import {
+  labelTabSurfaces, labelTabTopZ, labelTabWritingArea, pointInLabelTabWritingArea, pointOnLabelTab,
+} from "@shared/gridfinity/label-tab-surfaces";
 import { normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
 import type { Kernel } from "@/lib/manifold/runtime";
 
@@ -25,15 +27,18 @@ export function surfaceTextZ(spec: BinSpec, label?: SurfaceText): number {
   return surfaceTextSurface(spec, label) === "label-tab" ? labelTabTopZ(spec) : infillTopZ(spec);
 }
 
-/** Start on the first free shelf that fits the wording, with a small edge margin.
+/** Start on the first free shelf that fits the wording, with a small edge margin,
+ * centred on the part of the shelf clear of the stacking lip's overhang.
  * Only newly created/explicitly retargeted labels move; saved positions stay intact. */
 export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): SurfaceText {
   const surfaces = labelTabSurfaces(spec);
   for (const surface of surfaces) {
     if (spec.surfaceTexts.some(other => other.id !== label.id && surfaceTextSurface(spec, other) === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
-    const bounds = outlineBounds([{ outer: surface.ring, holes: [] }])!;
+    const area = labelTabWritingArea(spec, surface, label.heightMm);
+    if (!area) continue;
+    const { bounds } = area;
     const position = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
-    if (!pointOnLabelTab(position, surface)) continue;
+    if (!pointInLabelTabWritingArea(position, surface, area)) continue;
     const placed = { ...label, surface: "label-tab" as const, position, rotationDeg: surface.rotationDeg };
     const textBounds = outlineBounds(surfaceTextOutline(placed))!;
     const scale = Math.min(1, (bounds.maxX - bounds.minX - 2) / (textBounds.maxX - textBounds.minX),
@@ -43,7 +48,7 @@ export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): Surfac
       ...(label.symbol ? { symbolSizeMm: (label.symbolSizeMm ?? label.sizeMm) * scale,
         symbolGapMm: surfaceTextSymbolGap(label) * scale } : {}) };
     if (fitted.symbolSizeMm !== undefined && fitted.symbolSizeMm < 2) continue;
-    if (surfaceTextOutline(fitted).every(shape => shape.outer.every(point => pointOnLabelTab(point, surface)))) return fitted;
+    if (surfaceTextOutline(fitted).every(shape => shape.outer.every(point => pointInLabelTabWritingArea(point, surface, area)))) return fitted;
   }
   return spec.fill === "none" ? { ...label, surface: "label-tab" } : label;
 }

@@ -1,9 +1,9 @@
-import type { Point, Ring } from "../geometry/types";
-import { pointInRing, ringBounds, signedArea } from "../geometry/rings";
+import type { Bounds, Point, Ring } from "../geometry/types";
+import { clipRingToConvex, pointInRing, ringBounds, signedArea } from "../geometry/rings";
 import { compartmentHeightMm, compartmentLabelTabPlacements } from "./compartments";
-import { edgeForWall, footprintInteriorRingMm, footprintOuterRingMm, resolveBoundaryRun } from "./footprint";
+import { edgeForWall, footprintInsetRingMm, footprintInteriorRingMm, footprintOuterRingMm, resolveBoundaryRun } from "./footprint";
 import { boundaryLabelTabProfileMm, labelTabRecessMm, labelTabFrontRimWidthMm, labelTabWidthMm } from "./label-tab";
-import { BASE_HEIGHT, binHeightMm, D_WALL } from "./standard";
+import { BASE_HEIGHT, binHeightMm, binWallHeightMm, D_WALL, stackingLipReachMm } from "./standard";
 import type { BinSpec } from "./types";
 import { wallSlantHeightMm, wallSlantOutlineMm } from "./wall-slant";
 import { surfaceTextSurface } from "./surface-text";
@@ -69,10 +69,52 @@ export function pointOnLabelTab(point: Point, surface: LabelTabSurface): boolean
   return pointInRing(surface.ring, point) && pointInRing(surface.clip, point);
 }
 
+/** Where lettering of one height can stand on a shelf, seen from above. */
+export interface LabelTabWritingArea {
+  /** The shelf's clip, or the stacking lip's inner face where it overhangs the lettering. */
+  clip: Ring;
+  /** Bounds of the shelf inside `clip`. */
+  bounds: Bounds;
+}
+
+/**
+ * A stacking lip overhangs the shelf edges beside the outer walls: compartment
+ * shelves sit just below its vertical inner face, boundary shelves beside it.
+ * Keep lettering inside the lip over its whole height, shelf top to shelf top +
+ * `textHeightMm`. Null when the lip covers the whole shelf. This guides new
+ * placement and the offsets of labels that follow a moving shelf; the solid
+ * build stays authoritative and saved labels are never moved to suit it.
+ */
+export function labelTabWritingArea(spec: BinSpec, surface: LabelTabSurface, textHeightMm: number): LabelTabWritingArea | null {
+  if (spec.lip === "standard") {
+    const rim = BASE_HEIGHT + binWallHeightMm(spec.heightUnits);
+    const reach = stackingLipReachMm(surface.z - rim, surface.z + textHeightMm - rim);
+    // Compartment shelves are clipped at the outer face, boundary shelves at the inner wall face.
+    const clipInset = spec.labelTab?.scope === "compartments" && spec.fill === "none" ? 0 : D_WALL;
+    if (reach > clipInset) {
+      const clip = wallSlantOutlineMm(spec, footprintInsetRingMm(spec, reach), surface.z);
+      const bounds = ringBounds(clipRingToConvex(clip, surface.ring));
+      return bounds && { clip, bounds };
+    }
+  }
+  // Without an overhang, keep the shelf's own bounds as placement always has.
+  return { clip: surface.clip, bounds: ringBounds(surface.ring)! };
+}
+
+/** True when `point` is on the shelf and inside its writing area's clip. */
+export function pointInLabelTabWritingArea(point: Point, surface: LabelTabSurface, area: LabelTabWritingArea): boolean {
+  return pointInRing(surface.ring, point) && pointInRing(area.clip, point);
+}
+
+/** Writing-area bounds, or the whole shelf when a lip covers all of it. */
+const writingBounds = (spec: BinSpec, surface: LabelTabSurface, textHeightMm: number): Bounds | null =>
+  labelTabWritingArea(spec, surface, textHeightMm)?.bounds ?? ringBounds(surface.ring);
+
 /**
  * Keep each label on the same shelf when shelves move: the same sub-bin
- * (row, column) or the single outer tab, preserving its offset from the shelf
- * centre. Covers recess edits on slanted walls and sub-bin grid changes.
+ * (row, column) or the single outer tab, preserving its offset from the centre
+ * of the shelf's writing area (clear of a stacking lip). Covers recess edits on
+ * slanted walls and sub-bin grid changes.
  * Text remains rigid, at its authored size and rotation. A label whose shelf
  * no longer exists, or turned 90°, stays where it is; the build reports it.
  * Returns `next.surfaceTexts` itself when nothing moves.
@@ -88,7 +130,7 @@ export function moveTextsWithLabelTabs(previous: BinSpec, next: BinSpec): BinSpe
     const from = before.find(surface => pointOnLabelTab(label.position, surface));
     const to = from && after.get(from.key);
     if (!from || !to || to.rotationDeg !== from.rotationDeg) return label;
-    const a = ringBounds(from.ring), b = ringBounds(to.ring);
+    const a = writingBounds(previous, from, label.heightMm), b = writingBounds(next, to, label.heightMm);
     if (!a || !b) return label;
     const dx = (b.minX + b.maxX - a.minX - a.maxX) / 2, dy = (b.minY + b.maxY - a.minY - a.maxY) / 2;
     if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return label;

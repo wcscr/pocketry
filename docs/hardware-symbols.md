@@ -3,7 +3,9 @@
 Choose **Add → Surface text**, then **Symbol** in the selected label's properties.
 
 With label tabs enabled, new text starts on the next empty shelf that fits it.
-**Surface → Label tabs** places text or symbols on the horizontal shelf tops,
+On bins with a stacking lip it starts clear of the lip's overhang beside the outer
+walls, shifting toward the bin's middle or shrinking as needed; saved labels are
+not moved. **Surface → Label tabs** places text or symbols on the horizontal shelf tops,
 including slanted walls and compartment dividers. Layout shades those tops at
 their actual shifted positions. Hollow bins use **Label tabs** exclusively;
 **Bin surface** is available only with solid fill. Opening an older hollow-bin
