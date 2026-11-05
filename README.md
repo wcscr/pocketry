@@ -130,33 +130,61 @@ return 404 and do not accept or store uploads.
 
 ## Run locally
 
-Pocketry requires Node.js 22 and npm.
+There are two ways to run Pocketry locally: with **Node.js 22 and npm**, or with
+**Docker**.
+
+Start by cloning the repository:
+
+```sh
+git clone https://github.com/wcscr/pocketry.git
+cd pocketry
+```
+
+### Option 1: Node.js and npm
+
+Install Node.js 22 and npm, then build and start Pocketry:
 
 ```sh
 npm ci
+npm run build
+npm start
+```
+
+Open <http://localhost:5000>. This production server listens on all host
+interfaces; see the self-hosting guide below for network access and HTTPS.
+On macOS/Linux, use `PORT=5001 npm start` if the default port is in use.
+
+For development with live updates, use this instead of `npm start`:
+
+```sh
 npm run dev
 ```
 
-The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
-(`localhost` also works when it resolves to IPv4). It is not exposed to other
-computers on your network. Vite rejects untrusted Host names, serves only the
-client, shared source, dependencies, explicit client imports (such as version
-metadata), and public/legal assets. Vite's desktop-editor launch endpoint is disabled;
-Pocketry's Trace and Bin editors remain available. Production `npm start` keeps its
-existing all-interface listener for deliberate hosting.
+The Vite development server binds only to IPv4 loopback at
+<http://127.0.0.1:5000>, so other computers cannot access it. It rejects untrusted
+Host names, restricts file access to application sources, dependencies, and
+public/legal assets, and disables its desktop-editor launch endpoint. Pocketry's
+Trace and Bin editors remain available. Use `PORT=5001 npm run dev` on macOS/Linux
+to choose another port. Use the production build or Docker for ongoing hosting.
 
-If the default port is in use, choose another one:
+### Option 2: Docker
+
+Install Docker Engine or Docker Desktop with Docker Compose. No separate Node.js
+or npm installation is needed.
 
 ```sh
-PORT=5001 npm run dev
+docker compose up -d --build
 ```
 
-## Self-host Pocketry
+Open <http://localhost:8080>. The container serves the production build and is
+accessible only on this computer by default. Stop it with `docker compose down`.
 
-Follow the [self-hosting guide](docs/self-hosting.md) for Docker, production Node,
-or static hosting, including upgrades and backup/restore instructions. Projects
-remain in each user's browser. Use **Export project** and **Export library** for
-backups—copying the container does not back up your designs.
+### Hosting and backups
+
+Follow the [self-hosting guide](docs/self-hosting.md) for access from other devices,
+HTTPS, static hosting, upgrades, and backup/restore instructions. Projects remain
+in each user's browser. Use **Export project** and **Export library** for
+backups—copying the server or container does not back up your designs.
 
 ## Verify and build
 
