@@ -64,6 +64,8 @@ export interface BinGeometryState {
   pocketFloorGeometry: BufferGeometry | null;
   /** Stacking-rim material volume for the latest preview tier. */
   stackingRimGeometry: BufferGeometry | null;
+  /** Independent printable label-face material. */
+  labelBackgroundGeometry: BufferGeometry | null;
   /** Independent label meshes, owned and disposed by this hook. */
   textGeometries: { label: SurfaceText; geometry: BufferGeometry }[];
   /** True when the preview contains a pocket-floor or hollow-bin floor color volume. */
@@ -96,6 +98,7 @@ export interface BinGeometryState {
     options?: {
       pocketFloorMaterialThicknessMm?: number;
       stackingRimMaterialThicknessMm?: number;
+      labelBackgroundMaterialThicknessMm?: number;
       borderWidthMm?: number;
       colorDividerTops?: boolean;
     },
@@ -130,6 +133,7 @@ export function useBinGeometry(
   previewMaterials: {
     pocketFloorThicknessMm?: number;
     stackingRimThicknessMm?: number;
+    labelBackgroundThicknessMm?: number;
     borderWidthMm?: number;
     colorDividerTops?: boolean;
   } = {},
@@ -156,6 +160,8 @@ export function useBinGeometry(
   const geometryRef = useRef<BufferGeometry | null>(null);
   const pocketFloorGeometryRef = useRef<BufferGeometry | null>(null);
   const stackingRimGeometryRef = useRef<BufferGeometry | null>(null);
+  const labelBackgroundGeometryRef = useRef<BufferGeometry | null>(null);
+  const [labelBackgroundGeometry, setLabelBackgroundGeometry] = useState<BufferGeometry | null>(null);
   const textGeometryRef = useRef<BufferGeometry[]>([]);
 
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
@@ -219,6 +225,7 @@ export function useBinGeometry(
           MULTICOLOR_RIM_THICKNESS_MM,
         borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
         colorDividerTops: previewMaterials.colorDividerTops ?? false,
+        labelBackgroundThicknessMm: previewMaterials.labelBackgroundThicknessMm,
       }),
     [
       previewSpec,
@@ -231,6 +238,7 @@ export function useBinGeometry(
       previewMaterials.stackingRimThicknessMm,
       previewMaterials.borderWidthMm,
       previewMaterials.colorDividerTops,
+      previewMaterials.labelBackgroundThicknessMm,
     ],
   );
 
@@ -260,7 +268,7 @@ export function useBinGeometry(
     const unroundedKey = JSON.stringify({ ...modelInputs,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, topFilletMm: 0, bottomFilletMm: 0 })) ?? [] });
     const cavityKey = JSON.stringify({ ...modelInputs,
-      pocketFloorThicknessMm: undefined, stackingRimThicknessMm: undefined, borderWidthMm: undefined, colorDividerTops: undefined,
+      pocketFloorThicknessMm: undefined, stackingRimThicknessMm: undefined, borderWidthMm: undefined, colorDividerTops: undefined, labelBackgroundThicknessMm: undefined,
       cutouts: previewLayout?.cutouts.map(c => ({ ...c, colorCoverage: undefined, colorFloorAxis: undefined })) ?? [] });
     const previous = previousKeysRef.current;
     const sectionOnly = previous?.model === modelKey;
@@ -299,6 +307,7 @@ export function useBinGeometry(
         previewMaterials.stackingRimThicknessMm ?? MULTICOLOR_RIM_THICKNESS_MM,
       borderWidthMm: previewMaterials.borderWidthMm ?? MULTICOLOR_BORDER_WIDTH_MM,
       colorDividerTops: previewMaterials.colorDividerTops ?? false,
+      labelBackgroundMaterialThicknessMm: previewMaterials.labelBackgroundThicknessMm,
     };
 
     const publish = (result: BuildBinResult, draft: boolean, interactive = false) => {
@@ -314,15 +323,20 @@ export function useBinGeometry(
         ? toBufferGeometry(result.materialMeshes.pocketFloors) : null;
       const nextStackingRim = result.materialMeshes?.stackingRim
         ? toBufferGeometry(result.materialMeshes.stackingRim) : null;
+      const nextLabelBackground = result.materialMeshes?.labelBackground
+        ? toBufferGeometry(result.materialMeshes.labelBackground) : null;
       const nextTexts = (result.textMeshes ?? []).map(part => ({ label: part.label, geometry: toBufferGeometry(part.mesh) }));
       geometryRef.current?.dispose();
       pocketFloorGeometryRef.current?.dispose();
       stackingRimGeometryRef.current?.dispose();
+      labelBackgroundGeometryRef.current?.dispose();
       textGeometryRef.current.forEach(part => part.dispose());
       textGeometryRef.current = nextTexts.map(part => part.geometry);
       geometryRef.current = next;
       pocketFloorGeometryRef.current = nextPocketFloor;
       stackingRimGeometryRef.current = nextStackingRim;
+      labelBackgroundGeometryRef.current = nextLabelBackground;
+      setLabelBackgroundGeometry(nextLabelBackground);
       setGeometry(next);
       setPocketFloorGeometry(nextPocketFloor);
       setStackingRimGeometry(nextStackingRim);
@@ -355,14 +369,17 @@ export function useBinGeometry(
       geometryRef.current?.dispose();
       pocketFloorGeometryRef.current?.dispose();
       stackingRimGeometryRef.current?.dispose();
+      labelBackgroundGeometryRef.current?.dispose();
       textGeometryRef.current.forEach(part => part.dispose());
       geometryRef.current = null;
       pocketFloorGeometryRef.current = null;
       stackingRimGeometryRef.current = null;
+      labelBackgroundGeometryRef.current = null;
       textGeometryRef.current = [];
       setGeometry(null);
       setPocketFloorGeometry(null);
       setStackingRimGeometry(null);
+      setLabelBackgroundGeometry(null);
       setTextGeometries([]);
       setHasPocketFloor(false);
       setHasStackingRim(false);
@@ -484,7 +501,9 @@ export function useBinGeometry(
       pocketFloorGeometryRef.current?.dispose();
       pocketFloorGeometryRef.current = null;
       stackingRimGeometryRef.current?.dispose();
+      labelBackgroundGeometryRef.current?.dispose();
       stackingRimGeometryRef.current = null;
+      labelBackgroundGeometryRef.current = null;
       textGeometryRef.current.forEach(part => part.dispose());
       textGeometryRef.current = [];
     },
@@ -497,6 +516,7 @@ export function useBinGeometry(
       options: {
         pocketFloorMaterialThicknessMm?: number;
         stackingRimMaterialThicknessMm?: number;
+        labelBackgroundMaterialThicknessMm?: number;
         borderWidthMm?: number;
         colorDividerTops?: boolean;
       } = {},
@@ -519,6 +539,7 @@ export function useBinGeometry(
           options.stackingRimMaterialThicknessMm,
         borderWidthMm: options.borderWidthMm,
         colorDividerTops: options.colorDividerTops,
+        labelBackgroundMaterialThicknessMm: options.labelBackgroundMaterialThicknessMm,
       };
       return ensureClient().call<BuildBinResult>(BUILD_BIN_METHOD, request, {
         channel: "export",
@@ -589,6 +610,7 @@ export function useBinGeometry(
     textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
+    labelBackgroundGeometry,
     hasPocketFloor,
     hasStackingRim,
     builtSpec,

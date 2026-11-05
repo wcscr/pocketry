@@ -41,7 +41,7 @@ import {
   type CutoutBuildReport,
 } from "./cutouts";
 import { holeOptionsFromSpec } from "./holes";
-import { buildLabelTab, buildLabelTabFrontRimRegion } from "./label-tab";
+import { buildLabelTab, buildLabelTabFrontRimRegion, buildLabelTabBackgroundRegion } from "./label-tab";
 import { roundedRectPolygon } from "./profiles";
 import { footprintOuterSection } from "./footprint-section";
 import { buildStackingLip, buildWallRing, buildWallSection } from "./wall";
@@ -280,11 +280,15 @@ export interface BinMaterialParts {
   pocketFloors: Manifold | null;
   /** Printable lip/border, enabled divider tops and raised label-tab front edges. */
   stackingRim: Manifold | null;
+  /** Printable layer beneath exposed label faces, excluding their raised frames. */
+  labelBackground: Manifold | null;
 }
 
 export interface BuildBinWithCutoutsOptions {
   /** Enables a printable color layer below pocket floors or a hollow bin's floor. */
   floorInsertThicknessMm?: number;
+  /** Enables an independent printable layer beneath exposed label-tab faces. */
+  labelBackgroundThicknessMm?: number;
   /** Enables a non-overlapping printable lip crest or flush perimeter border. */
   rimInsertThicknessMm?: number;
   /** Inward color width for bins without a stacking lip; never adds material. */
@@ -402,6 +406,19 @@ export function buildBinWithCutouts(
     if (!clippedFloors.isEmpty()) pocketFloors = clippedFloors;
   }
 
+  let labelBackground: Manifold | null = null;
+  let labelBackgroundRegion: Manifold | null = null;
+  let rimRegion: Manifold | null = null;
+  if (options.labelBackgroundThicknessMm !== undefined) {
+    const region = buildLabelTabBackgroundRegion(kernel, spec, quality.circularSegments, options.labelBackgroundThicknessMm);
+    if (region) {
+      labelBackgroundRegion = slantBodyPart(kernel, region, spec);
+      let clipped = arena.track(labelBackgroundRegion.intersect(solid));
+      if (pocketFloors) clipped = arena.track(clipped.subtract(pocketFloors));
+      if (!clipped.isEmpty()) labelBackground = clipped;
+    }
+  }
+
   let stackingRim: Manifold | null = null;
   if (
     options.rimInsertThicknessMm !== undefined &&
@@ -433,18 +450,26 @@ export function buildBinWithCutouts(
     }
     const labelFrontRims = buildLabelTabFrontRimRegion(kernel, spec, quality.circularSegments, options.rimInsertThicknessMm);
     if (labelFrontRims) requestedRim = arena.track(requestedRim.add(slantBodyPart(kernel, labelFrontRims, spec)));
+    rimRegion = requestedRim;
     let clippedRim = arena.track(requestedRim.intersect(solid));
     if (pocketFloors) {
       clippedRim = arena.track(clippedRim.subtract(pocketFloors));
     }
+    // The face color takes precedence over unusually wide perimeter bands.
+    // Use the same untrimmed face mask as the body subtraction so coincident
+    // intermediate faces cannot leave color skins along a wide rim.
+    if (labelBackground) clippedRim = arena.track(clippedRim.subtract(labelBackgroundRegion!));
     if (!clippedRim.isEmpty()) stackingRim = clippedRim;
   }
 
-  const accents = [pocketFloors, stackingRim].filter(
+  const accents = [pocketFloors, stackingRim, labelBackground].filter(
     (part): part is Manifold => part !== null,
   );
   if (accents.length > 0) {
-    const bodyCutters = [...floorRegions, ...(stackingRim ? [stackingRim] : [])];
+    // Unclipped masks avoid coincident intermediate faces where colors meet
+    // a custom perimeter; the disjoint accent parts still come from the solid.
+    const bodyCutters = [...floorRegions, ...(stackingRim ? [labelBackground ? rimRegion! : stackingRim] : []),
+      ...(labelBackground ? [labelBackgroundRegion!] : [])];
     const body = arena.track(Manifold.difference([solid, ...bodyCutters]));
     if (
       body.status() !== "NoError" ||
@@ -452,7 +477,7 @@ export function buildBinWithCutouts(
     ) {
       throw new Error("buildBinWithCutouts: multi-color material split failed");
     }
-    materialParts = { body, pocketFloors, stackingRim, floorRegions };
+    materialParts = { body, pocketFloors, stackingRim, labelBackground, floorRegions };
   }
 
   const bodySolid = solid;
