@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.7.2 — 2026-11-05
+
 - Fix "Raise the pocket" errors after moving an experimental group or rotating pockets about Z. Moving or turning pockets no longer changes their depth or elevation.
 
 ## 1.7.1 — 2026-11-05
