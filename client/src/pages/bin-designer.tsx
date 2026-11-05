@@ -995,15 +995,16 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
+    async (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "stl", includeProject: boolean) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
-        const multicolor = format === "3mf-multicolor";
+        const bambuCompatible = format === "3mf-bambu";
+        const multicolor = format === "3mf-multicolor" || bambuCompatible;
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          multicolor ? "multicolor" : "",
+          bambuCompatible ? "bambu-multicolor" : multicolor ? "multicolor" : "",
         );
         const includePocketFloors =
           multicolor &&
@@ -1079,6 +1080,7 @@ function BinDesignerWorkspace(): JSX.Element {
             {
               title: `Pocketry multi-color Gridfinity bin ${label}`,
               assemble: true,
+              combineObjects: bambuCompatible,
             },
           );
           downloadModelWithProject(
@@ -1117,7 +1119,7 @@ function BinDesignerWorkspace(): JSX.Element {
         }
         toast({
           title: "Saved",
-          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${bambuCompatible ? "a Bambu-compatible multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {

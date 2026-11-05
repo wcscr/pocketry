@@ -47,7 +47,7 @@ function objectEdgeCounts(model: string, name: string): number[] {
 
   const edgeCounts = new Map<string, number>();
   for (const match of object.matchAll(
-    /<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"\/>/g,
+    /<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"[^>]*\/>/g,
   )) {
     const triangle = match.slice(1).map(Number);
     for (const [a, b] of [
@@ -71,6 +71,57 @@ const TRIANGLE: ThreeMfObject = {
 };
 
 describe("writeThreeMf", () => {
+  it("combines colored meshes without welding vertices or changing their triangle colors", () => {
+    const cube = arena.track(kernel.Manifold.cube([10, 10, 10]));
+    const other = arena.track(cube.translate([10, 0, 0]));
+    const objects: ThreeMfObject[] = [
+      { name: "Body", mesh: extractMeshData(kernel, cube), material: { name: "Charcoal", displayColor: "#35393c" } },
+      { name: "Label", mesh: extractMeshData(kernel, other), material: { name: "Ivory", displayColor: "#eee8da" } },
+      { name: "Text", mesh: TRIANGLE.mesh, material: { name: "Same charcoal", displayColor: "#35393C" } },
+    ];
+    const options = { combineObjects: true, assemble: true, title: "Combined & colored" };
+    const bytes = writeThreeMf(objects, options);
+    const { model, entries, bambuModelSettings } = unzipModel(bytes);
+    expect(writeThreeMf(objects, options)).toEqual(bytes);
+    expect(model.match(/<object /g)).toHaveLength(1);
+    expect(model.match(/<item /g)).toHaveLength(1);
+    expect(model).toContain('<item objectid="2"/>');
+    expect(model).not.toContain("<component");
+    expect(model).toContain('name="Combined &amp; colored"');
+    expect(model.match(/<m:color /g)).toHaveLength(2);
+    expect(bambuModelSettings).toBeNull();
+    expect(entries).toEqual(["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]);
+    expect(model).toContain('<metadata name="Application">Pocketry</metadata>');
+    const vertices = [...model.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g)].flatMap(match => match.slice(1).map(Number));
+    expect(vertices).toEqual(objects.flatMap(object => Array.from(object.mesh.positions)));
+    const triangles = [...model.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)" pid="1" p1="(\d+)"\/>/g)].map(match => match.slice(1).map(Number));
+    let offset = 0;
+    const expected: number[][] = [];
+    objects.forEach((object, objectIndex) => {
+      for (let i = 0; i < object.mesh.indices.length; i += 3) {
+        expected.push([...Array.from(object.mesh.indices.slice(i, i + 3), index => index + offset), objectIndex === 1 ? 1 : 0]);
+      }
+      offset += object.mesh.positions.length / 3;
+    });
+    expect(triangles).toEqual(expected);
+    const closed = unzipModel(writeThreeMf(objects.slice(0, 2), { combineObjects: true, title: "Touching cubes" })).model;
+    const edges = objectEdgeCounts(closed, "Touching cubes");
+    expect(edges.length).toBeGreaterThan(0);
+    expect(edges.every(count => count === 2)).toBe(true);
+  });
+
+  it("keeps uncolored faces unassigned when combining mixed or entirely uncolored inputs", () => {
+    const colored: ThreeMfObject = { ...TRIANGLE, material: { name: "Blue", displayColor: "#0000ff" } };
+    const mixed = unzipModel(writeThreeMf([colored, TRIANGLE], { combineObjects: true })).model;
+    expect(mixed).toContain('<triangle v1="0" v2="1" v3="2" pid="1" p1="0"/>');
+    expect(mixed).toContain('<triangle v1="3" v2="4" v3="5"/>');
+    expect(mixed).not.toContain("pindex=");
+    const plain = unzipModel(writeThreeMf([TRIANGLE, TRIANGLE], { combineObjects: true })).model;
+    expect(plain).not.toContain("pid=");
+    expect(plain).not.toContain("colorgroup");
+    expect(plain).toContain('<item objectid="1"/>');
+  });
+
   it("preserves stored coordinates when XML is read as double precision", () => {
     const positions = new Float32Array([
       40.29875183, -7.5280714, 14.10840797,

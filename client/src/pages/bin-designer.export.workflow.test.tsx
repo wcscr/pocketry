@@ -16,6 +16,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import * as ProjectPersistence from "@/lib/project/persist";
+import { strFromU8, unzipSync } from "fflate";
 
 describe("BinDesignerPage", () => {
 
@@ -241,6 +242,7 @@ describe("BinDesignerPage", () => {
     ["stl", "", "stl"],
     ["single-color-3mf", "", "3mf"],
     ["multicolor-3mf", "-multicolor", "3mf"],
+    ["bambu-3mf", "-bambu-multicolor", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.6mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.6mm-thick", "stl"],
     ["fit-check", "-Left-wrench-fit-template-0.6mm", "stl"],
@@ -317,6 +319,19 @@ describe("BinDesignerPage", () => {
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
       expect(model.size).toBeGreaterThan(84);
+      if (kind === "bambu-3mf") {
+        const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as ArrayBuffer);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsArrayBuffer(model);
+        });
+        const entries = unzipSync(new Uint8Array(buffer));
+        const xml = strFromU8(entries["3D/3dmodel.model"]);
+        expect(xml.match(/<object /g)).toHaveLength(1);
+        expect(xml).toContain('pid="1" p1="1"');
+        expect(entries["Metadata/model_settings.config"]).toBeUndefined();
+      }
       if (!includeProject) return;
       const [backup, backupName] = vi.mocked(downloadBlob).mock.calls[0];
       expect(backupName).toBe(modelName.replace(/\.(stl|3mf|svg|dxf)$/, ".pocketry.json"));

@@ -4,8 +4,9 @@ import { strToU8, zipSync } from "fflate";
  * 3MF writer — the default mesh export format (per the plan: smaller than
  * STL, carries units, preserves topology; manifold's own docs discourage
  * STL). A 3MF file is an OPC zip containing an XML model; this writer emits
- * the core spec plus the standard Materials extension for display colors,
- * which current slicers (PrusaSlicer, Bambu, Orca, Cura) read.
+ * the core spec plus the standard Materials extension for display colors.
+ * Slicer support varies; combineObjects provides a per-face color alternative
+ * for Bambu Studio 2.9.1.70, which drops uniform component assignments.
  *
  * The writer accepts **multiple objects** and emits one `<object>` plus one
  * `<build>` item each. That is the multicolor hook from the plan: when the
@@ -39,6 +40,10 @@ export interface ThreeMfOptions {
   title?: string;
   /** Wrap multiple meshes into one multi-part build item. */
   assemble?: boolean;
+  /** One mesh with per-face colors, for slicers that lose component colors.
+   * Preserves vertex identities and geometry, but not separate named parts.
+   * Takes precedence over `assemble`. */
+  combineObjects?: boolean;
 }
 
 const MODEL_PATH = "3D/3dmodel.model";
@@ -208,7 +213,27 @@ function buildModelXml(
     parts.push("  </m:colorgroup>\n");
   }
 
-  objects.forEach((object, index) => {
+  if (options.combineObjects) {
+    parts.push(`  <object id="${firstObjectId}" type="model" name="${escapeXml(options.title ?? "Pocketry multi-color model")}">\n   <mesh>\n    <vertices>\n`);
+    for (const object of objects) {
+      for (const [x, y, z] of object.mesh.vertices) {
+        parts.push(`     <vertex x="${x}" y="${y}" z="${z}"/>\n`);
+      }
+    }
+    parts.push("    </vertices>\n    <triangles>\n");
+    let vertexOffset = 0;
+    objects.forEach((object, index) => {
+      const materialIndex = objectMaterialIndices[index];
+      // No object-level default: an uncolored input must remain uncolored.
+      const materialAttributes = materialIndex === null ? "" : ` pid="${materialResourceId}" p1="${materialIndex}"`;
+      const { indices, vertices } = object.mesh;
+      for (let i = 0; i < indices.length; i += 3) {
+        parts.push(`     <triangle v1="${indices[i] + vertexOffset}" v2="${indices[i + 1] + vertexOffset}" v3="${indices[i + 2] + vertexOffset}"${materialAttributes}/>\n`);
+      }
+      vertexOffset += vertices.length;
+    });
+    parts.push("    </triangles>\n   </mesh>\n  </object>\n");
+  } else objects.forEach((object, index) => {
     const id = firstObjectId + index;
     const materialIndex = objectMaterialIndices[index];
     const materialAttributes =
@@ -233,7 +258,7 @@ function buildModelXml(
     parts.push("    </triangles>\n   </mesh>\n  </object>\n");
   });
 
-  const shouldAssemble = options.assemble === true && objects.length > 1;
+  const shouldAssemble = !options.combineObjects && options.assemble === true && objects.length > 1;
   const assemblyId = firstObjectId + objects.length;
   if (shouldAssemble) {
     parts.push(
@@ -246,7 +271,9 @@ function buildModelXml(
   }
 
   parts.push(" </resources>\n <build>\n");
-  if (shouldAssemble) {
+  if (options.combineObjects) {
+    parts.push(`  <item objectid="${firstObjectId}"/>\n`);
+  } else if (shouldAssemble) {
     parts.push(`  <item objectid="${assemblyId}"/>\n`);
   } else {
     objects.forEach((_, index) => {
@@ -258,15 +285,15 @@ function buildModelXml(
 }
 
 /**
- * Bambu Studio currently detects standard 3MF colors but does not reliably
- * retain a uniform color attached to component objects. Its vendor model-
- * settings entry gives each assembled volume an explicit extruder while other
- * slicers safely ignore the metadata and use the standard color group.
+ * Legacy Bambu part assignments for the regular assembled export. Recent
+ * Bambu Studio versions no longer reliably honor these for third-party files;
+ * combineObjects bypasses this metadata and uses standard per-face colors.
  */
 function buildBambuModelSettings(
   objects: readonly SerializedObject[],
   options: ThreeMfOptions,
 ): string | null {
+  if (options.combineObjects) return null;
   if (options.assemble !== true || objects.length < 2) return null;
   if (!objects.some((object) => object.material)) return null;
 

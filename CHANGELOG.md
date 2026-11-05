@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6.2 — 2026-11-05
+
+- Add a temporary Bambu-compatible 3MF export that keeps colors in Bambu Studio 2.9.1.70 by combining parts into one model. Regular multi-color export retains separate named parts.
+
 ## 1.6.1 — 2026-11-05
 
 - Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.
