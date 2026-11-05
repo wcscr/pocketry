@@ -185,12 +185,12 @@ export default function About(): JSX.Element {
               href="/LICENSE.txt"
               target="_blank"
               rel="noreferrer"
-              aria-label="Pocketry is fully open source under AGPL-3.0-only"
+              aria-label="Pocketry is fully open source under AGPL-3.0"
               className="inline-flex w-fit flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Github className="h-4 w-4" aria-hidden />
               Fully open source under
-              <span className="font-mono text-xs">AGPL-3.0-only</span>
+              <span className="font-mono text-xs">AGPL-3.0</span>
             </a>
             <p className="max-w-3xl text-base leading-7 text-muted-foreground">
               Pocketry turns tool photos into editable outlines, fit-check files,
@@ -258,7 +258,7 @@ export default function About(): JSX.Element {
           <p className="max-w-3xl text-base leading-7 text-muted-foreground">
             Pocketry also supports standalone flat-bottomed bins for use directly
             in a drawer or on a worktop, with no Gridfinity baseplate needed.
-            Turn on <strong>Bin → Construction → Flat bottom</strong> for a smooth
+            Choose <strong>Bin → Construction → Base &amp; mounting → Bottom → Flat bottom</strong> for a smooth
             underside without a Gridfinity base. These designs can also serve as
             3D-printable positioning jigs for laser engraving and UV printing,
             including eufyMake setups.
@@ -295,12 +295,20 @@ export default function About(): JSX.Element {
             <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
               <p>
                 Pocketry&apos;s original work is distributed under
-                AGPL-3.0-only. The complete license text shipped with this build
+                AGPL-3.0 (version 3 only). The complete license text shipped with this build
                 is the controlling document.
               </p>
               <p>
-                Source, issue tracking, and contributions are available in the
-                public GitHub repository.
+                Contributors retain their copyright and submit their work under
+                AGPL-3.0. The CLA also permits Sugarcreek Research, LLC to offer
+                other licenses, including proprietary versions, without royalties.
+              </p>
+              <p>
+                Read the{" "}
+                <a href={`${SOURCE_URL}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">contribution guidelines</a>{" "}
+                and{" "}
+                <a href={`${SOURCE_URL}/blob/main/CLA.md`} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">CLA</a>{" "}
+                for the submission process and licensing terms.
               </p>
             </CardContent>
           </Card>
@@ -334,8 +342,8 @@ export default function About(): JSX.Element {
                 .
               </p>
               <p>
-                The shipped NOTICE identifies their licenses and provenance and
-                inventories Pocketry&apos;s direct npm dependencies and build tools.
+                The shipped NOTICE includes license texts for bundled npm
+                packages, plus provenance and notices for adapted code and assets.
               </p>
             </CardContent>
           </Card>

@@ -1,5 +1,9 @@
 # Wham Bam Systems ULTIM8-compatible fixture entry
 
+This is the historical design and validation record for the implemented fixture entry. Use [ultim8-peg-bottom.md](ultim8-peg-bottom.md) for current behavior.
+Enhancements, problem reports, and current priorities are tracked in
+[GitHub issues](https://github.com/wcscr/pocketry/issues).
+
 ## Approach and state flow
 
 - `spec.pegBottom` is the only fixture-profile signal, including old projects,

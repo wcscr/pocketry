@@ -1,5 +1,9 @@
 # Pocketry Library implementation plan
 
+This is a historical, unimplemented community-library proposal. The current editor has browser-local storage and bundled samples, not this hosted service.
+Enhancements, problem reports, and current priorities are tracked in
+[GitHub issues](https://github.com/wcscr/pocketry/issues).
+
 Planning baseline: September 20, 2026; Pocketry checkout `437c058`, project schema v19. Architecture revised to Cloudflare D1 following the cost/bootstrap discussion. This document plans the work; it does not provision services, publish designs, or implement the feature.
 
 ## 1. Product and launch decisions

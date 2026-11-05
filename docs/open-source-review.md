@@ -2,6 +2,11 @@
 
 Reviewed: 2026-08-27
 
+This is a dated review record, not the current dependency inventory or contribution
+policy. Use `package.json`, `package-lock.json`, and [NOTICE](../NOTICE) for current
+components, and [CONTRIBUTING.md](../CONTRIBUTING.md) and the
+[maintainer checklist](contribution-maintenance.md) for current review requirements.
+
 Hardware-symbol addition reviewed: 2026-10-24. Pocketry bundles 18 vector outlines
 generated from [GFLabel](https://github.com/ndevenish/gflabel) at commit
 `7c6bfbaf1e007d42ea82cf1e2d89563ab545ebe0`, copyright 2024 Nicholas Devenish.
@@ -61,13 +66,13 @@ found.
 
 ## Other findings
 
-The following production dependencies are declared but have no import or other
-code reference in the tracked project: `@hookform/resolvers`,
+At the August review, the following production dependencies were declared but had
+no import or other code reference in that reviewed tree: `@hookform/resolvers`,
 `@jridgewell/trace-mapping`, `@neondatabase/serverless`, `connect-pg-simple`,
 `express-session`, `framer-motion`, `memorystore`, `passport`,
 `passport-local`, `react-icons`, `ws`, and `zod-validation-error`. Their
-presence is not a licence conflict, and they remain acknowledged in `NOTICE`,
-but they are candidates for a separate dependency-cleanup change.
+presence was not a licence conflict. Several server/authentication packages were
+subsequently removed; consult the current manifest before proposing cleanup.
 
 Named algorithms and formats in the source—Ramer–Douglas–Peucker, Taubin
 smoothing, marching squares, Otsu thresholding, DXF, STL, SVG, and 3MF—do not
@@ -100,19 +105,16 @@ Relevant primary sources:
 - <https://www.gnu.org/licenses/agpl-3.0.html>
 - <https://www.gnu.org/licenses/why-affero-gpl.html>
 
-The relicensing assumes Pocketry controls the copyright in all original
-contributions. It does not relicense OpenCV, Manifold, Gridfinity Rebuilt,
-shadcn/ui, or npm package code. If Pocketry later offers paid proprietary
-exceptions, future outside contributions should be covered by a contributor
-agreement that preserves Pocketry's ability to offer both licences.
+The project's licensing requires the necessary rights in original contributions;
+Git attribution alone does not establish them. It does not relicense OpenCV,
+Manifold, Gridfinity Rebuilt, shadcn/ui, or npm package code. The current
+[CLA](../CLA.md) preserves contributor ownership while granting the Company
+additional licensing permissions. Existing AGPL grants and third-party rights
+remain in effect.
 
 ## Maintenance rule
 
-For each new direct dependency, bundled binary, copied file, or port:
-
-1. Record its project, version or commit, licence, and how it is used.
-2. Confirm compatibility with Pocketry's then-current project licence.
-3. Preserve required copyright and licence text in `NOTICE` or a referenced
-   provenance file.
-4. Run a production build and confirm `dist/public/LICENSE.txt` and
-   `dist/public/NOTICE.txt` are present.
+Every contribution follows the current [maintainer checklist](contribution-maintenance.md),
+including changed uses and affected transitive components, AGPL and intended
+proprietary integration, security advisories, and notices delivered with the build.
+The direct-only scope of this dated review does not narrow that requirement.

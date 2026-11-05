@@ -1,4 +1,45 @@
-# Gridfinity bin generator — design and roadmap
+# Bin designer implementation reference
+
+This describes the current implementation, checked against the source on
+November 4, 2026. The filename is retained for existing links; this is not a
+roadmap. [GitHub issues](https://github.com/wcscr/pocketry/issues) track enhancement
+requests and problem reports. See the [documentation index](README.md) for
+feature references and dated investigation records, and [CHANGELOG.md](../CHANGELOG.md)
+for user-visible changes.
+
+## Current capabilities
+
+| Area | Implemented behavior | Reference |
+| --- | --- | --- |
+| Inputs | Calibrated photo traces and drawn rectangle, square, or circle pockets; outlines remain editable | [Trace](../client/src/pages/trace.tsx), [Bin](../client/src/pages/bin-designer.tsx) |
+| Footprints and size | Full/half/quarter Gridfinity pitch; connected, hole-free custom cell footprints; arbitrary rectangular dimensions for flat or jig bases | [Grid pitch](grid-pitch.md), [size rules](../shared/gridfinity/bin-size.ts) |
+| Construction | Solid or hollow interior, fill height, wall thickness, stacking rim, base/mounting choices | [Controls](../client/src/components/gridfinity/bin-controls-panel.tsx), [bin schema](../shared/gridfinity/types.ts) |
+| Hollow bins | Rows/columns, dividers, scoop bottoms, bottom edge fillets, and tabs on the outer wall or each sub-bin | [Compartments and tabs](bin-compartments.md), [bottom fillets](bottom-edge-fillet.md) |
+| Pockets and access | Independent placement/size/depth, split depths, retained-material holes, finger access, contour editing, and auto-arrange | [Split pockets](split-pockets.md), [placement schema](../shared/gridfinity/cutout.ts) |
+| 3D placement | XYZ rotation/elevation and optional vertical or object-axis insertion clearance | [Rotation](pocket-rotation.md), [insertion paths](pocket-insertion-paths.md) |
+| Labels | Raised text and hardware symbols on filled surfaces or label shelves; hollow-bin labels use shelves | [Hardware symbols and label surfaces](hardware-symbols.md) |
+| Materials | Body, floor/interior, rim/top-border, optional divider-top, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
+| Fixtures | Wham Bam Systems ULTIM8-compatible pegs, arbitrary dimensions, and 1:1 alignment SVG | [Jig geometry and export](ultim8-peg-bottom.md) |
+| Persistence | Browser-local autosave, named library, undo/redo, project and library import/export | [Project schema/migrations](../shared/gridfinity/project.ts), [project storage](../client/src/lib/project/) |
+| Output | Single- or multi-color 3MF, STL, thin fit checks, and SVG/DXF layouts | [DXF](dxf-compatibility.md), [mesh writers](../client/src/lib/mesh/) |
+
+Construction is grouped into **Interior**, **Walls & rim**, **Compartments**,
+**Floor & scoops**, **Base & mounting**, and **Label tabs**. Feature switches and
+section disclosures are independent; hiding a setting must not discard its saved
+value. New tabs default to **Each sub-bin**, with adjustable recess, front rim,
+inward depth, and partial width. Existing designs retain their saved choices.
+
+Slanted-wall editing, linked designs, and grouped objects require **App settings
+→ Enable experimental features**. Saved designs remain visible and exportable
+with that preference off. The dedicated `/ultim8` entry exposes fixture controls
+without requiring that opt-in; adding jig pegs from the ordinary bin workflow
+uses the experimental controls. See [the settings dialog](../client/src/components/layout/experimental-features-dialog.tsx)
+and [bin controls](../client/src/components/gridfinity/bin-controls-panel.tsx).
+
+Baseplate generation is outside Pocketry's scope. SVG/DXF are supported outputs;
+that does not imply an SVG/DXF import implementation. There is no hosted account
+system, server project storage, shared online project library, or cross-device
+sync in the current editor.
 
 ## Bin height and rounded stacking lip
 
@@ -7,8 +48,9 @@ fillet radius** at the top edge. This rounding is inherited from Rebuilt.
 See the [pinned upstream bin-height notes](https://github.com/kennetek/gridfinity-rebuilt-openscad/blob/910e22d8607fd7f5f51ad5e5cbc5287a76810bfd/gridfinity-rebuilt-bins.scad#L8-L18)
 and the [port provenance](../client/src/lib/gridfinity/UPSTREAM.md).
 
-Heights are measured from the **bottom of the bin's feet**, excluding any
-baseplate. Each height unit is 7 mm and already includes the base:
+For upright bins sized in Gridfinity height units, heights are measured from the
+**bottom of the bin's feet**, excluding any baseplate. Each height unit is 7 mm
+and already includes the base:
 
 - Without a stacking lip: `7 × heightUnits` mm.
 - With Pocketry's standard rounded lip: `7 × heightUnits + 3.5515` mm
@@ -28,777 +70,113 @@ These are model dimensions; printed measurements also depend on slicing and
 printing. A measured height difference alone does not establish a stacking-fit
 problem or identify another generator's lip geometry.
 
-## Current behavior and implementation status
+## Architecture and source map
 
-Returning from **Arbitrary** sizes to a Gridfinity pitch restores Gridfinity feet
-only when Arbitrary applied the flat bottom automatically. Explicit **Flat bottom**
-and **ULTIM8 jig pegs** choices stay selected, whether chosen before or during
-Arbitrary sizing. The Bottom menu labels an automatically applied base as
-**Flat bottom (automatic)**; choosing **Flat bottom** makes it an explicit preference.
-Dimensions must fit the selected pitch exactly. Schema v50 saves this distinction
-through reopening and undo/redo. Older saved flat bottoms retain their base because
-their original selection intent is unknown.
-
-**Construction → Wall thickness** is a standard control, visible when
-**Solid fill** is off. The
-0.95–3.00 mm setting grows the main walls inward, reducing cavity space while preserving outside dimensions and base
-geometry. With a stacking lip, extra wall material stops 1.2 mm below the nominal
-top, preserving the original mating region. Without a lip, the thicker wall
-reaches the top. A 1u bin has no straight wall above the base to thicken.
-The setting applies to rectangular and custom footprints, including flat bottoms;
-preview, STL/3MF, and hollow-floor colors use it. Turning solid fill on retains
-the preference but uses the original solid-bin geometry, including at partial
-fill heights.
-
-Bins follow [Gridfinity Extended's height defaults](https://gridfinity-extended.ostat.com/gridfinity_basic_cup):
-
-| Bin height | Hollow-wall thickness |
+| Responsibility | Source |
 | --- | --- |
-| Below 8U | 0.95 mm |
-| 8U to below 16U (including 15.5U) | 1.2 mm |
-| 16U and above | 1.6 mm |
-
-The displayed thickness updates automatically with height. Edit the slider or
-number directly to keep a custom value across height changes; **Use recommended**
-restores automatic sizing. A warning pops up after committing a value below the
-height recommendation, or increasing height into a band that makes a custom wall
-too thin. The chosen value remains applied. Drafts and slider drags do not warn
-until committed. Custom values, including 0.95 mm, survive saving, reopening, and
-undo/redo. Neither automatic nor custom wall thickness requires Experimental.
-
-Automatic mode is stored as a null wall preference. Schema v49 corrects older
-projects whose default 0.95 mm had been preserved as a fixed value, including
-v48 drafts, undo/redo history, and transform references. Legacy missing or
-0.95 mm preferences become automatic; other custom values stay fixed. Older
-0.95 mm values cannot distinguish an explicit choice from the original default,
-so those also adopt automatic mode. These are design defaults; physical tall-bin
-print quality and stiffness remain unqualified.
-
-The help button beside **Outer size** explains height units and the inherited
-rounded lip. With the lip off, it explains the flush height instead. The detailed
-explanation stays inside the hint in both editor layouts.
-
-**Construction → Fill height** adjusts solid fill from 1–100%, with slider marks at
-25%, 50%, 75%, and 100%. The slider snaps within three percentage points of those
-marks on release; keyboard steps and typed percentages remain exact. The percentage
-scales the available fill height above the fixed base, leaving the outer walls and
-stacking lip at full height. **Adjust fixed pocket depths**, directly below Fill
-height in Construction, is enabled by default. When checked,
-changing fill height resizes existing fixed depths to keep their floors in place;
-tilted pockets also move their openings along the same shaft. Unchecking restores
-the original fixed depths at the current fill height; rechecking reapplies the
-adjustment. Further fill edits while unchecked retain the original depths. Each
-toggle is undoable. Schema v25 saves the checkbox and original-depth references,
-so toggling still works after reopening a project or reaching the undo limit.
-Later pocket translations and names are retained; explicit depth, split or
-orientation edits establish a new reference for that pocket and its linked copies.
-Older projects keep their geometry and start with the checkbox enabled.
-Edits that would make a fixed depth zero or negative are rejected with guidance.
-Linked copies requiring different axial adjustments must share tilt, be unlinked,
-or use the unchecked behavior. Finger access follows the lowered surface;
-remaining-floor pockets keep their absolute floor height. Existing depth validation
-blocks other pockets that no longer fit. Preview, STL, 3MF and floor
-colors use the same surface. Schema v20 saves the percentage and undo/redo history;
-older projects and history snapshots default to 100%. Toggling solid fill off
-retains the percentage for the next time it is enabled.
-
-The interface consistently calls grip openings **finger access**, including
-controls, default names, layout guidance, validation, and edit history. Older
-history labels use the current wording when displayed; saved geometry, custom
-names, and project field names are preserved.
-
-**Finger access → Add** creates a slot with a curved bottom and rounded ends;
-the Shape options show **Slot** before **Round**. Its initial bottom is 1 mm above
-the highest pocket floor, considering both active split sections and ignoring
-through pockets. Empty or through-only layouts retain a 12 mm fallback depth.
-The depth is clamped to the supported 1 mm minimum, bin height, and 120 mm maximum.
-This is an initial value; later pocket edits do not move existing finger access.
-
-Pocket names belong to individual placements. Renaming a copy leaves the original,
-other copies, and the source shape unchanged. Names appear in pocket controls,
-spacing references, removal confirmations, warnings, canvas labels, and fit-template exports. Project
-schema v19 preserves them through undo/redo and project save/import; older pockets
-continue to display their source shape name until renamed.
-Pocket-list selection, rename, duplicate, and remove targets grow to at least
-44 pixels for coarse pointers while retaining compact mouse controls. Printable
-STL and 3MF confirmations show outer width × length × height in millimetres,
-including the stacking lip when enabled.
-
-Basic-shape pockets are available from **Layout → Add simple pocket** and the **Pockets**
-panel. Draw a rectangle or square between opposite corners, or a circle from its
-centre to its edge. A live outline shows dimensions; release adds one ordinary
-pocket, and Escape/Cancel or a cancelled/tiny gesture leaves the project unchanged.
-The current bin dimensions and other placements stay fixed, with ordinary boundary
-and overlap warnings. **Size & scale** edits exact millimetre dimensions after
-creation; squares and circles start with proportions locked. Depth, rounding,
-clearance, contour editing, duplication, undo/redo, floor colors, fit tests, and
-bin/layout exports use the existing pocket paths. Project schema v18 records that
-these shapes were authored in millimetres; older calibrated and uncalibrated traces
-retain their calibration requirements. Saved projects may mix both shape sources.
-
-**Status: G1–G5 software scope landed (G5 on 2026-08-24); both *print gates*
-are pending** — G1: print `exports/bin-2x3x6.3mf` and verify grid fit and
-stacking; G3: trace a real tool, export its bin, print it, and put the tool in
-the pocket. Optional server persistence remains deferred.
-
-The September 2026 usability update makes new traces outside-silhouette-only by
-default, including after a margin closes a narrow gap. Interior holes remain an
-explicit detection option. Manual contour edits become the baseline for Detail.
-The Smoothing control is temporarily hidden while improved smoothing and point
-simplification are planned; the existing refinement pipeline remains unchanged.
-Sensitivity re-detects automatically on slider release (or a keyboard
-step), asking for confirmation only when the current contour includes manual
-vertex/ring edits. Cancel keeps both the edits and previous detection settings;
-undoing all manual edits removes the need for confirmation. Refinement and
-re-detection are undoable. The ruler icon consistently identifies measurement;
-scale calibration uses a separate scaling icon. Users
-can name separate objects in one photo, queue additional photos, then arrange the
-tools together. The queue survives a tab reload until its placements are saved.
-
-Bin controls now show standard-cell and millimetre dimensions, preserve physical
-size when changing grid pitch, and offer **Keep bin size fixed** for automatic
-placement. Selected pockets expose exact position and dimensions, centring and
-spacing, effective depth/floor measurements, trace-margin provenance, and a direct
-3D section view. Relevant validation messages appear beside the selected object
-and can select the affected objects. **Materials**, **View**, and **Check fit** are
-separate sections, with thin fit checks available before full model export.
-
-Precision positioning, dimensions, and spacing are collapsed under **Fine-tune
-position & size**. Depth and floor measurements stay in a compact row with an
-expandable diagram. Pocket inspection exposes **Show full bin** both beside the
-3D model and in the pocket controls. The 3MF color dialog wraps its choices within
-the available width and scrolls on short screens. Export statistics show model
-volume; filament weight is left to the slicer's infill and wall settings.
-
-Selecting a pocket in Layout also exposes **Edit Contour** beside the canvas,
-with **Finish contour editing** to return to placement. The portable project
-download and open actions appear side by side. Bin model, fit-template, and
-DXF/SVG layout exports offer an unchecked **Also download editable project**
-checkbox; canceling does not build or download files. When requested, the JSON
-and exported geometry come from the same snapshot and share a filename stem.
-Trace SVG, DXF, and STL exports offer the same choice. Their
-optional JSON reopens the current calibrated outline as an editable pocket in a
-new Bin project, preserving its contour, physical scale, and trace margin. This
-option requires calibration; exporting an outline alone remains available without it.
-Pocket rows are full selection buttons with an explicit **Edit properties** label,
-persistent borders, and a highlighted selected state. Selecting a row brings the
-named **Pocket properties** header into view; renaming is a separate action there.
-
-Project schema 10 adds optional names, the fixed-size preference, and trace-margin
-metadata. Versions 1–9 remain supported through explicit migration; the supplied
-version-9 Airduster fixture verifies all seven shapes, four placements, and two
-finger-access features survive a library save and portable JSON round trip. New
-outside-only defaults never alter imported contours. Legacy IndexedDB keys are
-retained, unreadable library records are preserved, and autosave refuses to
-overwrite an unreadable working copy. The project header reports save success or
-failure. When an export includes an editable project, its JSON is downloaded first.
-
-Nonrectangular bin footprints landed on 2026-08-27. A bin can now use a
-connected, hole-free mask at the selected full/half/quarter pitch, so a 2×2
-three-cell mask produces a true L-shaped base, body, wall, and stacking lip.
-**Fit bin to contents** preserves relative pocket placement while choosing the
-smallest rectangular grid, and Auto-arrange also returns a rectangle. Irregular
-connected, hole-free masks are an explicit Layout → Edit footprint option. The
-exact footprint is shared by live validation, the 2D editor, worker geometry,
-and layout DXF/SVG export. Label tabs can anchor to a specific exterior or
-re-entrant boundary edge. Rectangular projects retain the original geometry
-path, and schema-v1–v3 projects migrate to an explicit rectangular footprint. A
-shaped-bin physical gate remains: print a full-pitch
-2×2/three-cell L, verify baseplate fit and the concave wall/lip, stack a matching
-footprint, then print an L-tool pocket and check its fit.
-
-G4 delivered **finger access features**, now independent bin-local layout objects rather
-than children of a tool pocket. They can be straight cylinders with their own
-depth, spherical round scoops, round deep scoops, oblong deep scoops, or flat-ended
-cylindrical scoops from the
-top surface. Deep
-scoops run straight down for the requested shaft depth and terminate in a
-rounded bottom, so total depth can exceed the opening width without an
-inward-overhanging cavity. The oblong variant has a capsule mouth and swept
-hemisphere bottom; it can be moved as a unit, rotated directly, or resized and
-rotated by dragging either endpoint. Every hole type has a mouse diameter/width
-handle; elongated scoops additionally expose both end handles. Flat-ended scoops
-have a rectangular mouth, a half-cylinder bottom, and planar end faces; their
-length (6–160 mm) measures the full distance between the ends and is independent
-of diameter. Total depth can be as shallow as 1 mm: a circular-segment bottom
-preserves the opening width. At half the width the bottom is a half-cylinder;
-extra depth adds vertical walls. Their long-edge rounding is tangent to both the
-cylindrical bottom and the flat top, including shallow cuts and short vertical
-shafts. Flat ends retain their
-quarter-circle rounding. All five finger-access styles now share continuous
-top-edge rounding: round scoops match the spherical cap, deep scoops match their
-hemisphere or shaft, and oblong scoops match both the trough and spherical end
-caps. Straight holes retain their existing floor fillets. Connected rings join
-the surfaces without stepped bands or a ledge across curved walls. They support
-validation, undo/redo, layout and
-STL/3MF export paths. Project schema 13 preserves this style and migrates v12
-without changing existing geometry. Round-scoop depth
-remains capped at half the opening width. Moving, duplicating, deleting, or
-auto-arranging a pocket does not move or remove a hole. **Auto-arrange** uses a
-min-area OBB per cutout and shelf-packs pockets into the smallest grid while
-leaving independent holes fixed; **undo/redo** covers the material document
-`{spec, cutouts, fingerHoles}` (hand-rolled history in the bin reducer, mirroring the
-trace store, rather than the zustand+zundo sketched below — drags collapse
-to one step via transient dispatches). Both Trace and Bin expose the labeled
-history beside Undo/Redo and can jump directly to any retained step; contour
-node add, remove, and move gestures are distinct entries. Continuous slider
-drags commit as one entry rather than consuming the history frame-by-frame. A
-preview-only **section view**
-(`trimByPlane`, stats stay whole-bin, exports never cut); explicit
-**named Project Library save/open** on top of the autosave; portable
-`.pocketry.json` backup import/export (legacy `.tooltrace.json` remains accepted);
-and per-pocket duplicate. The Project
-section is pinned to the top of the Bin controls: a draft resumes automatically,
-The save icon gives it a library name; double-clicking either current-project
-title opens the same name dialog for new drafts and saved projects.
-Manage presents the browser-local named projects. **Library** beside Trace and
-Bin opens the same manager in the Bin workspace; it is also available in the
-mobile workspace menu. New detaches a clean draft without deleting saved projects. A subsequent
-workspace visit restores a detached named working copy's library identity only
-when its document matches exactly one same-name saved entry after normalizing
-migrations and hydration defaults. When a same-name library entry differs (for
-example, the resumed copy has newer edits or undo history), restore the complete
-working copy as a separate “(recovered)” library project. Preserve the earlier
-entry, persist the recovered identity atomically, and explain the new name.
-Unnamed drafts and named drafts without a same-name library entry retain discard
-confirmation. A recovery write failure keeps both versions intact, shows the save
-error, and pauses autosave until the user saves or opens a project successfully.
-Working-copy and
-library updates for save, rename, open, new, and named autosave commit atomically,
-so a failed write cannot leave the restored document attached to the wrong entry.
-Opening another design, opening a project file, and New Project all save the outgoing named
-design's latest edits before changing the autosave target. A failed save keeps
-the current design open. Library import/export also lives in Manage; the main
-Project section places New project, Import Project, and Export project in one
-compact action row without a separate backup section. Both library opens
-(Open, Enter, and double-click) and opening a project file share a confirmation
-before replacing a nonempty unnamed draft, with Keep working as the safe choice.
-Files are validated before confirmation; cancelling preserves the draft and
-returns focus to the source action. A failed file open retains the validated
-snapshot for retry without asking the user to select the file again.
-After reading a file, the replacement decision and named-project save use the
-current design, including edits made while reading. A newer file selection,
-another project choice, or leaving the controls cancels an older unfinished read.
-Empty untouched drafts open directly, and named projects retain the save-before-open
-behavior. A failed open keeps the draft and confirmation available. On short
-screens, Manage scrolls as a whole so project rows and library transfers remain
-reachable; narrow rows wrap their actions within the card. Long project names
-wrap within rename, removal, and replacement dialogs without pushing their
-actions outside a narrow dialog. The persistent save status distinguishes a
-draft autosaved locally from a named project saved to the browser library, and
-shows saving or failure explicitly. Manage focuses and
-scrolls to the current project when opened, falling back to the first project or
-the export action in an empty library. The library is
-implemented entirely over IndexedDB so its behavior is consistent across modern
-browsers; JSON remains an explicit backup/transfer path whose download location
-is browser-controlled.
-
-Continuous size and feature controls now rebuild the 3D model only after the
-pointer is released: transient slider and drag positions update the controls,
-while the geometry worker consumes the last committed history document. The
-interactive build also uses a preview-only quality tier (24-segment arcs, a
-100-vertex contour budget, and 0.5 mm fillet profile bands). Export remains at
-64 segments, 600 vertices, and 0.1 mm bands, so responsiveness never changes
-the saved model. A local Node 22 real-WASM probe with two 150-point pockets and
-both top and bottom fillets fell from about 9.1 s to 0.59 s (roughly 15×
-faster). During any remaining rebuild, the last valid model stays visible and
-prominent progress appears both over the 3D view and beside the size controls.
-Width and length are shown in standard 42 mm cells and accept half-cell steps;
-selecting a fractional span promotes a rectangular bin to the existing 21 mm
-half-pitch socket lattice without changing its untouched axis. Height accepts
-0.5u steps (3.5 mm) while retaining the 1u minimum required by the base.
-
-Each placed pocket can also be resized independently without rewriting its
-source trace. The Layout view exposes four edge and four corner handles plus
-numeric width/height percentages. Aspect ratio is locked by default (for both
-mouse and numeric edits), can be unlocked for independent-axis scaling, and an
-Option/Alt drag resizes around the pocket centre. The placement scale is shared
-by validation, cutters, fit checks, auto-placement bounds, and DXF/SVG export.
-
-The Bin Layout view also supports **selected-pocket contour editing** without a
-round trip through Trace: drag vertices, click an edge to insert a point, and
-right-click a point to remove it immediately. Each committed gesture creates an immutable
-shape revision and updates only the selected pocket, so the worker cache is
-invalidated correctly and Bin undo/redo can switch between contour revisions.
-The pocket list now explicitly prompts selection before showing these controls;
-the selected tool name is editable in place. A per-pocket **fit-template STL**
-exports the filled outside silhouette at a user-selected 0.5–30 mm thickness,
-including Trace margin, extra pocket clearance, and outline corner rounding but
-excluding the bin, interior detection holes, and finger-access features.
-The right-side Layout toolbar begins with a 2D ruler: two clicks snap to
-visible tool contours and display their planar separation in millimetres. The
-ruler is intentionally unavailable in the 3D preview.
-
-G5 completed its local software scope (2026-08-24): the 3D camera now re-fits whenever the bin's
-outer dimensions change (preserving the orbit direction), the ground grid
-scales with the bin, and the **top-down layout DXF/SVG export** landed —
-bin footprint plus pocket silhouettes and independent finger access rims in real
-millimetres, the CNC shadow-board bridge. The **label tab** is ported
-(upstream `TAB_POLYGON` @ the pinned SHA): full-width or 42 mm
-left/center/right on any wall, fused into the wall part, with
-`label-tab-clipped` and `label-tab-shadow` warnings. **Crush ribs** are in
-too — upstream `ribbed_cylinder()`, eight sinusoidal lobes between ⌀5.9
-and ⌀6.5 for glue-free press-fit magnets, a per-spec toggle under Magnet
-holes. The earlier modeled Lite Base option was removed: ordinary slicer
-infill already provides the intended material savings without permanently
-adding hollow chambers and special pocket-floor support to the exported
-model. **Flat bottom** is an optional Construction setting that replaces the
-Gridfinity sockets with a smooth base, preserving outer size. New pockets
-default to a 2 mm remaining floor in flat-bottom mode (7 mm for Gridfinity).
-Switching base styles updates pockets using the previous default floor; custom
-floors and fixed depths are retained. Remaining floor is measured from the
-actual underside, so flat pockets can cut into the former feet area. Base magnet/screw holes are inactive in this mode; their settings
-return when switched off. Existing projects retain the Gridfinity base.
-**Half/quarter grid**
-landed as explicit 21/10.5 mm pitch modes while retaining the upstream 0.5 mm
-gap. The maximum physical span is shared across pitches: 16 full, 32 half, or
-64 quarter cells per axis, including footprint editing and automatic sizing.
-Fractional magnet/screw patterns are disabled until the corner-only hole
-layout is ported. Baseplate generation was intentionally removed from
-Pocketry; dedicated Gridfinity tools cover that workflow. The only remaining
-G5 item is optional server persistence.
-
-ArUco auto-calibration also landed (2026-08-14): photographing the tool on the
-printable calibration sheet sets the scale automatically on image load
-(least-squares mm/px over all detected marker pairs, skew warning past 2%
-pair disagreement), with a manual "Detect markers" button and a hint toast
-when a non-Pocketry marker sheet (Original ArUco / 5×5 / 6×6 / 7×7 /
-AprilTag) is recognised instead. Detection reads a 1600px frame — small
-markers blur out at the 800×600 working resolution. Calibration-sheet v2 uses
-a Pocketry-specific custom 4×4 dictionary, requires all four paper-specific
-markers, and rejects the stock 4×4 IDs used by generic generators. Before any
-scale is proposed, all 16 refined corners must fit the signed sheet geometry
-under one homography. Detection and correction results are bound to the source
-image and mapped back with exact per-axis factors, so late work from a replaced
-photo cannot paint stale rulers or markers. The four-page-corner manual fallback
-remains available when markers cannot be used.
-
-G3 delivered the trace → bin integration: "Add to bin" in the trace panel
-(hard-gated on calibration — the uncalibrated-scale footgun stops at the
-door), an app-level shape library that survives workspace navigation, auto
-placement + auto bin sizing (shelf packing, smallest fitting grid), the 2D
-layout editor (drag/rotate/snap/nudge with live per-cutout validation
-painting and export gating), the pocket pipeline in the worker (vertex
-budget → placement transform → clearance → corner round → K-slice bottom
-fillet → subtract, with per-cutout `emptied` reports instead of throws), and
-the versioned ProjectDoc autosave to IndexedDB (`idb-keyval`, Apache-2.0 —
-the plan listed it as MIT; still policy-clean). Solid fill became the schema
-default.
-
-G2 delivered the `/bin` workspace: an r3f viewport (three 0.180 + fiber 8 +
-drei 9 — ^0.180 rather than the planned ^0.185, staying inside drei v9's
-supported window on React 18), the first geometry bound to the worker RPC
-(`bin.worker.ts` + `useBinGeometry`, 120 ms debounce, supersede channel,
-progress, and configurable body, pocket-floor, and stacking-rim material
-groups controlled from Materials), magnet/screw holes ported from
-`gridfinity-rebuilt-holes.scad`
-(sequential-bridging ceilings included; crush ribs later landed in G5, while
-Refined remains deferred), and
-3MF/STL export from the page at export quality. The 3MF flow asks whether to
-export one material or a slicer-ready multi-color assembly. Selected blind
-pocket floors and the stacking-rim crest (or a flush top border without a lip) become configurable, separate,
-non-overlapping material volumes alongside the configurable bin body. Their
-default display/material color is pure black, while the body retains its
-orange default. Their
-depths are independently selectable from 0.2–3.0 mm for pocket floors and
-0.2–7.35 mm for the stacking rim (0.6 mm pocket-floor and 1.25 mm rim
-defaults). The rim limit is the full
-modeled lip depth and does not extend into the bin wall when a lip is enabled.
-Each pocket's **Pocket color** properties choose **Floor only** or **Entire
-interior**. Floor-only coverage can follow the insertion axis, stay aligned with
-the bin's vertical direction, or use object X/Y/Z. With no insertion clearance,
-Follow insertion axis uses object Z. This reference changes the material split,
-not the cavity or insertion clearance. Entire interior colors a lining around
-the walls and floor below the fill surface; its thickness is measured laterally
-and axially in the object's frame. For every coverage mode, top-edge rounding
-keeps the bin color, and pocket color starts below the actual rounding depth.
-All masks replace existing material and keep retained holes and through openings
-intact. Color and thickness remain shared
-under **Materials & Colors**, while coverage and reference are independent for
-each placement, including linked copies. New pockets follow insertion; schema
-40 preserves the bin-vertical appearance of older saved projects.
-Axis-based floor masks use only the layer behind the finite object's supporting
-surface. Extra insertion-clearance walls and surfaces introduced by the remaining
-floor limit keep the bin color; **Bin vertical** colors the bin's bottom surface.
-Native extrusion bands define the lining before posing the object. A 0.01 mm
-setback from parallel faces and a 0.01 mm overlap into the cavity prevent
-coincident material sheets, without changing the cavity. Color-only edits retain
-the complete previous preview until one fully rounded replacement is ready.
-With Solid fill off, the pocket-floor color and thickness apply to the hollow
-bin's interior floor, labeled **Bin floor** in Materials & Colors and exports.
-This layer extends down from the base top without changing the floor height,
-coloring the walls, or closing base holes. It works with or without a stacking lip.
-Without a lip, Materials & Colors offers **Top border** with independent color
-width (0.2–20 mm inward, default 0.95 mm) and depth settings. Wider borders extend
-into the filled top or label shelf; hollow bins color only existing wall material.
-The band follows the perimeter, including custom bins, and also supports 1u bins,
-with the requested depth clipped to existing bin material. Accents replace
-existing material behind their selected surfaces; STL warns before
-dropping those color assignments. Pocket controls, Materials, and export show a
-nonblocking warning when a pocket's colored floor layer reaches the underside
-recesses. This uses the resolved depth and selected color thickness: ordinary
-base recesses rise to 4.75 mm, while lite cavities and full-pitch screw bores can
-reach 7 mm. The check is conservative because actual exposure also depends on
-the pocket's position. Reducing depth or color thickness, increasing the remaining
-floor, or disabling floor coloring updates the warning immediately. Hole regression worth
-remembering: abutting union pieces whose faces share no vertices don't weld —
-the genus invariant caught the resulting sealed voids; pieces now overlap.
-
-What landed for G1, all invariant-tested (`shared/gridfinity/`,
-`client/src/lib/gridfinity/`, `client/src/lib/mesh/`):
-
-- Ported constants + profiles pinned at upstream `910e22d8`, provenance in
-  `client/src/lib/gridfinity/UPSTREAM.md`, MIT text in `NOTICE`.
-- `sweepRounded` (the ~80% primitive), validated against a closed form
-  (prisms + faceted Pappus, 1e-6) and two independent oracles — a hull stack
-  and `minkowskiSum` (which the JS bindings do expose).
-- Base/wall/lip/bin builders returning tagged parts (the multicolor hook),
-  with exact-bbox, genus, status, closed-form-volume tests, and a **software
-  mating test**: a base seated in the lip clears at the spec's 0.35 mm and
-  collides past it.
-- 3MF (fflate, multi-object, deterministic) + binary STL via the writer split
-  out to `lib/export/stl-writer.ts`; `npm run export:bin` emits both.
-- **Risk #1 retired**: the K-slice stepped bottom fillet on a synthetic
-  200-vertex ring builds in ~18 ms + subtracts in ~0.1 ms (14 slices at
-  0.2 mm) — no memoization needed at G3 scale.
-- One API drift from this plan: current manifold deprecates non-zero normal
-  channels, so it is `calculateNormals(0, 60)` + `getMesh()`, not `(3, 60)` +
-  `getMesh(3)`.
-
-This is the durable half of a larger plan. The other half — rewriting outline detection
-onto a ring model and rebuilding the workspace layout — is complete, and its rationale
-now lives in `CLAUDE.md` and in the code. What follows is the part with shelf life.
-
-## Goal
-
-Pocketry traces physical tools from photos into 2D outlines. This feature turns those
-outlines into **pockets in custom Gridfinity bins**: several tools per bin, finger
-scoops, printable output. The reference for geometry quality is
-[`gridfinity-rebuilt-openscad`](https://github.com/kennetek/gridfinity-rebuilt-openscad)
-(MIT); the reference for UX is gridfinitygenerator.com (closed source, not usable).
-
-## Decisions already made
-
-- **Port the MIT OpenSCAD geometry to TypeScript and build solids with `manifold-3d`.**
-  `openscad-wasm` and `andymai/gridfinity-layout-tool` were not used; Pocketry's
-  implementation is the independently maintained port identified in `NOTICE`.
-- **Multicolor is out of scope**, with one no-cost hook preserved (see Milestones).
-- Every dependency and ported file requires provenance plus compatibility review under
-  the project-wide licence policy in `CLAUDE.md`.
-
-## What already exists
-
-These landed during the tracing rewrite specifically so this phase would not be a
-rewrite. Verify against the code before relying on any detail here.
-
-| Foundation | Where | Notes |
-|---|---|---|
-| AGPL-3.0-only `LICENSE` + `NOTICE`, licence policy | `LICENSE`, `NOTICE`, `CLAUDE.md` | Third-party portions retain their own licences; NOTICE carries Manifold's Apache-2.0 attribution |
-| Ring model with enforced orientation | `shared/geometry/types.ts`, `shared/geometry/rings.ts` | outer rings positive signed area, holes negative |
-| px→mm and the single Y-flip | `shared/geometry/scale.ts`, `client/src/lib/export/scale.ts` | conversion happens exactly once, at the export boundary |
-| `manifold-3d` as *the* geometry kernel | `client/src/lib/manifold/runtime.ts` | resolves in Vite dev, Vite build, and Node/Vitest |
-| WASM handle lifetimes | `client/src/lib/manifold/arena.ts` | `Arena` / `withArena`; handles are not GC'd |
-| Kernel injection | `Kernel` in `runtime.ts`, used by `client/src/lib/geometry/offset.ts` | never import the singleton from geometry code |
-| 2D offsetting + Clipper2 | `client/src/lib/geometry/offset.ts` | `toCrossSection`, `outlineToPolygons` are reusable here |
-| Worker RPC with supersede + cancel | `client/src/lib/worker/{client,host,protocol}.ts` | typed, tested; bin geometry is bound to it |
-| Correct binary STL writer | `client/src/lib/export/stl.ts` | real per-facet normals, extrude via `CrossSection` |
-| Content-agnostic viewport | `client/src/components/canvas/canvas-viewport.tsx` | a three.js `<canvas>` drops in unchanged |
-| Data-driven route registry | `client/src/components/layout/workspaces.ts` | adding `/bin` is one entry |
-| Panel + canvas workspace shell | `client/src/components/layout/workspace-layout.tsx` | `autoSaveId` per workspace |
-| Vitest, node + jsdom projects | `vitest.config.ts` | geometry tests run headless with real WASM |
-
-The previously missing `ProjectDoc` is now implemented with `schemaVersion: 10`,
-IndexedDB autosave plus a named Project Library, explicit `.pocketry.json`
-backup import/export with legacy `.tooltrace.json` import compatibility, and
-reducer-owned undo/redo.
-
-## Approach
-
-**The whole port hinges on one upstream primitive.** `sweep_rounded(size)` in
-`src/helpers/generic-helpers.scad` is 4 × `linear_extrude` along the edges of a rectangle
-plus 4 × `rotate_extrude(angle=90)` at the corners, unioned — and the base, the stacking
-lip, and the lite chamfer all go through it. That maps 1:1 onto `CrossSection.extrude()`
-and `CrossSection.revolve()`. **That single primitive is ~80% of the port.**
-
-It is exact rather than approximate (modulo circular segment count), because sweeping is
-a Minkowski sum, and the union of per-edge and per-vertex pieces equals the Minkowski sum
-of the whole path.
-
-Constants to port into `shared/gridfinity/standard.ts` (verified against upstream
-`src/core/standard.scad`):
-
-- grid 42 × 42 mm, height unit 7 mm
-- `BASE_PROFILE = [[0,0],[0.8,0.8],[0.8,2.6],[2.95,4.75]]`
-- base top 41.5 mm, base gap 0.5 mm, `BASE_TOP_RADIUS 3.75`, `BASE_BOTTOM_RADIUS 0.8`,
-  `BASE_BRIDGE_HEIGHT 2.25`
-- `STACKING_LIP_LINE = [[0,0],[0.7,0.7],[0.7,2.5],[2.6,4.4]]` — lip intrudes 2.6 mm, is
-  4.4 mm tall before rounding, and has a 3.8 mm support below the nominal top.
-  The inherited 0.6 mm top fillet leaves an actual lip height of
-  `4.4 − 0.6 × √2 ≈ 3.5515` mm above the nominal top.
-- `d_wall 0.95`, `r_f2 2.8`, `d_div 1.2`
-- magnet ⌀6.5 × 2.4 deep (refined 5.86), screw r 1.5, `LAYER_HEIGHT 0.2`
-
-Fillets decompose cleanly: **vertical edge rounding is 2D**
-(`cs.offset(-r,'Round').offset(+r,'Round')`); **the bottom edge fillet is 3D** — subtract
-a quarter-round complement swept along the ring. `minkowskiSum` exists in manifold 3.x but
-is convex-decomposition-based and slow: use it as a test oracle, never in the build path.
-
-## Module layout
-
-```
-shared/gridfinity/            standard.ts (ported constants) · types.ts (+ zod) · validate.ts · migrate.ts
-client/src/lib/gridfinity/    profiles · sweep · holes · base · wall · cutouts · bin · UPSTREAM.md
-client/src/lib/mesh/          meshData · toBufferGeometry · stl · threemf · download
-client/src/components/gridfinity/  BinDesigner · BinViewport3D · LayoutCanvas2D · panels/*
-client/src/pages/bin-designer.tsx
-```
-
-**Hard rule: the gridfinity layer never imports the manifold singleton.** It takes a
-`Kernel` (`{ Manifold, CrossSection, triangulate, setQuality, arena }`) by injection, so
-the same code runs in the worker, under Vitest in Node, and on the main thread for
-debugging. This rule is already established by `client/src/lib/geometry/offset.ts` —
-follow that file's shape.
-
-## Cutout model
-
-Rigid pocket editing uses a source solid plus one XYZ rotation and elevation.
-`buildObjectCavity` poses the source for subtraction; `resolvedObjectGeometry`
-derives the preview mesh, projected selection outline and fill-surface opening
-from that same solid. These helpers also accept an arbitrary Manifold solid,
-without requiring an extruded profile or a convex decomposition.
-
-The 3D source preview draws a faint surface and batches its exterior creases;
-coplanar mesh triangles and internal helper-cell boundaries are hidden. Immediate
-drag previews use boundary rings with sparse connecting edges. Convex cells remain
-only as synchronous conservative footprint/section helpers; they are not the
-object definition or a format future model imports must produce. Derived preview
-data is detached from the kernel and cached per immutable placement, shape and
-bin specification; no arena-owned handles survive a build.
-
-```ts
-interface CutoutPlacement {
-  id: string; shapeId: string;
-  position: Vec2; rotationDeg: number; mirrored: boolean;   // mm, bin-local, Y-up
-  scaleX: number; scaleY: number; aspectRatioLocked: boolean;
-  depth: { mode: 'through' } | { mode: 'mm'; value: number }
-       | { mode: 'remaining'; floorThicknessMm: number };
-  clearanceMm: number;      // 0.0 — signed adjustment after scale/Trace margin, -5..5 mm
-  cornerRoundMm: number;    // 1.0 — 2D vertical edge round
-  topFilletMm: number;      // 0.0 — top-surface pocket-edge round-over
-  bottomFilletMm: number;   // 2.8 (r_f2), clamped to depth/2
-}
-
-interface ProjectDoc {
-  cutouts: CutoutPlacement[];
-  fingerHoles: FingerHole[]; // independent bin-local layout objects
-}
-```
-
-v1 layout is **manual placement on a 2D top-down canvas** — drag, rotate handle,
-eight edge/corner resize handles, percentage scale controls, arrow-key nudge,
-and snapping to 42 mm grid lines, bin edges, and other cutouts. Drag, rotate,
-resize and snap are miserable with a 3D gizmo and excellent on a plane. v2 adds auto-arrange
-(min-area OBB per shape, then shelf packing); true nesting optimisation is out of scope.
-
-**Validation** (`shared/gridfinity/validate.ts`, pure, no WASM, runs every drag frame):
-`out-of-bounds`, `wall-breach`, `lip-collision` (legal at depth but fouls the 2.6 mm lip
-at the rim), `cutout-overlap`, a thin-material warning below `d_div = 1.2`, `too-deep`,
-`floor-too-thin`, and **`uncalibrated-scale`** — shipping a bin sized from an uncalibrated
-photo is the single most likely way a user wastes six hours of print time. Errors block
-export; warnings do not.
-
-Pocket-to-pocket overlaps are warnings, including overlaps caused by clearance or
-top-edge rounding and exact 3D intersections between tilted or submerged pockets.
-Their cuts combine in the printable bin, while each pocket remains independently
-editable. Merging several pockets into one editable pocket object is future work.
-Other validation errors continue to block export.
-
-## Persistence: none server-side in v1
-
-The unused image API, in-memory storage, and database scaffold have been removed.
-The original browser-local implementation uses a `ProjectDoc` with **`schemaVersion: 10`**, a
-hand-rolled reducer history, `idb-keyval` autosave to IndexedDB (not localStorage —
-traced shapes plus thumbnails blow past 5 MB), a browser-local named Project
-Library with active-project autosave, and explicit `.pocketry.json` backup
-import/export (including legacy `.tooltrace.json` imports). Schemas 1–6 migrate
-pocket-local finger access features to bin-local coordinates while preserving their
-visible position and oblong orientation; schema 7 adds identity placement
-scales while preserving every pocket's size. Versions 8 and 9 retain placement
-scales and finger access fillets; version 10 adds optional project metadata while
-preserving the imported geometry. The library is cross-browser code,
-not cross-device sync: each
-browser profile owns its own IndexedDB data.
-
-If server persistence is wanted later it is a `projects` table holding a **JSONB
-document**, not normalised rings: the geometry is a tree, edited atomically, and nothing
-server-side queries individual rings.
-
-Separately: the fire-and-forget `POST /api/images` was removed from the client
-(2026-08-15) — nothing ever read the copies back, and silently uploading every
-trace was the wrong default. The unused server routes were removed on 2026-10-16
-to eliminate their authorization and unbounded-storage risks. Any future server
-persistence needs an explicit opt-in and a new security design.
-
-## Export
-
-**3MF as the default** (fflate zip, `<unit>millimeter</unit>`, integer-indexed vertices) —
-smaller, unit-carrying, topology-preserving; manifold's own docs discourage STL. STL
-second, reusing the existing writer in `client/src/lib/export/stl.ts`. A top-down
-**bin-layout DXF/SVG** from the 2D editor is nearly free and ties the CNC shadow-board
-product back to the bins. A selected pocket can also export a standalone filled
-fit-template STL for a low-material silhouette check before committing to a bin.
-For the more reliable multi-tool check, **Surface fit test** defaults to
-**Tool outlines · 5 mm** at **0.8 mm thickness**. The optional **Full surface**
-exports the bin's pocket-layout plane as one 0.4–3 mm plate, with
-the real outer footprint, clearances, top-edge rounds, spacing, and finger
-access. It omits the base, wall height, label tab, and stacking lip and moves
-the plate to the build plane; it therefore tests surface fit, not pocket depth
-or baseplate fit. **Tool outlines · 5 mm** exports material bands around only
-the tool openings, without the bin perimeter or separate finger access features.
-The bands extend outwards from the openings and are not clipped to the bin
-footprint. Width is fixed at 5 mm; the same Thickness control sets printed height.
-Widely spaced tools print as separate pieces, so use Full surface to verify
-relative pocket spacing. Tool outlines require at least one tool pocket.
-This is an export option, not a saved bin parameter.
-
-Call `manifold.calculateNormals(0, 60)` before `getMesh()` so normals arrive in the
-standard vertex-property channel. Using three's `computeVertexNormals()` instead
-smooths the base profile's 45° transitions into mush and the preview stops looking like
-Gridfinity.
-
-## Performance
-
-Traced outlines carry 500–3000 points per tool, and the exact bottom fillet is O(N)
-manifolds — at N=1000 that is catastrophic. Therefore:
-
-- **Always simplify before extruding**: RDP at trace time in mm, then
-  `CrossSection.simplify()` before building. Target ≤150 ring vertices for preview and
-  ≤600 for export, with the count shown in the UI so the trade-off is legible.
-- Cap fillet cost with a K-slice offset stack above a vertex threshold. Sample the
-  vertical profile independently of slicer layer height (currently at most 0.1 mm,
-  with a quality-dependent angular minimum).
-- Preview/export quality presets (~5× triangle difference). Note these are **global** on
-  the manifold toplevel, so they are only safe because the worker is single-threaded.
-- **Deferred: structural-hash memoization split by stage.** Current builds do not cache
-  solids across requests; persistent WASM handles need explicit ownership and eviction.
-- Progressive preview: omit pocket top/bottom rounding during interaction, then
-  refine after 300 ms of idle input and completion of the draft. Keep outline
-  resolution, split depths, and material colors. Label drafts and withhold their
-  approximate statistics; saved settings and export quality remain unchanged.
-- Batch initial live input for 32 ms without restarting the deadline on every
-  event, then retain only the latest pending preview behind each physical job.
-  Two lazy workers separate interactive previews from detailed previews/exports.
-  New edits invalidate old UI callbacks, but let the running RPC finish because
-  cancellation cannot interrupt synchronous WASM. Exports and autosaves retain
-  committed requests while the preview follows transient gestures.
-- Compute normals only for meshes used by the preview. When material parts supply the
-  displayed body, retain the aggregate topology/statistics without calculating its
-  unused normals. Single-mesh fallback previews still receive normals; export topology
-  is unchanged. Empty section meshes return empty buffers without normal-channel errors.
-- Transfer mesh buffers rather than copy them. Worker `error`/`messageerror` rejects all
-  affected jobs and releases the endpoint; a later request can spawn a fresh worker.
-  Failed exports surface an error rather than being silently retried.
-
-The Wiha split-depth/fillet investigation is documented in
-[`preview-performance.md`](preview-performance.md), including the benchmark limits
-and lifecycle regression coverage.
-
-## Libraries
-
-Landed: `three@^0.180` (MIT), `@react-three/fiber@^8` +
-`@react-three/drei@^9` (MIT, kept in their React 18-compatible window),
-`idb-keyval@^6` (MIT), and `fflate@^0.8` (MIT). Undo/redo is implemented in the bin
-reducer rather than adding `zustand` + `zundo`.
-
-## Attribution
-
-`NOTICE` must gain the full MIT text for `gridfinity-rebuilt-openscad` © 2023 Kenneth
-Hodson. Every ported file gets a header naming the upstream file and a pinned SHA;
-`client/src/lib/gridfinity/UPSTREAM.md` holds the provenance table so re-syncing upstream
-is mechanical. Do not vendor the `.scad` files — it muddies what was actually ported.
-
-`threads-scad` (thumbscrews) is a third-party library vendored *inside* upstream. Check
-its licence independently before porting, and drop the feature if it is not permissive.
-
-## Milestones
-
-| | Demo | Contents |
-|---|---|---|
-| **G1** | Export a correct empty 2×3×6 bin **and print it** | constants, sweep primitive, base/wall/bin, 3MF writer, invariant tests |
-| **G2** | Live 3D preview reacting to sliders without jank | r3f viewport, `/bin` workspace, worker pipeline with supersede/cancel/progress, magnet + screw holes |
-| **G3** | A photographed screwdriver becomes a printable pocket — **print it and put the tool in it** | shape library + `normalizeTracedShape`, cutouts (clearance, corner round, bottom fillet, depth modes), 2D placement editor, live validation |
-| **G4** | 4-tool bin with scoops and finger access features, saved and reloaded | scoop, finger access features, auto-arrange, undo/redo, project save/load, `trimByPlane` section view |
-| **G5** | Parity and polish | label tab, crush ribs, half/quarter grid, layout DXF/SVG, optional server persistence |
-
-**G1 and G3 are physical print gates.** Dimensional correctness is not verifiable any
-other way; no amount of unit testing substitutes for putting the tool in the pocket.
-
-**Multicolor hook (deferred, costs nothing now):** have `buildBin()` return tagged parts
-(`{ base, wall, lip, infill }`) internally rather than one fused `Manifold`. 3MF expresses
-multiple objects and manifold preserves property runs across booleans, so a future
-multi-material export needs no restructuring.
-
-## Testing
-
-Invariants over golden meshes. Byte-level goldens go permanently red on any manifold
-version bump or quality change; store *golden invariants* instead —
-`{ volume, area, genus, bbox, triCount ±10% }` per named spec.
-
-- `status() === 'NoError'` on every built solid.
-- `genus()` — an empty bin is 0, blind magnet holes stay 0, through-holes increment. A
-  good trap detector.
-- `volume()` against an analytic value; `boundingBox()` exact (a 2×3 bin is
-  83.5 × 125.5 mm, `min.z === 0`).
-- The sweep primitive against a closed form, and one small case against `minkowskiSum` as
-  an independent oracle.
-- Every rule in `validateBin`, which is pure and needs no WASM.
-
-## Top risks
-
-1. **Bottom-fillet cost on high-vertex outlines** — the highest-uncertainty item here.
-   Prototype against a synthetic 200-vertex ring during G1, *before* any UI exists.
-2. **Constant-angle draft is not a native manifold op.** `extrude(..., scaleTop)` is a
-   scale, not an offset; the two coincide only for circles. A K-slice offset stack is the
-   honest implementation. Consider dropping draft from v1 entirely — for FDM pockets,
-   clearance is what matters.
-3. **WASM memory discipline.** Manifold handles are not garbage collected; without the
-   arena convention this leaks and hard-crashes the tab. Enforce in review.
-4. **Coordinate-frame confusion** (px/mm, Y-down/Y-up, bbox-centred vs image-origin). Not
-   theoretical: the pre-rewrite exporters disagreed about Y and shipped mirrored STLs.
-5. **React 18 pins the R3F stack** to v8/v9. A React 19 upgrade is a separate decision
-   with its own blast radius — do not let it become implicit.
-6. **Dimensional correctness is only verifiable by printing.** Budget the G1 and G3 print
-   gates as real schedule.
-
-### Preview interaction follow-up (2026-09-23)
-
-Addressed progressive-preview UX regressions: continuous gestures now publish
-intermediate meshes within guarded gesture boundaries; inexpensive rounded bins
-build directly with adaptive cost feedback; fillet-only edits retain a coarser
-rounded preview; section-only edits preserve full rounding. Previous exact model
-statistics remain labeled as updating, and brief builds no longer flash a
-percentage indicator. Full detail and export mesh comparisons across 14 designs
-remain identical to the baseline. See `preview-performance.md` for evidence and
-remaining complex-fillet/section latency limitations.
-
-### Flexible jig prototypes
-
-ULTIM8 flat backing attaches straight pegs directly to the existing body, removing
-root height. Preview and Layout keep the installed coordinate frame; STL and all
-3MF colour/text parts rotate together to print pocket-side down, pegs up. Corners
-only and every 2–5 holes apply in both staggered lattice directions and retain
-corner anchors. Through openings omit whole intersected shafts before sparse
-anchor selection. Sparse choices require flat backing; changing to upright roots
-restores every-hole pegs. Pocket roofs, hollow interiors, lips and raised text can
-introduce bridges, overhangs or reduced bed contact in this orientation. Warnings
-do not block export; inspect the slice and print a small fit/strength test.
-
-Grid pitch → Arbitrary uses explicit outer width and length (10–671.5 mm) and
-body height (2–420 mm). It supports rectangular flat and ULTIM8 bases; bodies below
-7 mm turn off the stacking lip. Entering mm mode preserves size and pocket
-coordinates; grid pitches are available again only when dimensions exactly fit,
-so switching never silently snaps a design. Cell footprint editing and Gridfinity
-feet require returning to a grid. Layout, geometry, fit templates, placement,
-validation, undo and project exports share the exact dimensions. Arbitrary sizes
-stay fixed during automatic placement; Fit bin to contents resizes in millimetres.
-Schema 39 defaults older projects to their prior grid and full peg lattice.
+| Bin dimensions, base profiles, and lip constants | [standard.ts](../shared/gridfinity/standard.ts), [types.ts](../shared/gridfinity/types.ts) |
+| Project format, migrations, and history | [project.ts](../shared/gridfinity/project.ts), [history.ts](../shared/gridfinity/history.ts) |
+| Placement, depth, insertion, and validation | [cutout.ts](../shared/gridfinity/cutout.ts), [validate.ts](../shared/gridfinity/validate.ts), [pocket-insertion.ts](../shared/gridfinity/pocket-insertion.ts) |
+| Shared editor state and transactions | [bin-store.tsx](../client/src/state/bin-store.tsx), [shape-library.tsx](../client/src/state/shape-library.tsx) |
+| Layout and 3D views | [layout-canvas.tsx](../client/src/components/gridfinity/layout-canvas.tsx), [bin-viewport.tsx](../client/src/components/gridfinity/bin-viewport.tsx) |
+| Geometry assembly and material partitioning | [bin.ts](../client/src/lib/gridfinity/bin.ts), [cutouts.ts](../client/src/lib/gridfinity/cutouts.ts), [object-cavity.ts](../client/src/lib/gridfinity/object-cavity.ts) |
+| Worker scheduling and builds | [use-bin-geometry.ts](../client/src/lib/gridfinity/use-bin-geometry.ts), [bin-worker-handlers.ts](../client/src/lib/gridfinity/bin-worker-handlers.ts) |
+| Upstream port provenance and deviations | [UPSTREAM.md](../client/src/lib/gridfinity/UPSTREAM.md), [NOTICE](../NOTICE) |
+
+Geometry code takes an injected `Kernel`; it must not import the Manifold
+singleton. Track WASM handles in an `Arena` and dispose them deterministically.
+Detach returned mesh data before disposing its owning solids. Reuse the existing
+Manifold/Clipper2 geometry path rather than introducing a second geometry kernel.
+
+Trace outlines use oriented rings. Convert pixels to millimetres and flip Y once
+at the Trace export/normalization boundary. Bin-local placement and layout
+exports already use millimetres with Y up. A coordinate conversion added inside
+a downstream bin writer would duplicate that transformation.
+
+Rigid pockets use a finite source solid, its pose, and a separately derived
+cavity/insertion envelope. Preserve the source when deriving selection wires,
+fill-surface openings, floor limits, and color masks. Split sections, retained
+material, and insertion clearances must use the same geometry in preview,
+validation, and export. Overlapping pocket cuts are generally warnings, while
+invalid geometry and unresolved export blockers prevent printable export.
+
+## Persistence and editing guarantees
+
+The current project format is defined by `PROJECT_SCHEMA_VERSION` in
+[project.ts](../shared/gridfinity/project.ts), rather than by a copied version
+number in this document. Migrations preserve supported older designs, history,
+explicit choices, geometry links, and font data. See [import limits](import-limits.md)
+for bounded parsing and unsupported/corrupt record handling.
+
+Projects and the named library live in IndexedDB in the current browser profile.
+Project/library exports are explicit backups, not cloud synchronization. Preserve
+an outgoing named project's changes before switching projects; confirm before
+replacing a nonempty unnamed draft. Failed saves or imports must retain recoverable
+data and must not silently switch the autosave target. A portable project does
+not include the original Trace photo; users must retain it separately.
+
+The server serves the editor and static assets. The retired image-upload API and
+storage scaffold are removed. [Self-hosting](self-hosting.md) does not change
+where user projects are stored; container backups do not back up browser data.
+
+## Preview and export
+
+Preview and export share the geometry builders but use different quality and
+scheduling policies. Interactive previews may omit expensive rounding and later
+refine after input settles. Draft or stale statistics must not be presented as
+exact export results. Export uses a committed snapshot and its own quality;
+preview simplification must not change the saved design or exported geometry.
+
+The preview hook batches input and keeps the latest pending request behind a
+running job. Interactive and detailed/export work use separate workers. Ignoring
+an obsolete reply does not interrupt synchronous WASM already running. Worker
+failure must release the endpoint and show a recoverable error. See
+[preview performance](preview-performance.md) for the dated measurements and
+[the current hook](../client/src/lib/gridfinity/use-bin-geometry.ts) for timing values.
+
+3MF carries millimetre units and can contain separate material volumes; STL
+carries geometry without those color assignments. Inspect serialized output as
+well as in-memory solids. Do not substitute display normals or rounded preview
+coordinates for the printable mesh. [Geometry export integrity](geometry-export-integrity.md)
+records why tiny native-precision features need care at the writer boundary.
+
+Fit checks reduce print cost but answer narrower questions. A surface check tests
+openings and, for a full-surface plate, relative spacing; it does not validate
+pocket depth, insertion through the complete cavity, stacking, or baseplate fit.
+Tool-outline bands can print as separate pieces. SVG/DXF layouts are 2D cutting
+or alignment outputs, not printable 3D bins.
+
+## Verification and physical evidence
+
+Run the local checks in [CLAUDE.md](../CLAUDE.md). The quick suite is the routine
+gate; geometry changes need the affected qualification tests and representative
+serialized outputs. Shared mesh/material/export changes require the complete
+geometry suite. UI changes need relevant workflow tests. Do not start hosted CI.
+
+Check manifold status, dimensions, volume/topology, actual mesh sections, and
+material partitions. Keep tests independent enough to detect a mistaken builder;
+byte-for-byte golden meshes alone are brittle when tessellation changes.
+
+The original G1–G5 software milestones are implemented. The
+[sample library](../samples/README.md) contains printed-bin photographs,
+loaded tools, and stacking examples. Those are evidence for the documented
+samples, not qualification of every current feature or regenerated export.
+
+Feature-specific limits still matter: insertion fit, extreme wall slants, tall-bin
+stiffness, jig peg retention, label supports, and new material/printer combinations
+need relevant physical checks. Keep actual design/version, slice, material,
+printer, measurements, and results with a sample or issue. Do not infer a passed
+physical check from unit tests, slicer acceptance, or an unrelated photograph.
+
+## Maintenance
+
+Update the relevant current feature reference and, for user-visible changes,
+`CHANGELOG.md` in the same contribution. Maintainers review those updates before
+integration and own release versions/dates. Keep detailed proposals, priorities,
+and problem status in [GitHub issues](https://github.com/wcscr/pocketry/issues).
+Dated investigation records can preserve prior decisions and measurements; link
+them as evidence without treating their old task lists as the current roadmap.
+
+Every contribution follows [CONTRIBUTING.md](../CONTRIBUTING.md). Existing upstream
+notices are recorded in [NOTICE](../NOTICE); changes involving dependencies,
+ported code, or assets need a new review of their actual use and delivered notices.

@@ -20,7 +20,7 @@ editing is collapsed under Legacy shape settings. Saved geometry and material
 choices remain intact; changing Bottom leaves the fixture profile.
 
 To convert a regular project, enable **Experimental features** in App settings, then in Bin → Construction →
-Bottom, choose **Wham Bam Systems ULTIM8-compatible pegs**. The confirmation offers to remove the stacking
+Base & mounting → Bottom, choose **Wham Bam Systems ULTIM8-compatible pegs**. The confirmation offers to remove the stacking
 lip, set Solid fill to 100%, and match floors, rim, and text to the bin body color.
 Rectangular bins also switch Grid pitch to Arbitrary, keeping their body dimensions.
 Custom footprints retain their grid because Arbitrary sizing requires a rectangle.
