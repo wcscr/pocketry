@@ -50,7 +50,8 @@ issues for remaining work. A proposal is not a shipped feature.
   [geometry export integrity](geometry-export-integrity.md),
   [surface rounding](pocket-surface-rounding.md), and [label supports](label-tab-support.md).
 - [Detector backend comparison](detector-backend-validation.md) and
-  [reflective-photo validation](reflective-photo-validation.md).
+  [reflective-photo validation](reflective-photo-validation.md), plus
+  [GrabCut and neural-boundary evaluation](photo-refinement-evaluation.md).
 - [Workflow-layout design](prototypes/selection-inspector.md), [mobile review](mobile-ux-review.md), [mobile implementation](mobile-feedback-implementation.md),
   [experimental-control testing](experimental-controls-adversarial.md), and
   [UI audit plan](ui-audit-fixes-plan.md).

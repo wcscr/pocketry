@@ -124,6 +124,8 @@ function TraceWorkspace(): JSX.Element {
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
+  const detectionAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => detectionAbort.current?.abort(), [store.sourceRevision]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -212,6 +214,9 @@ function TraceWorkspace(): JSX.Element {
     if (!imageData) return;
 
     const request = ++detectionRequest.current;
+    detectionAbort.current?.abort();
+    const controller = new AbortController();
+    detectionAbort.current = controller;
     const sourceRevision = store.sourceRevision;
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
@@ -246,6 +251,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
+          signal: controller.signal,
           occlusions,
           sensitivity: settings?.sensitivity ?? store.sensitivity,
           tolerancePx: store.tolerancePx,
@@ -269,7 +275,7 @@ function TraceWorkspace(): JSX.Element {
       // "opt-in or removed"): nothing ever read the copies back, and silently
       // uploading every trace is the wrong default for local tooling.
     } catch (error) {
-      if (request !== detectionRequest.current) return;
+      if (request !== detectionRequest.current || controller.signal.aborted) return;
       toast({
         title: "Tracing failed",
         description: error instanceof Error ? error.message : String(error),

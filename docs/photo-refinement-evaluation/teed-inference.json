@@ -1,0 +1,30 @@
+{
+  "node": "v22.22.2",
+  "initMs": 98.310875,
+  "heapBefore": 134217728,
+  "times": [
+    1109.893833,
+    967.6975830000001,
+    994.9831250000002,
+    983.2965840000002
+  ],
+  "importMs": 13.797166000000004,
+  "shape": [
+    1,
+    1,
+    512,
+    512
+  ],
+  "agreement": {
+    "meanAbsoluteError": 3.241189006075729e-8,
+    "maxAbsoluteError": 0.0000017285346984863281
+  },
+  "heapAfter": 193331200,
+  "processMemory": {
+    "rss": 358383616,
+    "heapTotal": 39632896,
+    "heapUsed": 30954504,
+    "external": 195924112,
+    "arrayBuffers": 1308861
+  }
+}

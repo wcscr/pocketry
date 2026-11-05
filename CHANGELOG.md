@@ -5,6 +5,7 @@
 ## 1.7.0 — 2026-11-05
 
 - Choose independent label-background colors, with adjustable material thickness, in the preview and multicolor 3MF exports. Existing labels keep their body color.
+- Automatically refine photo outlines with guarded, mask-seeded GrabCut in a cancellable worker. Preserve detected recesses, thin features and holes, and retain the original outline when refinement is unreliable.
 
 ## 1.6.1 — 2026-11-05
 
