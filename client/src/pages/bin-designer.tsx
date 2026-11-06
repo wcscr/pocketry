@@ -152,6 +152,7 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     if (bin.editError?.startsWith("Enable experimental tools")) toast({ title: "Change not applied", description: bin.editError,
       action: <ToastAction altText="Enable experimental tools" onClick={() => setExperimentalEnabled(true)}>Enable tools</ToastAction> });
+    else if (bin.editError?.startsWith("No clear space was found.")) toast({ title: "Linked copy placed on its source", description: bin.editError });
   }, [bin.editError, setExperimentalEnabled, toast]);
   const { spec, cutouts, fingerHoles, viewMode, dispatch } = bin;
   const isJig = !!spec.pegBottom;

@@ -55,6 +55,13 @@ own name, position, elevation, orientation, and placement-specific material
 choices. Linked finger access shares geometry while keeping its own placement.
 Unlink before changing geometry for just one copy.
 
+Duplicate linked searches nearby space inside the current bin without moving
+existing pockets or changing the copy’s size or orientation. The search uses
+conservative bounds including clearance, rounding, and separate finger access.
+If no clear position is found (including slanted-wall bins), the copy stays on
+its source and a message explains that it needs moving or a larger bin. Exact
+3D validation remains authoritative.
+
 The Links tool can manage a selected linked copy; linking existing objects
 requires a compatible selection. Existing links show the shared-edit scope.
 Individual placement edits must not leak into other copies, and a rejected shared

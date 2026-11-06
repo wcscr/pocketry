@@ -31,6 +31,52 @@ import { minAreaObb } from "@shared/geometry/obb";
 import type { Bounds, Point } from "@shared/geometry/types";
 import type { TracePlacements } from "@shared/gridfinity/trace-placement";
 
+/** Find nearby space for one linked pocket without changing its pose, size, or
+ * the other objects. Bounds include clearance/rounding and shaft projection.
+ * This bounded 2D search is conservative, not an exact nesting/solid check.
+ * A null result lets the caller duplicate in place with explicit guidance. */
+export function linkedPocketCopyPosition(spec: BinSpec, source: CutoutPlacement,
+  cutouts: readonly CutoutPlacement[], shapes: ReadonlyMap<string, TracedShape>,
+  fingerHoles: readonly FingerHole[] = [],
+): Point | null {
+  // Slanted walls require exact height-dependent solid checks. Do not guess a
+  // new pose there, or when an obstacle's source outline cannot be resolved.
+  if (spec.wallSlant || cutouts.some(c => !shapes.has(c.shapeId))) return null;
+  const local = existingBounds([{ ...source, position: { x: 0, y: 0 } }], shapes, [], spec);
+  if (!local) return null;
+  const obstacles = [
+    ...cutouts.map(c => existingBounds([c], shapes, [], spec)),
+    ...fingerHoles.map(h => existingBounds([], shapes, [h], spec)),
+  ].filter((bounds): bounds is Bounds => bounds !== null);
+  const inset = placementInsetMm(spec.lip);
+  const halfW = binWidthMm(spec) / 2 - inset, halfH = binLengthMm(spec) / 2 - inset;
+  const minX = -halfW - local.minX, maxX = halfW - local.maxX;
+  const minY = -halfH - local.minY, maxY = halfH - local.maxY;
+  if (minX > maxX || minY > maxY) return null;
+  const axis = (values: number[], min: number, max: number, origin: number) =>
+    [...new Set(values.filter(v => Number.isFinite(v) && v >= min && v <= max))]
+      .sort((a, b) => Math.abs(a - origin) - Math.abs(b - origin)).slice(0, 40);
+  const xs = axis([source.position.x, minX, maxX, ...obstacles.flatMap(b =>
+    [b.maxX + ITEM_GAP_MM - local.minX, b.minX - ITEM_GAP_MM - local.maxX])], minX, maxX, source.position.x);
+  const ys = axis([source.position.y, minY, maxY, ...obstacles.flatMap(b =>
+    [b.maxY + ITEM_GAP_MM - local.minY, b.minY - ITEM_GAP_MM - local.maxY])], minY, maxY, source.position.y);
+  const distance = (p: Point) => Math.hypot(p.x - source.position.x, p.y - source.position.y);
+  const candidates = xs.flatMap(x => ys.map(y => ({ x, y }))).sort((a, b) => distance(a) - distance(b));
+  const boundaryCodes = new Set(["out-of-bounds", "wall-breach", "lip-collision", "thin-material", "label-tab-shadow", "tilted-pocket-envelope"]);
+  for (const position of candidates) {
+    const box = { minX: local.minX + position.x, maxX: local.maxX + position.x,
+      minY: local.minY + position.y, maxY: local.maxY + position.y };
+    if (obstacles.some(b => box.minX < b.maxX + ITEM_GAP_MM - 1e-7 && box.maxX > b.minX - ITEM_GAP_MM + 1e-7
+      && box.minY < b.maxY + ITEM_GAP_MM - 1e-7 && box.maxY > b.minY - ITEM_GAP_MM + 1e-7)) continue;
+    // Use the shared validator for rounded/custom footprints and label tabs.
+    // Treat a retained Hole like a pocket for this placement-only check.
+    const candidate = { ...source, position, role: undefined, depthPending: undefined };
+    if (validateLayout(spec, [candidate], shapes).some(issue => boundaryCodes.has(issue.code))) continue;
+    return position;
+  }
+  return null;
+}
+
 /**
  * Automatic placement and bin sizing — pure math, no WASM, so the designer
  * can call it synchronously when shapes arrive from the trace workspace.
