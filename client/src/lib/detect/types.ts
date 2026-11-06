@@ -129,7 +129,14 @@ export const DETECT_DEFAULTS = {
   engine: "auto",
 } as const satisfies Partial<DetectOptions>;
 
-export interface RefinementReport {
+export interface EdgeSensitivityReport {
+  edgeThreshold: number;
+  edgeThresholdTrials: number;
+  automaticSensitivity: boolean;
+  seedCoverage: number;
+}
+
+export interface RefinementReport extends Partial<EdgeSensitivityReport> {
   status: "accepted" | "skipped" | "fallback";
   reason: string;
   iterations: number;

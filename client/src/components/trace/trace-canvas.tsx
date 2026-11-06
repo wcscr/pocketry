@@ -288,11 +288,13 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
   const cleanupSource = useMemo(() => store.curves ?? curvesFromOutline(outline), [store.curves, outline]);
   const cleanupAvailable = !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
   const cleanup = useCurveFitting({ source: cleanupSource, ringRef: { shapeIndex: 0, ringIndex: -1 },
+    editableCurves: store.editableCurves,
     enabled: cleanupAvailable && (mode === "pan" || mode === "navigate"), contextKey: String(store.sourceRevision),
     reconstructionSource: cleanupAvailable ? store.rawOutline : undefined,
     scale: viewport.transform.scale, toCanvas: p => p,
     unitsPerUnit: mmPerPixel(calibration) ?? 1, unit: mmPerPixel(calibration) ? "mm" : "px",
-    onCommit: (curves, label) => dispatch({ type: "CURVES_COMMITTED", curves, label }),
+    onCommit: (curves, label) => store.editableCurves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
+      outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
   useEffect(() => {
     // Only a new user request starts work. Later source changes dismiss the
@@ -300,6 +302,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
     if (outlineCleanupRequest && outlineCleanupRequest.sourceRevision === store.sourceRevision && cleanupAvailable && (mode === "pan" || mode === "navigate")) cleanup.start("reconstruct");
   }, [outlineCleanupRequest]);
   const curveEditor = useCurveEditor({
+    allowCurves: store.editableCurves || !!store.curves,
     outline, curves: store.curves, enabled: (mode === "edit" || mode === "remove") && outline.length > 0,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
@@ -307,8 +310,23 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
     fitUnitsPerUnit: mmPerPixel(calibration) ?? 1, fitUnit: mmPerPixel(calibration) ? "mm" : "px",
     startDisabled: (store.margin ?? 0) !== 0,
     startHint: "Set trace margin to zero before editing curves. Use Bin clearance to adjust fit.",
+    onFrameRepair: points => {
+      const bounds = outlineBounds([{ outer: points, holes: [] }]);
+      const width = containerSize.width, height = containerSize.height;
+      if (!bounds || width <= 80 || height <= 160) return;
+      // Frame the chosen boundary above the floating preview controls, so the
+      // replacement and both endpoints remain visible while reviewing it.
+      const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 10) * .5;
+      const reserve = Math.min(300, height * .45);
+      const scale = Math.min((width - 48) / (bounds.maxX - bounds.minX + 2 * padding),
+        Math.max(40, height - reserve - 96) / (bounds.maxY - bounds.minY + 2 * padding));
+      const framedWidth = (width - 48) / scale, framedHeight = (height - 48) / scale;
+      fitToRect({ x: (bounds.minX + bounds.maxX - framedWidth) / 2,
+        y: (bounds.minY + bounds.maxY - framedHeight) / 2 + reserve / (2 * scale), width: framedWidth, height: framedHeight });
+    },
     onDone: () => dispatch({ type: "SET_MODE", mode: "pan" }),
-    onCommit: (curves, label) => dispatch({ type: "CURVES_COMMITTED", curves, label }),
+    onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
+      outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
   const pointSelection = usePointSelection({ source: cleanupSource,
     enabled: !curveEditor.active && (mode === "edit" || mode === "remove") && outline.length > 0,
@@ -317,6 +335,8 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
     onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
       outline: next.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })) }),
     onSmoothSection: curveEditor.fitSection,
+    onRepairSection: curveEditor.repairSection,
+    repairDisabledReason: store.editableCurves && (store.margin ?? 0) !== 0 ? "Set trace margin to zero to repair with editable curves. Use Bin clearance to adjust fit." : undefined,
     onBlankClick: () => { desktopPoint.clear(); dispatch({ type: "SELECT_RING", selection: null }); },
     onPinchStart: () => {
       mobileEditor.cancel();
@@ -1030,7 +1050,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
           {(curveEditor.controls || curveEditor.startButton) && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto">
             {curveEditor.active ? curveEditor.controls : <div className="flex max-h-[60vh] max-w-xl flex-wrap items-center gap-2 overflow-y-auto rounded-lg border bg-background p-2 shadow-md" aria-label="Outline editing controls">
               {curveEditor.startButton}
-              <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Bend edges lets you drag an edge into a curve. Space-drag pans; Done leaves editing. Edits apply immediately and can be undone.</HelpHint>
+              <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Select two endpoints for Repair section and preview a line or curve. Space-drag pans; Done leaves editing. Edits apply immediately and can be undone.</HelpHint>
               {selection && getRing(outline, selection) && !isMobile && <ContourEditTools compact removeActive={mode === "remove"}
                 onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete}
                 selectionLabel={`Contour ${selection.shapeIndex + 1}${selection.ringIndex === OUTER_RING ? "" : ` · Hole ${selection.ringIndex + 1}`}`}

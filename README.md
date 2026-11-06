@@ -78,8 +78,17 @@ backgrounds and interior holes. These choices find the boundary; they do not
 apply curve fitting. Review tool tips and shadows; rejected tool-edge detections
 retain the color result. Processing stays on your device.
 
-Choose **Auto-simplify outline** directly in Outline settings to preview supported
-straight lines and smooth curves. Use **More detail**, **Balanced**, or **Smoother**,
+Leave **Sensitivity** at **Auto** for tool edges. It checks weak boundaries
+automatically, protecting visible paper gaps and separate tools. A manual slider
+adjustment remains available under Advanced detection settings.
+
+Recognized measurement aids are removed locally without disabling learned edges
+around the rest of the tool. Short hidden sections can be continued from visible
+edges; the amber region remains an estimate to review.
+
+Choose **Auto-simplify outline** directly in Outline settings. By default it
+reduces straight runs and approximates rounded sections with points. Turn on the
+visible **Editable curves** switch to retain true curves and handles instead. Use **More detail**, **Balanced**, or **Smoother**,
 compare with **Show original outline**, then **Apply simplified outline**. Cancel
 keeps the detected outline, and Apply is one undoable edit. Keep Trace margin at
 zero and simplify before manual editing. Under Advanced, **Maximum change from
@@ -87,7 +96,7 @@ detected outline** limits how far the replacement can move from the dense detect
 boundary, using the photo calibration. It does not add pocket clearance.
 
 **Edit outline** opens manual tools. Click an edge to add a point; right-click a
-point to delete it. Choose **Bend edges** to drag an edge into a curve or adjust its
+point to delete it. With Editable curves enabled, choose **Bend edges** to drag an edge into a curve or adjust its
 handles; the same add/delete shortcuts remain available on curves. Shift-click
 points or drag a box to select a group; **Select points** provides tap-to-toggle
 selection without a keyboard. Drag selected points to move them together, Delete
@@ -95,8 +104,18 @@ to remove them, or **Simplify section** for adjacent points. Space-drag pans;
 Escape clears the selection. In Bin, these curve tools are under **Edit contour →
 Bend edges**. Each completed geometry edit is independently undoable.
 
+To replace an incorrect section, select two endpoints or a continuous group and
+choose **Repair section**. Preview **Line** or **Smooth curve**, use **Other side**
+to switch the selected route, then **Apply repair**. **Bend** controls the signed
+midpoint distance from the straight line between endpoints. Repair keeps those
+endpoints fixed and changes the faulty boundary deliberately; it is separate
+from the simplification allowance. Curves become points unless Editable curves
+is enabled. Cancel leaves the original intact; Apply is one Undo step.
+
 Curves stay editable through recovery, Trace → Bin transfer, and saved projects.
-Use Bin clearance to adjust fit after authoring curves. Native Trace SVG retains
+Symmetry and straightening preserve authored curves, calibration and Undo.
+Turning **Editable curves** off converts them to the displayed points as one
+undoable edit; existing saved curves load intact. Use Bin clearance to adjust fit. Native Trace SVG retains
 curves when no hole/material boolean is needed; solid exports and DXF use adaptive
 samples. See [curve behavior and limits](docs/contour-curves-prototype.md) and
 [white-sheet evaluation and timings](docs/teed-outline-integration.md).

@@ -1,0 +1,266 @@
+{
+  "scope": "Two Craftsman white-sheet photographs; original and exact perspective-corrected browser crops. Three alternating passes on Mac CPU/WASM. No full-corpus or phone qualification.",
+  "node": "v22.22.2",
+  "initializeMs": 170.20050000000003,
+  "beforeBundleSha256": "33bbe80946659216fb23f31ea4fb5fded548e6f0e75ef670ce38ad8d5ab8b036",
+  "cases": [
+    {
+      "name": "strip-corrected",
+      "view": "Perspective-corrected browser crop",
+      "sourceFile": "Craftsman tape measure 25ft, reference strip on top - ON Pocketry sheet - 20261017_102958.jpg",
+      "width": 540,
+      "height": 572,
+      "mmPerPx": 0.23460646031155122,
+      "occlusions": [
+        [
+          {
+            "x": 399.79998779296875,
+            "y": 235.3858642578125
+          },
+          {
+            "x": 411.960693359375,
+            "y": 466.46331787109375
+          },
+          {
+            "x": 333.21923828125,
+            "y": 470.84112548828125
+          },
+          {
+            "x": 320.86248779296875,
+            "y": 241.1986083984375
+          }
+        ]
+      ],
+      "rgbaSha256": "2d7f8bcb6d2f6ec52513b8d1568aa5154292a25624624cb1fe7984a9a6c27c25",
+      "samples": {
+        "beforeMs": [
+          1149.603042,
+          878.7756669999999,
+          887.721166000003
+        ],
+        "afterMs": [
+          1000.4833330000001,
+          901.9993749999994,
+          934.0101250000007
+        ],
+        "cachedMs": [
+          226.74362500000007,
+          184.75074999999924,
+          188.54408300000068
+        ],
+        "beforeReconstructionMs": [
+          43.93004199999996,
+          31.361791999999696,
+          31.70416699999987
+        ],
+        "reconstructionMs": [
+          55.901374999999916,
+          35.21354199999951,
+          34.364541999999346
+        ]
+      },
+      "beforeShapes": 1,
+      "afterShapes": 1,
+      "beforeStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false
+      },
+      "afterStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false,
+        "edgeThreshold": 0.6,
+        "edgeThresholdTrials": 1,
+        "automaticSensitivity": true,
+        "seedCoverage": 0.9993745489535723
+      }
+    },
+    {
+      "name": "no-strip-corrected",
+      "view": "Perspective-corrected browser crop",
+      "sourceFile": "Craftsman tape measure 25ft - ON Pocketry sheet - 20261017_102135.jpg",
+      "width": 448,
+      "height": 449,
+      "mmPerPx": 0.25,
+      "occlusions": [],
+      "rgbaSha256": "c3426bb11dca0d5ec907d119913707c90ee9e7d2e7756fdaf2696c7e32fb211b",
+      "samples": {
+        "beforeMs": [
+          844.3330000000001,
+          769.6327499999989,
+          855.3599170000016
+        ],
+        "afterMs": [
+          890.0239999999999,
+          955.0616669999999,
+          990.8323340000024
+        ],
+        "cachedMs": [
+          169.23533299999963,
+          155.2564170000005,
+          185.4721669999999
+        ],
+        "beforeReconstructionMs": [
+          45.89520799999991,
+          31.976291999999376,
+          35.72120899999936
+        ],
+        "reconstructionMs": [
+          133.02641700000004,
+          149.52287500000057,
+          157.44816699999865
+        ]
+      },
+      "beforeShapes": 2,
+      "afterShapes": 1,
+      "beforeStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false
+      },
+      "afterStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false,
+        "edgeThreshold": 0.57,
+        "edgeThresholdTrials": 3,
+        "automaticSensitivity": true,
+        "seedCoverage": 1
+      }
+    },
+    {
+      "name": "strip-original",
+      "view": "Original photograph crop",
+      "sourceFile": "Craftsman tape measure 25ft, reference strip on top - ON Pocketry sheet - 20261017_102958.jpg",
+      "width": 1024,
+      "height": 967,
+      "mmPerPx": 0.10582945297824188,
+      "occlusions": [
+        [
+          {
+            "x": 828.4418402777778,
+            "y": 249.3192257600672
+          },
+          {
+            "x": 848.7787543402778,
+            "y": 758.9263605229995
+          },
+          {
+            "x": 677.2178819444445,
+            "y": 769.275323306813
+          },
+          {
+            "x": 656.6953125,
+            "y": 260.10466182933135
+          }
+        ]
+      ],
+      "rgbaSha256": "e1c72659df643a08a7e80f25c4fe34e248e035de4b7247bd5b02f17b04a243c1",
+      "samples": {
+        "beforeMs": [
+          1064.6194169999999,
+          1032.3388749999995,
+          1171.3657920000005
+        ],
+        "afterMs": [
+          1157.887417,
+          1048.5405840000003,
+          1174.1057500000024
+        ],
+        "cachedMs": [
+          377.2805420000004,
+          346.7450830000016,
+          382.2226249999985
+        ],
+        "beforeReconstructionMs": [
+          31.03941600000053,
+          31.249916000000667,
+          35.27616699999999
+        ],
+        "reconstructionMs": [
+          40.10725000000002,
+          36.9927919999991,
+          37.79020899999887
+        ]
+      },
+      "beforeShapes": 1,
+      "afterShapes": 1,
+      "beforeStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false
+      },
+      "afterStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false,
+        "edgeThreshold": 0.6,
+        "edgeThresholdTrials": 1,
+        "automaticSensitivity": true,
+        "seedCoverage": 0.9988888664417463
+      }
+    },
+    {
+      "name": "no-strip-original",
+      "view": "Original photograph crop",
+      "sourceFile": "Craftsman tape measure 25ft - ON Pocketry sheet - 20261017_102135.jpg",
+      "width": 1024,
+      "height": 990,
+      "mmPerPx": 0.11135448152197963,
+      "occlusions": [],
+      "rgbaSha256": "ea7af672c70d6170c4d618821cfb28b8d7ee30606e32ccd5bfefdc44f70b5693",
+      "samples": {
+        "beforeMs": [
+          958.2945410000011,
+          852.877708,
+          953.4328750000022
+        ],
+        "afterMs": [
+          939.5141670000012,
+          848.541874999999,
+          923.0986249999987
+        ],
+        "cachedMs": [
+          144.60858299999927,
+          148.21362499999668,
+          153.13916700000118
+        ],
+        "beforeReconstructionMs": [
+          40.238250000000335,
+          32.35175000000163,
+          35.37054200000057
+        ],
+        "reconstructionMs": [
+          38.79716699999881,
+          35.74424999999974,
+          38.62062499999956
+        ]
+      },
+      "beforeShapes": 1,
+      "afterShapes": 1,
+      "beforeStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false
+      },
+      "afterStatus": {
+        "status": "accepted",
+        "reason": "teed-edges",
+        "iterations": 0,
+        "cached": false,
+        "edgeThreshold": 0.6,
+        "edgeThresholdTrials": 1,
+        "automaticSensitivity": true,
+        "seedCoverage": 1
+      }
+    }
+  ]
+}

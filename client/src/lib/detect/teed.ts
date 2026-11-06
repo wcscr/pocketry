@@ -1,8 +1,10 @@
-import type { DetectOptions, ImageLike, ScoreField } from "./types";
+import type { DetectOptions, EdgeSensitivityReport, ImageLike, ScoreField } from "./types";
 import type { OpenCV } from "./segment-opencv";
 import { clampRoi } from "./segment-js";
 import { checkDetectionAbort } from "./grabcut";
 import { maskFromEdges } from "./edge-mask";
+import { pointInRing } from "@shared/geometry/rings";
+import { selectAutomaticEdges } from "./adaptive-edges";
 
 export const TEED_MODEL_URL = "/models/teed/teed-512-f1a4f305.onnx";
 export const TEED_MODEL_SHA256 = "f1a4f305356f9752e1a9af0f43f067ecb93ab4f27c8a5ed7beb9b37970797837";
@@ -37,7 +39,7 @@ export async function loadTeedModel(signal?: AbortSignal, request: typeof fetch 
 
 interface NativeMat { delete(): void; data: Uint8Array; data32F: Float32Array }
 interface NativeNet { delete(): void; setInput(blob: NativeMat): void; forward(): NativeMat }
-export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean; reconstructionMs?: number }
+export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean; reconstructionMs?: number; selection?: EdgeSensitivityReport }
 
 /** A worker owns one warm net and one bounded image embedding (edge map) cache.
  * Native nets are released explicitly by dispose; worker termination also frees
@@ -52,7 +54,6 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
     async segment(cv: OpenCV, image: ImageLike, options: DetectOptions, baseline: ScoreField): Promise<TeedResult> {
       checkDetectionAbort(options.signal);
       if (baseline.alphaUsed) return { reason: "alpha-mask" };
-      if (options.occlusions?.length) return { reason: "occluded-boundary" };
       if (typeof cv.readNetFromONNX !== "function") throw new Error("Learned outlines unavailable in this runtime");
       if (!net) {
         const bytes = await load(options.signal);
@@ -86,21 +87,27 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
           lastFrame = new Uint8Array(frame.data);
         }
         checkDetectionAbort(options.signal);
-        const edges = new Float32Array(width * height), seeds = new Uint8Array(edges.length);
+        const edges = new Float32Array(width * height), seeds = new Uint8Array(edges.length), background = new Uint8Array(edges.length);
         for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
           const i = y * width + x;
           edges[i] = lastEdges[(y + top) * SIDE + x + left];
           const bx = Math.min(baseline.width - 1, Math.floor((x + 0.5) * baseline.width / width));
           const by = Math.min(baseline.height - 1, Math.floor((y + 0.5) * baseline.height / height));
-          seeds[i] = baseline.score[by * baseline.width + bx] >= baseline.iso ? 1 : 0;
+          const unknown = options.occlusions?.some(r => pointInRing(r, { x: roi.x + (x + .5) * roi.width / width, y: roi.y + (y + .5) * roi.height / height }));
+          seeds[i] = !unknown && baseline.score[by * baseline.width + bx] >= baseline.iso ? 1 : 0;
+          background[i] = !unknown && baseline.evidence && baseline.evidence[by * baseline.width + bx] < baseline.iso * .4 ? 1 : 0;
         }
         // Sensitivity selects an edge barrier, never an Otsu threshold on edges.
         const threshold = Math.max(0.48, Math.min(0.85, 0.60 + ((options.sensitivity ?? 128) - 128) / 500));
         const reconstructStarted = performance.now();
-        const result = maskFromEdges(edges, width, height, seeds, threshold);
+        const automatic = (options.sensitivity ?? 128) === 128 && !!baseline.evidence;
+        const selected = automatic ? selectAutomaticEdges(edges, width, height, seeds, background) : undefined;
+        const result = selected?.result ?? maskFromEdges(edges, width, height, seeds, threshold);
+        const selection = selected?.selection ?? { edgeThreshold: threshold, edgeThresholdTrials: 1, automaticSensitivity: false,
+          seedCoverage: seeds.reduce((sum, value, i) => sum + (value && result.mask[i] ? 1 : 0), 0) / Math.max(1, seeds.reduce((sum, value) => sum + value, 0)) };
         const reconstructionMs = performance.now() - reconstructStarted;
-        if (result.reason) return { reason: result.reason, cached, reconstructionMs };
-        return { cached, reconstructionMs, field: { score: result.score, width, height,
+        if (result.reason) return { reason: result.reason, cached, reconstructionMs, selection };
+        return { cached, reconstructionMs, selection, field: { score: result.score, width, height,
           scale: width / roi.width, scaleY: height / roi.height,
           offsetX: roi.x, offsetY: roi.y, iso: 128, otsu: 128 } };
       } catch (error) {

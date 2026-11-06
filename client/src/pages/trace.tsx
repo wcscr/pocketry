@@ -39,6 +39,7 @@ import { outlineBounds } from "@/lib/geometry/outline";
 import { FileUpload } from "@/components/ui/file-upload";
 import { tracePhotoError } from "@/lib/trace-photo";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
 import {
@@ -816,6 +817,12 @@ function TraceWorkspace(): JSX.Element {
                 if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
                 setEstimatedEdgeFocusRequest(value => value + 1);
               }}>Show estimated area</Button>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
+                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
+                dispatch({ type: "SET_MODE", mode: "edit" });
+                setEstimatedEdgeFocusRequest(value => value + 1);
+              }}>Edit this edge</Button>
+              <HelpHint label="repairing the estimated edge">Select two points on the visible outline on either side of the hidden section, then choose Repair section. Preview a line or smooth curve against the photo before applying. The amber area remains an estimate even after editing.</HelpHint>
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas

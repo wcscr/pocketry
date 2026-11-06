@@ -1,0 +1,59 @@
+{
+  "scope": "Two original JPEGs, actual compiled Chrome UI, recommended paper perspective + aid/paper scale, point and native curve repair. Desktop and 390px viewport; no real-phone performance claim.",
+  "cases": [
+    {
+      "name": "strip",
+      "recommendedPerspectiveAndScale": true,
+      "defaultDetectedShapes": 1,
+      "sensitivityAdjusted": false,
+      "detectedShapes": 1,
+      "estimatedAreas": 1,
+      "operations": [
+        {
+          "editableCurves": false,
+          "previewCancel": true,
+          "lineAndCurveChoices": true,
+          "signedBendInput": true,
+          "oneUndoRedo": true,
+          "calibrationAndPhotoUnchanged": true
+        },
+        {
+          "editableCurves": true,
+          "previewCancel": true,
+          "lineAndCurveChoices": true,
+          "signedBendInput": true,
+          "oneUndoRedo": true,
+          "calibrationAndPhotoUnchanged": true
+        }
+      ],
+      "pageErrors": []
+    },
+    {
+      "name": "no-strip",
+      "recommendedPerspectiveAndScale": true,
+      "defaultDetectedShapes": 2,
+      "sensitivityAdjusted": true,
+      "detectedShapes": 1,
+      "estimatedAreas": 0,
+      "operations": [
+        {
+          "editableCurves": false,
+          "previewCancel": true,
+          "lineAndCurveChoices": true,
+          "signedBendInput": true,
+          "oneUndoRedo": true,
+          "calibrationAndPhotoUnchanged": true
+        },
+        {
+          "editableCurves": true,
+          "previewCancel": true,
+          "lineAndCurveChoices": true,
+          "signedBendInput": true,
+          "oneUndoRedo": true,
+          "calibrationAndPhotoUnchanged": true
+        }
+      ],
+      "pageErrors": []
+    }
+  ]
+}

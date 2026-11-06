@@ -126,7 +126,7 @@ export function buildScoreFieldOpenCV(
     const otsu = alphaWanted ? 128 : otsuThreshold(score);
     const iso = alphaWanted ? 128 : applySensitivity(otsu, sensitivity);
 
-    const evidence = !alphaWanted && (options.refine ?? DETECT_DEFAULTS.refine) === "grabcut"
+    const evidence = !alphaWanted && (options.boundary === "teed" || (options.refine ?? DETECT_DEFAULTS.refine) === "grabcut")
       ? score.slice() : undefined;
 
     cleanAndGate(cv, scope, score, width, height, iso);

@@ -6,15 +6,237 @@ In Trace, select a region with white paper around the entire tool, then choose *
 
 The crop is drawn directly from original photo pixels into a canvas capped at 1024 pixels on its longest side. It respects the current rotation and perspective/alignment transform. It does not allocate a full-resolution temporary image. Detection coordinates map back per axis into the existing working image; calibration, photo-relative placement and the single export conversion stay in that frame.
 
+## Interaction review build
+
+The visible **Editable curves** switch is off by default for new point traces. Auto-simplify normally produces a finite-chord-bounded point outline; curved sections are approximated by points. Enabling the switch opts into native cubic reconstruction and curve handles. Existing saved curves load intact; switching off converts to the displayed adaptive points in one undoable edit. Undo restores the original handles. The preference follows new photos and draft recovery without changing project schema 60.
+
+Symmetry & straighten is visible beside Auto-simplify. Native Left/Right symmetry splits cubic axis crossings and mirrors controls exactly. Average rebuilds editable curves from an adaptively sampled width profile; topology/complexity guards retain the original on failure. Straightening rotates every anchor/handle, ruler and photo frame together. Symmetry with optional upright rotation commits once, and Undo/Redo restores the curve source and calibration.
+
+The UI-first review build passed 161 targeted tests, typecheck/build, and one actual Wolfbox compiled-browser workflow covering both representation modes, all symmetry choices, straightening, calibration, conversion and Undo. The later corpus review below evaluates automatic sensitivity; it does not repeat every interactive editing workflow on every photograph. Older curve evaluations remain historical evidence for the preceding curve-only default.
+
+## Automatic sensitivity: full white-sheet corpus
+
+The current report focuses on actual tools directly on white Pocketry sheets:
+**36 photos / 90 views**, including two exact browser controls. Eight tray,
+packaging and mixed-tray views from the complete run are retained separately and
+excluded from the primary comparison. The loose ratchet crop remains included.
+Both compared columns already use TEED. **Only the corrected no-strip tape-measure
+control changes substantially; the other 89 in-scope views are exactly unchanged.**
+The benefit is automatic recovery from an occasional weak-boundary failure; the
+large general improvement over colour/GrabCut came from TEED, not this sensitivity
+selection step. The report highlights that sole improvement with before/after
+images. The complete original run and its scope are recorded below.
+
+The expanded review covers **all 40 unique local photos named “ON Pocketry
+sheet”**. Forty main selections plus ten individual-tool crops produce 50
+original views; current paper calibration supplies another 46 corrected views.
+Four early/unrecognized sheets retain original views only. Two exact corrected
+Craftsman browser crops from the preceding review are retained as controls:
+**98 paired views, still 40 photographs**. The corpus includes 82 single-tool
+views, eight group views and six printed-tray/retail-packaging context views;
+the two browser controls are reported separately. The five-driver Wiha group
+is diagnostic, not an adoption requirement.
+
+**Recommendation: keep conservative Auto.** All **96 corpus views** have
+byte-identical dense and displayed outlines before/after. This establishes no
+new tool merging or feature loss in those selections; it does not establish
+perfect detection. The exact no-strip browser control still improves **two
+fragments → one outline**, choosing 0.57 after three trials. The strip control
+is unchanged. Newly prepared Craftsman crops already produce one outline before
+Auto: different selections/resampling do not reproduce every earlier failure.
+
+The Wiha group returns **8 / 9 shapes** in original/corrected views, with two
+handles already joined, a missed shaft and fragmented edges. Auto preserves
+that result. Of five complete individual crops, only the fifth returns a clean
+single outline in both views; the other four fall back with extra fragments.
+Printing near the ends and neighboring-tool context remain problematic. Advising
+one-tool-at-a-time cropping is sensible, but it is not a complete fix for this
+particular photo. The three separately photographed Wiha drivers still each
+return one outline and retain the reviewed shaft/bit feature points.
+
+The two needle tips and Wolfbox body/cone remain separate in their group views.
+The small loose bit by the ratchet remains missed; the translucent plunger and
+some transparent-tip crops retain existing incomplete boundaries. Reviewed fine
+hook/bit points remain covered in their single-tool views. All
+corpus comparisons and flagged feature zooms were reviewed. The report separates
+these limitations from regressions; manually placed probes are spot checks,
+not exhaustive contour ground truth. Source-only review corrected imprecise
+markers and incomplete crop margins before final qualification. No photo-specific
+runtime logic or detector changes were needed in this evaluation.
+
+Each view has three sequential before/after/cached samples on desktop CPU/WASM.
+Both versions receive identical pixels, recognized-aid footprints, source-scaled
+display tolerance and one smoothing pass. Cached/fresh outputs match exactly;
+outputs are deterministic across passes. Warm nets are reused, with one inference
+per fresh image. Across the 82 single-tool views, median per-view detection is
+**827 → 858 ms**, with **96 ms** cached. Across all 98 views: **837 → 877 ms**,
+**108 ms** cached. The slowest single-tool view is the stand base (**1,578 ms**
+after); the wide packaging context is **2,288 → 2,495 ms**. Per-view samples and
+boundary-step times are retained. Calibration, decoding, UI scheduling and later
+Auto-simplify are excluded. These measurements do not qualify a real phone or
+physical fit.
+
+Reproduction artifacts are `white-sheet-selections.json`,
+`white-sheet-automatic-sensitivity-summary.json` and
+`white-sheet-automatic-sensitivity-review.json` under
+`photo-refinement-evaluation/teed-integration/`. The manifest records source hashes,
+EXIF-oriented dimensions, selection bounds, physical-object labels and feature
+points; photos remain private/local. `scripts/prepare-white-sheet-inputs.py`
+checks source hashes and prepares original crops and calibration frames;
+`scripts/prepare-white-sheet-perspective.ts` uses the application calibration and
+perspective code. Corpus preparation uses Pillow/OpenCV resampling; only the two
+labeled browser controls contain the exact preceding Canvas pixels.
+`scripts/evaluate-white-sheet-sensitivity.ts` compares against the separately
+retained frozen pre-Auto bundle (hash recorded in the summary).
+`scripts/refresh-white-sheet-audits.ts` rechecks stored geometry after source-only
+annotation review without changing outputs/timings, and
+`scripts/render-white-sheet-sensitivity.py` produces the searchable HTML report,
+paired outlines, enlarged feature comparisons and every view's timings. The
+current working tree alone cannot recreate the frozen baseline or private photos.
+
+The main HTML report directly displays all 90 in-scope before/after comparisons,
+with automatic-sensitivity outlines in green and timings for every view. Eight
+excluded context comparisons are retained in `white-sheet-context.html`. Earlier
+line/curve comparisons are retained in a separately linked historical report.
+Local
+verification passes typecheck, **229 files / 3,583 quick tests**, the evaluation-harness checks in
+`scripts/test-white-sheet-audit.ts`, three deterministic paired samples for every
+view, report browser checks and `git diff --check`. No GitHub CI was enabled or
+triggered. Dependencies and third-party source/assets: **None added or changed**.
+
+## Earlier automatic sensitivity review: the same two Craftsman photos
+
+With Tool edges selected, the existing **Auto** sensitivity now checks boundary
+completeness on the same learned edge map. Already complete, coherent results
+remain byte-identical. Missing foreground or fragments sharing continuous colour
+evidence trigger a bounded search at 0.60 / 0.57 / 0.54 / 0.51 / 0.48 edge
+thresholds. A candidate must cover at least 98% of foreground seeds, recover a
+meaningful share of missing material or resolve the supported fragmentation,
+and remain stable at the next threshold (mask IoU at least 0.985). Independent
+seeded objects cannot be merged just to reduce contour count.
+
+Border-connected low-colour-evidence paper protects real recesses and separation
+between tools, allowing only a one-pixel localization fringe near the existing
+mask or strong learned edges. Source colour components and existing enclosures
+distinguish fragments of one tool from separate objects, including a previously
+missed tool. Unsupported, unstable, clipped or ambiguous cases retain the initial
+result and its existing fallback. Existing model resolution / small-gap closing
+limits still apply. Explicit non-Auto sensitivity remains a single-threshold
+manual override. Alpha masks stay authoritative.
+
+The search uses **one inference**, with at most five edge reconstructions in the
+existing cancellable worker. Cached pixels reuse the same edge map. Raw colour
+evidence remains available to this step even if optional GrabCut is disabled.
+Diagnostic reports record the chosen threshold, trial count and seed coverage;
+the UI keeps Auto selected and exposes the explanation in its hover/touch hint.
+No project schema, model, dependency or runtime changes.
+
+Evaluation uses only the two Craftsman photographs, with original crops and the
+exact perspective-corrected browser crops (four views). The corrected no-strip
+photo changes **two shapes → one** at Auto, selecting threshold 0.57 after three
+trials. The strip stays at 0.60 / one trial, with its amber hidden-edge estimate.
+Both original crops stay exactly unchanged. The built-browser checks retain
+Auto for both JPEGs through recommended perspective/scale, point/native-curve
+repair, Cancel, signed Bend and Apply/Undo/Redo; calibration, photo alignment and
+review areas are preserved. The compact layout is checked at 390 px, not on a
+physical phone. The full white-sheet corpus was not rerun.
+
+Three alternating Mac CPU/WASM passes give corrected-crop median fresh detection
+**934.0 ms** with the strip and **955.1 ms** without, with cached detection
+**188.5 / 169.2 ms**. The no-strip boundary step changes **35.7 → 149.5 ms**,
+already included in detection; total fresh time changes **844.3 → 955.1 ms**.
+Strip boundary processing changes **31.7 → 35.2 ms**. The original-crop results
+stay byte-identical; timing variation includes model inference and desktop
+scheduling. Initialization is separate (**170.2 ms**). These are desktop timings,
+not phone or physical-fit qualification.
+
+Local verification passes: `npm run check`, `npm test -- --maxWorkers=4`
+(**229 files / 3,583 tests**), `npm run test:workflows -- bin-designer.pockets
+--maxWorkers=4` (**1 / 99**), `npm run build`, and `git diff --check`. Regressions
+cover rotated weak edges, thin artificial splits despite >98% foreground
+coverage, genuine open recesses, resolved paper gaps, two independent tools,
+an entirely missed tool, unstable enclosures, manual overrides, optional-GrabCut
+independence, exact cache reuse and one inference across threshold trials.
+
+Timing samples and a hash of the frozen pre-change runtime are recorded in
+`photo-refinement-evaluation/teed-integration/automatic-sensitivity-summary.json`;
+browser records are in `automatic-sensitivity-browser.json`. Reproduce with
+`scripts/evaluate-auto-sensitivity.ts` and `scripts/render-auto-sensitivity-report.py`.
+The report places the current results above the historical aid/corpus reviews.
+Dependencies and third-party source/assets: **None added or changed**. Selection,
+connectivity guards, synthetic tests and reporting are original Pocketry code
+using the existing runtime and edge reconstruction.
+
+## Previous localized measurement-aid review: two Craftsman photos
+
+Recognized carriers no longer disable TEED for the whole selection. Their pixels
+cannot supply foreground support for a learned enclosure; the projected carrier
+footprint is then restored as unknown. Footprint mapping respects both raster
+scales, including rounded, non-square model crops. Outside observations remain
+available to the learned detector.
+
+After tracing, a single short hidden run may be continued from visible context
+on both sides. Local quadratic regression estimates endpoint tangents; a
+consistent forward-turning continuation becomes a line or quadratic Bézier
+represented as a cubic and adaptively sampled into the detected boundary. Long
+gaps (over 12% of the contour), multiple crossings, weak/inconsistent tangents,
+curves escaping the unknown region, or topology failures keep the local score
+estimate. All hidden transitions retain the amber review region; automatic
+continuation is not a measurement of the concealed tool.
+
+**Edit this edge** focuses the amber area and opens outline editing. Select two
+endpoints or a continuous group for **Repair section**: Line / Smooth curve,
+Other side, signed midpoint Bend, Apply / Cancel. Repair deliberately replaces a
+faulty section rather than fitting it within the simplification allowance.
+Endpoints, outside geometry and calibration remain fixed. The default result
+uses ordinary points; Editable curves preserves native handles. Existing
+history/recovery paths retain one-step Undo/Redo and the amber review region.
+
+The focused evaluation uses only `20261017_102958` (50 mm strip) and
+`20261017_102135` (without strip), both on Pocketry paper. The latter's detected
+outline is exactly unchanged from revision `a959c22`. Three alternating local
+Node/WASM passes give median fresh detection **1022.3 ms** with the strip and
+**820.8 ms** without; cached detection **316.1 / 139.9 ms**. The strip's local
+continuation adds **1.0 ms**, already included in detection. Subsequent point
+simplification costs **1.4 / 1.4 ms**, native reconstruction **30.7 / 28.4 ms**.
+OpenCV initialization is separate (**144.4 ms**); the first strip call including
+model import is **1164.4 ms**. See
+`photo-refinement-evaluation/teed-integration/reference-strip-summary.json` for
+samples and image hashes. These are uncontrolled Mac desktop results, not phone
+or dimensional qualification. The older 27-view corpus was not rerun.
+
+The compiled Chrome checks use the original JPEGs with paper perspective and
+aid/paper scale. Both pass Line / Smooth curve preview, signed Bend, Cancel,
+one-step Apply/Undo/Redo and calibration/photo/review-region preservation, with
+points and native curves. The 390 px layout is inspected separately from phone
+performance. In that preceding build, **the corrected no-strip photo split at Auto sensitivity**;
+the existing **+30 Sensitivity** setting returned one outline for its editing
+checks. The automatic review above resolves that limitation. The exact unchanged no-aid comparison in this older review uses the original,
+unrectified crop. No global sensitivity default or photo-specific rule changed.
+Browser records are in `reference-strip-browser.json` beside the timing summary.
+
+Local verification: `npm run check`, `npm test -- --maxWorkers=4` (**228 files /
+3,570 tests**), `npm run test:workflows -- --maxWorkers=4` (**18 / 611**),
+`npm run build`, and `git diff --check` pass. After adding the per-axis footprint
+regression, `npm test -- occlusions.test --maxWorkers=4` passes **2 / 10**.
+No hosted CI, full photo rerun, new detailed CAD/export qualification or physical
+print is claimed.
+
+Reproduce with `scripts/evaluate-aid-outline.ts` over prepared RGBA inputs and
+`scripts/render-aid-report.py`. The report adds a focused two-photo section while
+retaining the historical corpus unchanged. Dependencies, third-party source,
+model and assets: **None added or changed**. Local continuation, repair geometry,
+controls and evaluation code are original Pocketry work using existing helpers.
+
 ## Current interaction flow
 
-Detection chooses **Color contrast** or **Tool edges · white sheet**. Both find a boundary; neither automatically authors lines/curves. **Auto-simplify outline** is a direct action in Outline settings, without entering manual editing. Its preview offers **More detail / Balanced / Smoother**, original/preview comparison, and Apply/Cancel. Numeric control lives under **Advanced: boundary allowance** with a hover/focus/touch hint.
+Detection chooses **Color contrast** or **Tool edges · white sheet**. Both find a boundary; neither automatically authors editable curves. The opt-in switch described above controls the representation produced by Auto-simplify. **Auto-simplify outline** is a direct action in Outline settings, without entering manual editing. Its preview offers **More detail / Balanced / Smoother**, original/preview comparison, and Apply/Cancel. Numeric control lives under **Advanced: boundary allowance** with a hover/focus/touch hint.
 
 **Maximum change from detected outline (mm)** bounds distance from the dense detected polygon before simplification, converted with the photo's calibration. A 0.2 mm allowance permits up to 0.2 mm of boundary movement; it does not add pocket clearance or certify true tool dimensions. Manual section fitting instead names its reference **current outline**, because it works on existing edited points.
 
 **Edit outline** groups Points and **Bend edges** tools in one panel with Done. Click-to-add and right-click-to-delete work on curves as well as polygon points. Shift-click/box selection, a visible touch selection toggle, group movement/deletion, and adjacent-section fitting share the highlighted points. Escape clears selection; Space/hand navigation and pinch stay separate from editing. A group drag is one undo step; cancellation and selection are not edits. The contour list shows editable anchor counts, not export sample counts.
 
-The reconstruction algorithm, default numeric allowance and 27-photo corpus are unchanged by this interaction follow-up. Earlier per-view comparisons/timings remain applicable to that same geometry pipeline; no new phone timing is claimed. Current UI verification and dependency review are recorded below.
+The earlier interaction-only follow-up left the reconstruction algorithm, numeric allowance and 27-view corpus unchanged. Those per-view comparisons remain historical evidence; the localized-aid revision above has only the requested two-photo evaluation. No new phone timing is claimed.
 
 ### Interaction follow-up verification and provenance
 
@@ -61,7 +283,7 @@ The worker imports a fixed 512 × 512 FP32 TEED graph through the already shippe
 
 Thresholded learned edges form barriers. One model-pixel morphological closing repairs small gaps; exterior white paper floods from the selection border. Enclosed regions with color-mask support become candidate tools, including reflective shafts beyond the old color mask. Unsupported print/edge islands are removed. A class-preserving interpolation kernel softens pixel crossings without cutting new background slits into the filled mask. The existing interpolating tracer, smoothing, simplification and normalization then produce editable rings. This does not use a convex hull or invent a smooth contour across large open gaps.
 
-A selection with no supported enclosure or nearly full foreground retains the normal color pipeline, including guarded GrabCut and its topology checks. A mask clipped at opposite selection sides is rejected as too tight. A learned result that splits an existing connected silhouette into more outer components is also rejected. This guard can conservatively reject real details; acceptance is not an accuracy certificate. Missing/corrupt model assets or unavailable DNN retain color detection and surface a notice. Alpha silhouettes remain authoritative. Recognized occlusion carriers skip learned reconstruction.
+A selection with no supported enclosure or nearly full foreground retains the normal color pipeline, including guarded GrabCut and its topology checks. A mask clipped at opposite selection sides is rejected as too tight. A learned result that splits an existing connected silhouette into more outer components is also rejected. This guard can conservatively reject real details; acceptance is not an accuracy certificate. Missing/corrupt model assets or unavailable DNN retain color detection and surface a notice. Alpha silhouettes remain authoritative. Recognized carriers use the localized handling described above.
 
 The sensitivity control changes the edge-barrier threshold; a lower barrier threshold admits more edge evidence. Detail/smoothing reuse the dense polygon cache. Sensitivity adjustments reuse a single exact-byte BGR frame/edge cache, rebuilding the mask without inference. The worker retains one net; it releases per-inference Mats in `finally`, disposes the net on errors, and terminates after 30 seconds idle. Cancellation/supersession terminates synchronous WASM work. Model loading has exact size and SHA-256 checks before import.
 

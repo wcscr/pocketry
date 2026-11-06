@@ -72,6 +72,7 @@ import { RingList } from "./ring-list";
 import { revealTraceStep } from "./reveal-trace-step";
 import { TracePanelSections } from "./trace-panel-sections";
 import { outlineCleanupUnavailable } from "./outline-cleanup";
+import { TraceSymmetryTool } from "./trace-symmetry-tool";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 import { TraceRestartDialog } from "./trace-restart-dialog";
@@ -891,6 +892,7 @@ export function TraceControlsPanel({
             </Button><HelpHint label="auto-simplify outline">Simplify the detected boundary with straight lines and smooth curves. Opens a preview with More detail, Balanced and Smoother choices. Cancel keeps the original; Apply is one undoable edit. This works after either detection method.</HelpHint></div>
             {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
           </div>}
+          {hasOutline && <TraceSymmetryTool />}
           <Button variant="outline" size="sm" className="w-full"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
             onClick={() => { dispatch({ type: "ADD_CONTOUR" }); onCanvasInteraction(); }}

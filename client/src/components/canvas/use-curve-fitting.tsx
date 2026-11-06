@@ -3,6 +3,7 @@ import { curvePath, curveRing, type CurveOutline } from "@shared/geometry/curves
 import { curveFitRange, fitContour, type CurveFitResult } from "@shared/geometry/curve-fit";
 import { reconstructDetectedOutline, recommendedReconstructionTolerance, type ReconstructionResult } from "@shared/geometry/contour-reconstruction";
 import { reconstructInWorker } from "@/lib/detect/worker-client";
+import { simplifyContour, simplifyDetectedOutline } from "@shared/geometry/contour-simplification";
 import type { Outline, Point, RingRef } from "@shared/geometry/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ interface Options {
   scale: number;
   toCanvas: (point: Point) => Point;
   reconstructionSource?: Outline;
+  editableCurves?: boolean;
   onCommit: (curves: CurveOutline, label: string) => void;
 }
 interface Session {
@@ -38,7 +40,7 @@ interface Session {
 }
 
 /** Preview never writes to Trace/Bin. Only Apply invokes the single-commit path. */
-export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, reconstructionSource }: Options) {
+export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, reconstructionSource, editableCurves = true }: Options) {
   const task = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const stop = () => { revision.current++; task.current?.abort(); task.current = null; };
@@ -48,7 +50,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const current = enabled && session?.source === source && session.contextKey === contextKey
     && session.unitsPerUnit === unitsPerUnit && session.unit === unit && session.ref.shapeIndex === ringRef.shapeIndex
     && session.ref.ringIndex === ringRef.ringIndex ? session : null;
-  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, reconstructionSource]);
+  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, reconstructionSource, editableCurves]);
   useEffect(() => {
     if (!current) return;
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } };
@@ -58,7 +60,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const preview = (next: Session): Session => {
     try {
       if (next.mode === "range" && (next.start === null || next.end === null)) throw new Error("Choose the first and last point of the section.");
-      const result = fitContour(source, ringRef, next.mode === "auto" ? { kind: "auto" }
+      const result = (editableCurves ? fitContour : simplifyContour)(source, ringRef, next.mode === "auto" ? { kind: "auto" }
         : { kind: "range", start: next.start!, end: next.end! }, Number(next.deviation) / unitsPerUnit);
       return { ...next, result, error: undefined };
     } catch (error) { return { ...next, result: undefined, error: error instanceof Error ? error.message : "Could not fit this contour." }; }
@@ -75,8 +77,8 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
         if (!reconstructionSource) throw new Error("The original detected boundary is no longer available.");
         const dense = reconstructionSource;
         const tolerance = Number(next.deviation) / unitsPerUnit;
-        const result = typeof Worker === "undefined" ? reconstructDetectedOutline(source, dense, tolerance)
-          : await reconstructInWorker({ source, dense, tolerance }, controller.signal);
+        const result = typeof Worker === "undefined" ? (editableCurves ? reconstructDetectedOutline : simplifyDetectedOutline)(source, dense, tolerance)
+          : await reconstructInWorker({ source, dense, tolerance, editableCurves }, controller.signal);
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, result, pending: false });
       } catch (error) {
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, pending: false,
@@ -129,7 +131,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   </>;
   const controls = current && ring && <>
     <span className="text-sm font-medium">{current.mode === "reconstruct" ? "Auto-simplify outline · preview" : current.mode === "auto" ? "Auto-fit contour" : "Simplify selected section · preview"}</span>
-    {current.mode === "reconstruct" && <HelpHint label="auto-simplify outline">Simplify detected edges into straight lines and smooth curves while keeping supported corners. Review the green preview before applying. Cancel leaves the outline unchanged; Undo restores it after applying.</HelpHint>}
+    {current.mode === "reconstruct" && <HelpHint label="auto-simplify outline">With Editable curves off, simplify straight runs and approximate rounded sections with points. Enable Editable curves in Outline settings to retain true curves and handles. Review the green preview; Cancel leaves the outline unchanged and Apply is undoable.</HelpHint>}
     {current.mode !== "reconstruct" && <p className="w-full text-xs text-muted-foreground">{current.mode === "auto"
       ? "Preview this contour only. Corners and existing curves are kept. Apply makes one undoable edit."
       : "Choose the first and last point of one continuous section. The highlighted points are selected; Swap ends chooses the other way around the outline."}</p>}
@@ -164,7 +166,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     <Button size="sm" variant="outline" disabled={current.pending} onClick={() => performPreview(current)}>Preview fit</Button></>}
     {current.pending && <p role="status" className="w-full text-xs">Simplifying outline…</p>}
     {current.result && <p className="w-full text-xs" role="status">
-      {current.result.changed ? <>{current.result.before} → {current.result.after} points. {"lines" in current.result && <>{current.result.lines} lines · {current.result.cubics} curves. </>} Maximum change from {current.mode === "reconstruct" ? "detected" : "current"} outline ≤ {(Math.ceil(current.result.maxDeviation * unitsPerUnit * 10000) / 10000).toFixed(4)} {unit}. Green is the preview.</>
+      {current.result.changed ? <>{current.result.before} → {current.result.after} points. {"lines" in current.result && editableCurves && <>{current.result.lines} lines · {current.result.cubics} curves. </>} Maximum change from {current.mode === "reconstruct" ? "detected" : "current"} outline ≤ {(Math.ceil(current.result.maxDeviation * unitsPerUnit * 10000) / 10000).toFixed(4)} {unit}. Green is the preview.</>
         : "No changes needed at this deviation."}
     </p>}
     {current.error && <p className="w-full text-xs text-destructive" role="alert">{current.error}</p>}

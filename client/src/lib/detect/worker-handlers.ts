@@ -5,10 +5,12 @@ import type { OpenCV } from "./segment-opencv";
 import type { DetectOptions, ImageLike } from "./types";
 import { createTeedDetector } from "./teed";
 import { reconstructDetectedOutline } from "@shared/geometry/contour-reconstruction";
+import { simplifyDetectedOutline } from "@shared/geometry/contour-simplification";
 import type { CurveOutline } from "@shared/geometry/curves";
 import type { Outline } from "@shared/geometry/types";
+import { symmetrizeCurves, type CurveSymmetryRequest } from "../geometry/curve-symmetry";
 
-export interface ReconstructionRequest { source: CurveOutline; dense: Outline; tolerance: number }
+export interface ReconstructionRequest { source: CurveOutline; dense: Outline; tolerance: number; editableCurves?: boolean }
 
 export interface DetectRequest {
   image: ImageLike;
@@ -20,10 +22,15 @@ export function createDetectionHandlers(loadCV: () => Promise<OpenCV>) {
   let tail: Promise<unknown> = Promise.resolve();
   const teed = createTeedDetector();
   return {
+    symmetry(payload: CurveSymmetryRequest, { signal }: HandlerContext) {
+      const result = tail.then(() => { checkDetectionAbort(signal); return symmetrizeCurves(payload); });
+      tail = result.catch(() => undefined);
+      return result;
+    },
     reconstruct(payload: ReconstructionRequest, { signal }: HandlerContext) {
       const result = tail.then(() => {
         checkDetectionAbort(signal);
-        return reconstructDetectedOutline(payload.source, payload.dense, payload.tolerance);
+        return (payload.editableCurves === false ? simplifyDetectedOutline : reconstructDetectedOutline)(payload.source, payload.dense, payload.tolerance);
       });
       tail = result.catch(() => undefined);
       return result;

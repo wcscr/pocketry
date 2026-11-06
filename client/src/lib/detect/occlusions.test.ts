@@ -66,6 +66,13 @@ describe("recognized aid occlusion", () => {
     expect(pointInOutline(outline, { x: 45, y: 55 })).toBe(false);
     expect(outline).toHaveLength(1);
   });
+  it("maps the vertical footprint with its own raster scale", () => {
+    const original = buildScoreFieldJS(photograph("edge"));
+    const stretched = { ...original, score: original.score.slice(), scaleY: original.scale / 2 };
+    restoreOccludedScore(original, [footprint]);
+    restoreOccludedScore(stretched, [footprint.map(p => ({ x: p.x, y: p.y * 2 }))]);
+    expect(stretched.score).toEqual(original.score);
+  });
 
   it("leaves an entirely occluded crop and invalid/off-image masks unchanged", () => {
     const field = buildScoreFieldJS(photograph("inside"));

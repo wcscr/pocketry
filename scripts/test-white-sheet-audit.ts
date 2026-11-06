@@ -1,0 +1,20 @@
+/** Local evaluation-harness checks. Run with `node --import tsx`. */
+import assert from "node:assert/strict";
+import { auditOutlinePair, type Probe } from "./white-sheet-audit";
+const rect = (l: number, t: number, r: number, b: number) => ({ holes: [], outer: [{ x: l, y: t }, { x: r, y: t }, { x: r, y: b }, { x: l, y: b }] });
+const bodies: Probe[] = [1, 2].map(object => ({ kind: "body", object, name: String(object), point: { x: object === 1 ? 3 : 17, y: 5 }, radius: 1 }));
+const c = { width: 20, height: 10, probes: [...bodies, { kind: "feature" as const, name: "tip", point: { x: 1, y: 1 }, radius: .5 }] };
+const before = { outline: [rect(0, 0, 8, 10), rect(12, 0, 20, 10)], rawOutline: [rect(0, 0, 8, 10), rect(12, 0, 20, 10)] };
+const same = auditOutlinePair(c, before, before);
+assert.equal(same.unchanged, true); assert.equal(same.denseUnchanged, true);
+assert.equal(same.retainedPixels, 160); assert.equal(same.iou, 1); assert.equal(same.pairChecks[0].newlyMerged, false);
+const merged = auditOutlinePair(c, before, { outline: [rect(0, 0, 20, 10)], rawOutline: [] });
+assert.equal(merged.pairChecks[0].newlyMerged, true); assert.equal(merged.gainedPixels, 40);
+const lost = auditOutlinePair(c, before, { outline: [rect(2, 2, 8, 10)], rawOutline: before.rawOutline });
+assert.equal(lost.probes[2].before.present, true); assert.equal(lost.probes[2].after.present, false);
+assert.equal(lost.probes[2].denseAfter.present, true); assert.equal(lost.denseUnchanged, true);
+const sameObject = auditOutlinePair({ ...c, probes: bodies.map(p => ({ ...p, object: 1 })) }, before, { outline: [rect(0, 0, 20, 10)], rawOutline: [] });
+assert.equal(sameObject.pairChecks.length, 0);
+const absent = auditOutlinePair(c, before, { outline: [], rawOutline: [] });
+assert.equal(absent.probes[0].after.distance, null); assert.equal(absent.probes[0].after.present, false);
+console.log("Paired audit checks passed: identity, distinct-object merge, same-object exclusion, feature loss, dense/presentation distinction, empty output and pixel overlap.");

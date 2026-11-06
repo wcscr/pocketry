@@ -143,6 +143,8 @@ export interface TraceState {
   /** Bias on the automatic threshold; 128 is "trust the automatic level". */
   sensitivity: number;
   boundaryMethod: "color" | "teed";
+  /** Opt-in preference; an existing curve source always remains editable. */
+  editableCurves: boolean;
   includeInteriorHoles: boolean;
   /** Ramer-Douglas-Peucker tolerance, source pixels. */
   tolerancePx: number;
@@ -218,6 +220,7 @@ export const initialTraceState: TraceState = {
   },
   sensitivity: 128,
   boundaryMethod: "color",
+  editableCurves: false,
   includeInteriorHoles: false,
   tolerancePx: 1.2,
   smoothing: 1,
@@ -252,6 +255,7 @@ export type TraceRefinementSettings = Pick<TraceState,
 
 export type TraceAction =
   | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string }
+  | { type: "SET_EDITABLE_CURVES"; enabled: boolean }
   | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
   | { type: "SOURCE_READY"; imageSize: { width: number; height: number } }
@@ -285,6 +289,8 @@ export type TraceAction =
   /** Start a manually traced outer contour with four editable corners. */
   | { type: "ADD_CONTOUR" }
   | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number; label?: string }
+  | { type: "CURVE_SYMMETRY_COMMITTED"; curves: CurveOutline; expectedCurves: CurveOutline; expectedOutline: Outline;
+      expectedCalibration: Calibration | null; radians?: number; label: string }
   /** An offset of the current edited contour and its physical setting. */
   | { type: "MARGIN_COMMITTED"; outline: Outline; margin: Margin }
   /** A mid-drag update: previews without touching the committed history. */
@@ -441,7 +447,7 @@ function samePhotoFrame(a: TracePhotoFrame, b: TracePhotoFrame): boolean {
 const transformOutline = (outline: Outline, matrix: ImageMatrix) =>
   normalizeOutline(mapOutline(outline, p => transformImagePoint(p, matrix)));
 
-function commitPhotoRotation(state: TraceState, radians: number, outline: Outline, label: string, manual: boolean, quarterTurn?: ImageRotationDirection): TraceState {
+function commitPhotoRotation(state: TraceState, radians: number, outline: Outline, label: string, manual: boolean, quarterTurn?: ImageRotationDirection, sourceCurves = state.curves): TraceState {
   if (!state.imageUrl || state.processing || !Number.isFinite(radians) || state.imageSize.width <= 0 || state.imageSize.height <= 0) return state;
   const { alignment, transform } = rotateImageAlignment(state.imageSize, radians, state.imageAlignment);
   const point = (p: Point) => transformImagePoint(p, transform);
@@ -458,11 +464,12 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   };
   const before = photoFrame(state);
   const current = state.history.stack[state.history.index];
-  const rotated = transformOutline(outline, transform);
+  const rotatedCurves = sourceCurves && mapCurves(sourceCurves, point);
+  const rotated = rotatedCurves ? sampleCurves(rotatedCurves, CURVE_TOLERANCE_MM / (mmPerPixel(state.calibration) ?? .1)) : transformOutline(outline, transform);
   const next: TraceState = {
     ...state, imageSize: alignment.size, imageAlignment: alignment, outline: rotated,
     estimatedEdgeRegions: state.estimatedEdgeRegions.map(ring => ring.map(point)),
-    curves: state.curves && mapCurves(state.curves, point),
+    curves: rotatedCurves,
     rawOutline: transformOutline(state.rawOutline, transform), svg: null, sourceRevision: state.sourceRevision + 1,
     calibration: ruler(state.calibration), pendingAutoCalibration: ruler(state.pendingAutoCalibration),
     pendingPaperCalibration: ruler(state.pendingPaperCalibration), draftCalibration: ruler(state.draftCalibration),
@@ -511,7 +518,7 @@ function retainedEditSelection(state: TraceState, outline: Outline): RingRef | n
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   // Polygon-only reshaping cannot silently bake editable curve sources. These
   // controls are disabled in the prototype; also reject stale async results.
-  if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING", "SET_TOLERANCE", "ALIGN_UPRIGHT"].includes(action.type)) return state;
+  if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING", "SET_TOLERANCE"].includes(action.type)) return state;
   switch (action.type) {
     case "CURVES_COMMITTED": {
       if ((state.margin ?? 0) !== 0) return state;
@@ -522,6 +529,14 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, curves, outline, margin: 0, history: pushHistory(state.history, outline, action.label, 0,
         { curves, refinementBase: outline, hasManualEdits: true, baselineMarginPx: 0,
           tolerancePx: state.tolerancePx, smoothing: state.smoothing, ...historyPhotoFrame(state) }) };
+    }
+    case "SET_EDITABLE_CURVES": {
+      if (action.enabled || !state.curves) return { ...state, editableCurves: action.enabled };
+      // Keep exactly the currently displayed adaptive points. The previous
+      // handles remain in history, so Undo restores the complete curve source.
+      return traceReducer({ ...state, curves: undefined, editableCurves: false }, {
+        type: "OUTLINE_COMMITTED", outline: state.outline.map(s => ({ outer: s.outer.slice(), holes: s.holes.map(r => r.slice()) })), label: "Convert curves to points",
+      });
     }
     case "TRACE_DRAFT_RESTORED": {
       const { state: saved, detectionComplete, referencesAttempted } = action.draft;
@@ -544,6 +559,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         // Keep refinement preferences; reset the image-dependent sensitivity.
         sensitivity: 128,
         boundaryMethod: state.boundaryMethod,
+        editableCurves: state.editableCurves,
         includeInteriorHoles: state.includeInteriorHoles,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
@@ -686,6 +702,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         sourceRevision: state.sourceRevision + 1,
         sensitivity: state.sensitivity,
         boundaryMethod: state.boundaryMethod,
+        editableCurves: state.editableCurves,
       };
 
     case "DETECTED":
@@ -813,8 +830,17 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     }
 
     case "ALIGN_UPRIGHT":
-      if (action.expectedOutline !== state.outline) return state;
+      if (action.expectedOutline !== state.outline || state.curves && action.outline !== state.outline) return state;
       return commitPhotoRotation(state, action.radians, action.outline, action.label ?? "Make contour symmetric and upright", true);
+
+    case "CURVE_SYMMETRY_COMMITTED": {
+      if (!state.curves || state.curves !== action.expectedCurves || state.outline !== action.expectedOutline || state.calibration !== action.expectedCalibration || state.processing ||
+          action.radians !== undefined && !Number.isFinite(action.radians)) return state;
+      const tolerance = CURVE_TOLERANCE_MM / (mmPerPixel(state.calibration) ?? .1);
+      const curves = normalizeCurves(action.curves, tolerance);
+      if (action.radians === undefined) return traceReducer(state, { type: "CURVES_COMMITTED", curves, label: action.label });
+      return commitPhotoRotation(state, action.radians, sampleCurves(curves, tolerance), action.label, true, undefined, curves);
+    }
 
     case "MARGIN_COMMITTED":
       if (state.margin === action.margin && state.outline === action.outline) {
@@ -1137,6 +1163,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         autoCalibrationAttemptedImageUrl: action.imageUrl,
         sensitivity: state.sensitivity,
         boundaryMethod: state.boundaryMethod,
+        editableCurves: state.editableCurves,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
         margin: state.margin ?? DEFAULT_MARGIN_MM,
@@ -1182,6 +1209,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         autoCalibrationAttemptedImageUrl: state.perspectiveOriginalImageUrl,
         sensitivity: state.sensitivity,
         boundaryMethod: state.boundaryMethod,
+        editableCurves: state.editableCurves,
         tolerancePx: state.tolerancePx,
         smoothing: state.smoothing,
         margin: state.margin,

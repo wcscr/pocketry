@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { applySensitivity } from "@/lib/detect/otsu";
 import { TraceDetectionControls } from "./trace-detection-controls";
+import { asymmetricHandle } from "@/lib/geometry/curve-symmetry.test-support";
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -12,6 +13,22 @@ class NoopResizeObserver implements ResizeObserver {
 }
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+
+it("makes editable curves discoverable and opt-in, with undoable conversion and recovery", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore; function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={() => {}} />; }
+  const host = document.createElement("div"); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    const toggle = () => host.querySelector<HTMLButtonElement>('#editable-curves')!;
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    React.act(() => toggle().click()); expect(trace.editableCurves).toBe(true); expect(trace.curves).toBeUndefined();
+    React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: asymmetricHandle, label: "Curves" }));
+    const curves = trace.curves, index = trace.history.index;
+    React.act(() => toggle().click()); expect(trace.curves).toBeUndefined(); expect(trace.editableCurves).toBe(false); expect(trace.history.index).toBe(index + 1);
+    React.act(() => trace.undo()); expect(trace.curves).toEqual(curves); expect(toggle().getAttribute("aria-checked")).toBe("true");
+  } finally { React.act(() => root.unmount()); }
+});
 
 it("enables learned silhouettes explicitly, suppresses holes, and preserves the choice for a new photo", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

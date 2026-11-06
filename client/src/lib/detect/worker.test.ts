@@ -23,6 +23,18 @@ function endpoint() {
 afterEach(() => vi.useRealTimers());
 
 describe("photo worker lifecycle", () => {
+  it("runs symmetry and point-only cleanup without loading OpenCV", async () => {
+    const dense = [{ outer: [{ x: -10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 20 }, { x: -10, y: 20 }], holes: [] }];
+    const source = curvesFromOutline(dense), load = vi.fn(), handlers = createDetectionHandlers(load), context = { signal: new AbortController().signal, progress: () => {} };
+    const result = await handlers.symmetry({ source, shapeIndex: 0, axis: { start: { x: 0, y: 0 }, end: { x: 0, y: 20 } }, side: "right", tolerance: .2 }, context);
+    expect(result.anchors).toBeGreaterThanOrEqual(4);
+    expect((await handlers.reconstruct({ source, dense, tolerance: .2, editableCurves: false }, context)).cubics).toBe(0);
+    expect(load).not.toHaveBeenCalled();
+    const e = endpoint(), client = createDetectionClient(() => e.port), controller = new AbortController();
+    const pending = client.symmetry({ source, shapeIndex: 0, axis: { start: { x: 0, y: 0 }, end: { x: 0, y: 20 } }, side: "left", tolerance: .2 }, controller.signal);
+    expect(e.sent[0]).toMatchObject({ kind: "call", method: "symmetry" });
+    const rejected = expect(pending).rejects.toMatchObject({ name: "WorkerCancelledError" }); controller.abort(); await rejected; client.dispose();
+  });
   it("runs geometry reconstruction without loading OpenCV and keeps caller geometry intact", async () => {
     const dense = [{ outer: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 30 }, { x: 0, y: 30 }], holes: [] }];
     const source = curvesFromOutline(dense), payload = { source, dense, tolerance: 0.2 }, before = structuredClone(payload);

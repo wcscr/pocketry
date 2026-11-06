@@ -12,6 +12,7 @@ import { buildScoreFieldJS, maskFromScore } from "./segment-js";
 import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
 import { checkDetectionAbort, detectionCheckpoint, refineWithGrabCut } from "./grabcut";
 import { restoreOccludedScore } from "./occlusions";
+import { repairOccludedOutline } from "./occlusion-repair";
 import { createTeedDetector, type TeedDetector } from "./teed";
 import {
   DETECT_DEFAULTS,
@@ -59,6 +60,8 @@ export async function detectOutline(
     ? time(timings, "occlusions", () => restoreOccludedScore(field, options.occlusions!, estimatedEdgeRegions)) : false;
 
   let rawOutline = time(timings, "trace", () => traceToOutline(field, options));
+  if (inferredOccludedEdge) rawOutline = time(timings, "occlusionRepair", () => repairOccludedOutline(rawOutline, estimatedEdgeRegions,
+    Math.max(1 / field.scale, 1 / (field.scaleY ?? field.scale))));
   if (baseline && refinement?.status === "accepted") {
     const original = time(timings, "validateTopology", () => traceToOutline(baseline, options));
     // Polygon thresholds are relative to each parent (especially holes in a
@@ -162,6 +165,7 @@ async function segment(
           return { field: result.field ?? field, baseline: result.field ? field : undefined, engine: "opencv", refinement: {
             status: result.field ? "accepted" : result.reason === "alpha-mask" ? "skipped" : "fallback",
             reason: result.reason ?? "teed-edges", iterations: 0, cached: result.cached,
+            ...result.selection,
           } };
         } catch (error) {
           timings.learnedEdges = now() - began;

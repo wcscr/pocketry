@@ -2,9 +2,9 @@
 
 ## 1.8.0 — 2026-11-05
 
-- Opt into learned outer outlines for tools on white calibration sheets. Use original photo pixels within the selected region, run the tiny TEED model on-device in a cancellable worker, and fall back to color detection when a boundary cannot be reconstructed safely. Preserve continuous edges during interpolation, including thin features.
-- Auto-simplify detected outlines into supported lines and true curves, with detail presets, original/preview comparison, and one-step Apply/Undo. Keep click-to-add/right-click-to-delete in curve editing, with visible point selection and group movement/deletion.
-- Edit Bézier contours in Trace and Bin, with explicit curve-fitting previews and adjustable deviation. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
+- Opt into learned outer outlines for tools on white calibration sheets. Automatically recover weak outer boundaries without manual sensitivity tuning, using one tiny on-device model inference. Preserve thin features and handle reference strips locally, with short hidden edges estimated and highlighted for review.
+- Auto-simplify detected outlines into points by default, with an opt-in Editable curves switch, detail presets and original/preview comparison. Preserve curves through symmetry, straightening, calibration and Undo. Keep click-to-add/right-click-to-delete in curve editing, with visible point selection and group movement/deletion.
+- Repair selected outline sections with a previewed line or smooth curve, or edit Bézier contours in Trace and Bin. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
 
 ## 1.7.0 — 2026-11-05
 

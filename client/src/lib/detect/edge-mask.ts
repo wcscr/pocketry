@@ -6,7 +6,7 @@ export interface EdgeMask {
 }
 
 /** Eight-neighbour component labels; each pixel enters the queue once. */
-function components(mask: Uint8Array, width: number, height: number) {
+export function labelMaskComponents(mask: Uint8Array, width: number, height: number, connectivity: 4 | 8 = 8) {
   const labels = new Int32Array(mask.length), queue = new Uint32Array(mask.length);
   const sizes = [0];
   for (let i = 0; i < mask.length; i++) {
@@ -18,6 +18,7 @@ function components(mask: Uint8Array, width: number, height: number) {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const xx = x + dx, yy = y + dy;
         if ((!dx && !dy) || xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+        if (connectivity === 4 && dx !== 0 && dy !== 0) continue;
         const j = yy * width + xx;
         if (mask[j] && !labels[j]) { labels[j] = label; queue[tail++] = j; }
       }
@@ -78,7 +79,7 @@ export function maskFromEdges(edges: Float32Array, width: number, height: number
     if (y) push(i - width); if (y + 1 < height) push(i + width);
   }
   const enclosed = Uint8Array.from(exterior, v => v ? 0 : 1);
-  const { labels, sizes } = components(enclosed, width, height);
+  const { labels, sizes } = labelMaskComponents(enclosed, width, height);
   const interiors = new Uint32Array(sizes.length), support = new Uint32Array(sizes.length);
   for (let i = 0; i < count; i++) if (labels[i]) {
     if (!closed[i]) interiors[labels[i]]++;

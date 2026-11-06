@@ -4,8 +4,9 @@ Tracks [enhancement #156](https://github.com/wcscr/pocketry/issues/156).
 
 ## Trying it
 
-In Trace, **Auto-simplify outline** is directly in Outline settings after fresh
-detection. For manual work, choose **Edit outline**, then **Bend edges** to shape
+In Trace, **Editable curves** is a visible opt-in switch, off for new point
+traces. **Auto-simplify outline** is directly in Outline settings after fresh
+detection; it normally produces points, or native curves when the switch is on. For manual work, choose **Edit outline**, then **Bend edges** to shape
 curves. In Bin, select an upright pocket in Layout and choose **Edit contour →
 Bend edges**. Transferred curves open directly in curve editing. Tilted/profile
 pockets retain the existing contour editing restriction.
@@ -21,6 +22,14 @@ pockets retain the existing contour editing restriction.
   atomically, keeping at least three in each ring. **Simplify section** accepts
   one adjacent run, including one across the closed ring's seam. Disjoint nodes
   can still be moved/deleted but cannot be fitted as a single section.
+- **Repair section** accepts two endpoints or one continuous selected run.
+  Preview **Line** or **Smooth curve**; **Other side** switches the directed
+  section. Smooth curve starts from neighboring tangents when supported, with
+  **Bend** adjusting its signed midpoint distance from the endpoint chord.
+  Endpoints and outside handles remain fixed. This intentional replacement has
+  no fitting-deviation claim; topology checks still reject crossings, collapse
+  and changed hole containment. Apply is one Undo step, Cancel makes no edit.
+  Trace defaults to adaptive points; Editable curves retains native controls.
 - Selection and navigation do not create history. Each completed geometry gesture
   commits once. Escape clears selection/cancels a draft, and pointer cancellation,
   focus loss or a second finger cancels a draft. Space/middle-drag and the hand tool
@@ -109,8 +118,12 @@ scale, offsets, kernel simplification and mesh serialization are separate steps.
 
 - Cubic fitting approximates the selected polygon; it does not infer hidden photo
   details or produce exact circular arcs.
-- Trace simplification, symmetry/upright alignment and margin reshaping are
-  disabled while curves are present. Bin clearance offsets derived geometry
+- Polygon-only simplification and margin reshaping remain disabled while curves
+  are present. Symmetry and straightening now operate on native curves. Left/Right
+  split axis crossings and reflect the chosen controls exactly; Average constructs
+  a width profile and rebuilds curves at the existing curve precision. Disconnected
+  halves, crossings and holes unsupported by symmetry retain the original.
+  Straightening preserves all components and holes. Bin clearance offsets derived geometry
   while retaining the source. Ordinary re-detection replaces the authored trace;
   its previous edit can be recovered with Undo.
 - Native cubic output is implemented for Trace SVG when no hole/material boolean is needed. Trace DXF/STL and Bin
@@ -132,3 +145,5 @@ both editors, saved fitted sources, and watertight STL output of fitted rings.
 Run `npm run check`, `npm test`, `npm run build`, and `git diff --check` with Node 22.
 Browser workflow checks are separate from these automated gates; slicer and
 physical-fit qualification remain outside this prototype.
+
+UI review build: targeted geometry/state/component tests, typecheck, build and a single Wolfbox compiled-browser workflow passed. Full photo/report qualification is deferred until the revised interaction is reviewed.

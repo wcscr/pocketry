@@ -333,6 +333,7 @@ describe("TraceCanvas edit history", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       React.act(() => {
+        trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
         if (mode === "reconstruct") {
           const dense: Outline = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
           trace!.dispatch({ type: "DETECTED", imageUrl: trace!.imageUrl, outline: rounded, rawOutline: dense, svg: "", region: trace!.region });
@@ -367,6 +368,37 @@ describe("TraceCanvas edit history", () => {
       expect(saved.shapes[0].curvesMm![0].outer).toHaveLength(curves[0].outer.length);
     } finally { React.act(() => root.unmount()); }
   });
+  it.each([{ editable: false, mode: "Line" }, { editable: false, mode: "Smooth curve" }, { editable: true, mode: "Line" }, { editable: true, mode: "Smooth curve" }])(
+    "previews and repairs a selected section with calibration and one undo: $mode, editable $editable", async ({ editable, mode }) => {
+      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+      vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+      const restore = installIdentitySvgCoordinates(), host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+      let trace: TraceStore; function Probe() { trace = useTrace(); return null; }
+      const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
+      try {
+        await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+        React.act(() => { trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: editable }); trace!.dispatch({ type: "SET_MODE", mode: "edit" }); });
+        const before = trace!.history.index, calibration = trace!.calibration;
+        const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
+        const selectEndpoints = () => {
+          const svg = host.querySelector("svg")!;
+          for (const index of [6, 12]) for (const type of ["pointerdown", "pointerup"]) React.act(() => {
+            const p = rounded[0].outer[index], event = new MouseEvent(type, { bubbles: true, button: 0, clientX: p.x, clientY: p.y, shiftKey: true });
+            Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } }); svg.dispatchEvent(event);
+          });
+        };
+        selectEndpoints(); click("Repair section"); expect(host.querySelector('[data-testid="outline-repair-preview"]')).not.toBeNull();
+        expect(trace!.history.index).toBe(before); click("Cancel repair"); expect(trace!.outline).toEqual(rounded);
+        selectEndpoints(); click("Repair section"); click(mode); click("Apply repair");
+        expect(trace!.history.index).toBe(before + 1); expect(trace!.calibration).toEqual(calibration);
+        expect(!!trace!.curves).toBe(editable);
+        if (editable && mode === "Smooth curve") expect(trace!.curves![0].outer.some(a => a.in || a.out)).toBe(true);
+        const after = trace!.outline, curves = trace!.curves;
+        for (const index of [6, 12]) expect(after[0].outer).toContainEqual(rounded[0].outer[index]);
+        React.act(() => trace!.undo()); expect(trace!.outline).toEqual(rounded); expect(trace!.curves).toBeUndefined(); expect(trace!.calibration).toEqual(calibration);
+        React.act(() => trace!.redo()); expect(trace!.outline).toEqual(after); expect(trace!.curves).toEqual(curves);
+      } finally { React.act(() => root.unmount()); host.remove(); restore(); }
+    });
   it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -378,6 +410,7 @@ describe("TraceCanvas edit history", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
+      React.act(() => trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }));
       const entry = host.querySelector<HTMLButtonElement>('[data-testid="button-edit-curves"]');
       expect(entry).not.toBeNull(); React.act(() => entry!.click());
       const before = trace!.history.stack.length;

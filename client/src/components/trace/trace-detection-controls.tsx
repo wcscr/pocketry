@@ -56,17 +56,25 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
         disabled={processing} onChange={(value) => setDraftSensitivity(128 - value)}
         onCommit={(value) => request({ sensitivity: 128 - value, includeInteriorHoles })}
         touchTarget={compact}
-        hint={compact ? undefined : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
+        hint={compact ? undefined : trace.boundaryMethod === "teed"
+          ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto; higher includes more. Updates on release and asks before replacing edits."
+          : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
       <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
         disabled={processing || !!trace.curves} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
-    {trace.outline.length > 0 && <TraceSymmetryTool />}
+    {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
 
   return <>
+    {!compact && <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1"><Label htmlFor="editable-curves" className="text-xs">Editable curves</Label>
+        <HelpHint label="editable curves">Off by default: Auto-simplify makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
+      <Switch id="editable-curves" checked={trace.editableCurves || !!trace.curves} disabled={processing}
+        onCheckedChange={enabled => dispatch({ type: "SET_EDITABLE_CURVES", enabled })} />
+    </div>}
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>

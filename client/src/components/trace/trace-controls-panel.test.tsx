@@ -261,7 +261,7 @@ it("offers auto-simplify directly after detection without entering manual editin
   const history = trace.history;
   await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
   React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
-  expect(action().disabled).toBe(true); expect(host.textContent).toContain("Undo manual edits");
+  expect(action().disabled).toBe(true); expect(host.textContent).toContain("already simplified or edited");
 });
 
 async function changeNumber(id: string, value: string): Promise<void> {
