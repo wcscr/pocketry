@@ -10,7 +10,9 @@ import {
   TAB_PROFILE,
   TAB_SUPPORT_ANGLE_DEG,
   TAB_SUPPORT_HEIGHT_MM,
+  TAB_WIDTH_NOMINAL_MM,
   binWallHeightMm,
+  binWallThicknessMm,
 } from "./standard";
 
 interface LabelTabProfile {
@@ -19,6 +21,49 @@ interface LabelTabProfile {
   points: [number, number][];
   /** The wall itself leans too far to restore the nominal underside angle. */
   supportLimited?: boolean;
+}
+
+export const DEFAULT_LABEL_TAB_RECESS_MM = 0.5;
+
+/** Requested dimensions remain independent of the available shelf space. */
+export function labelTabDepthMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.depthMm ?? TAB_DEPTH_MM;
+}
+
+export function labelTabWidthMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.widthMm ?? TAB_WIDTH_NOMINAL_MM;
+}
+
+/** Height required by the requested depth at the original support angle. */
+export function labelTabRequestedHeightMm(spec: Pick<BinSpec, "labelTab">): number {
+  const depth = labelTabDepthMm(spec);
+  return depth === TAB_DEPTH_MM ? TAB_HEIGHT_MM
+    : Math.tan(TAB_SUPPORT_ANGLE_DEG * Math.PI / 180) * depth + TAB_SUPPORT_HEIGHT_MM;
+}
+
+/** Missing values belong to saved designs made before recess was configurable. */
+export function labelTabRecessMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.recessMm ?? 0;
+}
+
+/** The front edge finishes at the mounting wall/divider height. */
+export function labelTabFrontRimHeightMm(spec: Pick<BinSpec, "labelTab">): number {
+  return spec.labelTab?.frontRim ? labelTabRecessMm(spec) : 0;
+}
+
+export function labelTabFrontRimWidthMm(spec: BinSpec, depthMm: number): number {
+  return labelTabFrontRimHeightMm(spec) > 0 ? Math.min(binWallThicknessMm(spec), depthMm) : 0;
+}
+
+/** Add the rim after support correction; heightMm still locates the shelf top. */
+export function labelTabProfileWithFrontRim(spec: BinSpec, profile: LabelTabProfile): [number, number][] {
+  const width = labelTabFrontRimWidthMm(spec, profile.depthMm);
+  if (width === 0) return profile.points;
+  const { depthMm: d, heightMm: h } = profile;
+  return [...profile.points.slice(0, 2),
+    ...(width < d ? [[d - width, h] as [number, number]] : []),
+    [d - width, h + labelTabFrontRimHeightMm(spec)], [d, h + labelTabFrontRimHeightMm(spec)],
+    ...profile.points.slice(3)];
 }
 
 /** Place tabs above the acute floor-to-wall angle, opposite the scoops. */
@@ -30,12 +75,21 @@ export function defaultLabelTabWall(spec: Pick<BinSpec, "wallSlant">): NonNullab
     : slant.angleDeg > 0 ? "south" : "north";
 }
 
-/** Keep a slanted tab's 36-degree underside above the fixed Gridfinity base. */
-export function labelTabProfileMm(spec: Pick<BinSpec, "heightUnits" | "wallSlant">): LabelTabProfile | null {
-  const availableHeightMm = binWallHeightMm(spec.heightUnits);
-  if (!spec.wallSlant || availableHeightMm >= TAB_HEIGHT_MM) {
-    return { depthMm: TAB_DEPTH_MM, heightMm: TAB_HEIGHT_MM,
-      points: TAB_PROFILE.map(([depth, height]) => [depth, height]) };
+/** Keep slanted or recessed tabs' 36-degree undersides above the fixed base.
+ * Legacy flush upright tabs retain their original truncated profile. */
+export function labelTabProfileMm(spec: Pick<BinSpec, "heightUnits" | "wallSlant" | "labelTab">,
+  mountingHeightMm = binWallHeightMm(spec.heightUnits)): LabelTabProfile | null {
+  const recess = labelTabRecessMm(spec);
+  const requestedDepthMm = labelTabDepthMm(spec);
+  const requestedHeightMm = labelTabRequestedHeightMm(spec);
+  const availableHeightMm = mountingHeightMm - recess;
+  if (recess > 0 && availableHeightMm <= TAB_SUPPORT_HEIGHT_MM) return null;
+  if ((!spec.wallSlant && recess === 0) || availableHeightMm >= requestedHeightMm) {
+    return { depthMm: requestedDepthMm, heightMm: requestedHeightMm,
+      points: requestedDepthMm === TAB_DEPTH_MM ? TAB_PROFILE.map(([depth, height]) => [depth, height]) : [
+        [0, 0], [0, requestedHeightMm], [requestedDepthMm, requestedHeightMm],
+        [requestedDepthMm, requestedHeightMm - TAB_SUPPORT_HEIGHT_MM],
+      ] };
   }
   if (availableHeightMm <= TAB_SUPPORT_HEIGHT_MM) return null;
   const slope = Math.tan(TAB_SUPPORT_ANGLE_DEG * Math.PI / 180);
@@ -108,5 +162,5 @@ export function boundaryLabelTabProfileMm(spec: BinSpec): LabelTabProfile | null
   const axis = edge.side === "north" || edge.side === "south" ? "y" : "x";
   origin[axis] += edge.side === "south" || edge.side === "west" ? D_WALL : -D_WALL;
   return supportedLabelTabProfileMm(spec, profile, edge.side, origin, profile.depthMm,
-    BASE_HEIGHT + binWallHeightMm(spec.heightUnits));
+    BASE_HEIGHT + binWallHeightMm(spec.heightUnits) - labelTabRecessMm(spec));
 }

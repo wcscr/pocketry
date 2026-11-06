@@ -3,6 +3,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
+import { DEFAULT_LABEL_TAB_RECESS_MM } from "@shared/gridfinity/label-tab";
 import { withKernel, loadManifold } from "@/lib/manifold/runtime";
 import { extractPrintableMeshData, type MeshData } from "@/lib/mesh/mesh-data";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
@@ -13,6 +14,7 @@ import { BUILD_BIN_METHOD, type BuildBinRequest, type BuildBinResult } from "./w
 import type { HandlerContext, TransferableResult } from "@/lib/worker/host";
 import { placeSurfaceTextOnTab } from "./surface-text";
 import { createBasicPocket } from "./basic-shape";
+import { surfaceTextIssueText } from "./surface-text.test-support";
 
 const reported = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5.5, lip: "none", fill: "none",
   wallSlant: { axis: "y", angleDeg: 30 }, bottomFilletRadiusMm: 8,
@@ -36,8 +38,10 @@ function expectClosedStl(mesh: MeshData) {
 }
 
 describe("raised labels on slanted shelves", () => {
-  it("exports six metric labels attached to the reported bin, with separate colored 3MF parts", async () => {
-    const spec = { ...reported, surfaceTexts: [...reported.surfaceTexts] };
+  it.each([{ recessMm: 0 }, { recessMm: 0.4 }, { recessMm: DEFAULT_LABEL_TAB_RECESS_MM },
+    { recessMm: DEFAULT_LABEL_TAB_RECESS_MM, frontRim: true }])("exports six metric labels with %j and separate colored 3MF parts", async settings => {
+    const { recessMm } = settings;
+    const spec = { ...reported, labelTab: { ...reported.labelTab!, ...settings }, surfaceTexts: [...reported.surfaceTexts] };
     for (let i = 0; i < 6; i++) spec.surfaceTexts.push(placeSurfaceTextOnTab(spec, { ...label, id: String(i), text: `M${i + 2}` }));
     await withKernel(kernel => {
       const result = buildBinWithCutouts(kernel, spec, null, EXPORT_QUALITY,
@@ -46,8 +50,9 @@ describe("raised labels on slanted shelves", () => {
       expect(result.solid.status()).toBe("NoError");
       expect(result.solid.decompose().map(part => kernel.arena.track(part)).filter(part => part.volume() > 1e-6)).toHaveLength(1);
       for (const part of result.textParts) {
-        expect(part.z).toBe(38.5);
-        expect(part.solid.boundingBox().min[2]).toBeCloseTo(38.5, 6);
+        expect(part.z).toBeCloseTo(38.5 - recessMm);
+        expect(part.solid.boundingBox().min[2]).toBeCloseTo(38.5 - recessMm, 6);
+        if (recessMm === DEFAULT_LABEL_TAB_RECESS_MM) expect(part.solid.boundingBox().max[2]).toBeCloseTo(38.5, 6);
         expect(kernel.arena.track(part.solid.intersect(result.bodySolid)).volume()).toBeCloseTo(0, 6);
       }
       expectClosedStl(extractPrintableMeshData(kernel, result.solid));
@@ -58,7 +63,7 @@ describe("raised labels on slanted shelves", () => {
       ], { assemble: true }))["3D/3dmodel.model"]);
       expect(model.match(/<component /g)).toHaveLength(7);
       expect(model).toContain('name="Text: M3"');
-      expect(model).toContain('z="38.5"');
+      expect([...model.matchAll(/z="([^"]+)"/g)].some(match => Math.abs(Number(match[1]) - (38.5 - recessMm)) < 1e-4)).toBe(true);
       expect(model).toContain("#002244");
     });
   });
@@ -67,8 +72,10 @@ describe("raised labels on slanted shelves", () => {
     for (const side of ["both", "positive", "negative"] as const) for (const angleDeg of [-30, 30]) {
       for (const scope of ["outer", "compartments"] as const) {
         const spec = parseBinSpec({ ...reported, wallSlant: { axis, angleDeg, side },
-          compartments: { ...reported.compartments, scoop: true },
-          labelTab: { wall: axis === "x" ? angleDeg > 0 ? "west" : "east" : angleDeg > 0 ? "south" : "north", width: "full", scope } });
+          // Outer tabs span the full bin; their centred label must not cross a divider.
+          compartments: { ...reported.compartments, rows: scope === "outer" ? 1 : 2, columns: scope === "outer" ? 1 : 3, scoop: true },
+          labelTab: { wall: axis === "x" ? angleDeg > 0 ? "west" : "east" : angleDeg > 0 ? "south" : "north", width: "full", scope,
+            recessMm: 0.5, frontRim: true } });
         const placed = placeSurfaceTextOnTab(spec, label);
         expect(placed.surface, `${axis}/${side}/${angleDeg}/${scope}`).toBe("label-tab");
         await withKernel(kernel => {
@@ -95,12 +102,12 @@ describe("raised labels on slanted shelves", () => {
     const placed = placeSurfaceTextOnTab(reported, label);
     await withKernel(kernel => {
       const build = (surfaceTexts: typeof reported.surfaceTexts) => buildBinWithCutouts(kernel, { ...reported, surfaceTexts }, null, PREVIEW_QUALITY);
-      expect(() => build([{ ...placed, position: { x: 100, y: 100 } }])).toThrow("must fit on a label tab");
-      expect(() => build([{ ...placed, sizeMm: 40 }])).toThrow("must fit on a label tab");
-      expect(() => build([placed, { ...placed, id: "duplicate" }])).toThrow("overlaps");
-      expect(() => buildBinWithCutouts(kernel, { ...reported, labelTab: null, surfaceTexts: [placed] }, null, PREVIEW_QUALITY)).toThrow("needs a label tab");
+      expect(surfaceTextIssueText(build([{ ...placed, position: { x: 100, y: 100 } }]))).toContain("must fit on a label tab");
+      expect(surfaceTextIssueText(build([{ ...placed, sizeMm: 40 }]))).toContain("must fit on a label tab");
+      expect(surfaceTextIssueText(build([placed, { ...placed, id: "duplicate" }]))).toContain("overlaps");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, { ...reported, labelTab: null, surfaceTexts: [placed] }, null, PREVIEW_QUALITY))).toContain("needs a label tab");
       const closed = parseBinSpec({ ...reported, wallSlant: { axis: "x", angleDeg: -80, side: "positive" }, surfaceTexts: [placed] });
-      expect(() => buildBinWithCutouts(kernel, closed, null, PREVIEW_QUALITY)).toThrow("needs a label tab");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, closed, null, PREVIEW_QUALITY))).toContain("needs a label tab");
     });
   });
 
@@ -115,14 +122,14 @@ describe("raised labels on slanted shelves", () => {
     expect(part.label.surface).toBe("label-tab");
     const zs = [...part.mesh.positions].filter((_, i) => i % 3 === 2);
     expect(Math.min(...zs)).toBeCloseTo(38.5, 5);
-    expect(Math.max(...zs)).toBeCloseTo(39.3, 5);
+    expect(Math.max(...zs)).toBeCloseTo(38.5 + label.heightMm, 5);
   });
 
   it.each(["outer", "compartments"] as const)("clips %s tab text to a custom footprint", async scope => {
     const spec = parseBinSpec({ ...reported, gridX: 2, gridY: 2, gridPitch: "full", bottomFilletRadiusMm: 0,
-      compartments: { rows: 2, columns: 2 },
+      compartments: { rows: scope === "outer" ? 1 : 2, columns: scope === "outer" ? 1 : 2 },
       footprint: { kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] },
-      labelTab: { wall: "south", scope, width: "center" } });
+      labelTab: { wall: "south", scope, width: "center", recessMm: 0.5, frontRim: true } });
     const placed = placeSurfaceTextOnTab(spec, label);
     expect(placed.surface).toBe("label-tab");
     await withKernel(kernel => {
@@ -136,9 +143,9 @@ describe("raised labels on slanted shelves", () => {
     const placed = placeSurfaceTextOnTab(reported, label), p = placed.position;
     const pocket = createBasicPocket("rectangle", { x: p.x - 10, y: p.y - 4 }, { x: p.x + 10, y: p.y + 4 }, "opening")!;
     await withKernel(kernel => {
-      expect(() => buildBinWithCutouts(kernel, { ...reported, surfaceTexts: [placed] }, {
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, { ...reported, surfaceTexts: [placed] }, {
         cutouts: [{ ...pocket.cutout, depth: { mode: "through" } }], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [],
-      }, PREVIEW_QUALITY)).toThrow("must fit on a label tab");
+      }, PREVIEW_QUALITY))).toContain("must fit on a label tab");
     });
   });
 
@@ -168,7 +175,7 @@ describe("raised labels on slanted shelves", () => {
   it("requires label tabs for hollow-bin text even if it would fit on the floor", async () => {
     const spec = parseBinSpec({ ...reported, labelTab: null, surfaceTexts: [label] });
     await withKernel(kernel => {
-      expect(() => buildBinWithCutouts(kernel, spec, null, PREVIEW_QUALITY)).toThrow("Enable label tabs in Construction");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, spec, null, PREVIEW_QUALITY))).toContain("Enable label tabs in Construction");
     });
   });
 });

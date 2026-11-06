@@ -1,7 +1,8 @@
 # Optional silhouette-pocket insertion clearance
 
-**Clear insertion path** and its direction selector appear at the top of pocket
-properties when a pocket is tilted. A fresh pocket’s first tilt defaults to
+**Insertion path** groups **Clear insertion path** and its direction selector in
+pocket properties when a pocket is tilted or has active insertion settings.
+A fresh pocket’s first tilt defaults to
 **Follow pocket angle**, from either numeric properties or 3D Rotate. Pockets
 with an established 3D pose retain the selected direction or disabled state,
 including after resetting to the X–Y plane and tilting again. Saved projects retain
@@ -97,10 +98,12 @@ or their creation reference. If neither contains a finite depth, the current fil
 height supplies a finite default, frozen on migration. Linked copies, split seats,
 Undo and later bin resizing retain that recovered depth.
 
-If the rotated underside itself reaches the bin surface and prevents a complete
-opening, the preview explains how to correct the height or tilt and export is
-blocked. A taller bin is required for some placements previously made to appear
-valid by flattening the seat.
+For vertical insertion, validation checks the continuous insertion path against
+material remaining in the finished bin, including floor limits and retained
+material. A portion of the object above the bin does not require an opening
+under its entire projection. An actual collision blocks export with guidance to
+raise the pocket, change the floor limit, or remove the obstruction. Other
+geometry and axial-insertion validation still applies.
 
 Full exact geometry remains in workers. Selection and Move/Rotate outlines use
 lightweight source wires without rounded mesh edges; rounding remains visible in

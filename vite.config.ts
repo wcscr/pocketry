@@ -1,28 +1,13 @@
-import { readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
+import { legalFilesPlugins } from "./server/bundled-notices";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/** Keep the source and built distributions' legal notices in sync. */
-function legalFilesPlugin(): Plugin {
-  return {
-    name: "pocketry-legal-files",
-    apply: "build",
-    generateBundle() {
-      for (const fileName of ["LICENSE", "NOTICE"]) {
-        this.emitFile({
-          type: "asset",
-          fileName: `${fileName}.txt`,
-          source: readFileSync(path.resolve(__dirname, fileName), "utf8"),
-        });
-      }
-    },
-  };
-}
+const legalFiles = legalFilesPlugins(__dirname);
 
 /** Disable Vite's desktop-editor shortcut; Pocketry's browser editors are unaffected. */
 function disableEditorLaunchPlugin(): Plugin {
@@ -40,7 +25,7 @@ function disableEditorLaunchPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), legalFilesPlugin(), disableEditorLaunchPlugin()],
+  plugins: [react(), legalFiles.main, disableEditorLaunchPlugin()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
@@ -64,6 +49,7 @@ export default defineConfig({
   // Geometry runs in a module worker so the main thread stays responsive.
   worker: {
     format: "es",
+    plugins: () => [legalFiles.worker()],
   },
   server: {
     host: "127.0.0.1",

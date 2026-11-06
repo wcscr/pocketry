@@ -201,12 +201,14 @@ describe("App", () => {
     expect(originalAnnouncement?.textContent).toBe("ToolTrace SVG Generator");
     expect(originalAnnouncement?.target).toBe("_blank");
     expect(originalAnnouncement?.rel).toContain("noreferrer");
-    expect(container.textContent).toContain("AGPL-3.0-only");
+    expect(container.textContent).toContain("AGPL-3.0 (version 3 only)");
     const openSourceStatement = container.querySelector<HTMLAnchorElement>(
-      'a[aria-label="Pocketry is fully open source under AGPL-3.0-only"]',
+      'a[aria-label="Pocketry is fully open source under AGPL-3.0"]',
     );
     expect(openSourceStatement?.textContent).toContain("Fully open source under");
     expect(openSourceStatement?.getAttribute("href")).toBe("/LICENSE.txt");
+    expect(container.querySelector('a[href="https://github.com/wcscr/pocketry/blob/main/CONTRIBUTING.md"]')?.textContent).toBe("contribution guidelines");
+    expect(container.querySelector('a[href="https://github.com/wcscr/pocketry/blob/main/CLA.md"]')?.textContent).toBe("CLA");
     expect(container.textContent).toContain("OpenCV/OpenCV.js");
     const slantedAttribution = container.querySelector<HTMLAnchorElement>('a[href="https://github.com/cdslug/slanted-gridfinity"]');
     expect(slantedAttribution?.textContent).toBe("slanted-gridfinity project");

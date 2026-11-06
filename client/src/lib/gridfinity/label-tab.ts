@@ -1,5 +1,5 @@
 import { buildCompartments } from "./compartments";
-import { buildWallRing } from "./wall";
+import { buildWallRing, buildWallSection } from "./wall";
 import { compartmentHeightMm, compartmentLabelTabPlacements } from "@shared/gridfinity/compartments";
 import { BASE_HEIGHT } from "@shared/gridfinity/standard";
 import { footprintOuterSection } from "./footprint-section";
@@ -11,10 +11,13 @@ import {
   binHeightMm,
   D_WALL,
   R_F2,
+  TAB_DEPTH_MM,
   TAB_WIDTH_NOMINAL_MM,
 } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
-import { boundaryLabelTabProfileMm } from "@shared/gridfinity/label-tab";
+import { boundaryLabelTabProfileMm, labelTabProfileWithFrontRim, labelTabFrontRimHeightMm, labelTabDepthMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
+import { labelTabTopZ } from "@shared/gridfinity/label-tab-surfaces";
+import { infillTopZ } from "@shared/gridfinity/fill";
 import { edgeForWall, resolveBoundaryRun } from "@shared/gridfinity/footprint";
 
 import { roundedRectPolygon } from "./profiles";
@@ -23,8 +26,8 @@ import { footprintInteriorSection } from "./footprint-section";
 
 /**
  * Label tab (upstream `src/core/tab.scad` + `TAB_POLYGON`): a shelf hung
- * from the top of one wall — vertical wall face, flat top flush with the
- * wall top, 1.2 mm tip face, 36° sloped underside — deep enough to read or
+ * from one wall — vertical wall face, flat top below the wall by its recess,
+ * 1.2 mm tip face, 36° sloped underside — deep enough to read or
  * label the bin's contents.
  *
  * Construction mirrors the scoop's: the profile prism is built oversized
@@ -51,6 +54,54 @@ const WALL_ROTATION_DEG: Record<LabelTabSpec["wall"], number> = {
   west: 90,
 };
 
+/** Color the raised free edge, using the same placement, clipping and attachment
+ * as the tab itself. Slice above the recessed shelf so its writing surface is
+ * never included, then extend the color down by the requested rim depth.
+ * Like the tab builder, this region is in the upright frame before wall slant. */
+export function buildLabelTabFrontRimRegion(kernel: Kernel, spec: BinSpec,
+  segments: number, depthMm: number): Manifold | null {
+  const height = labelTabFrontRimHeightMm(spec);
+  if (height <= 0 || !Number.isFinite(depthMm) || depthMm <= 0) return null;
+  const top = labelTabTopZ(spec) + height;
+  if (spec.fill === "solid" && infillTopZ(spec) >= top - 1e-8) return null;
+  const tab = buildLabelTab(kernel, spec, segments);
+  if (!tab) return null;
+  const { arena } = kernel;
+  const section = arena.track(tab.slice(top - height / 2));
+  const depth = Math.min(depthMm, top - BASE_HEIGHT);
+  if (section.isEmpty() || depth <= 0) return null;
+  const column = arena.track(arena.track(section.extrude(depth)).translate([0, 0, top - depth]));
+  return arena.track(column.intersect(tab));
+}
+
+/** Thin color layer below exposed shelf faces, in the upright frame. The
+ * actual tab supplies custom-footprint clipping and attached fragments. Remove
+ * raised front edges, wall mounts and dividers before extruding the face, so
+ * color never leaks into the frame even when its requested depth is large. */
+export function buildLabelTabBackgroundRegion(kernel: Kernel, spec: BinSpec,
+  segments: number, depthMm: number): Manifold | null {
+  const top = labelTabTopZ(spec);
+  if (!spec.labelTab || !Number.isFinite(depthMm) || depthMm <= 0 || top <= BASE_HEIGHT
+    || (spec.fill === "solid" && infillTopZ(spec) >= top - 1e-8)) return null;
+  const tab = buildLabelTab(kernel, spec, segments);
+  if (!tab || tab.isEmpty()) return null;
+  const { arena } = kernel;
+  const epsilon = Math.min(0.01, (top - BASE_HEIGHT) / 2);
+  const frontHeight = labelTabFrontRimHeightMm(spec);
+  let face = arena.track(arena.track(tab.slice(top - epsilon))
+    .subtract(arena.track(tab.slice(top + (frontHeight > 0 ? frontHeight / 2 : epsilon)))));
+  face = arena.track(face.subtract(buildWallSection(kernel, spec, segments)));
+  const compartments = buildCompartments(kernel, spec, segments);
+  if (compartments) face = arena.track(face.subtract(arena.track(compartments.slice(top - epsilon))));
+  if (face.isEmpty()) return null;
+  const depth = Math.min(depthMm, top - BASE_HEIGHT);
+  // Cut through the shelf surface, rather than ending on it. A coincident
+  // upper face can leave a microscopic body skin that collapses onto the
+  // colored face at the Float32 export boundary. The caller intersects this
+  // mask with the finished bin to recover the exact printable color layer.
+  return arena.track(arena.track(face.extrude(depth + epsilon)).translate([0, 0, top - depth]));
+}
+
 /** Builds the tab solid for `spec.labelTab`, or null when absent. */
 export function buildLabelTab(
   kernel: Kernel,
@@ -73,11 +124,19 @@ export function buildLabelTab(
   // Profile in the (x = depth, y = height) plane, depth negated so the tab
   // grows inward (−y after mapping) from the wall face; negation also turns
   // the upstream point order CCW.
-  const profile = profileMm.points.map(([depth, height]) => [-depth, height] as [number, number]);
+  // Narrow tabs cannot rely on their ends meeting the rounded wall corners.
+  // Give resized shelves a small mounting overlap, as repeated tabs already
+  // have, while retaining the exact legacy geometry at standard dimensions.
+  const resized = labelTabDepthMm(spec) !== TAB_DEPTH_MM
+    || (tab.width !== "full" && labelTabWidthMm(spec) !== TAB_WIDTH_NOMINAL_MM);
+  const attachmentMm = resized ? 0.02 : 0;
+  const profile = labelTabProfileWithFrontRim(spec, profileMm)
+    .map(([depth, height]) => [depth === 0 && attachmentMm ? attachmentMm : -depth, height] as [number, number]);
+  if (attachmentMm && profileMm.points.at(-1)![1] > 0) profile.push([0, 0]);
   const section = arena.track(new CrossSection([profile]));
 
   const lengthMm =
-    tab.width === "full" ? chordMm + 20 : Math.min(TAB_WIDTH_NOMINAL_MM, chordMm);
+    tab.width === "full" ? chordMm + 20 : Math.min(labelTabWidthMm(spec), chordMm);
   // extrude → z ∈ [0, L]; rotate X90 then Z90 maps (depth, height, length)
   // onto (length → x, depth → y, height → z).
   const prism = arena.track(
@@ -92,7 +151,7 @@ export function buildLabelTab(
         ? chordMm / 2 - lengthMm
         : -lengthMm / 2;
   const local = arena.track(
-    prism.translate([startX, 0, binHeightMm(spec.heightUnits) - profileMm.heightMm]),
+    prism.translate([startX, 0, labelTabTopZ(spec) - profileMm.heightMm]),
   );
   const rotation = WALL_ROTATION_DEG[edge.side];
   const rotated =
@@ -110,11 +169,14 @@ export function buildLabelTab(
   // Trim to the rounded interior so the ends follow the corner fillets.
   const interiorW = binWidthMm(spec) - 2 * D_WALL;
   const interiorL = binLengthMm(spec) - 2 * D_WALL;
-  const columnSection = spec.footprint.kind === "custom"
+  let columnSection = spec.footprint.kind === "custom"
     ? footprintInteriorSection(kernel, spec, circularSegments)
     : arena.track(new CrossSection([
         roundedRectPolygon(interiorW, interiorL, R_F2, circularSegments),
       ]));
+  // The overlap belongs inside the wall; clipping it to the original cavity
+  // would remove that attachment and leave a separate shelf component.
+  if (attachmentMm) columnSection = arena.track(columnSection.offset(attachmentMm, "Round", 2, circularSegments));
   const column = arena.track(columnSection.extrude(binHeightMm(spec.heightUnits) + 1));
   return arena.track(placed.intersect(column));
 }
@@ -126,13 +188,13 @@ function buildCompartmentLabelTabs(kernel: Kernel, spec: BinSpec, segments: numb
   const height = compartmentHeightMm(spec);
   if (!placements.length || height <= 0) return null;
   const tabs = placements.map(({ x, y, start, length, depth, rotation, profile }) => {
-    const points = profile.points.map(([d, z]) => [d === 0 ? 0.02 : -d * depth / profile.depthMm, z] as [number, number]);
+    const points = labelTabProfileWithFrontRim(spec, profile).map(([d, z]) => [d === 0 ? 0.02 : -d * depth / profile.depthMm, z] as [number, number]);
     // Keep the sloped underside's root at the nominal wall face. The tiny
     // attachment overlap must not flatten the support by extending its run.
     if (profile.points.at(-1)![0] !== 0 && profile.points.at(-1)![1] > 0) points.push([0, 0]);
     const section = arena.track(new CrossSection([points]));
     const prism = arena.track(arena.track(section.extrude(length)).rotate([90, 0, 90]));
-    const local = arena.track(prism.translate([start, 0, BASE_HEIGHT + height - profile.heightMm]));
+    const local = arena.track(prism.translate([start, 0, labelTabTopZ(spec) - profile.heightMm]));
     return arena.track(arena.track(local.rotate([0, 0, rotation])).translate([x, y, 0]));
   });
   const envelope = arena.track(arena.track(footprintOuterSection(kernel, spec, segments).extrude(height)).translate([0, 0, BASE_HEIGHT]));

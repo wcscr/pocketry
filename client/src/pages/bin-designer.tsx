@@ -26,7 +26,7 @@ import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
-import { BinControlsPanel } from "@/components/gridfinity/bin-controls-panel";
+import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
@@ -130,6 +130,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [depthRequest, setDepthRequest] = useState(0);
   const [pocketEditorRequest, setPocketEditorRequest] = useState(0);
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string; focusId?: string }>();
+  const [constructionGroups, setConstructionGroups] = useState<ConstructionDisclosureState>({});
   useEffect(() => {
     if (!libraryRequested && !sampleLibraryRequested && !newProjectRequested) return;
     setSettingsSectionRequest({ id: "bin-settings-project" });
@@ -166,8 +167,9 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!isMobile || panelOpen) setSettingsSectionRequest({ id: "bin-settings-text" });
     if (!inspectorPrototype && !isMobile) setPanelOpen(true);
   };
-  const positionText = () => {
-    dispatch({ type: "SELECT_SURFACE_TEXT", id: bin.selectedSurfaceTextId });
+  /** Open Layout placement for one label (a reported issue) or the current selection. */
+  const positionTextFor = (id: string | null) => {
+    dispatch({ type: "SELECT_SURFACE_TEXT", id });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     setTextPositionRequest(request => request + 1);
@@ -175,6 +177,8 @@ function BinDesignerWorkspace(): JSX.Element {
     // The standard mobile drawer covers the canvas; return to it for dragging.
     setPanelOpen(!isMobile);
   };
+  // Also passed as a click handler, so never forward the event as an id.
+  const positionText = () => positionTextFor(bin.selectedSurfaceTextId);
   useEffect(() => {
     if (isMobile && bin.editorMode !== "placement") setPanelOpen(false);
   }, [bin.editorMode, isMobile, setPanelOpen]);
@@ -201,7 +205,8 @@ function BinDesignerWorkspace(): JSX.Element {
   const [hideInspectionPocketOutline, setHideInspectionPocketOutline] = useState(false);
   const { materials } = bin;
   const { binColor, pocketFloorColor, stackingRimColor, colorPocketFloors,
-    colorStackingRim, colorDividerTops, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm } = materials;
+    colorStackingRim, colorDividerTops, pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
+    labelBackgroundColor, labelBackgroundThicknessMm } = materials;
   const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
@@ -247,7 +252,6 @@ function BinDesignerWorkspace(): JSX.Element {
     ];
   }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
   const revealIssue = (issue: ValidationIssue) => {
-    dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
     const settings = issueSettingsTarget(issue.code);
     if (settings) {
       setPanelOpen(true);
@@ -255,10 +259,13 @@ function BinDesignerWorkspace(): JSX.Element {
       return;
     }
     if (issue.surfaceTextIds?.length) {
-      editSurfaceText(issue.surfaceTextIds[0]);
+      const id = issue.surfaceTextIds.find(id => id !== bin.selectedSurfaceTextId) ?? issue.surfaceTextIds[0];
+      if (issue.code === "surface-text-thin-strokes") editSurfaceText(id);
+      else positionTextFor(id);
       return;
     }
     if (issue.cutoutIds?.length) {
+      dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
       const next = issue.cutoutIds.find((id) => id !== bin.selectedCutoutId) ?? issue.cutoutIds[0];
       dispatch({ type: "SELECT_CUTOUT", id: next });
       if (issue.code === "pocket-depth-needed") {
@@ -268,6 +275,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } else {
       setPanelOpen(true);
       if (issue.fingerHoleIds?.length) {
+        dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });
         dispatch({ type: "SELECT_FINGER_HOLE", id: issue.fingerHoleIds[0] });
         setSettingsSectionRequest({ id: "bin-settings-finger-holes" });
       } else {
@@ -521,6 +529,7 @@ function BinDesignerWorkspace(): JSX.Element {
     textGeometries,
     pocketFloorGeometry,
     stackingRimGeometry,
+    labelBackgroundGeometry,
     hasPocketFloor,
     hasStackingRim,
     builtSpec,
@@ -541,15 +550,19 @@ function BinDesignerWorkspace(): JSX.Element {
     PREVIEW_QUALITY,
     committedLayout,
     section,
-    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, colorDividerTops },
+    { pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, colorDividerTops,
+      labelBackgroundThicknessMm: labelBackgroundColor !== null ? labelBackgroundThicknessMm : undefined },
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
   // Pure and worker validation can both report the same invalid insertion.
-  const issues = [...layoutIssues, ...solidIssues.filter(issue => !layoutIssues.some(local =>
+  // A label deleted since the last build no longer needs its stale issue.
+  const issues = [...layoutIssues, ...solidIssues.filter(issue => !issue.surfaceTextIds?.length
+    || issue.surfaceTextIds.some(id => spec.surfaceTexts.some(label => label.id === id))).filter(issue => !layoutIssues.some(local =>
     local.code === issue.code && local.message === issue.message && local.severity === issue.severity
     && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)
     && JSON.stringify(local.surfaceTextIds) === JSON.stringify(issue.surfaceTextIds)))];
+  const invalidSurfaceTextIds = new Set(issues.flatMap(issue => issue.severity === "error" ? issue.surfaceTextIds ?? [] : []));
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
     return shape ? [{ cutout, shape }] : [];
@@ -998,24 +1011,28 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => {
+    async (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => {
       setExporting(true);
       try {
         const label = binSizeLabel(exportProjectDoc.spec);
-        const multicolor = format === "3mf-multicolor";
+        const prusaColorPreview = format === "3mf-prusa";
+        const slicerCompatible = format === "3mf-bambu" || prusaColorPreview;
+        const multicolor = format === "3mf-multicolor" || slicerCompatible;
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          multicolor ? "multicolor" : "",
+          prusaColorPreview ? "prusa-color-preview" : slicerCompatible ? "compatible-multicolor" : multicolor ? "multicolor" : "",
         );
         const includePocketFloors =
           multicolor &&
           colorPocketFloors &&
           (exportProjectDoc.spec.fill === "none" ||
             exportProjectDoc.cutouts.some(hasColorablePocketSurfaces));
+        const includeLabelBackground = multicolor && labelBackgroundColor !== null && !!exportProjectDoc.spec.labelTab;
         const includeStackingRim =
           multicolor && colorStackingRim;
         const result = await buildOnce(EXPORT_QUALITY, {
+          labelBackgroundMaterialThicknessMm: includeLabelBackground ? labelBackgroundThicknessMm : undefined,
           pocketFloorMaterialThicknessMm: includePocketFloors
             ? pocketFloorThicknessMm
             : undefined,
@@ -1032,9 +1049,9 @@ function BinDesignerWorkspace(): JSX.Element {
           material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
         }));
         if (multicolor) {
-          if (!result.materialMeshes && (includePocketFloors || includeStackingRim)) {
+          if (!result.materialMeshes && (includePocketFloors || includeStackingRim || includeLabelBackground)) {
             throw new Error(
-              "This bin has no printable floor, rim, or border color volume.",
+              "This bin has no printable label background, floor, rim, or border color volume.",
             );
           }
           const objects: ThreeMfObject[] = [
@@ -1069,6 +1086,13 @@ function BinDesignerWorkspace(): JSX.Element {
               },
             });
           }
+          if (includeLabelBackground && result.materialMeshes?.labelBackground) {
+            objects.push({
+              name: `Gridfinity bin ${label} label backgrounds`,
+              mesh: result.materialMeshes.labelBackground,
+              material: { name: "Label background", displayColor: labelBackgroundColor as `#${string}` },
+            });
+          }
           // A wide, deep border can color all of a small bin. Keep its chosen
           // color and omit the now-empty body rather than exporting an empty mesh.
           const printableObjects = objects.concat(textObjects).filter(object => object.mesh.indices.length > 0);
@@ -1082,6 +1106,9 @@ function BinDesignerWorkspace(): JSX.Element {
             {
               title: `Pocketry multi-color Gridfinity bin ${label}`,
               assemble: true,
+              combineObjects: slicerCompatible,
+              prusaPaint: slicerCompatible,
+              prusaColorPreview,
             },
           );
           downloadModelWithProject(
@@ -1120,7 +1147,7 @@ function BinDesignerWorkspace(): JSX.Element {
         }
         toast({
           title: "Saved",
-          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${prusaColorPreview ? "a Prusa color preview 3MF" : slicerCompatible ? "a Bambu multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -1147,6 +1174,8 @@ function BinDesignerWorkspace(): JSX.Element {
       stackingRimColor,
       edgeBandColor,
       stackingRimThicknessMm,
+      labelBackgroundColor,
+      labelBackgroundThicknessMm,
       borderWidthMm,
       toast,
     ],
@@ -1268,12 +1297,15 @@ function BinDesignerWorkspace(): JSX.Element {
         onExport={() => { setSettingsSectionRequest({ id: "bin-settings-export" }); setPanelOpen(true); }} />} />}
       panel={
         <BinControlsPanel
+          constructionGroups={constructionGroups}
+          onConstructionGroupChange={(group, open) => setConstructionGroups(current => ({ ...current, [group]: open }))}
           ultim8Entry={ultim8Entry}
           onUltim8EntryComplete={() => navigate("/bin", { replace: true })}
           exportOnly={isMobile && settingsSectionRequest?.id === "bin-settings-export"}
           onShowFitCheck={() => { setSettingsSectionRequest({ id: "bin-settings-fit" }); setPanelOpen(true); }}
           issues={issues}
           settingsSectionRequest={settingsSectionRequest}
+          onNavigateSettings={request => { setSettingsSectionRequest(request); setPanelOpen(true); }}
           onRevealIssue={revealIssue}
           pocketEditorRequest={pocketEditorRequest}
           saveStatus={saveStatus}
@@ -1318,6 +1350,10 @@ function BinDesignerWorkspace(): JSX.Element {
           onColorPocketFloorsChange={colorPocketFloors => patchMaterials({ colorPocketFloors })}
           binColor={binColor}
           onBinColorChange={binColor => patchMaterials({ binColor })}
+          labelBackgroundColor={labelBackgroundColor}
+          onLabelBackgroundColorChange={labelBackgroundColor => patchMaterials({ labelBackgroundColor })}
+          labelBackgroundThicknessMm={labelBackgroundThicknessMm}
+          onLabelBackgroundThicknessChange={labelBackgroundThicknessMm => patchMaterials({ labelBackgroundThicknessMm })}
           pocketFloorColor={pocketFloorColor}
           onPocketFloorColorChange={pocketFloorColor => patchMaterials({ pocketFloorColor })}
           pocketFloorThicknessMm={pocketFloorThicknessMm}
@@ -1379,6 +1415,8 @@ function BinDesignerWorkspace(): JSX.Element {
               }}
               pocketFloorGeometry={pocketFloorGeometry}
               stackingRimGeometry={stackingRimGeometry}
+              labelBackgroundGeometry={labelBackgroundGeometry}
+              labelBackgroundColor={labelBackgroundColor ?? binColor}
               textGeometries={textGeometries}
               selectedSurfaceTextId={bin.selectedSurfaceTextId}
               onSelectSurfaceText={editSurfaceText}
@@ -1412,7 +1450,8 @@ function BinDesignerWorkspace(): JSX.Element {
               measurementPlaneZMm={builtDimensions.heightToRimMm}
             />
           ) : (
-            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+            <LayoutCanvas onEditPocket={editSelectedPocket} onSelectSurfaceText={editSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest}
+              invalidSurfaceTextIds={invalidSurfaceTextIds} />
           )}
           <ViewToggle
             viewMode={viewMode}

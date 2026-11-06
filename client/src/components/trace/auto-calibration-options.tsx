@@ -2,6 +2,7 @@ import type { Calibration } from "@shared/geometry/scale";
 import { ScanLine, Sparkles } from "lucide-react";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Button } from "@/components/ui/button";
+import { DisclosureSummary } from "@/components/ui/disclosure-summary";
 import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { templateDisplayName, type TemplateVariant } from "@/lib/calibrate/template";
@@ -56,7 +57,7 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
       <Button variant="outline" size="sm" className={actionClass} disabled={processing}
         data-testid="button-set-scale" onClick={onSetManually}>Set manually instead</Button>
       <details data-testid="advanced-calibration-options" className="text-xs">
-        <summary className="min-h-9 cursor-pointer list-item rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11">Advanced</summary>
+        <DisclosureSummary>Advanced</DisclosureSummary>
         <div className="space-y-2 pt-2">
           {paper && <>
             {!pendingAidRequiresPerspective && <Button variant="outline" size="sm" className={actionClass} disabled={processing}

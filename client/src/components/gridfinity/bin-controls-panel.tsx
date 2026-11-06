@@ -1,9 +1,10 @@
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
-import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
+import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
 import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
 import { effectiveBottomFilletRadiusMm } from "@shared/gridfinity/bottom-fillet";
-import { FeatureSettings } from "./feature-settings";
+import { SettingsGroup } from "@/components/layout/settings-group";
+import { LabelTabSizeControls } from "./label-tab-size-controls";
 import { PocketColorControls } from "./pocket-color-controls";
 import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { useBinObjectContextMenu } from "./object-context-menu";
@@ -24,6 +25,7 @@ import { createPortal } from "react-dom";
 import { ZodError } from "zod";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import {
@@ -193,7 +195,13 @@ const maxGridUi = (pitch: GridPitch): number =>
 const formatUnitCount = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
 
+export type ConstructionGroupId = "walls" | "compartments" | "floor" | "base" | "labels";
+export type ConstructionDisclosureState = Partial<Record<ConstructionGroupId, boolean>>;
+
 export interface BinControlsPanelProps {
+  /** Session UI state survives both inspector navigation and responsive remounts. */
+  constructionGroups: ConstructionDisclosureState;
+  onConstructionGroupChange: (group: ConstructionGroupId, open: boolean) => void;
   /** Entry intent is transient; the project spec remains the profile source. */
   ultim8Entry?: boolean;
   onUltim8EntryComplete?: () => void;
@@ -201,6 +209,8 @@ export interface BinControlsPanelProps {
   onRevealIssue: (issue: ValidationIssue) => void;
   /** A fresh request reveals settings after the controls drawer mounts. */
   settingsSectionRequest?: { id: string; focusId?: string };
+  /** Contextual links use the same cancellable navigation as warning actions. */
+  onNavigateSettings: (request: { id: string; focusId?: string }) => void;
   exportOnly?: boolean;
   /** Opens Check fit and leaves the compact mobile Export view. */
   onShowFitCheck: () => void;
@@ -216,7 +226,7 @@ export interface BinControlsPanelProps {
   building: boolean;
   previewIsDraft?: boolean;
   exporting: boolean;
-  onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
+  onExport: (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
@@ -242,6 +252,10 @@ export interface BinControlsPanelProps {
   onSectionChange: (section: BuildBinSection | null) => void;
   colorPocketFloors: boolean;
   onColorPocketFloorsChange: (enabled: boolean) => void;
+  labelBackgroundColor: string | null;
+  onLabelBackgroundColorChange: (color: string | null) => void;
+  labelBackgroundThicknessMm: number;
+  onLabelBackgroundThicknessChange: (thicknessMm: number) => void;
   binColor: string;
   onBinColorChange: (color: string) => void;
   pocketFloorColor: string;
@@ -267,11 +281,14 @@ export interface BinControlsPanelProps {
  * hook.
  */
 export function BinControlsPanel({
+  constructionGroups,
+  onConstructionGroupChange,
   ultim8Entry = false,
   onUltim8EntryComplete,
   issues,
   onRevealIssue,
   settingsSectionRequest,
+  onNavigateSettings,
   exportOnly = false,
   onShowFitCheck,
   stats,
@@ -323,6 +340,10 @@ export function BinControlsPanel({
   onStackingRimThicknessChange,
   borderWidthMm,
   onBorderWidthChange,
+  labelBackgroundColor,
+  onLabelBackgroundColorChange,
+  labelBackgroundThicknessMm,
+  onLabelBackgroundThicknessChange,
   pocketEditorRequest = 0,
   keepBinSize = false,
   onKeepBinSizeChange,
@@ -360,6 +381,11 @@ export function BinControlsPanel({
     dispatch,
   } = bin;
   const isJig = !!spec.pegBottom;
+  const constructionGroup = (key: ConstructionGroupId) => ({
+    open: constructionGroups[key] ?? (isJig ? key === "base" : key === "walls"),
+    onOpenChange: (open: boolean) => onConstructionGroupChange(key, open),
+    testId: `construction-${key}`,
+  });
   const internalCompartmentsOn = compartmentsEnabled(spec);
   const compartmentError = compartmentLayoutError(spec);
   const automaticLabelWall = defaultLabelTabWall(spec);
@@ -415,35 +441,34 @@ export function BinControlsPanel({
   useEffect(() => {
     if (!settingsSectionRequest) return;
     stopPocketInspection();
-    const { id, focusId } = settingsSectionRequest;
+    const { id, focusId: requestedFocusId } = settingsSectionRequest;
+    const focusId = requestedFocusId?.startsWith("bin-label-tab") && isJig ? "select-bin-bottom" : requestedFocusId;
     if (id === "bin-settings-text" && selectedSurfaceTextId && !focusId) inspector?.setTool("properties");
     else inspector?.showSection(id);
-    if (!inspector) revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
-    if (!inspector && !focusId) return;
+    if (!inspector) return revealPanelSection(id, BIN_SETTINGS_SECTIONS, focusId);
     // Wait for the section and mobile drawer to mount before moving keyboard focus.
     let frame = 0;
+    let cancelReveal = () => {};
+    const cancel = () => {
+      window.cancelAnimationFrame(frame);
+      cancelReveal();
+      document.removeEventListener("pointerdown", cancel, true);
+      document.removeEventListener("keydown", cancel, true);
+    };
+    // A subsequent explicit action takes precedence over queued navigation.
+    document.addEventListener("pointerdown", cancel, true);
+    document.addEventListener("keydown", cancel, true);
     frame = window.requestAnimationFrame(() => {
       frame = window.requestAnimationFrame(() => {
-        if (inspector) revealPanelSection(id, id === "bin-settings-text" ? [{ id }] : BIN_SETTINGS_SECTIONS, focusId);
-        if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+        cancelReveal = revealPanelSection(id, id === "bin-settings-text" ? [{ id }] : BIN_SETTINGS_SECTIONS, focusId);
       });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return cancel;
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
+  // Fit tests and alignment SVGs contain no lettering, so misplaced labels do not block them.
+  const hasNonTextErrors = issues.some((issue) => issue.severity === "error" && !issue.surfaceTextIds?.length);
   const showNoCutoutsWarning = spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0;
-  const enabledFeatureCount = [
-    spec.lip === "standard",
-    spec.fill === "solid",
-    hasSmoothBase(spec),
-    !hasSmoothBase(spec) && spec.magnetHoles,
-    !hasSmoothBase(spec) && spec.screwHoles,
-    spec.labelTab !== null,
-    spec.wallSlant !== null,
-    spec.fill === "none" && internalCompartmentsOn,
-    spec.fill === "none" && spec.compartments.scoop,
-    spec.fill === "none" && spec.bottomFilletRadiusMm > 0,
-  ].filter(Boolean).length;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
@@ -468,22 +493,24 @@ export function BinControlsPanel({
   const hasSelectedFloorColor = colorPocketFloors && (spec.fill === "none" || hasColorablePocket);
   const floorColorLabel = spec.fill === "none" ? "Bin floor" : cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
   const hasSelectedRimColor = colorStackingRim;
+  const hasSelectedLabelColor = !!spec.labelTab && labelBackgroundColor !== null;
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const rimColorLabel = spec.lip === "standard" ? "Stacking rim top" : "Top border";
   const materialColors = [
     { id: "input-bin-color", label: isJig ? "Fixture body" : "Bin body", color: binColor },
     { id: "input-pocket-floor-color", label: floorColorLabel, color: pocketFloorColor },
     { id: "input-stacking-rim-color", label: rimColorLabel, color: stackingRimColor },
+    { id: "input-label-background-color", label: "Label background", color: labelBackgroundColor ?? binColor },
     { id: "input-text-color", label: "Text", color: spec.textColor ?? edgeBandColor },
   ];
   const hasMaterialEdits = Object.entries({
     binColor, pocketFloorColor, stackingRimColor, colorPocketFloors, colorStackingRim, colorDividerTops,
-    pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm,
+    pocketFloorThicknessMm, stackingRimThicknessMm, borderWidthMm, labelBackgroundColor, labelBackgroundThicknessMm,
   }).some(([key, value]) => value !== DEFAULT_BIN_MATERIALS[key as keyof typeof DEFAULT_BIN_MATERIALS]);
   const hasSelectedMulticolor =
-    hasSelectedFloorColor || hasSelectedRimColor || spec.surfaceTexts.length > 0;
+    hasSelectedFloorColor || hasSelectedRimColor || hasSelectedLabelColor || spec.surfaceTexts.length > 0;
   const activeColorCount =
-    new Set([binColor, ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
+    new Set([binColor, ...(hasSelectedLabelColor ? [labelBackgroundColor!] : []), ...(hasSelectedFloorColor ? [pocketFloorColor] : []),
       ...(hasSelectedRimColor ? [stackingRimColor] : []), ...(spec.surfaceTexts.length ? [spec.textColor ?? edgeBandColor] : [])]
       .map(color => color.toLowerCase())).size;
 
@@ -692,7 +719,7 @@ export function BinControlsPanel({
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
+                  disabled={exporting || hasNonTextErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
                   onClick={() =>
                     setPendingExport({
                       title: "Save surface fit test STL?",
@@ -1712,10 +1739,71 @@ export function BinControlsPanel({
           title="Construction"
           icon={Magnet}
           tone="rose"
-          summary={spec.pegBottom ? "Locating pegs" : spec.flatBottom ? "Flat bottom" : `${enabledFeatureCount} on`}
+          summary={spec.pegBottom ? "Locating pegs" : spec.fill === "solid" ? "Solid interior" : "Hollow interior"}
           defaultOpen={false}
           className="scroll-mt-16"
         >
+          <section aria-label="Interior" className="space-y-3 pb-1">
+            <h3 className="text-sm font-semibold">Interior</h3>
+            <RadioGroup aria-label="Interior" value={spec.fill} className="grid grid-cols-2 gap-2"
+              onValueChange={fill => patchSpec({ fill: fill === "solid" ? "solid" : "none" })}>
+              <Label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border bg-background p-2 text-xs leading-snug has-[[data-state=checked]]:border-primary" htmlFor="bin-hollow-fill">
+                <RadioGroupItem id="bin-hollow-fill" value="none" />Hollow
+              </Label>
+              <Label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border bg-background p-2 text-xs leading-snug has-[[data-state=checked]]:border-primary" htmlFor="bin-solid-fill">
+                <RadioGroupItem id="bin-solid-fill" value="solid" />Solid for pockets
+              </Label>
+            </RadioGroup>
+            <p className="text-xs text-muted-foreground">{spec.fill === "solid" ? "Solid material supports pockets and cutouts." : "An open interior with optional dividers and scoops."}</p>
+          {spec.fill === "solid" && (
+            <div className="space-y-2">
+              <FillHeightControl
+                value={spec.fillHeightPercent}
+                onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
+              />
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="adjust-fixed-pocket-depths"
+                  checked={adjustFixedPocketDepths}
+                  onCheckedChange={(checked) => dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: checked === true })}
+                  aria-describedby="adjust-fixed-pocket-depths-help"
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="adjust-fixed-pocket-depths" className="text-xs">Adjust fixed pocket depths</Label>
+                  <p id="adjust-fixed-pocket-depths-help" className="text-[11px] text-muted-foreground">
+                    Keep pocket floors in place. Uncheck to restore original depths.
+                  </p>
+                </div>
+              </div>
+              {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
+            </div>
+          )}
+          </section>
+          {spec.fill === "none" && compartmentError && <p role="alert" className="text-xs text-destructive">{compartmentError}</p>}
+          <SettingsGroup title="Walls & rim" {...constructionGroup("walls")}
+            summary={spec.wallSlant ? `${spec.wallSlant.angleDeg}° slant · ${spec.lip === "standard" ? "Stacking lip on" : "Flush rim"}` : spec.fill === "none" ? `${spec.wallThicknessMm === null ? "Automatic" : "Custom"} walls · ${binWallThicknessMm(spec)} mm` : spec.lip === "standard" ? "Stacking lip on" : "Flush rim"}>
+            {isJig && <p className="text-xs text-muted-foreground">Fixture backing uses the current interior and rim settings. Choose a flat bottom or Gridfinity feet in Base &amp; mounting to edit the stacking lip.</p>}
+          {spec.fill === "none" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <SettingLabel label="Wall thickness" htmlFor="bin-wall-thickness"
+                  hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Editing the thickness keeps your value fixed when height changes. Use recommended restores automatic thickness. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`} />
+                <div className="flex items-center gap-1">
+                  <DraftNumberInput id="bin-wall-thickness" className="h-8 w-20" aria-label="Wall thickness in millimetres"
+                    value={binWallThicknessMm(spec)} displayPrecision={2} min={D_WALL} max={MAX_HOLLOW_WALL_THICKNESS_MM} step={0.05}
+                    onValueChange={wallThicknessMm => patchSpec({ wallThicknessMm }, true)}
+                    onValueCommit={wallThicknessMm => patchSpec({ wallThicknessMm })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
+                  ? "Recommended · follows bin height"
+                  : `Custom · recommended: ${defaultBinWallThicknessMm(spec.heightUnits)} mm`}</p>
+                {spec.wallThicknessMm !== null && <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use recommended</Button>}
+              </div>
+            </div>
+          )}
           {!isJig && <FeatureSwitch
             label="Stacking lip"
             description={spec.wallSlant ? "Slanted bins use a flush rim in this prototype" : hasSmoothBase(spec) ? "Receives a Gridfinity bin on top" : "Lets another bin stack on top"}
@@ -1723,17 +1811,16 @@ export function BinControlsPanel({
             disabled={spec.wallSlant !== null || spec.heightUnits < 1}
             onChange={(on) => patchSpec({ lip: on ? "standard" : "none" })}
           />}
-          {experimentalEnabled && <FeatureSettings
+            {!isJig && (spec.wallSlant !== null || spec.heightUnits < 1) && <p className="text-xs text-muted-foreground">{spec.wallSlant ? "Slanted walls require a flush rim." : "Stacking lips require a height of at least 1u."}</p>}
+          {experimentalEnabled && <div className="space-y-3"><FeatureSwitch
             label="Slanted walls (prototype)"
             description="Tilt either opposing wall or both along X or Y, with a flat base"
             checked={spec.wallSlant !== null}
             onChange={(on) => patchSpec(on
               ? { wallSlant: { axis: "y", angleDeg: 20 }, lip: "none" }
               : { wallSlant: null })}
-            settingsLabel="Slanted wall settings" testId="wall-slant-settings"
-            summary={spec.wallSlant ? `${spec.wallSlant.angleDeg}° ${spec.wallSlant.axis.toUpperCase()}` : ""}
-          >
-            {spec.wallSlant && <div className="space-y-2">
+          />
+            {spec.wallSlant && <div className="space-y-2" data-testid="wall-slant-settings">
               <div className="flex items-center gap-2">
                 <SettingLabel label="Slant axis" hint="Choose the opposing pair of walls. Tilt moves along this axis; the base stays fixed." />
                 <Select value={spec.wallSlant.axis} onValueChange={(axis) => patchSpec({ wallSlant: { ...spec.wallSlant!, axis: axis === "x" ? "x" : "y" } })}>
@@ -1761,40 +1848,21 @@ export function BinControlsPanel({
               </div>
               {matchedPocketSlant && <Button size="sm" variant="outline" className="w-full" onClick={() => patchSpec({ wallSlant: { ...spec.wallSlant, ...matchedPocketSlant }, lip: "none" })}>Match selected pocket angle</Button>}
             </div>}
-          </FeatureSettings>}
-          <FeatureSwitch
-            label="Solid fill"
-            id="bin-solid-fill"
-            description="Material for pockets — required for cutouts"
-            checked={spec.fill === "solid"}
-            onChange={(on) => patchSpec({ fill: on ? "solid" : "none" })}
-          />
-          {spec.fill === "none" && <>
-            <div className="space-y-1.5" data-testid="bottom-fillet-controls">
-              <div className="flex items-center justify-between gap-2">
-                <SettingLabel label="Bottom edge fillet" htmlFor="bin-bottom-fillet"
-                  hint="Round the interior floor into walls and dividers. Zero leaves sharp edges. Scoops keep the larger curve at their edge. Slanted walls deform the upright radius with the rest of the bin. The radius is limited to fit; your entered value is retained when resizing or enabling Solid fill." />
-                <div className="flex items-center gap-1">
-                  <DraftNumberInput id="bin-bottom-fillet" className="h-8 w-20" aria-label="Bottom edge fillet in millimetres"
-                    value={spec.bottomFilletRadiusMm} min={0} max={50} step={0.5} displayPrecision={2}
-                    onValueChange={bottomFilletRadiusMm => patchSpec({ bottomFilletRadiusMm }, true)}
-                    onValueCommit={bottomFilletRadiusMm => patchSpec({ bottomFilletRadiusMm })} />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-              </div>
-              {effectiveBottomFilletRadiusMm(spec) < spec.bottomFilletRadiusMm &&
-                <p className="text-[11px] text-muted-foreground" role="status">Limited to {Number(effectiveBottomFilletRadiusMm(spec).toFixed(2))} mm to fit this bin.</p>}
-            </div>
+          </div>}
+            {!experimentalEnabled && spec.wallSlant && <p className="text-xs text-muted-foreground">Saved slant: {spec.wallSlant.angleDeg}°. Enable experimental tools in App settings to edit it.</p>}
+          </SettingsGroup>
+          <SettingsGroup title="Compartments" {...constructionGroup("compartments")}
+            summary={spec.fill !== "none" ? "Available with Hollow interior" : compartmentError ? "Check compartment size" : internalCompartmentsOn ? `${spec.compartments.rows} × ${spec.compartments.columns} grid` : "Off"}>
+            {spec.fill === "none" ? <>
             <div className="space-y-2" data-testid="internal-compartment-controls">
-              <FeatureSettings label="Internal compartments"
+              <FeatureSwitch label="Internal compartments"
                 description="Rows run along the length (Y), columns along the width (X). Dividers follow the wall slant. Custom footprints clip the grid. Turning this off keeps your settings."
                 checked={internalCompartmentsOn}
                 onChange={enabled => patchSpec({ compartments: { ...spec.compartments, enabled,
                   ...(enabled && spec.compartments.rows === 1 && spec.compartments.columns === 1 ? { rows: 2 } : {}),
                 } })}
-                settingsLabel="Compartment settings" testId="compartment-settings"
-                summary={`${spec.compartments.rows} × ${spec.compartments.columns}`}>
-                <div className="space-y-2">
+                />
+                {internalCompartmentsOn && <div className="space-y-2" data-testid="compartment-settings">
                   <div className="grid grid-cols-2 gap-3">
                     {(["rows", "columns"] as const).map(axis => <div key={axis} className="flex items-center justify-between gap-2">
                       <Label className="text-xs" htmlFor={`compartment-${axis}`}>{axis === "rows" ? "Rows" : "Columns"}</Label>
@@ -1814,97 +1882,42 @@ export function BinControlsPanel({
                       <span className="text-xs text-muted-foreground">mm</span>
                     </div>
                   </div>
+                  {(spec.compartments.rows > 1 || spec.compartments.columns > 1) && <Button
+                    variant="link" size="sm" className="h-auto min-h-11 px-0 text-xs" data-testid="button-divider-colors"
+                    onClick={() => onNavigateSettings({ id: "bin-settings-materials", focusId: colorStackingRim ? "color-divider-tops" : "divider-top-colors" })}>
+                    Divider colors…
+                  </Button>}
+                </div>}
+            </div>
+            </> : <p className="text-xs text-muted-foreground">Choose Hollow interior to use dividers. Your compartment settings are retained.</p>}
+          </SettingsGroup>
+          <SettingsGroup title="Floor & scoops" {...constructionGroup("floor")}
+            summary={spec.fill !== "none" ? "Available with Hollow interior" : `${Number(effectiveBottomFilletRadiusMm(spec).toFixed(2))} mm rounding · Scoops ${spec.compartments.scoop ? "on" : "off"}`}>
+            {spec.fill === "none" ? <>
+            <div className="space-y-1.5" data-testid="bottom-fillet-controls">
+              <div className="flex items-center justify-between gap-2">
+                <SettingLabel label="Bottom edge fillet" htmlFor="bin-bottom-fillet"
+                  hint="Round the interior floor into walls and dividers. Zero leaves sharp edges. Scoops keep the larger curve at their edge. Slanted walls deform the upright radius with the rest of the bin. The radius is limited to fit; your entered value is retained when resizing or enabling Solid fill." />
+                <div className="flex items-center gap-1">
+                  <DraftNumberInput id="bin-bottom-fillet" className="h-8 w-20" aria-label="Bottom edge fillet in millimetres"
+                    value={spec.bottomFilletRadiusMm} min={0} max={50} step={0.5} displayPrecision={2}
+                    onValueChange={bottomFilletRadiusMm => patchSpec({ bottomFilletRadiusMm }, true)}
+                    onValueCommit={bottomFilletRadiusMm => patchSpec({ bottomFilletRadiusMm })} />
+                  <span className="text-xs text-muted-foreground">mm</span>
                 </div>
-              </FeatureSettings>
+              </div>
+              {effectiveBottomFilletRadiusMm(spec) < spec.bottomFilletRadiusMm &&
+                <p className="text-[11px] text-muted-foreground" role="status">Limited to {Number(effectiveBottomFilletRadiusMm(spec).toFixed(2))} mm to fit this bin.</p>}
             </div>
             <FeatureSwitch label="Scoop bottoms"
               description={`Curve the floor into the ${compartmentLayout(spec).scoopWall} wall for easier pickup. Slanted scoops face the obtuse angle. Works with or without internal compartments.`}
               checked={spec.compartments.scoop}
               onChange={scoop => patchSpec({ compartments: { ...spec.compartments, scoop } })} />
-            {compartmentError && <div role="alert" className="flex items-center gap-1 text-xs text-destructive">
-              Check compartment size <HelpHint label="compartment size">{compartmentError}</HelpHint>
-            </div>}
-          </>}
-          {spec.fill === "none" && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <SettingLabel label="Wall thickness" htmlFor="bin-wall-thickness"
-                  hint={`Recommended for this height: ${defaultBinWallThicknessMm(spec.heightUnits)} mm. Below 8U: 0.95 mm; 8U to below 16U: 1.2 mm; 16U and above: 1.6 mm. Editing the thickness keeps your value fixed when height changes. Use recommended restores automatic thickness. Thicker walls grow inward, reducing storage space. Outside dimensions and stacking fit stay the same. Applies to hollow walls below the stacking lip; retained when solid fill is on.`} />
-                <div className="flex items-center gap-1">
-                  <DraftNumberInput id="bin-wall-thickness" className="h-8 w-20" aria-label="Wall thickness in millimetres"
-                    value={binWallThicknessMm(spec)} displayPrecision={2} min={D_WALL} max={MAX_HOLLOW_WALL_THICKNESS_MM} step={0.05}
-                    onValueChange={wallThicknessMm => patchSpec({ wallThicknessMm }, true)}
-                    onValueCommit={wallThicknessMm => patchSpec({ wallThicknessMm })} />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] text-muted-foreground">{spec.wallThicknessMm === null
-                  ? "Recommended · follows bin height"
-                  : `Custom · recommended: ${defaultBinWallThicknessMm(spec.heightUnits)} mm`}</p>
-                {spec.wallThicknessMm !== null && <Button size="sm" variant="ghost" onClick={() => patchSpec({ wallThicknessMm: null })}>Use recommended</Button>}
-              </div>
-            </div>
-          )}
-          {spec.fill === "solid" && (
-            <div className="space-y-2">
-              <FillHeightControl
-                value={spec.fillHeightPercent}
-                onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
-              />
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="adjust-fixed-pocket-depths"
-                  checked={adjustFixedPocketDepths}
-                  onCheckedChange={(checked) => dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: checked === true })}
-                  aria-describedby="adjust-fixed-pocket-depths-help"
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="adjust-fixed-pocket-depths" className="text-xs">Adjust fixed pocket depths</Label>
-                  <p id="adjust-fixed-pocket-depths-help" className="text-[11px] text-muted-foreground">
-                    Keep pocket floors in place. Uncheck to restore original depths.
-                  </p>
-                </div>
-              </div>
-              {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
-            </div>
-          )}
-          {!hasSmoothBase(spec) && (
-            <>
-              <FeatureSwitch
-                label="Magnet holes"
-                description={
-                  spec.gridPitch === "full"
-                    ? "⌀6.5 × 2.4 mm, four per cell"
-                    : "Available on the full 42 mm pitch"
-                }
-                checked={spec.magnetHoles}
-                disabled={spec.gridPitch !== "full"}
-                onChange={(magnetHoles) => patchSpec({ magnetHoles })}
-              />
-              {spec.magnetHoles && (
-                <FeatureSwitch
-                  label="Crush ribs"
-                  description="Press-fit magnets, no glue"
-                  checked={spec.magnetCrushRibs}
-                  onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
-                />
-              )}
-              <FeatureSwitch
-                label="Screw holes"
-                description={
-                  spec.gridPitch === "full"
-                    ? "⌀3 mm M3, through the base"
-                    : "Available on the full 42 mm pitch"
-                }
-                checked={spec.screwHoles}
-                disabled={spec.gridPitch !== "full"}
-                onChange={(screwHoles) => patchSpec({ screwHoles })}
-              />
-            </>
-          )}
-
-          <div className="space-y-2 border-t pt-3">
+            </> : <p className="text-xs text-muted-foreground">Choose Hollow interior to use floor rounding and scoops. Your settings are retained.</p>}
+          </SettingsGroup>
+          <SettingsGroup title="Base & mounting" {...constructionGroup("base")}
+            summary={spec.pegBottom ? "ULTIM8-compatible pegs" : spec.autoFlatBottom ? "Flat bottom · Automatic" : spec.flatBottom ? "Flat bottom" : "Gridfinity feet"}>
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <SettingLabel label="Bottom" htmlFor="select-bin-bottom" hint={<><p>{isJig ? "Tune locating pegs below, or change Bottom to return to regular bin controls." : experimentalEnabled ? "Choose Gridfinity feet, a flat underside, or Wham Bam Systems ULTIM8-compatible locating pegs." : "Choose Gridfinity feet or a flat underside."}</p>{spec.pegBottom && <p className="mt-2">Wham Bam Systems ULTIM8-compatible pegs for the eufyMake E1 mat. The underside adds {pegBottomExtensionMm(spec).toFixed(1)} mm below the fixture.</p>}</>} />
               <Select value={spec.pegBottom ? "ultim8" : spec.autoFlatBottom ? "automatic-flat" : spec.flatBottom ? "flat" : "gridfinity"}
@@ -1961,32 +1974,88 @@ export function BinControlsPanel({
             </PropertySurface>}
           </div>
 
-          {!isJig && <FeatureSettings label="Label tab"
+          {!hasSmoothBase(spec) && (
+            <>
+              <FeatureSwitch
+                label="Magnet holes"
+                description={
+                  spec.gridPitch === "full"
+                    ? "⌀6.5 × 2.4 mm, four per cell"
+                    : "Available on the full 42 mm pitch"
+                }
+                checked={spec.magnetHoles}
+                disabled={spec.gridPitch !== "full"}
+                onChange={(magnetHoles) => patchSpec({ magnetHoles })}
+              />
+              {spec.magnetHoles && (
+                <FeatureSwitch
+                  label="Crush ribs"
+                  description="Press-fit magnets, no glue"
+                  checked={spec.magnetCrushRibs}
+                  onChange={(magnetCrushRibs) => patchSpec({ magnetCrushRibs })}
+                />
+              )}
+              <FeatureSwitch
+                label="Screw holes"
+                description={
+                  spec.gridPitch === "full"
+                    ? "⌀3 mm M3, through the base"
+                    : "Available on the full 42 mm pitch"
+                }
+                checked={spec.screwHoles}
+                disabled={spec.gridPitch !== "full"}
+                onChange={(screwHoles) => patchSpec({ screwHoles })}
+              />
+            </>
+          )}
+
+            {hasSmoothBase(spec) && <p className="text-xs text-muted-foreground">Magnet and screw holes apply to Gridfinity feet. Your hole settings are retained.</p>}
+            {!hasSmoothBase(spec) && spec.gridPitch !== "full" && <p className="text-xs text-muted-foreground">Magnet and screw holes require the full 42 mm grid pitch.</p>}
+            {isJig && spec.labelTab && <p className="text-xs text-muted-foreground">Saved label tab settings are unavailable with locating pegs. Choose a flat bottom or Gridfinity feet above to edit them.</p>}
+          </SettingsGroup>
+          {!isJig && <SettingsGroup title="Label tabs" {...constructionGroup("labels")}
+            summary={issues.some(issue => issue.code.startsWith("label-tab-")) ? "Check label tab" : spec.labelTab ? `${({ full: "Full width", center: "Center", left: "Left", right: "Right" } as const)[spec.labelTab.width]} · ${spec.labelTab.autoWall ? "Auto" : labelWallNames[spec.labelTab.wall]}` : "Off"}>
+          <FeatureSwitch label="Label tab"
             description="A sloped shelf under the rim for labelling the bin. Automatic placement follows the acute-angle side of slanted walls, opposite the scoops."
             checked={spec.labelTab !== null}
             onChange={enabled => {
-              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, width: "full" } : null });
+              patchSpec({ labelTab: enabled ? { wall: automaticLabelWall, autoWall: true, scope: "compartments", width: "full", recessMm: DEFAULT_LABEL_TAB_RECESS_MM, frontRim: true } : null });
               if (!enabled && editorMode === "label-edge") dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
             }}
-            settingsLabel="Label tab settings" testId="label-tab-settings"
-            summary={spec.labelTab ? { full: "Full", center: "Center", left: "Left", right: "Right" }[spec.labelTab.width] : ""}>
+            />
             {spec.labelTab && (
-              <div className="space-y-2">
+              <div className="space-y-2" data-testid="label-tab-settings">
+                <FeatureSwitch label="Front rim"
+                  description="Raise the shelf's free edge to the wall or divider top, using the bin's wall thickness. Follows Recess; 0 mm leaves the shelf flat."
+                  checked={spec.labelTab.frontRim ?? false}
+                  onChange={frontRim => patchSpec({ labelTab: { ...spec.labelTab!, frontRim } })} />
+                <div className="flex items-center justify-between gap-3">
+                  <SettingLabel label="Recess" htmlFor="bin-label-tab-recess" hint="Lower the shelf below its wall or divider top. New tabs and raised lettering both default to 0.5 mm, so the lettering finishes flush with the wall. Use 0 for a flush shelf." />
+                  <div className="flex items-center gap-1.5">
+                    <DraftNumberInput id="bin-label-tab-recess" className="h-8 w-20" aria-label="Label tab recess in millimetres"
+                      value={labelTabRecessMm(spec)} min={0} max={10} step={0.1}
+                      onValueChange={recessMm => patchSpec({ labelTab: { ...spec.labelTab!, recessMm } }, true)}
+                      onValueCommit={recessMm => patchSpec({ labelTab: { ...spec.labelTab!, recessMm } })} />
+                    <span className="text-xs text-muted-foreground">mm</span>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2">
-                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
+                  <Label className="shrink-0 whitespace-nowrap text-xs" htmlFor="bin-label-tab">Style</Label>
                   <Select value={spec.labelTab.width}
                     onValueChange={width => patchSpec({ labelTab: { ...spec.labelTab!, width: width as "full" | "center" | "left" | "right" } })}>
                     <SelectTrigger id="bin-label-tab" aria-label="Label tab style" className="h-8 flex-1" data-testid="select-label-tab"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="full">Full width</SelectItem>
-                      <SelectItem value="center">Center · 42 mm</SelectItem>
-                      <SelectItem value="left">Left · 42 mm</SelectItem>
-                      <SelectItem value="right">Right · 42 mm</SelectItem>
+                      <SelectItem value="center">Center · {labelTabWidthMm(spec)} mm</SelectItem>
+                      <SelectItem value="left">Left · {labelTabWidthMm(spec)} mm</SelectItem>
+                      <SelectItem value="right">Right · {labelTabWidthMm(spec)} mm</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <LabelTabSizeControls spec={spec} onChange={(patch, transient) =>
+                  patchSpec({ labelTab: { ...spec.labelTab!, ...patch } }, transient)} />
                 <div className="flex items-center gap-2">
-                  <SettingLabel label="Apply to" className="w-28 shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
+                  <SettingLabel label="Apply to" className="shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
                   <Select value={spec.labelTab.scope ?? "outer"} disabled={spec.fill !== "none"}
                     onValueChange={scope => {
                       patchSpec({ labelTab: { ...spec.labelTab!, scope: scope === "compartments" ? "compartments" : "outer" } });
@@ -1998,7 +2067,7 @@ export function BinControlsPanel({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Label className="w-28 shrink-0 whitespace-nowrap text-xs">On wall</Label>
+                  <Label className="shrink-0 whitespace-nowrap text-xs">On wall</Label>
                   <Select
                     value={spec.labelTab.autoWall ? "auto" : spec.labelTab.wall}
                     onValueChange={(wall) =>
@@ -2041,7 +2110,7 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-          </FeatureSettings>}
+          </SettingsGroup>}
         </PanelSection>
 
         {/* Keyed on emptiness: defaultOpen is uncontrolled, and the section
@@ -2097,6 +2166,10 @@ export function BinControlsPanel({
           hint="Add raised text to label tabs or solid fill. Hollow bins require label tabs. Drag text in Layout, clear of openings. Double-click a label to edit its text. You can position text even when the 3D preview cannot build."
           summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={spec.surfaceTexts.length > 0} className="scroll-mt-16">
           <SurfaceTextControls onPositionText={onPositionText} />
+          {/* Misplaced labels are left out of the preview and block export until moved. */}
+          {issues.filter(issue => issue.surfaceTextIds?.length).map(issue =>
+            <p key={`${issue.code}-${issue.surfaceTextIds!.join(",")}-${issue.message}`} role="alert" className="text-xs text-destructive"
+              data-testid="surface-text-issue">{issue.message}</p>)}
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
         </PanelSection>
 
@@ -2123,6 +2196,30 @@ export function BinControlsPanel({
               value={binColor}
               onChange={onBinColorChange}
             />
+          </div>
+          <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-label-background">
+            <div className="flex items-center justify-between gap-3">
+              <SettingLabel label="Label background" htmlFor="input-label-background-color"
+                hint="Colors the flat label-tab faces beneath text and symbols. Raised borders follow the rim setting. By default, label faces match the bin body." />
+              <MaterialColorSwatch id="input-label-background-color" sources={materialColors} label="Label background"
+                value={labelBackgroundColor ?? binColor} disabled={!spec.labelTab} onChange={onLabelBackgroundColorChange} />
+            </div>
+            {!spec.labelTab && <p className="text-xs text-muted-foreground">Add a label tab to color its background. Your color choice is retained.</p>}
+            {labelBackgroundColor !== null && <>
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs"
+                onClick={() => onLabelBackgroundColorChange(null)}>Use bin-body color</Button>
+              <div className="flex items-center justify-between gap-3">
+                <SettingLabel label="Color thickness" htmlFor="input-label-background-thickness"
+                  hint="Replaces material beneath the label face without changing its height or the lettering." />
+                <div className="flex items-center gap-1.5">
+                  <DraftNumberInput id="input-label-background-thickness" className="h-7 w-20 text-right text-xs"
+                    value={labelBackgroundThicknessMm} min={MULTICOLOR_MIN_THICKNESS_MM} max={MULTICOLOR_FLOOR_MAX_THICKNESS_MM}
+                    step={0.2} disabled={!spec.labelTab} onValueChange={onLabelBackgroundThicknessChange}
+                    aria-label="Label background color thickness in millimetres" />
+                  <span className="text-[11px] text-muted-foreground">mm down</span>
+                </div>
+              </div>
+            </>}
           </div>
           <div className="space-y-2 rounded-md border bg-background/60 px-2.5 py-2" data-testid="view-color-row-text">
             <div className="flex items-center justify-between gap-3">
@@ -2194,8 +2291,8 @@ export function BinControlsPanel({
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <SettingLabel label={rimColorLabel} hint={spec.lip === "standard"
-                  ? "Separate material below the original rim surface."
-                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height."} />
+                  ? "Separate material below the original rim surface. Raised label-tab front edges share this color and depth; label faces use their separate background setting."
+                  : "Color a band around the top perimeter without adding a stacking lip or changing the bin's height. Raised label-tab front edges share this color and depth; label faces use their separate background setting."} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <MaterialColorSwatch
@@ -2240,10 +2337,17 @@ export function BinControlsPanel({
               </div>
             </div>
             {spec.fill === "none" && internalCompartmentsOn && (spec.compartments.rows > 1 || spec.compartments.columns > 1) &&
-              <FeatureSwitch label="Include dividers"
-                description="Use the rim color and depth on the tops of internal dividers. Follows slanted walls without changing their dimensions."
-                checked={colorDividerTops} disabled={!colorStackingRim}
-                onChange={onColorDividerTopsChange} />}
+              <div id="divider-top-colors" role="group" aria-label="Divider top colors" tabIndex={-1}
+                aria-describedby={!colorStackingRim ? "divider-top-colors-help" : undefined}
+                className="space-y-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <FeatureSwitch id="color-divider-tops" label="Match divider tops to rim color"
+                  description="Use the rim color and depth on the tops of internal dividers. Follows slanted walls without changing their dimensions."
+                  checked={colorDividerTops} disabled={!colorStackingRim}
+                  onChange={onColorDividerTopsChange} />
+                {!colorStackingRim && <p id="divider-top-colors-help" className="text-xs text-muted-foreground">
+                  Turn on “Color {rimColorLabel.toLowerCase()}” above to use this option. Your divider color choice is retained.
+                </p>}
+              </div>}
             {spec.lip === "none" && <div className="flex items-center justify-between gap-3">
               <SettingLabel label="Color width" htmlFor="input-border-width" hint="Width inward from the outer edge. Colors existing material only; hollow bins are limited to their walls." />
               <div className="flex items-center gap-1.5">
@@ -2385,7 +2489,8 @@ export function BinControlsPanel({
               {issues.filter(issue => issue.severity === "error").map((issue, index) => <li key={`${issue.code}-${index}`}>
                 <button type="button" className="min-h-11 w-full rounded border bg-background px-3 py-2 text-left text-xs leading-relaxed hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-export-issue={issue.code} onClick={() => onRevealIssue(issue)}>
-                  {issue.message}<span className="mt-1 block font-medium underline">Show settings to fix this</span>
+                  {issue.message}<span className="mt-1 block font-medium underline">{issueSettingsTarget(issue.code)?.label
+                    ?? (issue.surfaceTextIds?.length ? "Position text in Layout" : "Show settings to fix this")}</span>
                 </button>
               </li>)}
             </ul>
@@ -2473,7 +2578,7 @@ export function BinControlsPanel({
                     confirmLabel: "Download SVG",
                     onConfirm: (includeProject) => onExportLayout("svg", includeProject),
                   })}
-                  disabled={Boolean(spec.pegBottom) && (exporting || hasErrors)}
+                  disabled={Boolean(spec.pegBottom) && (exporting || hasNonTextErrors)}
                   data-testid="button-layout-svg"
                 >
                   {spec.pegBottom ? "Save alignment SVG" : "Save SVG"}
@@ -2682,9 +2787,14 @@ export function BinControlsPanel({
                 </span>
               </span>
             </Button>
+            <div id="bambu-multicolor-import-warning" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-bambu-color-warning">
+              <p className="font-medium">Bambu Studio 2.9.1.70: separate-part color issue</p>
+              <p className="mt-1">Regular Multi-color 3MF loses colors on separate parts in this version. Use Bambu 3MF below to keep colors in one model. A fix for separate-part imports is in progress. <a href="https://github.com/wcscr/pocketry/issues/211" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Follow the fix</a>.</p>
+            </div>
             <Button
               className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
               disabled={exporting || hasErrors || !hasSelectedMulticolor}
+              aria-describedby="bambu-multicolor-import-warning"
               onClick={() => {
                 setThreeMfDialogOpen(false);
                 onExport("3mf-multicolor", includeThreeMfProject);
@@ -2703,12 +2813,45 @@ export function BinControlsPanel({
                         hasSelectedRimColor
                           ? `${spec.lip === "standard" ? "rim top" : "top border"} (${spec.lip === "none" ? `${borderWidthMm} mm wide, ` : ""}${stackingRimThicknessMm} mm down)`
                           : null,
+                        hasSelectedLabelColor ? `label backgrounds (${labelBackgroundThicknessMm} mm thick)` : null,
                         spec.surfaceTexts.length ? "colored text parts" : null,
                       ]
                         .filter(Boolean)
                         .join(" and ")} for slicer assignment.`
-                    : "Add surface text, or enable a floor, rim, or border color in Materials & Colors first."}
+                    : "Add surface text, or choose a label background, floor, rim, or border color in Materials & Colors first."}
                 </span>
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
+              disabled={exporting || hasErrors || !hasSelectedMulticolor}
+              onClick={() => {
+                setThreeMfDialogOpen(false);
+                onExport("3mf-bambu", includeThreeMfProject);
+              }}
+              data-testid="button-export-bambu-3mf"
+            >
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Bambu 3MF</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">One model with painted color regions; body, labels, and text are no longer separate named parts.</span>
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
+              disabled={exporting || hasErrors || !hasSelectedMulticolor}
+              onClick={() => {
+                setThreeMfDialogOpen(false);
+                onExport("3mf-prusa", includeThreeMfProject);
+              }}
+              data-testid="button-export-prusa-3mf"
+            >
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Prusa color preview 3MF</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">Open as a project to set up filament slots and colors automatically in PrusaSlicer 2.9 and 3.0 alpha. Includes a preview printer setup; select your actual printer and print settings before printing.</span>
               </span>
             </Button>
           </div>
@@ -3132,9 +3275,9 @@ function ProjectControls({
                     void openLibraryProject();
                   }}
                 >
-                  <div className="min-w-0 flex-1 basis-40">
-                    <div className="flex min-w-0 items-center gap-1" data-testid={`library-project-name-${project.id}`}>
-                      <p className="min-w-0 truncate text-sm font-medium" title={project.name}>
+                  <div className="min-w-0 basis-full">
+                    <div className="flex min-w-0 items-start gap-1" data-testid={`library-project-name-${project.id}`}>
+                      <p className="min-w-0 flex-1 whitespace-normal py-2 text-sm font-medium [overflow-wrap:anywhere]" title={project.name}>
                         {project.name}
                       </p>
                       <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={!ready || busy || !!project.unavailable}

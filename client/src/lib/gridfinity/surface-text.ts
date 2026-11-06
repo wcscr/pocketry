@@ -9,11 +9,13 @@ import { surfaceTextName, surfaceTextSurface, surfaceTextSymbolGap, type Surface
 import { hardwareSymbolOutline } from "@shared/gridfinity/hardware-symbols";
 import type { Outline, Ring } from "@shared/geometry/types";
 import type { BinSpec } from "@shared/gridfinity/types";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
 import { infillTopZ } from "@shared/gridfinity/fill";
-import { labelTabSurfaces, labelTabTopZ, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
+import {
+  labelTabSurfaces, labelTabTopZ, labelTabWritingArea, pointInLabelTabWritingArea, pointOnLabelTab,
+} from "@shared/gridfinity/label-tab-surfaces";
 import { normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
 import type { Kernel } from "@/lib/manifold/runtime";
-import type { ValidationIssue } from "@shared/gridfinity/validate";
 import { surfaceTextPrintabilityIssue } from "./surface-text-printability";
 
 const loader = new FontLoader();
@@ -26,15 +28,22 @@ export function surfaceTextZ(spec: BinSpec, label?: SurfaceText): number {
   return surfaceTextSurface(spec, label) === "label-tab" ? labelTabTopZ(spec) : infillTopZ(spec);
 }
 
-/** Start on the first free shelf that fits the wording, with a small edge margin.
+/** Start on the first free shelf that fits the wording, with a small edge margin,
+ * centred on the part of the shelf clear of the stacking lip's overhang.
  * Only newly created/explicitly retargeted labels move; saved positions stay intact. */
 export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): SurfaceText {
+  if (label.orphanedTab) {
+    const { orphanedTab: _anchor, ...placed } = label;
+    label = placed;
+  }
   const surfaces = labelTabSurfaces(spec);
   for (const surface of surfaces) {
-    if (spec.surfaceTexts.some(other => other.id !== label.id && surfaceTextSurface(spec, other) === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
-    const bounds = outlineBounds([{ outer: surface.ring, holes: [] }])!;
+    if (spec.surfaceTexts.some(other => other.id !== label.id && !other.orphanedTab && surfaceTextSurface(spec, other) === "label-tab" && pointOnLabelTab(other.position, surface))) continue;
+    const area = labelTabWritingArea(spec, surface, label.heightMm);
+    if (!area) continue;
+    const { bounds } = area;
     const position = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
-    if (!pointOnLabelTab(position, surface)) continue;
+    if (!pointInLabelTabWritingArea(position, surface, area)) continue;
     const placed = { ...label, surface: "label-tab" as const, position, rotationDeg: surface.rotationDeg };
     const textBounds = outlineBounds(surfaceTextOutline(placed))!;
     const scale = Math.min(1, (bounds.maxX - bounds.minX - 2) / (textBounds.maxX - textBounds.minX),
@@ -44,7 +53,7 @@ export function placeSurfaceTextOnTab(spec: BinSpec, label: SurfaceText): Surfac
       ...(label.symbol ? { symbolSizeMm: (label.symbolSizeMm ?? label.sizeMm) * scale,
         symbolGapMm: surfaceTextSymbolGap(label) * scale } : {}) };
     if (fitted.symbolSizeMm !== undefined && fitted.symbolSizeMm < 2) continue;
-    if (surfaceTextOutline(fitted).every(shape => shape.outer.every(point => pointOnLabelTab(point, surface)))) return fitted;
+    if (surfaceTextOutline(fitted).every(shape => shape.outer.every(point => pointInLabelTabWritingArea(point, surface, area)))) return fitted;
   }
   return spec.fill === "none" ? { ...label, surface: "label-tab" } : label;
 }
@@ -117,46 +126,100 @@ export function surfaceTextOutline(label: SurfaceText): Outline {
   return outline.map(shape => ({ outer: transform(shape.outer), holes: shape.holes.map(transform) }));
 }
 
-/** Text sits exactly on the surface. Keep each label separate for 3MF part editing. */
-export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold): { label: SurfaceText; solid: Manifold; z: number; printabilityIssue?: ValidationIssue }[] {
+export interface SurfaceTextPart { label: SurfaceText; solid: Manifold; z: number }
+
+/** Code for a label that cannot be built where it is; the rest of the bin still builds. */
+export const SURFACE_TEXT_ISSUE_CODE = "surface-text-placement";
+/** Labels on tabs when no usable tab exists; fixed in Construction, not by moving text. */
+export const SURFACE_TEXT_NEEDS_TAB_CODE = "surface-text-needs-tab";
+export const SURFACE_TEXT_ISSUE_CODES: ReadonlySet<string> = new Set([SURFACE_TEXT_ISSUE_CODE, SURFACE_TEXT_NEEDS_TAB_CODE]);
+
+/**
+ * Text sits exactly on the surface. Keep each label separate for 3MF part editing.
+ *
+ * A label that cannot be placed is skipped and reported as an error issue
+ * instead of failing the whole build: the preview keeps showing the bin, and
+ * export stays blocked because error issues block every printable export.
+ */
+export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold): { parts: SurfaceTextPart[]; issues: ValidationIssue[] } {
   const { arena, CrossSection } = kernel;
   const supports = new Map<number, ReturnType<typeof body.slice>>();
   const tabsAvailable = !spec.surfaceTexts.some(label => surfaceTextSurface(spec, label) === "label-tab") || labelTabSurfaces(spec).length > 0;
   const occupied: Manifold[] = [];
-  return spec.surfaceTexts.map(label => {
+  const parts: SurfaceTextPart[] = [];
+  const issues: ValidationIssue[] = [];
+  const report = (label: SurfaceText, message: string) => {
+    issues.push({ code: SURFACE_TEXT_ISSUE_CODE, severity: "error", message, surfaceTextIds: [label.id] });
+  };
+  const needsTab: SurfaceText[] = [];
+  for (const label of spec.surfaceTexts) {
     const z = surfaceTextZ(spec, label);
     const onTab = surfaceTextSurface(spec, label) === "label-tab";
     if (onTab && !tabsAvailable) {
-      throw new Error(`Text “${surfaceTextName(label)}” needs a label tab. ${spec.fill === "none"
+      needsTab.push(label);
+      continue;
+    }
+    if (onTab && label.orphanedTab) {
+      report(label, `Text “${surfaceTextName(label)}” no longer has its original label tab. Restore that tab or move the label onto another tab in Layout.`);
+      continue;
+    }
+    try {
+      let support = supports.get(z);
+      if (!support) {
+        support = arena.track(body.slice(z - 0.00001));
+        supports.set(z, support);
+      }
+      const rings = surfaceTextOutline(label).flatMap(shape => [shape.outer, ...shape.holes]);
+      const section = arena.track(new CrossSection(rings.map(ring => ring.map(p => [p.x, p.y] as [number, number])), "NonZero"));
+      const unsupported = arena.track(section.subtract(support));
+      if (unsupported.area() > 0.001) {
+        report(label, onTab
+          ? `Text “${surfaceTextName(label)}” must fit on a label tab, clear of openings. Move it onto a tab in Layout or reduce its size.`
+          : `Text “${surfaceTextName(label)}” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size.`);
+        continue;
+      }
+      const raised = arena.track(arena.track(section.extrude(label.heightMm)).translate([0, 0, z]));
+      if (arena.track(raised.intersect(body)).volume() > 0.001 ||
+          occupied.some(other => arena.track(raised.intersect(other)).volume() > 0.001)) {
+        report(label, `Text “${surfaceTextName(label)}” overlaps another label or the bin walls. Move it or reduce its size.`);
+        continue;
+      }
+      // Rotating/warping a shelf can leave its cap a few floating-point units
+      // below nominal Z. Seat the label against that actual cap, then subtract
+      // the body so 3MF materials do not overlap and fused STL letters attach.
+      const solid = onTab
+        ? arena.track(arena.track(arena.track(section.extrude(label.heightMm + 0.001)).translate([0, 0, z - 0.001])).subtract(body))
+        : raised;
+      if (solid.status() !== "NoError" || solid.isEmpty()) {
+        report(label, `Could not build text “${surfaceTextName(label)}”.`);
+        continue;
+      }
+      const printabilityIssue = surfaceTextPrintabilityIssue(label, section);
+      if (printabilityIssue) issues.push(printabilityIssue);
+      occupied.push(solid);
+      parts.push({ label, solid, z });
+    } catch (cause) {
+      // Unsupported glyphs and empty wording throw from the outline builder.
+      report(label, cause instanceof Error ? cause.message : `Could not build text “${surfaceTextName(label)}”.`);
+    }
+  }
+  if (needsTab.length) {
+    // One Construction fix covers every stranded label, so report them together.
+    const names = `Text “${surfaceTextName(needsTab[0])}”${needsTab.length > 1 ? ` and ${needsTab.length - 1} more label${needsTab.length > 2 ? "s" : ""}` : ""}`;
+    const verb = needsTab.length > 1 ? "need" : "needs";
+    let message;
+    if (spec.labelTab) {
+      const rimConsumesShelf = spec.labelTab.frontRim && labelTabSurfaces({ ...spec,
+        labelTab: { ...spec.labelTab, frontRim: false } }).length > 0;
+      message = `${names} ${verb} a label tab with a usable writing surface. ${rimConsumesShelf
+        ? "Increase Tab depth or turn off Front rim in Construction."
+        : "Reduce Recess, increase bin height, or choose another label-tab placement."}`;
+    } else {
+      message = `${names} ${verb} a label tab. ${spec.fill === "none"
         ? "Enable label tabs in Construction. Hollow bins place text on label tabs."
-        : "Enable label tabs or change its Surface to Bin surface."}`);
+        : "Enable label tabs or change its Surface to Bin surface."}`;
     }
-    let support = supports.get(z);
-    if (!support) {
-      support = arena.track(body.slice(z - 0.00001));
-      supports.set(z, support);
-    }
-    const rings = surfaceTextOutline(label).flatMap(shape => [shape.outer, ...shape.holes]);
-    const section = arena.track(new CrossSection(rings.map(ring => ring.map(p => [p.x, p.y] as [number, number])), "NonZero"));
-    const unsupported = arena.track(section.subtract(support));
-    if (unsupported.area() > 0.001) {
-      throw new Error(onTab
-        ? `Text “${surfaceTextName(label)}” must fit on a label tab, clear of openings. Move it onto a tab in Layout or reduce its size.`
-        : `Text “${surfaceTextName(label)}” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size.`);
-    }
-    const raised = arena.track(arena.track(section.extrude(label.heightMm)).translate([0, 0, z]));
-    if (arena.track(raised.intersect(body)).volume() > 0.001 ||
-        occupied.some(other => arena.track(raised.intersect(other)).volume() > 0.001)) {
-      throw new Error(`Text “${surfaceTextName(label)}” overlaps another label or the bin walls. Move it or reduce its size.`);
-    }
-    // Rotating/warping a shelf can leave its cap a few floating-point units
-    // below nominal Z. Seat the label against that actual cap, then subtract
-    // the body so 3MF materials do not overlap and fused STL letters attach.
-    const solid = onTab
-      ? arena.track(arena.track(arena.track(section.extrude(label.heightMm + 0.001)).translate([0, 0, z - 0.001])).subtract(body))
-      : raised;
-    if (solid.status() !== "NoError" || solid.isEmpty()) throw new Error(`Could not build text “${surfaceTextName(label)}”.`);
-    occupied.push(solid);
-    return { label, solid, z, printabilityIssue: surfaceTextPrintabilityIssue(label, section) };
-  });
+    issues.unshift({ code: SURFACE_TEXT_NEEDS_TAB_CODE, severity: "error", message, surfaceTextIds: needsTab.map(label => label.id) });
+  }
+  return { parts, issues };
 }

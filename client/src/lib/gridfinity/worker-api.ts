@@ -74,6 +74,8 @@ export interface BuildBinRequest {
   previewDraft?: boolean | "rounded";
   /** Split this depth below pocket floors or the interior floor of a hollow bin. */
   pocketFloorMaterialThicknessMm?: number;
+  /** Split a printable layer beneath exposed label-tab faces. */
+  labelBackgroundMaterialThicknessMm?: number;
   /** Split this depth down from the lip summit or flush perimeter wall top. */
   stackingRimMaterialThicknessMm?: number;
   /** Inward width of the flush top border. Ignored when the bin has a lip. */
@@ -100,6 +102,7 @@ export interface BuildBinResult {
     body: MeshData;
     pocketFloors?: MeshData;
     stackingRim?: MeshData;
+    labelBackground?: MeshData;
   };
   stats: BuildBinStats;
   /** One entry per requested cutout; `emptied` flags collapsed sections. */

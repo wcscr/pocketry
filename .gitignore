@@ -39,5 +39,9 @@ Thumbs.db
 # Local Claude Code session data
 .claude/
 
+# Personal agent instructions (never publish)
+/AGENTS.local.md
+/CLAUDE.local.md
+
 # OpenCV.js build workspace (scripts/build-opencv-js.sh)
 .opencv-build/

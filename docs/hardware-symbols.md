@@ -3,7 +3,9 @@
 Choose **Add → Surface text**, then **Symbol** in the selected label's properties.
 
 With label tabs enabled, new text starts on the next empty shelf that fits it.
-**Surface → Label tabs** places text or symbols on the horizontal shelf tops,
+On bins with a stacking lip it starts clear of the lip's overhang beside the outer
+walls, shifting toward the bin's middle or shrinking as needed; saved labels are
+not moved. **Surface → Label tabs** places text or symbols on the horizontal shelf tops,
 including slanted walls and compartment dividers. Layout shades those tops at
 their actual shifted positions. Hollow bins use **Label tabs** exclusively;
 **Bin surface** is available only with solid fill. Opening an older hollow-bin
@@ -11,10 +13,18 @@ project or removing solid fill retargets its labels to tab height without moving
 rotating, or resizing them. Fill changes and their label updates undo together.
 If tabs are disabled or clipped away,
 tab text stays recoverable and export explains which surface needs restoring.
+When rows or columns change, tab labels follow the same sub-bin. A label whose
+tab disappears stays at its current position, is outlined in Layout, and blocks
+export even if another tab happens to sit underneath it. Restore its original
+tab to reattach it, or move the label onto another tab in Layout. This ownership
+is retained in saved projects and undo history (schema 60); editing only the
+wording or size does not dismiss the warning.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised
-height, position, and text color. Bolts and screws start upright, with the
+height, position, and text color. New raised lettering defaults to 0.5 mm,
+matching the default label-tab recess so its top finishes flush with walls and
+dividers. Existing saved heights are preserved. Bolts and screws start upright, with the
 head at the top. **Symbol rotation** turns just the symbol; **Label rotation** turns the
 whole label. The chosen symbol angle is retained when switching symbols or
 selecting None. Fonts affect only the text.
@@ -99,3 +109,25 @@ Run the symbol unit/UI tests and `npm run test:geometry -- hardware-symbols`, pl
 the repository's ordinary check/test/build gates. Passing these checks does not
 qualify physical printing: small drive and insert details depend on nozzle size,
 layer height, and chosen label size.
+
+
+## Label colors
+
+In **Materials & Colors**, **Label background** colors the flat writing faces of
+label tabs independently of **Text color** (which also colors their symbols).
+**Use bin-body color** restores the default appearance. The color thickness
+(default 0.6 mm) replaces material beneath the face, without changing the tab,
+recess, or lettering height. Raised front borders still follow the rim setting;
+turn rim coloring off to keep them the body color.
+
+The background applies to all exposed label tabs in the project, including
+compartment tabs and slanted bins. Tabs buried in solid fill have no exposed
+background to color. The setting is retained when tabs are disabled. Multicolor
+3MF includes a separate label-background material; single-color exports retain
+the same complete shape. Older projects continue to use the body color.
+
+The color mask extends just through the shelf surface before intersecting the
+finished bin. Body and rim subtraction use that same mask, avoiding coincident
+faces that can leave a thin body-colored skin over the label after serialization.
+Geometry qualification checks the serialized shelf surfaces at both 4U and 5.5U,
+including 0.5 mm and 0.8 mm recesses, plus deep layers on custom footprints.

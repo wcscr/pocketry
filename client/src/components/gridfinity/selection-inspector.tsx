@@ -49,7 +49,19 @@ export function BinEditingWorkspace({ enabled, onObjectProperties, ...props }: W
     if (!BIN_OBJECT_SECTIONS.has(id)) openInspector();
   }, [openInspector]);
   const selectionKey = JSON.stringify(selection);
-  useEffect(() => { if (enabled && !pendingDepth && (selection.length || textSelection)) { setActiveSection(null); if (!isMobile && !keepList.current) openInspector(); } keepList.current = false; }, [enabled, isMobile, selectionKey, textSelection, openInspector, pendingDepth]);
+  const selectionTransition = JSON.stringify([enabled, pendingDepth, selectionKey, textSelection]);
+  const previousSelectionTransition = useRef<string>();
+  useEffect(() => {
+    // Resizing changes where properties are displayed, not which properties
+    // the user chose. Only a selection transition may replace that choice.
+    if (previousSelectionTransition.current === selectionTransition) return;
+    previousSelectionTransition.current = selectionTransition;
+    if (enabled && !pendingDepth && (selection.length || textSelection)) {
+      setActiveSection(null);
+      if (!isMobile && !keepList.current) openInspector();
+    }
+    keepList.current = false;
+  }, [enabled, isMobile, selectionTransition, textSelection, openInspector, pendingDepth]);
   const canLink = canManageDesignLinks({ cutouts, fingerHoles }, selection);
   useEffect(() => {
     if (!selection.length && !textSelection || selection.length < 2 && tool === "arrange" || !canLink && tool === "links") updateTool("properties");

@@ -74,7 +74,10 @@ export function CanvasWarnings({ issues, holeIds, selectedCutoutId, selectedFing
             const objectAction = issue.cutoutIds?.length
               ? issue.cutoutIds.length > 1 ? `Show ${retained === issue.cutoutIds.length ? "holes" : retained ? "objects" : "pockets"} · click to switch`
                 : retained ? "Edit hole" : "Edit pocket"
-              : issue.fingerHoleIds?.length ? "Edit finger access" : issue.surfaceTextIds?.length ? "Edit text or symbol" : "Open bin settings";
+              : issue.fingerHoleIds?.length ? "Edit finger access"
+              : issue.surfaceTextIds?.length
+                ? issue.code === "surface-text-thin-strokes" ? "Edit text or symbol" : "Position text in Layout"
+                : "Open bin settings";
             return (
               <button
                 type="button"

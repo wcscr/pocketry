@@ -3,9 +3,13 @@ export function issueSettingsTarget(code: string): { id: string; label: string; 
   switch (code) {
     case "cutouts-require-solid-fill":
       return { id: "bin-settings-construction", label: "Turn on solid fill", focusId: "bin-solid-fill" };
-    case "label-tab-edge-missing":
     case "label-tab-clipped":
+      return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-depth" };
+    case "label-tab-recess":
+      return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-recess" };
+    case "label-tab-edge-missing":
     case "label-tab-shadow":
+    case "surface-text-needs-tab":
       return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab" };
     case "fractional-grid-holes":
       return { id: "bin-settings-size", label: "Change grid pitch", focusId: "bin-grid-pitch" };

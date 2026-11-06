@@ -8,6 +8,8 @@ import {
   render,
   renderPage,
   openSettingsSection,
+  openConstructionGroup,
+  setBinInterior,
   selectPocket,
 } from "./bin-designer.test-support";
 import * as React from "react";
@@ -399,12 +401,16 @@ describe("BinDesignerPage", () => {
   it.each(["standard", "workflow"])("copies exact colors between every feature in the %s layout", async layout => {
     const originalUrl = window.location.href;
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, labelTab: {} }),
+    });
     const { container, unmount } = renderPage();
     const features = [
       { id: "bin", label: "Bin body", color: "#123456" },
       { id: "pocket-floor", label: "Pocket floors", color: "#abcdef" },
       { id: "stacking-rim", label: "Stacking rim top", color: "#654321" },
       { id: "text", label: "Text", color: "#fedcba" },
+      { id: "label-background", label: "Label background", color: "#eee8da" },
     ];
     const input = (id: string) => container.querySelector<HTMLInputElement>(`#input-${id}-color`)!;
     const setColor = (id: string, color: string) => React.act(() => {
@@ -419,7 +425,7 @@ describe("BinDesignerPage", () => {
         await React.act(async () => container.querySelector(`[data-testid="input-${target.id}-color-copy-from"]`)!
           .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
         const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-        expect(items).toHaveLength(3);
+        expect(items).toHaveLength(4);
         const item = items.find(item => item.textContent!.startsWith(source.label))!;
         expect(item.textContent).toContain(source.color.toUpperCase());
         await React.act(async () => item.click());
@@ -681,7 +687,7 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Color bin floor"]')!.click());
 
       openSettingsSection(container, "construction");
-      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Solid fill"]')!.click());
+      React.act(() => container.querySelector<HTMLButtonElement>('#bin-solid-fill')!.click());
       openSettingsSection(container, "materials");
       expect(container.querySelector<HTMLInputElement>('[aria-label="Pocket floors color"]')!.value).toBe("#2255aa");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
@@ -742,22 +748,26 @@ it.each(["standard", "workflow"])("retains optional divider coloring across cons
   const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
   binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, stackingRim: mesh } });
   const { container, unmount } = renderPage();
-  const option = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Include dividers"]');
+  const option = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Match divider tops to rim color"]');
   const toggle = (label: string) => React.act(() => container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click());
   try {
     await flushHydration(); openSettingsSection(container, "materials");
     expect(option()!.getAttribute("aria-checked")).toBe("false");
     expect(container.querySelector('[data-testid="view-color-row-rim"]')!.contains(option())).toBe(true);
-    toggle("Include dividers");
+    toggle("Match divider tops to rim color");
     expect(vi.mocked(useBinGeometry).mock.lastCall![4]?.colorDividerTops).toBe(true);
     toggle("Color top border");
     expect(option()!.disabled).toBe(true);
     expect(option()!.getAttribute("aria-checked")).toBe("true");
     toggle("Color top border");
     for (const label of ["Internal compartments", "Solid fill"]) {
-      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "construction");
+      openConstructionGroup(container, "compartments");
+      if (label === "Solid fill") setBinInterior(container, "solid"); else toggle(label);
       openSettingsSection(container, "materials"); expect(option()).toBeNull();
-      openSettingsSection(container, "construction"); toggle(label);
+      openSettingsSection(container, "construction");
+      openConstructionGroup(container, "compartments");
+      if (label === "Solid fill") setBinInterior(container, "none"); else toggle(label);
       openSettingsSection(container, "materials");
       expect(option()!.getAttribute("aria-checked")).toBe("true");
     }
@@ -766,4 +776,69 @@ it.each(["standard", "workflow"])("retains optional divider coloring across cons
     await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!.click());
     expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), expect.objectContaining({ colorDividerTops: true, stackingRimMaterialThicknessMm: 1.25 }));
   } finally { unmount(); window.history.replaceState(null, "", url); }
+});
+
+it.each(["multicolor", "bambu"])("saves and exports independent label backgrounds with rim/floor colors off (%s), then restores body matching", async format => {
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+    spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 4, fill: "none", labelTab: { recessMm: 0.5, frontRim: true }, textColor: "#35393c" }),
+    materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#35393c", colorPocketFloors: false, colorStackingRim: false },
+  });
+  const mesh = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices: new Uint32Array([0, 1, 2]), normals: null };
+  binGeometryMock.buildOnce.mockResolvedValue({ mesh, materialMeshes: { body: mesh, labelBackground: mesh } });
+  const { container, unmount } = renderPage();
+  try {
+    await flushHydration();
+    openSettingsSection(container, "materials");
+    const color = container.querySelector<HTMLInputElement>('#input-label-background-color')!;
+    expect(color.value).toBe('#35393c');
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(color, '#eee8da');
+      color.dispatchEvent(new Event('input', { bubbles: true }));
+      color.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(color.value).toBe('#eee8da');
+    expect(container.querySelector<HTMLInputElement>('#input-text-color')!.value).toBe('#35393c');
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![4]).toMatchObject({ labelBackgroundThicknessMm: 0.6 });
+    openSettingsSection(container, "project");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-project"]')!.click());
+    const savedBlob = vi.mocked(downloadBlob).mock.lastCall![0];
+    const savedJson = await new Promise<string>(resolve => {
+      const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(savedBlob);
+    });
+    expect(JSON.parse(savedJson).materials).toMatchObject({
+      labelBackgroundColor: '#eee8da', colorStackingRim: false, colorPocketFloors: false,
+    });
+    openSettingsSection(container, "export");
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
+    const exportButton = document.querySelector<HTMLButtonElement>(`[data-testid="button-export-${format}-3mf"]`)!;
+    expect(exportButton.disabled).toBe(false);
+    if (format === "multicolor") expect(exportButton.textContent).toContain('label backgrounds');
+    await React.act(async () => exportButton.click());
+    expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), expect.objectContaining({
+      labelBackgroundMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: undefined, pocketFloorMaterialThicknessMm: undefined,
+    }));
+    const blob = vi.mocked(downloadBlob).mock.calls.at(-1)![0];
+    const buffer = await new Promise<ArrayBuffer>(resolve => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(blob);
+    });
+    const entries = unzipSync(new Uint8Array(buffer));
+    const xml = strFromU8(entries["3D/3dmodel.model"]);
+    expect(xml).toContain('#EEE8DAFF'); expect(xml).toContain('#35393CFF');
+    if (format === "bambu") {
+      expect(xml.match(/<mesh>/g)).toHaveLength(1);
+      expect(xml).toContain('pid="1" p1="0"');
+      expect(xml).toContain('pid="1" p1="1"');
+      expect(entries["Metadata/model_settings.config"]).toBeUndefined();
+      expect(xml).toContain('slic3rpe:mmu_segmentation="4"');
+      expect(xml).toContain('slic3rpe:mmu_segmentation="8"');
+      expect(entries["Metadata/Slic3r_facets_annotation.json"]).toBeDefined();
+    } else {
+      expect(xml).toContain('label backgrounds');
+      expect(xml.match(/<mesh>/g)).toHaveLength(2);
+    }
+    openSettingsSection(container, "materials");
+    React.act(() => Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Use bin-body color')!.click());
+    expect(container.querySelector<HTMLInputElement>('#input-label-background-color')!.value).toBe('#35393c');
+    expect(vi.mocked(useBinGeometry).mock.calls.at(-1)![4]!.labelBackgroundThicknessMm).toBeUndefined();
+  } finally { unmount(); }
 });

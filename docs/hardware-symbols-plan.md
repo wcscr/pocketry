@@ -1,5 +1,9 @@
 # Hardware symbols for surface labels
 
+This is the historical design record for the implemented hardware-symbol feature. Use [hardware-symbols.md](hardware-symbols.md) for current behavior.
+Enhancements, problem reports, and current priorities are tracked in
+[GitHub issues](https://github.com/wcscr/pocketry/issues).
+
 Add a curated, bundled collection of GFLabel hardware outlines. A surface label
 may contain one symbol, text, or both. Symbols precede text, with independent
 size/rotation and shared raised height, position, whole-label rotation, and color.

@@ -1,12 +1,12 @@
 # Hollow-bin bottom edge fillets
 
-## Implementation plan and control inventory
+## Current behavior and controls
 
-- Add a saved `bottomFilletRadiusMm` setting, defaulting to zero for existing
-  projects and every history snapshot. Retain it when solid fill is enabled.
-- Show Bottom edge fillet in Construction whenever Solid fill is off, independent
-  of the compartments and scoop switches, in both panel layouts. Use the existing
-  millimetre input and edit transaction behavior. Zero disables rounding.
+- `bottomFilletRadiusMm` is saved with projects and history, defaulting to zero
+  for older projects. It is retained when solid fill is enabled.
+- **Construction → Floor & scoops → Bottom edge fillet** is available for Hollow
+  interior, independently of the compartments and scoop switches, in both panel
+  layouts. The millimetre field uses normal edit transactions; zero disables rounding.
 - Round each cavity where the floor meets the outer walls and both sides of
   dividers. Build from the actual wall and divider footprint, including custom
   footprints, before applying the same deformation as walls and scoops.

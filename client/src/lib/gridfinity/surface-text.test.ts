@@ -10,7 +10,14 @@ import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
 import { createBasicPocket } from "./basic-shape";
 import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import { BUILD_BIN_METHOD, type BuildBinResult, type BuildBinRequest } from "./worker-api";
-import { surfaceTextOutline, surfaceTextZ } from "./surface-text";
+import { SURFACE_TEXT_ISSUE_CODE, surfaceTextOutline, surfaceTextZ } from "./surface-text";
+
+/** Misplaced labels are reported and left out; the rest of the bin still builds. */
+function textIssues(result: ReturnType<typeof buildBinWithCutouts>): string {
+  expect(result.solid.status()).toBe("NoError");
+  return result.validationIssues.filter(issue => issue.code === SURFACE_TEXT_ISSUE_CODE && issue.severity === "error")
+    .map(issue => issue.message).join("\n");
+}
 
 const text = surfaceTextSchema.parse({ id: "text-1", text: "B8 & O", position: { x: 0, y: 0 } });
 const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", surfaceTexts: [text], textColor: "#ff6600" });
@@ -30,6 +37,29 @@ describe("surface text", () => {
     const { value: revised } = await handler({ spec: { ...spec, surfaceTexts: [{ ...small, font: "helvetiker-bold", sizeMm: 3.6 }] }, quality: EXPORT_QUALITY, exportTopology },
       { signal: new AbortController().signal, progress: () => {} });
     expect(revised.validationIssues?.some(issue => issue.code === "surface-text-thin-strokes")).toBe(false);
+  });
+  it("keeps thin-stroke warnings advisory alongside placement errors", async () => {
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (
+      request: BuildBinRequest, context: HandlerContext
+    ) => Promise<TransferableResult<BuildBinResult>>;
+    const small = { ...text, text: "M4 nut", font: "helvetiker" as const, sizeMm: 2 };
+    const mixed = { ...spec, surfaceTexts: [small, { ...small, id: "outside", position: { x: 100, y: 0 } }] };
+    const context = { signal: new AbortController().signal, progress: () => {} };
+    const { value } = await handler({ spec: mixed, quality: EXPORT_QUALITY }, context);
+    expect(value.validationIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: [text.id] }),
+      expect.objectContaining({ code: SURFACE_TEXT_ISSUE_CODE, severity: "error", surfaceTextIds: ["outside"] }),
+    ]));
+    expect(value.textMeshes?.map(part => part.label.id)).toEqual([text.id]);
+    await expect(handler({ spec: mixed, quality: EXPORT_QUALITY, exportTopology: true }, context))
+      .rejects.toThrow("must fit on the flat surface");
+  });
+
+  it("defaults raised lettering to 0.5 mm while preserving saved heights", () => {
+    expect(text.heightMm).toBe(0.5);
+    const previous = parseProjectDoc({ schemaVersion: 56, shapes: [], cutouts: [], fingerHoles: [],
+      spec: { ...spec, surfaceTexts: [{ ...text, heightMm: 0.8 }] } })!;
+    expect(previous.spec.surfaceTexts[0].heightMm).toBe(0.8);
   });
   it("migrates v28 and round-trips independent label names through the document and history without changing geometry", () => {
     const oldDoc = { spec, cutouts: [], fingerHoles: [] };
@@ -82,16 +112,23 @@ describe("surface text", () => {
     });
   });
 
-  it("rejects text outside the footprint or across a pocket and overlapping labels", async () => {
+  it("reports text outside the footprint or across a pocket and overlapping labels without failing the bin", async () => {
     await withKernel(kernel => {
-      const outside = { ...spec, surfaceTexts: [{ ...text, position: { x: 42, y: 0 } }] };
-      expect(() => buildBinWithCutouts(kernel, outside, null, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
-      const overlap = { ...spec, surfaceTexts: [text, { ...text, id: "text-2" }] };
-      expect(() => buildBinWithCutouts(kernel, overlap, null, EXPORT_QUALITY)).toThrow("overlaps");
+      const outside = buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [{ ...text, position: { x: 42, y: 0 } }] }, null, EXPORT_QUALITY);
+      expect(textIssues(outside)).toContain("must fit on the flat surface");
+      expect(outside.textParts).toHaveLength(0);
+      expect(outside.validationIssues[0].surfaceTextIds).toEqual(["text-1"]);
+      const overlap = buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [text, { ...text, id: "text-2" }] }, null, EXPORT_QUALITY);
+      expect(textIssues(overlap)).toContain("overlaps");
+      // The first label still builds; only the overlapping one is left out.
+      expect(overlap.textParts.map(part => part.label.id)).toEqual(["text-1"]);
+      expect(overlap.validationIssues.find(issue => issue.code === SURFACE_TEXT_ISSUE_CODE)!.surfaceTextIds).toEqual(["text-2"]);
       const pocket = createBasicPocket("rectangle", { x: -10, y: -10 }, { x: 10, y: 10 }, "pocket")!;
-      expect(() => buildBinWithCutouts(kernel, spec, {
+      const across = buildBinWithCutouts(kernel, spec, {
         cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [],
-      }, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
+      }, EXPORT_QUALITY);
+      expect(textIssues(across)).toContain("must fit on the flat surface");
+      expect(across.solid.volume()).toBeCloseTo(across.bodySolid.volume(), 6);
     });
   });
 
@@ -101,7 +138,7 @@ describe("surface text", () => {
     const narrow = parseBinSpec({ gridPitch: "half", gridX: 2, gridY: 7, heightUnits: 3, surfaceTexts: [label] });
     const layout = { cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [] };
     await withKernel(kernel => {
-      expect(() => buildBinWithCutouts(kernel, narrow, layout, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
+      expect(textIssues(buildBinWithCutouts(kernel, narrow, layout, EXPORT_QUALITY))).toContain("must fit on the flat surface");
       const moved = { ...narrow, surfaceTexts: [{ ...label, position: { x: 0, y: 60 } }] };
       const result = buildBinWithCutouts(kernel, moved, layout, EXPORT_QUALITY);
       expect(result.textParts).toHaveLength(1);
@@ -162,7 +199,7 @@ describe("surface text", () => {
     const coordinates = (mesh: typeof label, axis: number) => [...mesh.positions].filter((_, i) => i % 3 === axis);
     expect(Math.max(...coordinates(body, 2))).toBeCloseTo(21);
     expect(Math.min(...coordinates(label, 2))).toBeCloseTo(21);
-    expect(Math.max(...coordinates(label, 2))).toBeCloseTo(21.8);
+    expect(Math.max(...coordinates(label, 2))).toBeCloseTo(21.5);
     if (section) expect(Math.max(...coordinates(label, 0))).toBeLessThanOrEqual(0.00001);
     expect(label.normals).toBeNull();
     expect(transfer).toContain(label.positions.buffer);

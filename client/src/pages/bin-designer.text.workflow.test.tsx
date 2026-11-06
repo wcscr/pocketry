@@ -26,6 +26,56 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import * as ProjectPersistence from "@/lib/project/persist";
 
+it.each([
+  { layout: "standard", symbolOnly: false }, { layout: "workflow", symbolOnly: false },
+  { layout: "standard", symbolOnly: true }, { layout: "workflow", symbolOnly: true },
+])("keeps mobile text Adjust compact and opens the full editor separately: %o", async ({ layout, symbolOnly }) => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", `/bin?layout=${layout}`);
+  const label = surfaceTextSchema.parse({ id: "quick-label", text: symbolOnly ? "" : "M3", symbol: "hex-nut", sizeMm: 6,
+    heightMm: 0.5, position: { x: -12.75, y: 27.06 } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+    spec: parseBinSpec({ ...EMPTY_PROJECT.spec, surfaceTexts: [label] }) });
+  const { container, unmount } = renderPage({ mobile: true, experimental: false });
+  try {
+    await flushHydration();
+    React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-select-text-3d-quick-label"]')!.click());
+    const current = () => vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0];
+    const before = current();
+    React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Adjust")!.click());
+    const tray = container.querySelector<HTMLElement>(".mobile-adjustment-tray")!;
+    expect(tray.querySelector('[data-testid="surface-text-quick-controls"]')).not.toBeNull();
+    expect(tray.querySelector('[data-testid="surface-text-editor"]')).toBeNull();
+    expect(tray.querySelector('[aria-label="Hardware symbol"]')).toBeNull();
+    expect(tray.querySelectorAll('input[type="number"]')).toHaveLength(2);
+    const size = tray.querySelector<HTMLInputElement>(`[aria-label="${symbolOnly ? "Symbol size" : "Text size"} (mm)"]`)!;
+    React.act(() => {
+      size.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(size, "7.5");
+      size.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => size.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const edited = { ...before, ...(symbolOnly ? { symbolSizeMm: 7.5 } : { sizeMm: 7.5, symbolSizeMm: 6 }) };
+    expect(current()).toEqual(edited);
+    clickBinHistory(container, "undo"); expect(current()).toEqual(before);
+    clickBinHistory(container, "redo"); expect(current()).toEqual(edited);
+    const height = tray.querySelector<HTMLInputElement>('[aria-label="Raised height (mm)"]')!;
+    React.act(() => {
+      height.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(height, "0.8");
+      height.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    React.act(() => [...tray.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "All properties")!.click());
+    expect(container.querySelector(".mobile-adjustment-tray")).toBeNull();
+    const editor = document.querySelector<HTMLElement>('[data-testid="surface-text-editor"]')!;
+    expect(editor.closest("[hidden]")).toBeNull();
+    expect(editor.querySelector('input[type="text"]')).not.toBeNull();
+    expect(editor.querySelector('[aria-label="Hardware symbol"]')).not.toBeNull();
+    expect(current()).toEqual({ ...edited, heightMm: 0.8 });
+    clickBinHistory(container, "undo"); expect(current()).toEqual(edited);
+  } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+});
+
 describe("BinDesignerPage", () => {
 
   it.each([
@@ -45,7 +95,11 @@ describe("BinDesignerPage", () => {
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="canvas-warnings"] button[aria-expanded]')!.click());
       const action = container.querySelector<HTMLButtonElement>('[data-issue-code="surface-text-thin-strokes"]')!;
       expect(action.textContent).toContain("Edit text or symbol");
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      expect(container.querySelector('[data-testid="surface-text-hit-fine-label"]')!.hasAttribute("data-invalid")).toBe(false);
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-3d"]')!.click());
       React.act(() => action.click());
+      expect(container.querySelector('[data-testid="bin-viewport-stub"]')).not.toBeNull();
       if (mobile) openMobileProperties();
       const size = document.querySelector<HTMLInputElement>('[aria-label="Text size (mm)"]')!;
       expect(size.value).toBe("2");
@@ -85,6 +139,7 @@ describe("BinDesignerPage", () => {
       for (let i = 1; i < 6; i++) React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
       expect(current()).toHaveLength(6);
       expect(current().every(label => label.surface === "label-tab")).toBe(true);
+      expect(current().every(label => label.heightMm === 0.5)).toBe(true);
       expect(new Set(current().map(label => JSON.stringify(label.position))).size).toBe(6);
       const added = current();
       clickBinHistory(container, "undo");
@@ -332,6 +387,9 @@ describe("BinDesignerPage", () => {
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-add-surface-text"]')!.click());
       expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
       if (mobile && layout === "standard") expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+      // New text starts clear of the central pocket rather than on top of it.
+      const start = vi.mocked(useBinGeometry).mock.lastCall![0].surfaceTexts[0].position;
+      expect(Math.abs(start.y)).toBeGreaterThan(50);
       if (!mobile) {
         for (const tool of ['[aria-label="Pan layout"]', '[data-testid="button-layout-ruler"]']) {
           React.act(() => container.querySelector<HTMLButtonElement>(tool)!.click());
@@ -360,13 +418,49 @@ describe("BinDesignerPage", () => {
       pointer("pointermove", 0);
       pointer("pointerup", 0);
       const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
-      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
+      const moved = current().surfaceTexts[0].position;
+      expect(moved.x).toBeCloseTo(start.x, 6);
+      expect(moved.y).toBeCloseTo(start.y + 60, 6);
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket.cutout]);
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-bin-undo"]')!.click());
-      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 0 });
+      expect(current().surfaceTexts[0].position).toEqual(start);
       clickBinHistory(container, "redo");
-      expect(current().surfaceTexts[0].position).toEqual({ x: 0, y: 60 });
+      expect(current().surfaceTexts[0].position).toEqual(moved);
     } finally { unmount(); window.history.replaceState(null, "", originalUrl); }
+  });
+
+  it("keeps the preview when a label cannot be built and sends the user to place it", async () => {
+    const pocket = createBasicPocket("rectangle", { x: -8, y: -50 }, { x: 8, y: 50 }, "driver")!;
+    const stranded = surfaceTextSchema.parse({ id: "wiha", text: "Wiha", position: { x: 0, y: 0 } });
+    const other = surfaceTextSchema.parse({ id: "other", text: "40 mm", position: { x: 0, y: 62 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
+      spec: parseBinSpec({ gridPitch: "half", gridX: 2, gridY: 7, heightUnits: 3, surfaceTexts: [other, stranded] }),
+      cutouts: [pocket.cutout], shapes: [pocket.shape],
+    });
+    binGeometryMock.validationIssues = [{ code: "surface-text-placement", severity: "error", surfaceTextIds: ["wiha"],
+      message: "Text “Wiha” must fit on the flat surface, clear of pockets and openings. Move it or reduce its size." }];
+    const { container, unmount } = renderPage({ mobile: false, experimental: false });
+    try {
+      await flushHydration();
+      // The build reported the label instead of failing: no preview error banner, one model error.
+      expect(container.textContent).not.toContain("Detailed preview failed");
+      const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+      React.act(() => warnings.querySelector<HTMLButtonElement>("button[aria-expanded]")!.click());
+      const action = warnings.querySelector<HTMLButtonElement>('[data-issue-code="surface-text-placement"]')!;
+      expect(action.textContent).toContain("Position text in Layout");
+      React.act(() => action.click());
+      expect(container.querySelector('[data-testid="layout-canvas"]')).not.toBeNull();
+      const hit = (id: string) => container.querySelector(`[data-testid="surface-text-hit-${id}"]`)!;
+      expect(hit("wiha").getAttribute("data-invalid")).toBe("true");
+      expect(hit("other").hasAttribute("data-invalid")).toBe(false);
+      expect(hit("wiha").getAttribute("pointer-events")).toBe("all");
+      openSettingsSection(document.body, "text");
+      expect([...document.querySelectorAll('[data-testid="surface-text-issue"]')].map(item => item.textContent))
+        .toEqual([binGeometryMock.validationIssues[0].message]);
+      openSettingsSection(document.body, "export");
+      const blocked = document.querySelector('[data-testid="export-blocked-reasons"] [data-export-issue="surface-text-placement"]')!;
+      expect(blocked.textContent).toContain("Position text in Layout");
+    } finally { unmount(); }
   });
 
   it.each([

@@ -203,6 +203,32 @@ export const STACKING_LIP_SUPPORT_HEIGHT = 1.2;
  */
 export const STACKING_LIP_SUPPORT_HEIGHT_MM = 3.8; // SUPPORT_HEIGHT + DEPTH
 
+/**
+ * Greatest reach of the stacking lip's inner face, measured inward from the
+ * outer wall face, between two heights given relative to the bin's nominal top
+ * (the lip's inner tip). Follows the 45° support below the tip and
+ * {@link STACKING_LIP_LINE} above it. The filleted top corner is treated as
+ * sharp, which can only overstate the reach. Zero outside the lip.
+ */
+export function stackingLipReachMm(bottomMm: number, topMm: number): number {
+  // [height, reach] along the inner face, bottom to top.
+  const face: [number, number][] = [
+    [-STACKING_LIP_SUPPORT_HEIGHT_MM, 0],
+    [-STACKING_LIP_SUPPORT_HEIGHT, STACKING_LIP_DEPTH],
+    ...STACKING_LIP_LINE.map(([outward, up]): [number, number] => [up, STACKING_LIP_DEPTH - outward]),
+  ];
+  const reachAt = (height: number) => {
+    for (let i = 1; i < face.length; i++) {
+      const [h0, r0] = face[i - 1], [h1, r1] = face[i];
+      if (height >= h0 && height <= h1) return r0 + (r1 - r0) * (height - h0) / (h1 - h0);
+    }
+    return 0;
+  };
+  // The face is piecewise linear, so the maximum is at an end or a breakpoint.
+  return Math.max(reachAt(bottomMm), reachAt(topMm),
+    ...face.filter(([height]) => height > bottomMm && height < topMm).map(([, reach]) => reach));
+}
+
 // ---------------------------------------------------------------------------
 // Walls and interior
 // ---------------------------------------------------------------------------
@@ -238,6 +264,10 @@ export const TAB_WIDTH_NOMINAL_MM = 42;
 
 /** How deep the tab protrudes into the bin (`_tab_depth`). */
 export const TAB_DEPTH_MM = 15.85;
+
+/** Adjustable tabs can shrink the standard shelf without enlarging its envelope. */
+export const MIN_LABEL_TAB_DEPTH_MM = 1;
+export const MIN_LABEL_TAB_WIDTH_MM = 1;
 
 /** Angle of the sloped support holding up the tab (`_tab_support_angle`). */
 export const TAB_SUPPORT_ANGLE_DEG = 36;

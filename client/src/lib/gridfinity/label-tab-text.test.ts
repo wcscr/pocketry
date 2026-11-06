@@ -2,10 +2,18 @@ import { describe, expect, it } from "vitest";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
-import { labelTabSurfaces, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
+import { labelTabSurfaces, pointOnLabelTab, textsAfterLabelTabEdit } from "@shared/gridfinity/label-tab-surfaces";
 import { validateBinSpec } from "@shared/gridfinity/validate";
 import { binHeightMm } from "@shared/gridfinity/standard";
-import { placeSurfaceTextOnTab, surfaceTextZ } from "./surface-text";
+import { loadManifold, withKernel } from "@/lib/manifold/runtime";
+import { buildSurfaceTexts, placeSurfaceTextOnTab, surfaceTextZ } from "./surface-text";
+import { labelledTabGrid } from "@shared/gridfinity/label-tab.test-support";
+import { buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "./bin";
+import { createBinWorkerHandlers } from "./bin-worker-handlers";
+import { BUILD_BIN_METHOD, type BuildBinRequest, type BuildBinResult } from "./worker-api";
+import type { HandlerContext, TransferableResult } from "@/lib/worker/host";
+import { writeThreeMf } from "@/lib/mesh/threemf";
+import { strFromU8, unzipSync } from "fflate";
 
 const label = surfaceTextSchema.parse({ id: "first", text: "M3", font: "helvetiker", position: { x: 0, y: 0 } });
 const bin = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5.5, lip: "none", fill: "none",
@@ -14,6 +22,52 @@ const bin = parseBinSpec({ gridX: 4, gridY: 4, gridPitch: "half", heightUnits: 5
   labelTab: { wall: "south", scope: "compartments", width: "full" } });
 
 describe("label-tab text placement", () => {
+  it("reports a removed tab even over a valid shelf, blocks export, and exports again when restored", async () => {
+    const before = labelledTabGrid();
+    const after = parseBinSpec({ ...before, compartments: { ...before.compartments, columns: 2 } });
+    after.surfaceTexts = textsAfterLabelTabEdit(before, before, after);
+    // Its origin now lies on a different, physically usable tab: geometry alone cannot detect this.
+    expect(pointOnLabelTab(after.surfaceTexts[0].position, labelTabSurfaces(after)[1])).toBe(true);
+    await withKernel(kernel => {
+      const result = buildBinWithCutouts(kernel, after, null, PREVIEW_QUALITY);
+      expect(result.solid.status()).toBe("NoError");
+      expect(result.textParts).toEqual([]);
+      expect(result.validationIssues).toContainEqual(expect.objectContaining({
+        code: "surface-text-placement", severity: "error", surfaceTextIds: ["last-cell"],
+      }));
+      const physical = buildBinWithCutouts(kernel, { ...after, surfaceTexts: after.surfaceTexts.map(({ orphanedTab: _anchor, ...label }) => label) }, null, PREVIEW_QUALITY);
+      expect(physical.textParts).toHaveLength(1);
+      expect(physical.validationIssues.filter(issue => issue.surfaceTextIds?.length && issue.severity === "error")).toEqual([]);
+      expect(physical.validationIssues).toContainEqual(expect.objectContaining({
+        code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: ["last-cell"],
+      }));
+    });
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (
+      request: BuildBinRequest, context: HandlerContext
+    ) => Promise<TransferableResult<BuildBinResult>>;
+    const context = { signal: new AbortController().signal, progress: () => {} };
+    await expect(handler({ spec: after, quality: EXPORT_QUALITY, exportTopology: true }, context))
+      .rejects.toThrow("no longer has its original label tab");
+    const restored = parseBinSpec({ ...after, compartments: before.compartments });
+    restored.surfaceTexts = textsAfterLabelTabEdit(after, after, restored);
+    const { value } = await handler({ spec: restored, quality: EXPORT_QUALITY, exportTopology: true }, context);
+    expect(value.textMeshes?.map(part => part.label.id)).toEqual(["last-cell"]);
+    const bytes = writeThreeMf([{ name: "Bin", mesh: value.bodyMesh! },
+      ...value.textMeshes!.map(part => ({ name: `Text: ${part.label.text}`, mesh: part.mesh }))], { assemble: true });
+    const model = strFromU8(unzipSync(bytes)["3D/3dmodel.model"]);
+    expect(model).toContain('name="Text: C"');
+    expect(model.match(/<component /g)).toHaveLength(2);
+  });
+
+  it("lets explicit tab placement reuse a shelf beneath a stranded label", () => {
+    const before = labelledTabGrid();
+    const after = parseBinSpec({ ...before, compartments: { ...before.compartments, columns: 2 } });
+    after.surfaceTexts = textsAfterLabelTabEdit(before, before, after);
+    const first = placeSurfaceTextOnTab(after, { ...label, id: "new-first" });
+    const second = placeSurfaceTextOnTab({ ...after, surfaceTexts: [...after.surfaceTexts, first] }, { ...label, id: "new-second" });
+    expect(pointOnLabelTab(second.position, labelTabSurfaces(after)[1])).toBe(true);
+    expect(placeSurfaceTextOnTab(after, after.surfaceTexts[0]).orphanedTab).toBeUndefined();
+  });
   it("fills the six shifted shelves in order without changing earlier labels", () => {
     const spec = { ...bin, surfaceTexts: [...bin.surfaceTexts] };
     const surfaces = labelTabSurfaces(spec);
@@ -69,5 +123,36 @@ describe("label-tab text placement", () => {
     const requested = { ...label, surface: "label-tab" as const };
     expect(placeSurfaceTextOnTab(closed, requested)).toEqual(requested);
     expect(labelTabSurfaces({ ...bin, labelTab: null })).toEqual([]);
+  });
+
+  it("explains when an enabled tab's front rim consumes its writing surface without moving text", async () => {
+    const requested = { ...label, surface: "label-tab" as const, position: { x: -12.75, y: 27.06 }, rotationDeg: -15 };
+    const spec = parseBinSpec({ ...bin, wallSlant: null, wallThicknessMm: 1.6, surfaceTexts: [requested],
+      labelTab: { wall: "south", scope: "compartments", depthMm: 1, widthMm: 10, width: "center", recessMm: 0.5, frontRim: true } });
+    expect(labelTabSurfaces(spec)).toEqual([]);
+    expect(labelTabSurfaces({ ...spec, labelTab: { ...spec.labelTab!, frontRim: false } }).length).toBeGreaterThan(0);
+    await withKernel(kernel => {
+      const body = kernel.arena.track(kernel.Manifold.cube([1, 1, 1]));
+      const built = buildSurfaceTexts(kernel, spec, body);
+      expect(built.parts).toEqual([]);
+      expect(built.issues.map(issue => issue.message).join()).toContain("Increase Tab depth or turn off Front rim");
+    });
+    expect(spec.surfaceTexts).toEqual([requested]);
+  });
+
+  it("distinguishes a missing tab from an enabled shelf that cannot fit above the floor", async () => {
+    const requested = { ...label, surface: "label-tab" as const };
+    const absent = parseBinSpec({ ...bin, labelTab: null, surfaceTexts: [requested] });
+    const tooLow = parseBinSpec({ ...absent, heightUnits: 2, wallSlant: null,
+      labelTab: { wall: "south", width: "full", depthMm: 5, recessMm: 6, frontRim: false } });
+    expect(labelTabSurfaces(tooLow)).toEqual([]);
+    await withKernel(kernel => {
+      const body = kernel.arena.track(kernel.Manifold.cube([1, 1, 1]));
+      expect(buildSurfaceTexts(kernel, absent, body).issues.map(issue => issue.message).join()).toContain("Enable label tabs in Construction");
+      expect(buildSurfaceTexts(kernel, tooLow, body).issues.map(issue => issue.message).join())
+        .toContain("Reduce Recess, increase bin height, or choose another label-tab placement");
+    });
+    expect(absent.surfaceTexts).toEqual([requested]);
+    expect(tooLow.surfaceTexts).toEqual([requested]);
   });
 });

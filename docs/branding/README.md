@@ -42,5 +42,5 @@ composition, not an unmodified photograph or application render. The lower-left
 area is clear to accommodate the overlapping profile picture. The generated
 2172 × 724 image was resampled to 1500 × 500 with macOS `sips`.
 
-These assets use the project's AGPL-3.0-only licence. Product names and marks
+These assets use the project's AGPL-3.0 licence. Product names and marks
 retain their respective ownership. See `NOTICE` for provenance.

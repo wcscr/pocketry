@@ -25,7 +25,7 @@ describe("BinDesignerPage", () => {
     const constructionText = container.textContent ?? "";
     for (const label of [
       "Stacking lip",
-      "Solid fill",
+      "Solid for pockets",
       "Magnet holes",
       "Screw holes",
     ]) {

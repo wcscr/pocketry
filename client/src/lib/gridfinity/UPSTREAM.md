@@ -39,7 +39,7 @@ permissive).
   clips the grid to the footprint. Scoop profiles adapt Rebuilt's quarter-circle
   construction with radius capped to half the clear span along the scoop axis. The shared body
   deformation slants dividers and scoops with the outer walls. These adaptations
-  remain under the upstream MIT notice, compatible with Pocketry's AGPL-3.0-only
+  remain under the upstream MIT notice, compatible with Pocketry's AGPL-3.0
   distribution. No Extended source code is incorporated.
 
 The **0.6 mm top-lip fillet itself is inherited from Rebuilt**; only its
@@ -69,8 +69,8 @@ for the height conventions, examples, and upstream explanation of stacking fit.
   vertices on cardinal directions and bounding boxes stay exact). Note
   manifold's `revolve(segments, degrees)` spreads `segments` across the swept
   angle, so a quarter revolve is passed `circularSegments / 4`.
-- **`calculateNormals(0, 60)`, not `(3, 60)`.** The plan document predates
-  manifold deprecating non-zero normal channel indices; channel 0 is the
+- **`calculateNormals(0, 60)`, not `(3, 60)`.** Manifold deprecated non-zero
+  normal channel indices; channel 0 is the
   "standard slot" and `getMesh()` then returns interleaved normals.
 - The infill spans the full footprint (as upstream, minus their tolerance
   shave) and parts may overlap; `buildBin` unions them. Multi-color 3MF export
@@ -80,8 +80,9 @@ for the height conventions, examples, and upstream explanation of stacking fit.
 - **Label tabs can target the outer wall or every compartment.** Upstream hangs tabs on
   compartment walls with an `auto` style resolved per grid element; Pocketry
   uses an explicit target, wall direction (`north`/…), and
-  width (`full` / 42 mm `left`/`center`/`right`, defined facing the wall from
-  bin or compartment centre). Outer-wall tabs are intersected with the rounded
+  width (`full` / configurable 1–42 mm `left`/`center`/`right`, defined facing the wall
+  from bin or compartment centre). Requested tab depth is configurable up to the
+  original 15.85 mm; saved designs retain their dimensions. Outer-wall tabs are intersected with the rounded
   interior column. Repeated tabs use each compartment's clear width, a depth
   capped at half its clear span, and the same infill ceiling as the dividers.
   They are clipped to the footprint, and fragments without a supporting wall,

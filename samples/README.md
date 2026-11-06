@@ -73,7 +73,7 @@ was used in the published sample photographs.
 ## Reuse and attribution
 
 These contributor-supplied designs and photographs are distributed
-under the repository's [AGPL-3.0-only license](../LICENSE). Product names and marks
+under the repository's [AGPL-3.0 license](../LICENSE). Product names and marks
 belong to their respective owners. See [NOTICE](../NOTICE) for attribution and
 [source-files.json](source-files.json) for file provenance and hashes.
 

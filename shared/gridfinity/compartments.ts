@@ -1,5 +1,5 @@
-import { labelTabProfileMm, supportedLabelTabProfileMm } from "./label-tab";
-import { BASE_HEIGHT, STACKING_LIP_SUPPORT_HEIGHT, TAB_WIDTH_NOMINAL_MM } from "./standard";
+import { labelTabProfileMm, labelTabRecessMm, labelTabWidthMm, supportedLabelTabProfileMm } from "./label-tab";
+import { BASE_HEIGHT, STACKING_LIP_SUPPORT_HEIGHT } from "./standard";
 import type { Ring } from "../geometry/types";
 import type { BinSpec } from "./types";
 import { binWidthMm, binLengthMm } from "./bin-size";
@@ -76,22 +76,24 @@ export function dividerStripRings(spec: BinSpec): Ring[] {
 
 /** Tab placements in upright bin coordinates, reused by solids and collision warnings. */
 export function compartmentLabelTabPlacements(spec: BinSpec) {
-  const tab = spec.labelTab, profile = labelTabProfileMm(spec);
+  const tab = spec.labelTab;
+  const profile = labelTabProfileMm(spec, labelTabRecessMm(spec) > 0 ? compartmentHeightMm(spec) : undefined);
   if (!tab || tab.scope !== "compartments" || spec.fill !== "none" || !profile || compartmentLayoutError(spec)) return [];
   const { cellWidth, cellLength, columnFronts, rowFronts } = compartmentLayout(spec);
   const horizontal = tab.wall === "north" || tab.wall === "south";
   const chord = horizontal ? cellWidth : cellLength;
-  const length = tab.width === "full" ? chord : Math.min(TAB_WIDTH_NOMINAL_MM, chord);
+  const length = tab.width === "full" ? chord : Math.min(labelTabWidthMm(spec), chord);
   const start = tab.width === "left" ? -chord / 2 : tab.width === "right" ? chord / 2 - length : -length / 2;
   const depth = Math.min(profile.depthMm, (horizontal ? cellLength : cellWidth) / 2);
   const rotation = tab.wall === "north" ? 0 : tab.wall === "east" ? -90 : tab.wall === "south" ? 180 : 90;
-  return rowFronts.flatMap(y => columnFronts.map(x => {
+  // Row 0 is the front (−Y) row and column 0 the left (−X) column; labels key on these.
+  return rowFronts.flatMap((y, row) => columnFronts.map((x, column) => {
     const origin = {
       x: tab.wall === "west" ? x : tab.wall === "east" ? x + cellWidth : x + cellWidth / 2,
       y: tab.wall === "south" ? y : tab.wall === "north" ? y + cellLength : y + cellLength / 2,
     };
-    return { ...origin, start, length, depth, rotation,
+    return { ...origin, row, column, start, length, depth, rotation,
       profile: supportedLabelTabProfileMm(spec, profile, tab.wall, origin, depth,
-        BASE_HEIGHT + compartmentHeightMm(spec)) };
+        BASE_HEIGHT + compartmentHeightMm(spec) - labelTabRecessMm(spec)) };
   }));
 }

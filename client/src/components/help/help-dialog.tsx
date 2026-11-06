@@ -99,8 +99,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               into place. <strong>Add</strong> creates pockets and finger access.
             </p>
             <p className="mt-1 text-muted-foreground">
-              For a standalone bin that needs no Gridfinity baseplate, turn on
-              <strong> Construction → Flat bottom</strong>. This makes a smooth
+              For a standalone bin that needs no Gridfinity baseplate, choose
+              <strong> Construction → Base &amp; mounting → Bottom → Flat bottom</strong>. This makes a smooth
               underside without a Gridfinity base. <strong>Stacking lip</strong>{" "}
               is a separate option; turn it off if you do not need the rim.
               Custom pockets can hold parts in repeatable positions for laser
