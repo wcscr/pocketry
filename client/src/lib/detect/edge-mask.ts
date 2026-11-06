@@ -113,7 +113,13 @@ export function maskFromEdges(edges: Float32Array, width: number, height: number
   // This separable [1, 6, 1] kernel has >50% weight at its centre, so neither a
   // thin shaft nor an interior pixel can change class at iso 128. It rounds
   // subpixel crossings while preserving the binary mask's foreground samples.
-  const score = new Uint8Array(count);
+  const score = scoreFromEdgeMask(mask, width, height);
+  return { score, mask };
+}
+
+/** Class-preserving interpolation, also used after a guarded local mask edit. */
+export function scoreFromEdgeMask(mask: Uint8Array, width: number, height: number): Uint8Array {
+  const score = new Uint8Array(mask.length);
   const weights = [1, 6, 1];
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     let sum = 0;
@@ -124,5 +130,5 @@ export function maskFromEdges(edges: Float32Array, width: number, height: number
     }
     score[y * width + x] = Math.round(255 * sum / 64);
   }
-  return { score, mask };
+  return score;
 }

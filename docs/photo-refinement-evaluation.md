@@ -8,8 +8,9 @@ reviewed photos, at a higher CPU cost.
 
 The implementation now combines automatic background choice, learned outlines
 for suitable white-sheet regions, color/GrabCut fallback, conservative automatic
-sensitivity and optional line/curve reconstruction. Early single-photo results
-and intermediate curve prototypes are superseded by the current comparison.
+sensitivity, local rail/slit repair and automatic line/curve reconstruction.
+Early single-photo results and intermediate curve prototypes are superseded by
+the current comparison.
 
 See [current behavior, limits and model provenance](teed-outline-integration.md)
 and the [ten-photo HTML report](../client/public/reports/outline-comparison/index.html).

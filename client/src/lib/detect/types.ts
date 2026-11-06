@@ -1,4 +1,5 @@
 import type { Outline, Rect, Ring } from "@shared/geometry/types";
+import type { EdgeCleanupReport } from "./edge-cleanup";
 
 /**
  * The pixel input the pipeline accepts.
@@ -137,6 +138,7 @@ export interface EdgeSensitivityReport {
 }
 
 export interface RefinementReport extends Partial<EdgeSensitivityReport> {
+  boundaryCleanup?: EdgeCleanupReport;
   status: "accepted" | "skipped" | "fallback";
   reason: string;
   iterations: number;

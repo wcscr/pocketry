@@ -2,7 +2,8 @@ import type { DetectOptions, EdgeSensitivityReport, ImageLike, ScoreField } from
 import type { OpenCV } from "./segment-opencv";
 import { clampRoi } from "./segment-js";
 import { checkDetectionAbort } from "./grabcut";
-import { maskFromEdges } from "./edge-mask";
+import { maskFromEdges, scoreFromEdgeMask } from "./edge-mask";
+import { cleanupEdgeMask, type EdgeCleanupReport } from "./edge-cleanup";
 import { pointInRing } from "@shared/geometry/rings";
 import { selectAutomaticEdges } from "./adaptive-edges";
 
@@ -39,7 +40,7 @@ export async function loadTeedModel(signal?: AbortSignal, request: typeof fetch 
 
 interface NativeMat { delete(): void; data: Uint8Array; data32F: Float32Array }
 interface NativeNet { delete(): void; setInput(blob: NativeMat): void; forward(): NativeMat }
-export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean; reconstructionMs?: number; selection?: EdgeSensitivityReport }
+export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean; reconstructionMs?: number; selection?: EdgeSensitivityReport; cleanup?: EdgeCleanupReport }
 
 /** A worker owns one warm net and one bounded image embedding (edge map) cache.
  * Native nets are released explicitly by dispose; worker termination also frees
@@ -88,6 +89,7 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
         }
         checkDetectionAbort(options.signal);
         const edges = new Float32Array(width * height), seeds = new Uint8Array(edges.length), background = new Uint8Array(edges.length);
+        const colour = new Uint8Array(edges.length), unknownMask = new Uint8Array(edges.length);
         for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
           const i = y * width + x;
           edges[i] = lastEdges[(y + top) * SIDE + x + left];
@@ -96,6 +98,8 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
           const unknown = options.occlusions?.some(r => pointInRing(r, { x: roi.x + (x + .5) * roi.width / width, y: roi.y + (y + .5) * roi.height / height }));
           seeds[i] = !unknown && baseline.score[by * baseline.width + bx] >= baseline.iso ? 1 : 0;
           background[i] = !unknown && baseline.evidence && baseline.evidence[by * baseline.width + bx] < baseline.iso * .4 ? 1 : 0;
+          colour[i] = baseline.evidence?.[by * baseline.width + bx] ?? 0;
+          unknownMask[i] = unknown ? 1 : 0;
         }
         // Sensitivity selects an edge barrier, never an Otsu threshold on edges.
         const threshold = Math.max(0.48, Math.min(0.85, 0.60 + ((options.sensitivity ?? 128) - 128) / 500));
@@ -105,9 +109,11 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
         const result = selected?.result ?? maskFromEdges(edges, width, height, seeds, threshold);
         const selection = selected?.selection ?? { edgeThreshold: threshold, edgeThresholdTrials: 1, automaticSensitivity: false,
           seedCoverage: seeds.reduce((sum, value, i) => sum + (value && result.mask[i] ? 1 : 0), 0) / Math.max(1, seeds.reduce((sum, value) => sum + value, 0)) };
+        if (result.reason) return { reason: result.reason, cached, reconstructionMs: performance.now() - reconstructStarted, selection };
+        const cleaned = baseline.evidence ? cleanupEdgeMask(result.mask, width, height, { colour, iso: baseline.iso, seeds, unknown: unknownMask }) : undefined;
+        const score = cleaned && cleaned.mask !== result.mask ? scoreFromEdgeMask(cleaned.mask, width, height) : result.score;
         const reconstructionMs = performance.now() - reconstructStarted;
-        if (result.reason) return { reason: result.reason, cached, reconstructionMs, selection };
-        return { cached, reconstructionMs, selection, field: { score: result.score, width, height,
+        return { cached, reconstructionMs, selection, cleanup: cleaned?.report, field: { score, width, height,
           scale: width / roi.width, scaleY: height / roi.height,
           offsetX: roi.x, offsetY: roi.y, iso: 128, otsu: 128 } };
       } catch (error) {

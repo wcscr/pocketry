@@ -166,6 +166,7 @@ async function segment(
             status: result.field ? "accepted" : result.reason === "alpha-mask" ? "skipped" : "fallback",
             reason: result.reason ?? "teed-edges", iterations: 0, cached: result.cached,
             ...result.selection,
+            boundaryCleanup: result.cleanup,
           } };
         } catch (error) {
           timings.learnedEdges = now() - began;
