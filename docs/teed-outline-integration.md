@@ -7,15 +7,18 @@ also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
 
-[Before/after comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
+[Current and experimental comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
 are included as a portable HTML report, with one view per distinct tool or
 attachment. Tools photographed together have separate regions; repeated views,
 trays and retail cases are omitted. A tighter input region around the deburring
 tool leaves the support wire's long tail outside the crop, identically for both
 detectors. In a running build, open
-`/reports/outline-comparison/`. The report compares the original detector with
-Automatic at default detection settings. Each driver from the five-driver photo
-is selected individually. Wood-background controls were tested separately.
+`/reports/outline-comparison/`. The report compares this PR's unchanged Automatic
+default with one combined, report-only reconstruction experiment. An optional
+third column retains the original detector from before the PR. The experiment
+is not enabled in the app; its improvements, regressions and retained fallbacks
+are labeled separately. Each driver from the five-driver photo is selected
+individually. Wood-background controls were tested separately.
 
 ## What we tried and kept
 
