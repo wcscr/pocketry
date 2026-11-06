@@ -163,7 +163,8 @@ disagreed about Y, which shipped mirrored STLs.
 
 ## Runtime & Dependencies
 
-- Node.js 22, npm with a committed `package-lock.json`.
+- Node.js 22, npm with a committed `package-lock.json`. Run every npm command
+  under Node 22 — see **Use Node 22** below. A machine's default `node` may be newer.
 - Use `npm ci` for clean installs (sandbox/CI); `npm install` only when intentionally changing dependencies.
 - New dependencies go into `package.json` with a rationale — no ad-hoc one-off installs.
 - **Licence policy:** record the licence and provenance of every direct dependency,
@@ -210,6 +211,24 @@ npm run test:coverage # Coverage across the full suite
 runs the quick suite. Add the relevant qualification/workflow tests below; a quick
 pass alone does not qualify changes to detailed CAD geometry or serialized exports.
 Run `npm run build` for application/build changes and `git diff --check` before delivery.
+
+### Use Node 22
+
+Run `node --version` before `npm ci`, tests, builds, or the dev server; it must
+print `v22.x`. If the default `node` is a different major version, put a Node 22
+install first on `PATH` for each command, or select it with a version manager:
+
+```
+PATH="/path/to/node-22/bin:$PATH" npm test
+nvm use 22    # or: fnm use 22
+```
+
+Do not run the suites on Node 25 or newer. Their built-in Web Storage global hides
+jsdom's `localStorage`, so most `quick-ui` tests and every `workflows` test fail
+with `Cannot read properties of undefined (reading 'setItem')`. That error means
+the wrong Node version, not a regression: switch to Node 22 and rerun. Do not
+work around it with `--no-experimental-webstorage`, and do not report results from
+another Node major. Include the Node version with the verification results.
 
 ### Choose tests by the change
 
