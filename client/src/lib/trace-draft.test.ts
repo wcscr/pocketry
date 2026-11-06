@@ -28,6 +28,20 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("recovers an explicitly uncalibrated curve history frame at its own precision", async () => {
+    const before = { ...calibrated(), processing: false, margin: 0, calibration: null };
+    const curves = editCurves(curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: -1 },
+      { kind: "bend", index: 0, t: .5, delta: { x: 0, y: -4 } });
+    const edited = traceReducer(before, { type: "CURVES_COMMITTED", curves, label: "Bend curve" });
+    const rotated = traceReducer(edited, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: before.imageSize, maxSize: { width: 1600, height: 1600 } });
+    const calibratedLater = traceReducer(rotated, { type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: .1 } });
+    await saveTraceDraft(traceDraftSnapshot(calibratedLater));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    const undone = traceReducer(restored, { type: "UNDO" });
+    expect(undone.calibration).toBeNull();
+    expect(undone.curves).toEqual(edited.curves);
+    expect(undone.outline).toEqual(sampleCurves(undone.curves!, CURVE_TOLERANCE_MM / .1));
+  });
   it("recovers an added contour, its selected corners, and creation history", async () => {
     const before = { ...calibrated(), processing: false };
     const added = traceReducer(before, { type: "ADD_CONTOUR" });

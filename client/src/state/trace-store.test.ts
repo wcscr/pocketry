@@ -1,6 +1,8 @@
 import { mmPerPixel } from "@shared/geometry/scale";
 import { doubleSignedArea } from "@shared/geometry/rings";
 import type { Outline } from "@shared/geometry/types";
+import { curvesFromOutline, editCurves } from "@shared/geometry/curves";
+import { traceObjects } from "@/lib/gridfinity/trace-objects";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -1197,4 +1199,58 @@ it("edits a shared retained contour once across overlapping Trace pockets and un
   expect(state.outline.map(s => s.holes[0])).toEqual([changed, changed]);
   state = run(state, { type: "OUTLINE_COMMITTED", outline: state.outline });
   expect(run(state, { type: "UNDO" }).outline).toEqual(outline);
+});
+
+function overlappingPocketsWithSharedHole(): Outline {
+  const hole = [{ x: 3, y: 3 }, { x: 3, y: 5 }, { x: 5, y: 5 }, { x: 5, y: 3 }];
+  return [
+    { outer: [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 12, y: 12 }, { x: 0, y: 12 }], holes: [hole] },
+    { outer: [{ x: 1, y: 1 }, { x: 14, y: 1 }, { x: 14, y: 14 }, { x: 1, y: 14 }],
+      holes: [[hole[2], hole[1], hole[0], hole[3]]] }, // Same hole, different start and winding.
+  ];
+}
+
+it.each([false, true])("keeps a bent shared hole as one exclusion with Undo (already native: %s)", native => {
+  const outline = overlappingPocketsWithSharedHole();
+  const detectedState = run(initialTraceState, detected(outline));
+  const before = native ? run(detectedState, {
+    type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Enable curves",
+  }) : detectedState;
+  const bent = editCurves(before.curves ?? curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: 0 },
+    { kind: "bend", index: 0, t: 0.5, delta: { x: -.5, y: 0 } });
+  const after = run(before, { type: "CURVES_COMMITTED", curves: bent, label: "Bend shared hole" });
+  expect(after.curves![0].holes[0]).toEqual(after.curves![1].holes[0]);
+  expect(after.outline[0].holes[0]).toEqual(after.outline[1].holes[0]);
+  expect(traceObjects(after.outline, after.curves).filter(s => s.role === "hole")).toHaveLength(1);
+  expect(after.history.index).toBe(before.history.index + 1);
+  expect(run(after, { type: "UNDO" }).curves).toEqual(before.curves);
+  expect(run(after, { type: "UNDO" }, { type: "REDO" }).curves).toEqual(after.curves);
+});
+
+it("adds a contour after native-curve editing without losing handles or history", () => {
+  const photo = run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" },
+    { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } }, detected(ringA));
+  const curves = editCurves(curvesFromOutline(ringA), { shapeIndex: 0, ringIndex: -1 },
+    { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -1 } });
+  const before = run(photo, { type: "CURVES_COMMITTED", curves, label: "Bend edge" });
+  const after = run(before, { type: "ADD_CONTOUR" });
+  expect(after.outline).toHaveLength(2);
+  expect(after.curves).toHaveLength(2);
+  expect(after.curves![0]).toEqual(before.curves![0]);
+  expect(after.curves![1].outer).toHaveLength(4);
+  expect(after.curves![1].outer.every(a => !a.in && !a.out)).toBe(true);
+  expect(after.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+  expect(after.history.index).toBe(before.history.index + 1);
+  expect(run(after, { type: "UNDO" }).curves).toEqual(before.curves);
+  expect(run(after, { type: "UNDO" }, { type: "REDO" }).curves).toEqual(after.curves);
+});
+
+it("synchronizes a shared hole moved by point selection without a selected ring", () => {
+  const outline = overlappingPocketsWithSharedHole();
+  const before = run(initialTraceState, detected(outline), { type: "SELECT_RING", selection: null });
+  const moved = before.outline[0].holes[0].map(p => ({ ...p, x: p.x + 1 }));
+  const after = run(before, { type: "OUTLINE_COMMITTED", outline: [{ ...before.outline[0], holes: [moved] }, before.outline[1]] });
+  expect(after.outline[1].holes[0]).toEqual(moved);
+  expect(traceObjects(after.outline).filter(s => s.role === "hole")).toHaveLength(1);
 });

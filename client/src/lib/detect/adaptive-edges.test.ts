@@ -53,6 +53,34 @@ describe("automatic learned-edge sensitivity", () => {
     expect(labelMaskComponents(result.result.mask, width, height, 4).sizes.filter(n => n > 20)).toHaveLength(2);
   });
 
+  it("does not absorb a small independent tool when paper evidence is uncertain", () => {
+    const large = (x: number, y: number) => x >= 10 && x <= 100 && y >= 20 && y <= 110;
+    const small = (x: number, y: number) => x >= 105 && x <= 109 && y >= 35 && y <= 39;
+    const f = fixture((x, y) => large(x, y) || small(x, y), (x, y) => x === 100 && y > 55 && y < 75);
+    f.background.fill(0); // Shadow/poor contrast supplies no definite paper veto.
+    addSurfaceDetail(f.edges);
+    for (let x = 101; x <= 112; x++) f.edges[20 * width + x] = f.edges[110 * width + x] = .58;
+    for (let y = 20; y <= 110; y++) f.edges[y * width + 112] = .58;
+    const before = maskFromEdges(f.edges, width, height, f.seeds);
+    expect(before.mask[36 * width + 107]).toBe(1);
+    const result = selectAutomaticEdges(f.edges, width, height, f.seeds, f.background);
+    const labels = labelMaskComponents(result.result.mask, width, height, 4).labels;
+    expect(labels[36 * width + 107]).not.toBe(labels[60 * width + 40]);
+    expect(result.result).toEqual(before);
+  });
+
+  it("allows a small color island already enclosed within the same object", () => {
+    const f = fixture(body, weakSide);
+    for (let y = 40; y <= 95; y++) for (let x = 25; x <= 95; x++)
+      if (x === 25 || x === 95 || y === 40 || y === 95) f.edges[y * width + x] = .9;
+    // A small disconnected color patch sits inside that existing enclosure.
+    for (let y = 59; y <= 65; y++) for (let x = 49; x <= 55; x++)
+      if (x === 49 || x === 55 || y === 59 || y === 65) f.seeds[y * width + x] = 0;
+    const result = selectAutomaticEdges(f.edges, width, height, f.seeds, f.background);
+    expect(result.selection.edgeThreshold).toBe(.57);
+    expect(result.result.mask[85 * width + 85]).toBe(1);
+  });
+
   it("repairs a thin artificial split even when nearly all foreground is covered", () => {
     const w = 128, h = 512, edges = new Float32Array(w * h), seeds = new Uint8Array(edges.length), background = new Uint8Array(edges.length);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

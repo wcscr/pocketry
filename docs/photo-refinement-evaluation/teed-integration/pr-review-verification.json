@@ -1,0 +1,146 @@
+{
+  "date": "2026-11-05",
+  "pullRequest": 226,
+  "reviewedHead": "1ac1b8f43534d9a04897fb2b72fa3647ca826189",
+  "applicationVersion": "1.9.0",
+  "projectSchemaVersion": 61,
+  "runtime": "Node 22.22.2",
+  "findings": [
+    {
+      "priority": "P2",
+      "problem": "Add contour silently fails after native-curve editing and selects a nonexistent contour.",
+      "fix": "Append the new straight contour to the authoritative native source; preserve old handles, selection and one history step.",
+      "tests": "trace-store.test.ts: adds a contour after native-curve editing without losing handles or history"
+    },
+    {
+      "priority": "P2",
+      "problem": "Native-curve and unselected-ring point edits can split one shared retained hole into duplicate exclusions.",
+      "fix": "Infer changed authored holes from the previous geometry and synchronize all references for both representations.",
+      "tests": "trace-store.test.ts: shared-hole curve tests with/without prior native source, cyclic/reversed references, point selection without a selected ring, Undo/Redo and one Trace-to-Bin hole"
+    },
+    {
+      "priority": "P2",
+      "problem": "A missing touch-up after focus/source interruption leaves a stale touch ID and later touches stuck in pinch mode.",
+      "fix": "Cancel the gesture and clear touch tracking on focus/resize/source/editor reset.",
+      "tests": "use-curve-editor.test.tsx: fresh touch after blur and source replacement without an old pointerup"
+    },
+    {
+      "priority": "P2",
+      "problem": "Recovery treats an explicitly null historical calibration as absent, sampling an earlier curve with the current ruler.",
+      "fix": "Use the historical calibration, including null; inherit the current ruler only for legacy frames without photo metadata.",
+      "tests": "trace-draft.test.ts: recover an uncalibrated native-curve frame after later calibration, then Undo"
+    },
+    {
+      "priority": "P2",
+      "problem": "In a synthetic weak-background case, automatic sensitivity absorbs a small independent tool while recovering a larger neighbor.",
+      "fix": "Compute source support relative to the smaller evidence region so independently supported small objects retain the merge veto.",
+      "tests": "adaptive-edges.test.ts: preserve a separate 5x5 tool; still recover small color islands already enclosed by one tool"
+    }
+  ],
+  "addedTestCases": 9,
+  "checks": [
+    {
+      "command": "npm run check",
+      "status": "passed"
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "files": 239,
+      "tests": 3756
+    },
+    {
+      "command": "npm run test:workflows",
+      "status": "passed",
+      "files": 18,
+      "tests": 627
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "browser": {
+    "scope": "Two original JPEGs, actual compiled Chrome UI, recommended paper perspective + aid/paper scale, point and native curve repair, Add contour after native simplification with Undo/Redo. Desktop and 390px viewport; no real-phone performance claim.",
+    "cases": [
+      {
+        "name": "strip",
+        "recommendedPerspectiveAndScale": true,
+        "defaultDetectedShapes": 1,
+        "sensitivityAdjusted": false,
+        "autoSensitivityPreserved": true,
+        "detectedShapes": 1,
+        "estimatedAreas": 1,
+        "operations": [
+          {
+            "editableCurves": false,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true
+          },
+          {
+            "editableCurves": true,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true,
+            "addContourWithUndoRedo": true
+          }
+        ],
+        "pageErrors": []
+      },
+      {
+        "name": "no-strip",
+        "recommendedPerspectiveAndScale": true,
+        "defaultDetectedShapes": 1,
+        "sensitivityAdjusted": false,
+        "autoSensitivityPreserved": true,
+        "detectedShapes": 1,
+        "estimatedAreas": 0,
+        "operations": [
+          {
+            "editableCurves": false,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true
+          },
+          {
+            "editableCurves": true,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true,
+            "addContourWithUndoRedo": true
+          }
+        ],
+        "pageErrors": []
+      }
+    ]
+  },
+  "corpus": {
+    "scope": "36 actual tool photos on white Pocketry calibration sheets / 90 views, including the two exact browser controls. Excludes eight tray/packaging/mixed-tray contexts.",
+    "method": "One fresh quality-only run of the current pipeline per view using identical RGBA bytes, occlusions, tolerance, smoothing=1 and Auto sensitivity=128; compare the dense and displayed outlines with stored pre-review Auto outputs. Input SHA-256 verified before each run.",
+    "comparedViews": 90,
+    "changedDenseOutlines": 0,
+    "changedDisplayedOutlines": 0,
+    "details": "pr-review-white-sheet-regressions.json",
+    "performance": "No new timing benchmark; previous paired timings are retained."
+  },
+  "limits": [
+    "No physical-phone timing or physical-fit qualification",
+    "The earlier selected 78 CAD/export qualification tests were not repeated for these detection guards, editing and recovery changes",
+    "Existing Wiha-group fragmentation, missed features and other corpus limitations remain"
+  ],
+  "githubCi": "Local verification only. Hosted CI remains disabled; no CI workflow enabled or dispatched.",
+  "provenance": "None added or changed: no dependencies, copied code, model/runtime assets or license obligations introduced by this follow-up."
+}

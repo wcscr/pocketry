@@ -8,10 +8,10 @@ import {
   type Dispatch,
   type ReactNode,
 } from "react";
-import { syncHoleEdit } from "@/lib/geometry/ring-key";
+import { syncCurveHoleEdits, syncHoleEdit } from "@/lib/geometry/ring-key";
 import type { TraceDraft } from "@shared/trace-draft";
 import { mmPerPixel } from "@shared/geometry/scale";
-import { CURVE_TOLERANCE_MM, mapCurves, normalizeCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
+import { CURVE_TOLERANCE_MM, curvesFromOutline, mapCurves, normalizeCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { useTraceDraftPersistence, type TraceDraftSaveStatus } from "@/hooks/use-trace-draft-persistence";
 
 import {
@@ -523,7 +523,8 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "CURVES_COMMITTED": {
       if ((state.margin ?? 0) !== 0) return state;
       const tolerance = CURVE_TOLERANCE_MM / (mmPerPixel(state.calibration) ?? 0.1);
-      const curves = normalizeCurves(action.curves, tolerance);
+      const curves = normalizeCurves(syncCurveHoleEdits(state.outline,
+        state.curves ?? curvesFromOutline(state.outline), action.curves), tolerance);
       if (JSON.stringify(curves) === JSON.stringify(state.curves)) return state;
       const outline = sampleCurves(curves, tolerance);
       return { ...state, curves, outline, margin: 0, history: pushHistory(state.history, outline, action.label, 0,
@@ -786,9 +787,10 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         { x, y }, { x: x + side, y }, { x: x + side, y: y + side }, { x, y: y + side },
       ], holes: [] }]);
       if (!square.length) return state;
-      const committed = traceReducer(state, {
-        type: "OUTLINE_COMMITTED", outline: [...state.outline, ...square], label: "Add contour",
-      });
+      const committed = traceReducer(state, state.curves ? {
+        type: "CURVES_COMMITTED", curves: [...state.curves, ...curvesFromOutline(square)], label: "Add contour",
+      } : { type: "OUTLINE_COMMITTED", outline: [...state.outline, ...square], label: "Add contour" });
+      if (committed === state) return state;
       return { ...committed, mode: "edit", selection: { shapeIndex: state.outline.length, ringIndex: OUTER_RING } };
     }
 

@@ -165,6 +165,23 @@ it("cancels a touch edit when a second finger starts a pinch", () => {
   expect(navigation.onPointerMove).toHaveBeenCalledTimes(2); expect(navigation.onPointerUp).toHaveBeenCalledTimes(2);
 });
 
+it.each(["blur", "source replacement"])("accepts a fresh touch after an interrupted edit (%s)", interruption => {
+  render();
+  pointer(edge(), "pointerdown", 50, 10, 17, "touch");
+  pointer(svg(), "pointermove", 50, 25, 17, "touch");
+  // The old finger never produces an up event when focus/the source changes.
+  if (interruption === "blur") React.act(() => window.dispatchEvent(new Event("blur")));
+  else {
+    React.act(() => root.render(<Harness contextKey="new source" />));
+    React.act(() => button("Bend edges").click());
+  }
+  expect(onCommit).not.toHaveBeenCalled();
+  pointer(edge(), "pointerdown", 50, 10, 23, "touch");
+  pointer(svg(), "pointermove", 50, 30, 23, "touch");
+  pointer(svg(), "pointerup", 50, 30, 23, "touch");
+  expect(onCommit).toHaveBeenCalledTimes(1);
+});
+
 it("keeps both fingers out of editing after a group drag becomes a pinch", () => {
   render(); React.act(() => button("Select points").click());
   const point = (index: number) => host.querySelector(`[data-curve-kind="point"][data-curve-index="${index}"]`)!;

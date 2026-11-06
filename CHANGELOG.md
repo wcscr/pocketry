@@ -5,6 +5,7 @@
 - Opt into learned outer outlines for tools on white calibration sheets. Automatically recover weak outer boundaries without manual sensitivity tuning, using one tiny on-device model inference. Preserve thin features and handle reference strips locally, with short hidden edges estimated and highlighted for review.
 - Auto-simplify detected outlines into points by default, with an opt-in Editable curves switch, detail presets and original/preview comparison. Preserve curves through symmetry, straightening, calibration and Undo. Keep click-to-add/right-click-to-delete in curve editing, with visible point selection and group movement/deletion.
 - Repair selected outline sections with a previewed line or smooth curve, or edit Bézier contours in Trace and Bin. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
+- Keep Add contour and shared holes working alongside curves, recover interrupted touch edits, and restore each saved Undo frame at its own calibration. Protect small independent tools when automatic sensitivity recovers a larger neighbor.
 
 ## 1.8.3 — 2026-11-05
 

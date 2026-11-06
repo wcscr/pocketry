@@ -2,7 +2,43 @@
 
 Local implementation and evaluation, 2026-11-05. This record does not claim deployment or phone qualification.
 
-PR integration verification uses main `6b9eb60a`, app **1.9.0** and project schema
+## PR #226 review follow-up
+
+Review of published head `1ac1b8f4` reproduced and fixed five regressions:
+
+| Trigger | Before | After |
+| --- | --- | --- |
+| Add contour after opting into native curves | The new contour was rejected and its nonexistent index selected. | Append a straight contour to the native source, preserving existing handles and one-step Undo/Redo. |
+| Edit a hole shared by overlapping pockets, using curves or point multiselect | Duplicate references could diverge into separate exclusions. | Propagate the authored edit to every shared reference, including different winding/start points and the first curve edit. |
+| Touch editing interrupted by focus or source changes | A stale finger could make later touches look like a permanent pinch. | Cancel the edit and reset touch tracking. |
+| Recover an Undo frame that was explicitly uncalibrated | The current ruler incorrectly controlled its curve sampling. | Restore the frame using its own calibration, retaining the uncalibrated default when appropriate. |
+| Recover a large tool beside a small independent one, with weak paper evidence | In a synthetic case, the small tool fell below a percentage of the combined support and was absorbed. | Measure support relative to the smaller evidence region and reject that merge; already enclosed color patches can still recover together. |
+
+Nine focused regression cases were added. Local typecheck/build, **239 quick
+files / 3,756 tests**, and **18 workflow files / 627 tests** pass. Both original
+Craftsman JPEGs pass compiled-Chrome Auto detection, point/native curve repair,
+Cancel/Apply/Undo/Redo and calibration checks. Adding a contour after native
+simplification also passes Undo/Redo without changing the existing handles.
+
+A quality-only pass rechecks all **90 in-scope white-sheet views**, verifying
+identical input hashes against the preceding Auto snapshots. Every dense and
+displayed outline is **exactly unchanged**. The no-strip corrected browser
+control still returns one outline at 0.57 after three trials. This recheck adds
+no new timing benchmark: the paired comparisons and timing samples below remain
+the recorded performance evidence. The Wiha and other documented limitations
+remain. The small-neighbor merge is a synthetic regression test, not a claimed
+improvement on a photographed case.
+
+See `photo-refinement-evaluation/teed-integration/pr-review-verification.json`
+and `pr-review-white-sheet-regressions.json` for the checks and per-view results.
+The earlier 78 selected CAD/export tests below were not repeated for these
+editing, recovery and detection-guard fixes. No physical-phone or physical-fit
+qualification was added. GitHub CI remains disabled. Dependencies and third-party
+source/assets: **None added or changed** in this review follow-up.
+
+## Initial PR integration verification
+
+Integration verification uses main `6b9eb60a`, app **1.9.0** and project schema
 **61**. The new schema migrates main's version-60 label ownership and the earlier
 version-60 curve previews. Local typecheck/build pass, with **239 quick files /
 3,747 tests**, **18 workflow files / 627 tests**, and **3 selected geometry/export

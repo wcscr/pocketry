@@ -30,7 +30,7 @@ export function selectAutomaticEdges(edges: Float32Array, width: number, height:
     map.set(source, (map.get(source) ?? 0) + 1); material[label]++;
   }
   const sharedSources = associations.map((map, label) => new Set([...map].filter(([source, overlap]) =>
-    sourceLabels.sizes[source] >= Math.max(16, seedCount * .001) && overlap >= Math.max(3, material[label] * .02)).map(([source]) => source)));
+    sourceLabels.sizes[source] >= Math.max(16, seedCount * .001) && overlap >= Math.max(3, Math.min(material[label], sourceLabels.sizes[source]) * .02)).map(([source]) => source)));
   const fragments = (sets: Set<number>[]): number => {
     const occurrences = new Map<number, number>();
     for (const set of sets) for (const id of set) occurrences.set(id, (occurrences.get(id) ?? 0) + 1);
@@ -76,8 +76,11 @@ export function selectAutomaticEdges(edges: Float32Array, width: number, height:
       const label = next.labels[i], source = sourceLabels.labels[i];
       supports[label].set(source, (supports[label].get(source) ?? 0) + 1); totals[label]++;
     }
+    // Measure support against the smaller evidence region. A large recovered
+    // tool must not make a small independent tool disappear below a percentage
+    // of the combined area. Already co-enclosed colors share a root above.
     const nextSources = supports.map((map, label) => new Set([...map].filter(([source, overlap]) => sourceLabels.sizes[source] >= Math.max(16, seedCount * .001)
-      && overlap >= Math.max(3, totals[label] * .02)).map(([source]) => source)));
+      && overlap >= Math.max(3, Math.min(totals[label], sourceLabels.sizes[source]) * .02)).map(([source]) => source)));
     for (const set of nextSources) {
       const groups = new Set([...set].map(root));
       if (groups.size > 1) return;

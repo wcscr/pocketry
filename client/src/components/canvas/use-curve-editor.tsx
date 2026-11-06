@@ -57,13 +57,16 @@ export function useCurveEditor({ outline, curves, reconstructionSource, enabled,
   const capture = useRef<SVGSVGElement | null>(null);
   const pointers = useRef(new Set<number>());
   const gesture = useRef<{ id: number; source: CurveOutline; ref: RingRef; target: Target; start: Point; client: Point; t: number; latest: CurveOutline | null } | null>(null);
-  useEffect(() => { setStarted(false); setSectionRequest(undefined); setDraft(null); gesture.current = null; setRef({ shapeIndex: 0, ringIndex: -1 }); setTarget({ kind: "edge", index: 0 }); }, [contextKey, enabled]);
+  useEffect(() => { cancel(); pointers.current.clear(); setStarted(false); setSectionRequest(undefined); setRef({ shapeIndex: 0, ringIndex: -1 }); setTarget({ kind: "edge", index: 0 }); }, [contextKey, enabled]);
   useEffect(() => { setDraft(null); gesture.current = null; }, [curves, outline]);
   const cancel = () => { const drag = gesture.current; gesture.current = null; setDraft(null); if (drag && capture.current?.hasPointerCapture?.(drag.id)) capture.current.releasePointerCapture(drag.id); };
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === "Escape" && gesture.current) { e.preventDefault(); cancel(); } };
-    window.addEventListener("keydown", key); window.addEventListener("blur", cancel); window.addEventListener("resize", cancel);
-    return () => { window.removeEventListener("keydown", key); window.removeEventListener("blur", cancel); window.removeEventListener("resize", cancel); };
+    // A lost-focus touch may never send pointerup. Forget it rather than
+    // mistaking every later finger for a second touch in a permanent pinch.
+    const reset = () => { cancel(); pointers.current.clear(); };
+    window.addEventListener("keydown", key); window.addEventListener("blur", reset); window.addEventListener("resize", reset);
+    return () => { window.removeEventListener("keydown", key); window.removeEventListener("blur", reset); window.removeEventListener("resize", reset); };
   }, []);
   useEffect(() => { cancel(); }, [scale]);
   const commit = (next: CurveOutline, label: string) => {

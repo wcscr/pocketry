@@ -95,7 +95,9 @@ export const traceDraftSchema = z.object({
     };
     const state = restore(draft.state, mmPerPixel(draft.state.calibration));
     return { ...draft, state: { ...state, history: { ...state.history, stack: state.history.stack.map(entry => {
-      const restored = restore(entry, mmPerPixel(entry.photoFrame?.calibration ?? state.calibration));
+      // Explicit null means this frame was uncalibrated. Only legacy frames
+      // without photo metadata inherit the current ruler.
+      const restored = restore(entry, mmPerPixel(entry.photoFrame ? entry.photoFrame.calibration : state.calibration));
       return restored.curves ? { ...restored, refinementBase: restored.outline } : restored;
     }) } } };
   } catch (error) {
