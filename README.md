@@ -142,7 +142,7 @@ return 404 and do not accept or store uploads.
 
 ## Run locally
 
-There are two ways to run Pocketry locally: with **Node.js 22 and npm**, or with
+There are two ways to run Pocketry locally: with **Node.js 26 and npm**, or with
 **Docker**.
 
 Start by cloning the repository:
@@ -154,7 +154,8 @@ cd pocketry
 
 ### Option 1: Node.js and npm
 
-Install Node.js 22 and npm, then build and start Pocketry:
+Install Node.js 26 and npm (`npm ci` stops with an engine error on other
+versions), then build and start Pocketry:
 
 ```sh
 npm ci

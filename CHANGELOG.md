@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.10.0 — 2026-11-14
+
+- Require Node.js 26 LTS to build, test, or run Pocketry without Docker; `npm ci` now stops on other versions. The Docker image builds with Node.js 26 and still serves the app from NGINX.
+
 ## 1.9.0 — 2026-11-12
 
 - Import closed SVG outlines as editable pockets with physical dimensions or a width override.

@@ -32,7 +32,8 @@ shows startup errors; `docker compose down` stops and removes the container.
 
 ## Without Docker
 
-Install Node.js 22 and npm, then build from a repository checkout:
+Install Node.js 26 and npm (`npm ci` stops with an engine error on other
+versions), then build from a repository checkout:
 
 ```sh
 git clone https://github.com/wcscr/pocketry.git
@@ -152,7 +153,7 @@ are copied from the build stage. `/api` requests return 404; direct links to
 `/bin` and other app routes load the app. HTML and unversioned assets revalidate;
 hashed assets can be cached across page loads.
 
-After starting the container, maintainers can run the HTTP smoke test with Node 22 and dependencies installed (`npm ci`):
+After starting the container, maintainers can run the HTTP smoke test with Node 26 and dependencies installed (`npm ci`):
 
 ```sh
 npx tsx scripts/test-self-hosting.ts http://localhost:8080

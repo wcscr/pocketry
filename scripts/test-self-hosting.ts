@@ -1,4 +1,4 @@
-// Run against a started Docker container; uses only Node 22 built-ins.
+// Run against a started Docker container; uses only Node.js built-ins.
 import assert from "node:assert/strict";
 
 const base = new URL(process.argv[2] ?? "http://localhost:8080");
