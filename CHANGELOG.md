@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.8.1 — 2026-11-05
+
+- Keep a visible placement guide in Layout while raised or tilted pocket outlines update, with progress and unavailable-outline messages.
+
 ## 1.8.0 — 2026-11-05
 
 - Warn when surface text or hardware-symbol strokes may disappear with a typical 0.4 mm nozzle. Select the affected label from the warning to adjust its font or size; exports remain available.

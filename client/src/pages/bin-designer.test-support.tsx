@@ -35,7 +35,7 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 
 vi.mock("@/hooks/use-pocket-geometry", () => {
   const outlines = new Map();
-  return { usePocketGeometry: () => outlines };
+  return { usePocketGeometry: () => outlines, usePocketGeometryPreview: () => ({ outlines, status: "ready" }) };
 });
 
 vi.mock("@/components/gridfinity/bin-viewport", () => ({

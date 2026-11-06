@@ -105,6 +105,11 @@ under its entire projection. An actual collision blocks export with guidance to
 raise the pocket, change the floor limit, or remove the obstruction. Other
 geometry and axial-insertion validation still applies.
 
+Layout shows dashed placement guides and an updating message while exact pocket
+openings are computed. Guides follow the current pose; they are not measurements
+of the surface opening. A failed outline keeps its guide and shows an unavailable
+message.
+
 Full exact geometry remains in workers. Selection and Move/Rotate outlines use
 lightweight source wires without rounded mesh edges; rounding remains visible in
 the rendered bin. Packing reserves the source and insertion envelope. An invalid
