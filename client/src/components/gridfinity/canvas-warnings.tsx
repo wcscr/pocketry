@@ -7,11 +7,12 @@ import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
 /** Persistent model feedback shared by Layout and 3D, separate from property fields. */
-export function CanvasWarnings({ issues, holeIds, selectedCutoutId, selectedFingerHoleId, onRevealIssue, onAutoArrange, fixedBinSize = false }: {
+export function CanvasWarnings({ issues, holeIds, selectedCutoutId, selectedFingerHoleId, selectedSurfaceTextId, onRevealIssue, onAutoArrange, fixedBinSize = false }: {
   issues: readonly ValidationIssue[];
   holeIds?: ReadonlySet<string>;
   selectedCutoutId: string | null;
   selectedFingerHoleId: string | null;
+  selectedSurfaceTextId?: string | null;
   onRevealIssue: (issue: ValidationIssue) => void;
   onAutoArrange?: () => void;
   fixedBinSize?: boolean;
@@ -66,14 +67,17 @@ export function CanvasWarnings({ issues, holeIds, selectedCutoutId, selectedFing
           {orderedIssues.map((issue, index) => {
             const selected = Boolean(
               (selectedCutoutId && issue.cutoutIds?.includes(selectedCutoutId)) ||
-              (selectedFingerHoleId && issue.fingerHoleIds?.includes(selectedFingerHoleId)),
+              (selectedFingerHoleId && issue.fingerHoleIds?.includes(selectedFingerHoleId)) ||
+              (selectedSurfaceTextId && issue.surfaceTextIds?.includes(selectedSurfaceTextId)),
             );
             const retained = issue.cutoutIds?.filter(id => holeIds?.has(id)).length ?? 0;
             const objectAction = issue.cutoutIds?.length
               ? issue.cutoutIds.length > 1 ? `Show ${retained === issue.cutoutIds.length ? "holes" : retained ? "objects" : "pockets"} · click to switch`
                 : retained ? "Edit hole" : "Edit pocket"
               : issue.fingerHoleIds?.length ? "Edit finger access"
-              : issue.surfaceTextIds?.length ? "Position text in Layout" : "Open bin settings";
+              : issue.surfaceTextIds?.length
+                ? issue.code === "surface-text-thin-strokes" ? "Edit text or symbol" : "Position text in Layout"
+                : "Open bin settings";
             return (
               <button
                 type="button"

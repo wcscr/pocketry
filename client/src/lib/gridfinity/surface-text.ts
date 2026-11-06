@@ -16,6 +16,7 @@ import {
 } from "@shared/gridfinity/label-tab-surfaces";
 import { normalizeOutline, outlineBounds } from "@/lib/geometry/outline";
 import type { Kernel } from "@/lib/manifold/runtime";
+import { surfaceTextPrintabilityIssue } from "./surface-text-printability";
 
 const loader = new FontLoader();
 const fonts = {
@@ -193,6 +194,8 @@ export function buildSurfaceTexts(kernel: Kernel, spec: BinSpec, body: Manifold)
         report(label, `Could not build text “${surfaceTextName(label)}”.`);
         continue;
       }
+      const printabilityIssue = surfaceTextPrintabilityIssue(label, section);
+      if (printabilityIssue) issues.push(printabilityIssue);
       occupied.push(solid);
       parts.push({ label, solid, z });
     } catch (cause) {

@@ -259,7 +259,9 @@ function BinDesignerWorkspace(): JSX.Element {
       return;
     }
     if (issue.surfaceTextIds?.length) {
-      positionTextFor(issue.surfaceTextIds.find(id => id !== bin.selectedSurfaceTextId) ?? issue.surfaceTextIds[0]);
+      const id = issue.surfaceTextIds.find(id => id !== bin.selectedSurfaceTextId) ?? issue.surfaceTextIds[0];
+      if (issue.code === "surface-text-thin-strokes") editSurfaceText(id);
+      else positionTextFor(id);
       return;
     }
     if (issue.cutoutIds?.length) {
@@ -558,7 +560,8 @@ function BinDesignerWorkspace(): JSX.Element {
   const issues = [...layoutIssues, ...solidIssues.filter(issue => !issue.surfaceTextIds?.length
     || issue.surfaceTextIds.some(id => spec.surfaceTexts.some(label => label.id === id))).filter(issue => !layoutIssues.some(local =>
     local.code === issue.code && local.message === issue.message && local.severity === issue.severity
-    && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)))];
+    && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)
+    && JSON.stringify(local.surfaceTextIds) === JSON.stringify(issue.surfaceTextIds)))];
   const invalidSurfaceTextIds = new Set(issues.flatMap(issue => issue.severity === "error" ? issue.surfaceTextIds ?? [] : []));
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);
@@ -1394,6 +1397,7 @@ function BinDesignerWorkspace(): JSX.Element {
             issues={issues.filter(issue => issue.code !== "pocket-depth-needed")}
             selectedCutoutId={bin.selectedCutoutId}
             selectedFingerHoleId={bin.selectedFingerHoleId}
+            selectedSurfaceTextId={bin.selectedSurfaceTextId}
             onRevealIssue={revealIssue}
             onAutoArrange={![...cutouts, ...fingerHoles].some(object => object.placementGroup) && cutouts.filter(cutout => cutout.role !== "hole").length > 1 ? handleAutoArrange : undefined}
             fixedBinSize={fixedBinSize}

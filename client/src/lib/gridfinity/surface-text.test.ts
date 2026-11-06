@@ -23,6 +23,38 @@ const text = surfaceTextSchema.parse({ id: "text-1", text: "B8 & O", position: {
 const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 3, lip: "none", surfaceTexts: [text], textColor: "#ff6600" });
 
 describe("surface text", () => {
+  it.each([false, true])("returns thin-stroke warnings across the worker boundary without blocking export (export=%s)", async exportTopology => {
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (
+      request: BuildBinRequest, context: HandlerContext
+    ) => Promise<TransferableResult<BuildBinResult>>;
+    const small = { ...text, text: "M4 nut", font: "helvetiker" as const, sizeMm: 2 };
+    const { value } = await handler({ spec: { ...spec, surfaceTexts: [small] }, quality: EXPORT_QUALITY, exportTopology },
+      { signal: new AbortController().signal, progress: () => {} });
+    expect(value.validationIssues).toContainEqual(expect.objectContaining({
+      code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: [text.id],
+    }));
+    expect(value.textMeshes?.[0].mesh.indices.length).toBeGreaterThan(0);
+    const { value: revised } = await handler({ spec: { ...spec, surfaceTexts: [{ ...small, font: "helvetiker-bold", sizeMm: 3.6 }] }, quality: EXPORT_QUALITY, exportTopology },
+      { signal: new AbortController().signal, progress: () => {} });
+    expect(revised.validationIssues?.some(issue => issue.code === "surface-text-thin-strokes")).toBe(false);
+  });
+  it("keeps thin-stroke warnings advisory alongside placement errors", async () => {
+    const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (
+      request: BuildBinRequest, context: HandlerContext
+    ) => Promise<TransferableResult<BuildBinResult>>;
+    const small = { ...text, text: "M4 nut", font: "helvetiker" as const, sizeMm: 2 };
+    const mixed = { ...spec, surfaceTexts: [small, { ...small, id: "outside", position: { x: 100, y: 0 } }] };
+    const context = { signal: new AbortController().signal, progress: () => {} };
+    const { value } = await handler({ spec: mixed, quality: EXPORT_QUALITY }, context);
+    expect(value.validationIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: [text.id] }),
+      expect.objectContaining({ code: SURFACE_TEXT_ISSUE_CODE, severity: "error", surfaceTextIds: ["outside"] }),
+    ]));
+    expect(value.textMeshes?.map(part => part.label.id)).toEqual([text.id]);
+    await expect(handler({ spec: mixed, quality: EXPORT_QUALITY, exportTopology: true }, context))
+      .rejects.toThrow("must fit on the flat surface");
+  });
+
   it("defaults raised lettering to 0.5 mm while preserving saved heights", () => {
     expect(text.heightMm).toBe(0.5);
     const previous = parseProjectDoc({ schemaVersion: 56, shapes: [], cutouts: [], fingerHoles: [],

@@ -37,7 +37,10 @@ describe("label-tab text placement", () => {
       }));
       const physical = buildBinWithCutouts(kernel, { ...after, surfaceTexts: after.surfaceTexts.map(({ orphanedTab: _anchor, ...label }) => label) }, null, PREVIEW_QUALITY);
       expect(physical.textParts).toHaveLength(1);
-      expect(physical.validationIssues.filter(issue => issue.surfaceTextIds?.length)).toEqual([]);
+      expect(physical.validationIssues.filter(issue => issue.surfaceTextIds?.length && issue.severity === "error")).toEqual([]);
+      expect(physical.validationIssues).toContainEqual(expect.objectContaining({
+        code: "surface-text-thin-strokes", severity: "warning", surfaceTextIds: ["last-cell"],
+      }));
     });
     const handler = createBinWorkerHandlers(loadManifold)[BUILD_BIN_METHOD] as (
       request: BuildBinRequest, context: HandlerContext
