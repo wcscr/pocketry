@@ -25,6 +25,7 @@ import { createPortal } from "react-dom";
 import { ZodError } from "zod";
 import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
+import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
 import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import {
@@ -225,7 +226,7 @@ export interface BinControlsPanelProps {
   building: boolean;
   previewIsDraft?: boolean;
   exporting: boolean;
-  onExport: (format: "3mf" | "3mf-multicolor" | "stl", includeProject: boolean) => void;
+  onExport: (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
@@ -465,6 +466,8 @@ export function BinControlsPanel({
     return cancel;
   }, [settingsSectionRequest]);
   const hasErrors = issues.some((issue) => issue.severity === "error");
+  // Fit tests and alignment SVGs contain no lettering, so misplaced labels do not block them.
+  const hasNonTextErrors = issues.some((issue) => issue.severity === "error" && !issue.surfaceTextIds?.length);
   const showNoCutoutsWarning = spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0;
   const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
@@ -716,7 +719,7 @@ export function BinControlsPanel({
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  disabled={exporting || hasErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
+                  disabled={exporting || hasNonTextErrors || (surfaceFitCheckStyle === "outline" && cutouts.length === 0)}
                   onClick={() =>
                     setPendingExport({
                       title: "Save surface fit test STL?",
@@ -2164,6 +2167,10 @@ export function BinControlsPanel({
           hint="Add raised text to label tabs or solid fill. Hollow bins require label tabs. Drag text in Layout, clear of openings. Double-click a label to edit its text. You can position text even when the 3D preview cannot build."
           summary={`${spec.surfaceTexts.length} label${spec.surfaceTexts.length === 1 ? "" : "s"}`} defaultOpen={spec.surfaceTexts.length > 0} className="scroll-mt-16">
           <SurfaceTextControls onPositionText={onPositionText} />
+          {/* Misplaced labels are left out of the preview and block export until moved. */}
+          {issues.filter(issue => issue.surfaceTextIds?.length).map(issue =>
+            <p key={`${issue.code}-${issue.surfaceTextIds!.join(",")}-${issue.message}`} role="alert" className="text-xs text-destructive"
+              data-testid="surface-text-issue">{issue.message}</p>)}
           {geometryError && spec.surfaceTexts.length > 0 && <p role="alert" className="text-xs text-destructive">{geometryError}</p>}
         </PanelSection>
 
@@ -2483,7 +2490,8 @@ export function BinControlsPanel({
               {issues.filter(issue => issue.severity === "error").map((issue, index) => <li key={`${issue.code}-${index}`}>
                 <button type="button" className="min-h-11 w-full rounded border bg-background px-3 py-2 text-left text-xs leading-relaxed hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-export-issue={issue.code} onClick={() => onRevealIssue(issue)}>
-                  {issue.message}<span className="mt-1 block font-medium underline">Show settings to fix this</span>
+                  {issue.message}<span className="mt-1 block font-medium underline">{issueSettingsTarget(issue.code)?.label
+                    ?? (issue.surfaceTextIds?.length ? "Position text in Layout" : "Show settings to fix this")}</span>
                 </button>
               </li>)}
             </ul>
@@ -2571,7 +2579,7 @@ export function BinControlsPanel({
                     confirmLabel: "Download SVG",
                     onConfirm: (includeProject) => onExportLayout("svg", includeProject),
                   })}
-                  disabled={Boolean(spec.pegBottom) && (exporting || hasErrors)}
+                  disabled={Boolean(spec.pegBottom) && (exporting || hasNonTextErrors)}
                   data-testid="button-layout-svg"
                 >
                   {spec.pegBottom ? "Save alignment SVG" : "Save SVG"}
@@ -2781,8 +2789,8 @@ export function BinControlsPanel({
               </span>
             </Button>
             <div id="bambu-multicolor-import-warning" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-100" role="status" data-testid="export-bambu-color-warning">
-              <p className="font-medium">Bambu Studio 2.9.1.70: multi-color import issue</p>
-              <p className="mt-1">This version currently does not import Pocketry’s multi-color 3MF colors correctly. A fix is in progress. <a href="https://github.com/wcscr/pocketry/issues/211" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Follow the fix</a>.</p>
+              <p className="font-medium">Bambu Studio 2.9.1.70: separate-part color issue</p>
+              <p className="mt-1">Regular Multi-color 3MF loses colors on separate parts in this version. Use Bambu 3MF below to keep colors in one model. A fix for separate-part imports is in progress. <a href="https://github.com/wcscr/pocketry/issues/211" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Follow the fix</a>.</p>
             </div>
             <Button
               className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
@@ -2813,6 +2821,38 @@ export function BinControlsPanel({
                         .join(" and ")} for slicer assignment.`
                     : "Add surface text, or choose a label background, floor, rim, or border color in Materials & Colors first."}
                 </span>
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
+              disabled={exporting || hasErrors || !hasSelectedMulticolor}
+              onClick={() => {
+                setThreeMfDialogOpen(false);
+                onExport("3mf-bambu", includeThreeMfProject);
+              }}
+              data-testid="button-export-bambu-3mf"
+            >
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Bambu 3MF</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">One model with painted color regions; body, labels, and text are no longer separate named parts.</span>
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto w-full min-w-0 items-start justify-start whitespace-normal px-3 py-2.5 text-left"
+              disabled={exporting || hasErrors || !hasSelectedMulticolor}
+              onClick={() => {
+                setThreeMfDialogOpen(false);
+                onExport("3mf-prusa", includeThreeMfProject);
+              }}
+              data-testid="button-export-prusa-3mf"
+            >
+              <Palette className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Prusa color preview 3MF</span>
+                <span className="block text-[11px] font-normal text-muted-foreground">Open as a project to set up filament slots and colors automatically in PrusaSlicer 2.9 and 3.0 alpha. Includes a preview printer setup; select your actual printer and print settings before printing.</span>
               </span>
             </Button>
           </div>

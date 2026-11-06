@@ -39,13 +39,18 @@ export function validateTiltedSolids(kernel: Kernel, spec: BinSpec,
         message: `“${item.label}”: The pocket does not intersect the slanted bin body. Move it into the bin.` });
     }
     if (needsExact(item.cutout) && !(!spec.wallSlant && hasRigidPocket(item.cutout) && pocketDepths(item.cutout).some(d => d.mode === "through"))) {
+      const tilted = hasPocketTilt(item.cutout);
+      const pocketDescription = tilted ? "tilted pocket" : hasRigidPocket(item.cutout) ? "pocket at this height" : "pocket";
+      const correction = tilted ? "Move it inward, reduce tilt, or enlarge the bin."
+        : hasRigidPocket(item.cutout) ? "Move it inward, adjust its height, or enlarge the bin."
+          : "Move it inward or enlarge the bin.";
       const boundaries = [wall, lip].filter((solid): solid is Manifold => solid !== null && !solid.isEmpty());
       if (boundaries.some(boundary => overlaps(item.solid, boundary))) {
         issues.push({ code: "tilted-pocket-wall", severity: "error", cutoutIds: [item.cutout.id],
-          message: `“${item.label}”: The tilted pocket cuts into a wall, label tab, or stacking rim. Move it inward, reduce tilt, or enlarge the bin.` });
+          message: `“${item.label}”: The ${pocketDescription} cuts into a wall, label tab, or stacking rim. ${correction}` });
       } else if (boundaries.some(boundary => item.solid.minGap(boundary, D_DIV) < D_DIV - 1e-5)) {
         issues.push({ code: "tilted-pocket-thin-material", severity: "warning", cutoutIds: [item.cutout.id],
-          message: `“${item.label}”: The tilted shaft leaves less than ${D_DIV} mm of material beside a wall, label tab, or stacking rim.` });
+          message: `“${item.label}”: The ${tilted ? "tilted shaft" : "pocket shaft"} leaves less than ${D_DIV} mm of material beside a wall, label tab, or stacking rim.` });
       }
     }
     for (const other of clipped.slice(i + 1)) {

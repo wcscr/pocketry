@@ -5,24 +5,28 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { BinProvider, useBin, type BinStore } from "@/state/bin-store";
-import { parseCutoutPlacement, fingerHoleSchema } from "@shared/gridfinity/cutout";
-import { ShapeLibraryProvider } from "@/state/shape-library";
+import { parseCutoutPlacement, fingerHoleSchema, type TracedShape } from "@shared/gridfinity/cutout";
+import { ShapeLibraryProvider, useShapeLibrary, type ShapeLibrary } from "@/state/shape-library";
 import { LinkedDesignControls } from "./linked-design-controls";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
+import { validateLayout } from "@shared/gridfinity/validate";
 const cleanups: (() => void)[] = [];
 afterEach(() => { cleanups.splice(0).forEach(fn => fn()); vi.unstubAllGlobals(); });
-function mount() {
+function mount(shape?: TracedShape) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   let state: BinStore;
+  let library: ShapeLibrary;
   const labels = new Map([["a", "Alpha"], ["b", "Beta"], ["f", "Access"]]);
   function Harness() {
-    state = useBin();
+    state = useBin(); library = useShapeLibrary();
     const id = state.selectedCutoutId ?? state.selectedFingerHoleId;
     return id ? <LinkedDesignControls kind={state.selectedCutoutId ? "pocket" : "finger"} activeId={id} labels={labels} /> : null;
   }
   React.act(() => root.render(<ShapeLibraryProvider><BinProvider><Harness /></BinProvider></ShapeLibraryProvider>));
   const a = parseCutoutPlacement({ id: "a", shapeId: "s", name: "Alpha", position: { x: -15, y: 0 } });
   React.act(() => {
+    if (shape) library.storeShape(shape);
     state.dispatch({ type: "ADD_PLACED", cutouts: [a, { ...a, id: "b", name: "Beta", scaleX: 2, position: { x: 15, y: 0 } }], gridX: 3, gridY: 3 });
     state.dispatch({ type: "SET_SELECTION", selection: [{ kind: "pocket", id: "a" }, { kind: "pocket", id: "b" }] });
   });
@@ -86,4 +90,44 @@ it("discloses hole type adoption and propagation for linked copies", () => {
   expect(document.body.textContent).toContain("Linked copies share Pocket or Hole type, shape, size, depth");
   React.act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: "b", patch: { role: undefined } }));
   expect(store().cutouts.every(c => c.role === undefined)).toBe(true);
+});
+
+
+it("places repeated linked drivers inside the bin with selection and one-step undo", () => {
+  const shape = { ...createBasicPocket("rectangle", { x: -5, y: -134 }, { x: 5, y: 134 }, "s")!.shape };
+  const { click, store } = mount(shape);
+  React.act(() => {
+    store().dispatch({ type: "REMOVE_CUTOUT", id: "b" });
+    store().dispatch({ type: "PATCH_SPEC", patch: { gridY: 7 } });
+    store().dispatch({ type: "SELECT_CUTOUT", id: "a" });
+  });
+  const before = store().cutouts;
+  const history = store().history.index;
+  for (let index = 0; index < 4; index++) click("Duplicate linked");
+  expect(store().cutouts).toHaveLength(5);
+  expect(validateLayout(store().spec, store().cutouts, new Map([[shape.id, shape]]))).toEqual([]);
+  expect(store().cutouts[0].position).toEqual(before[0].position);
+  expect(store().cutouts.every(c => c.designLink?.id === store().cutouts[0].designLink?.id)).toBe(true);
+  expect(store().selectedCutoutId).toBe(store().cutouts.at(-1)!.id);
+  expect(store().history.index).toBe(history + 4);
+  const completed = store().cutouts;
+  React.act(() => store().dispatch({ type: "UNDO" }));
+  expect(store().cutouts).toEqual(completed.slice(0, 4));
+  React.act(() => store().dispatch({ type: "REDO" }));
+  expect(store().cutouts).toEqual(completed);
+  expect(store().editError).toBeNull();
+});
+
+it("explains an in-place fallback without marching subsequent copies out of a full bin", () => {
+  const shape = createBasicPocket("rectangle", { x: -14, y: -14 }, { x: 14, y: 14 }, "s")!.shape;
+  const { click, store, host } = mount(shape);
+  React.act(() => {
+    store().dispatch({ type: "REMOVE_CUTOUT", id: "b" });
+    store().dispatch({ type: "PATCH_SPEC", patch: { gridX: 1, gridY: 1 } });
+    store().dispatch({ type: "UPDATE_CUTOUT", id: "a", patch: { position: { x: 0, y: 0 } } });
+    store().dispatch({ type: "SELECT_CUTOUT", id: "a" });
+  });
+  click("Duplicate linked"); click("Duplicate linked");
+  expect(store().cutouts.every(c => c.position.x === 0 && c.position.y === 0)).toBe(true);
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain("on top of its source");
 });

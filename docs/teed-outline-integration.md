@@ -2,13 +2,23 @@
 
 Local implementation and evaluation, 2026-11-05. This record does not claim deployment or phone qualification.
 
+PR integration verification uses main `6b9eb60a`, app **1.9.0** and project schema
+**61**. The new schema migrates main's version-60 label ownership and the earlier
+version-60 curve previews. Local typecheck/build pass, with **239 quick files /
+3,747 tests**, **18 workflow files / 627 tests**, and **3 selected geometry/export
+files / 78 tests** (`bin-worker-handlers`, `pocket-color`, `sideways-pocket-color`).
+Both original Craftsman JPEGs pass the compiled-browser Auto, point/native-curve
+repair and Undo checks again. Pinned model bytes, served license and built NOTICE
+are verified. Full earlier corpus evidence is retained rather than rerun for this
+main integration. See `photo-refinement-evaluation/teed-integration/pr-integration-verification.json`.
+
 In Trace, select a region with white paper around the entire tool, then choose **Tool edges · white sheet** under **Find the outline using** in Outline settings. Color contrast is the default. The choice is retained in browser recovery and across photo changes. This mode fills interior lettering/reflections as material and disables interior-hole detection. Use color detection when actual holes are needed. Re-detection asks before replacing manual edits, and Undo retains the previous outline.
 
 The crop is drawn directly from original photo pixels into a canvas capped at 1024 pixels on its longest side. It respects the current rotation and perspective/alignment transform. It does not allocate a full-resolution temporary image. Detection coordinates map back per axis into the existing working image; calibration, photo-relative placement and the single export conversion stay in that frame.
 
 ## Interaction review build
 
-The visible **Editable curves** switch is off by default for new point traces. Auto-simplify normally produces a finite-chord-bounded point outline; curved sections are approximated by points. Enabling the switch opts into native cubic reconstruction and curve handles. Existing saved curves load intact; switching off converts to the displayed adaptive points in one undoable edit. Undo restores the original handles. The preference follows new photos and draft recovery without changing project schema 60.
+The visible **Editable curves** switch is off by default for new point traces. Auto-simplify normally produces a finite-chord-bounded point outline; curved sections are approximated by points. Enabling the switch opts into native cubic reconstruction and curve handles. Existing saved curves load intact; switching off converts to the displayed adaptive points in one undoable edit. Undo restores the original handles. The preference follows new photos and draft recovery without changing project schema 61.
 
 Symmetry & straighten is visible beside Auto-simplify. Native Left/Right symmetry splits cubic axis crossings and mirrors controls exactly. Average rebuilds editable curves from an adaptively sampled width profile; topology/complexity guards retain the original on failure. Straightening rotates every anchor/handle, ruler and photo frame together. Symmetry with optional upright rotation commits once, and Undo/Redo restores the curve source and calibration.
 
@@ -289,7 +299,7 @@ The sensitivity control changes the edge-barrier threshold; a lower barrier thre
 
 ## Editable curves
 
-Learned detection keeps a dense boundary and a simplified polygon. Use **Outline → Auto-simplify outline → Apply simplified outline** to rebuild from dense evidence. The older Auto-fit contour and selected-point actions remain separate tools for the current polygon. Keep Trace margin at zero. The preview has an adjustable maximum deviation and preserves sharp corners. Apply is one undoable edit; rejected previews do not change the source. Handles survive Trace recovery, separate pocket/hole transfer with photo positions, Bin revisions, and project backups. Project schema 60 accepts schema 59 and earlier supported files; Trace draft schema 2 accepts schema 1.
+Learned detection keeps a dense boundary and a simplified polygon. Use **Outline → Auto-simplify outline → Apply simplified outline** to rebuild from dense evidence. The older Auto-fit contour and selected-point actions remain separate tools for the current polygon. Keep Trace margin at zero. The preview has an adjustable maximum deviation and preserves sharp corners. Apply is one undoable edit; rejected previews do not change the source. Handles survive Trace recovery, separate pocket/hole transfer with photo positions, Bin revisions, and project backups. Project schema 61 accepts schema 60 and earlier supported files; Trace draft schema 2 accepts schema 1.
 
 Reconstruction bounds deviation against the dense detected boundary; the older Auto-fit contour and selected-point actions bound it against the current polygon. Neither reference is photographed ground truth. A tight bound and corner preservation can leave many anchors. Native cubic curves are retained in Trace SVG when no hole/material boolean is needed. Mesh/DXF paths use adaptive polygon samples. See [curve behavior, sampling and limitations](contour-curves-prototype.md).
 

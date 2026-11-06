@@ -140,9 +140,17 @@ well as in-memory solids. Do not substitute display normals or rounded preview
 coordinates for the printable mesh. [Geometry export integrity](geometry-export-integrity.md)
 records why tiny native-precision features need care at the writer boundary.
 
-The 3MF export dialog warns that Bambu Studio 2.9.1.70 currently imports Pocketry's
-multi-color assignments incorrectly. Exports remain available while the fix is
-tracked in [issue #211](https://github.com/wcscr/pocketry/issues/211).
+The 3MF export dialog warns that Bambu Studio 2.9.1.70 loses colors on separate
+parts. **Bambu 3MF** combines selected material meshes into one model with
+per-face colors and Prusa painting metadata. It includes no printer settings.
+**Prusa color preview 3MF** adds automatic filament slots and RGB colors for
+PrusaSlicer 2.9.7 and 3.0 alpha12/alpha13 when opened as a project. It loads a
+labeled preview printer configuration; select the actual printer and print
+settings before printing. Both options preserve geometry and vertex identities,
+but body, color regions, and text no longer appear as separate named parts.
+Regular **Multi-color 3MF** retains separate parts. See
+[Bambu and Prusa compatibility](bambu-3mf-compatibility.md) and
+[issue #211](https://github.com/wcscr/pocketry/issues/211).
 
 Fit checks reduce print cost but answer narrower questions. A surface check tests
 openings and, for a full-surface plate, relative spacing; it does not validate

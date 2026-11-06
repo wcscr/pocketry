@@ -778,7 +778,7 @@ it.each(["standard", "workflow"])("retains optional divider coloring across cons
   } finally { unmount(); window.history.replaceState(null, "", url); }
 });
 
-it("saves and exports independent label backgrounds with rim/floor colors off, then restores body matching", async () => {
+it.each(["multicolor", "bambu"])("saves and exports independent label backgrounds with rim/floor colors off (%s), then restores body matching", async format => {
   vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT,
     spec: parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 4, fill: "none", labelTab: { recessMm: 0.5, frontRim: true }, textColor: "#35393c" }),
     materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#35393c", colorPocketFloors: false, colorStackingRim: false },
@@ -810,9 +810,9 @@ it("saves and exports independent label backgrounds with rim/floor colors off, t
     });
     openSettingsSection(container, "export");
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.click());
-    const exportButton = document.querySelector<HTMLButtonElement>('[data-testid="button-export-multicolor-3mf"]')!;
+    const exportButton = document.querySelector<HTMLButtonElement>(`[data-testid="button-export-${format}-3mf"]`)!;
     expect(exportButton.disabled).toBe(false);
-    expect(exportButton.textContent).toContain('label backgrounds');
+    if (format === "multicolor") expect(exportButton.textContent).toContain('label backgrounds');
     await React.act(async () => exportButton.click());
     expect(binGeometryMock.buildOnce).toHaveBeenLastCalledWith(expect.any(Object), expect.objectContaining({
       labelBackgroundMaterialThicknessMm: 0.6, stackingRimMaterialThicknessMm: undefined, pocketFloorMaterialThicknessMm: undefined,
@@ -821,9 +821,21 @@ it("saves and exports independent label backgrounds with rim/floor colors off, t
     const buffer = await new Promise<ArrayBuffer>(resolve => {
       const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.readAsArrayBuffer(blob);
     });
-    const xml = strFromU8(unzipSync(new Uint8Array(buffer))["3D/3dmodel.model"]);
-    expect(xml).toContain('label backgrounds'); expect(xml).toContain('#EEE8DAFF');
-    expect(xml).toContain('#35393CFF'); expect(xml.match(/<mesh>/g)).toHaveLength(2);
+    const entries = unzipSync(new Uint8Array(buffer));
+    const xml = strFromU8(entries["3D/3dmodel.model"]);
+    expect(xml).toContain('#EEE8DAFF'); expect(xml).toContain('#35393CFF');
+    if (format === "bambu") {
+      expect(xml.match(/<mesh>/g)).toHaveLength(1);
+      expect(xml).toContain('pid="1" p1="0"');
+      expect(xml).toContain('pid="1" p1="1"');
+      expect(entries["Metadata/model_settings.config"]).toBeUndefined();
+      expect(xml).toContain('slic3rpe:mmu_segmentation="4"');
+      expect(xml).toContain('slic3rpe:mmu_segmentation="8"');
+      expect(entries["Metadata/Slic3r_facets_annotation.json"]).toBeDefined();
+    } else {
+      expect(xml).toContain('label backgrounds');
+      expect(xml.match(/<mesh>/g)).toHaveLength(2);
+    }
     openSettingsSection(container, "materials");
     React.act(() => Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Use bin-body color')!.click());
     expect(container.querySelector<HTMLInputElement>('#input-label-background-color')!.value).toBe('#35393c');

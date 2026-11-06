@@ -60,8 +60,9 @@ tests, documentation, or assets and the tool used. Include the tool's
 `Co-Authored-By` trailer on affected commits, using its standard attribution
 identity where available; do not invent a person or email address. Maintainers
 preserve that credit when squashing. Routine autocomplete, spelling, and formatting
-need no separate credit. Maintainer work covered by the project's standing AI
-acknowledgment need not repeat that acknowledgment in every commit or PR.
+need no separate credit. Maintainer work covered by the project's
+[standing acknowledgment of OpenAI Codex and Anthropic Claude](README.md#contributors)
+need not repeat that acknowledgment in every commit or PR.
 
 AI credit records assistance, not copyright ownership or authority to accept the
 CLA. Review and test your submission yourself, and disclose known restrictions

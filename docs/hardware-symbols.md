@@ -3,7 +3,9 @@
 Choose **Add → Surface text**, then **Symbol** in the selected label's properties.
 
 With label tabs enabled, new text starts on the next empty shelf that fits it.
-**Surface → Label tabs** places text or symbols on the horizontal shelf tops,
+On bins with a stacking lip it starts clear of the lip's overhang beside the outer
+walls, shifting toward the bin's middle or shrinking as needed; saved labels are
+not moved. **Surface → Label tabs** places text or symbols on the horizontal shelf tops,
 including slanted walls and compartment dividers. Layout shades those tops at
 their actual shifted positions. Hollow bins use **Label tabs** exclusively;
 **Bin surface** is available only with solid fill. Opening an older hollow-bin
@@ -11,6 +13,12 @@ project or removing solid fill retargets its labels to tab height without moving
 rotating, or resizing them. Fill changes and their label updates undo together.
 If tabs are disabled or clipped away,
 tab text stays recoverable and export explains which surface needs restoring.
+When rows or columns change, tab labels follow the same sub-bin. A label whose
+tab disappears stays at its current position, is outlined in Layout, and blocks
+export even if another tab happens to sit underneath it. Restore its original
+tab to reattach it, or move the label onto another tab in Layout. This ownership
+is retained in saved projects and undo history (schema 60); editing only the
+wording or size does not dismiss the warning.
 Search by hardware or drive name. A label holds one symbol, optional text,
 or text alone. Clear text to print only the symbol; enter text before
 selecting None. Add more labels for more symbols. Symbols share the label's raised
@@ -39,6 +47,16 @@ labels default to a quarter-em gap until edited, while an explicitly set gap
 stays fixed when text or symbol size changes. The combined outline is centered at the
 label position and then rotated. Existing text-only outlines are unchanged.
 STL joins labels to the bin; 3MF retains each label as a separately named part.
+The model warning panel flags text and symbol details that may disappear at
+**0.42 mm line width**, a reference for a typical **0.4 mm nozzle**. Click the
+warning to select its label. Increase the font size or choose a bolder font;
+symbols have their own size setting. A smaller nozzle may also help. This is an
+outline-based estimate, not a slicer simulation or a guarantee: it allows small
+corner losses, and thin-wall handling and variable-width walls can change the
+result. Always inspect the label layers in your slicer. Warnings do not block
+export, resize labels, or change saved projects. The check also covers portable
+custom fonts, punctuation and symbol-only labels.
+
 Projects and undo history store a stable symbol ID, optional size/gap, and independent
 angle (schema 54; absent angle means zero and absent symbol size inherits text
 size). Old text-only labels keep their text and do not gain a default symbol.

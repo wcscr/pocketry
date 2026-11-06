@@ -1,0 +1,123 @@
+{
+  "date": "2026-11-05",
+  "targetBase": "6b9eb60ac7628ab9e6d57bdbf81410be319a5bde",
+  "applicationVersion": "1.9.0",
+  "projectSchemaVersion": 61,
+  "runtime": "Node 22.22.2",
+  "checks": [
+    {
+      "command": "npm run check",
+      "status": "passed"
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "files": 239,
+      "tests": 3747
+    },
+    {
+      "command": "npm run test:workflows",
+      "status": "passed",
+      "files": 18,
+      "tests": 627
+    },
+    {
+      "command": "npm run test:geometry -- bin-worker-handlers pocket-color",
+      "status": "passed",
+      "files": 3,
+      "tests": 78,
+      "selectedFiles": [
+        "bin-worker-handlers.qualification.test.ts",
+        "pocket-color.qualification.test.ts",
+        "sideways-pocket-color.qualification.test.ts"
+      ]
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    },
+    {
+      "command": "node --import tsx scripts/test-white-sheet-audit.ts",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "builtAssets": {
+    "modelSha256": "f1a4f305356f9752e1a9af0f43f067ecb93ab4f27c8a5ed7beb9b37970797837",
+    "modelMatchesPinnedBytes": true,
+    "servedMitLicense": true,
+    "builtNoticeContainsTeedAttribution": true
+  },
+  "schemaMigration": "Version 61 accepts supported older point projects, main version-60 stranded-label data and version-60 curve-preview files. Tests cover both v60 representations with label ownership and serialization.",
+  "browser": {
+    "scope": "Two original JPEGs, actual compiled Chrome UI, recommended paper perspective + aid/paper scale, point and native curve repair. Desktop and 390px viewport; no real-phone performance claim.",
+    "cases": [
+      {
+        "name": "strip",
+        "recommendedPerspectiveAndScale": true,
+        "defaultDetectedShapes": 1,
+        "sensitivityAdjusted": false,
+        "autoSensitivityPreserved": true,
+        "detectedShapes": 1,
+        "estimatedAreas": 1,
+        "operations": [
+          {
+            "editableCurves": false,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true
+          },
+          {
+            "editableCurves": true,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true
+          }
+        ],
+        "pageErrors": []
+      },
+      {
+        "name": "no-strip",
+        "recommendedPerspectiveAndScale": true,
+        "defaultDetectedShapes": 1,
+        "sensitivityAdjusted": false,
+        "autoSensitivityPreserved": true,
+        "detectedShapes": 1,
+        "estimatedAreas": 0,
+        "operations": [
+          {
+            "editableCurves": false,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true
+          },
+          {
+            "editableCurves": true,
+            "previewCancel": true,
+            "lineAndCurveChoices": true,
+            "signedBendInput": true,
+            "oneUndoRedo": true,
+            "calibrationAndPhotoUnchanged": true
+          }
+        ],
+        "pageErrors": []
+      }
+    ]
+  },
+  "corpus": "Previously recorded paired evidence is retained; this integration did not rerun the full photo corpus. Both original Craftsman browser workflows were rerun against the integrated production build.",
+  "limits": [
+    "No physical-phone timing or physical-fit qualification",
+    "Only the selected geometry qualification files were rerun, not the full geometry suite"
+  ],
+  "githubCi": "CI workflow remains disabled_manually; no hosted CI enabled or dispatched",
+  "provenance": "No npm dependency changes. TEED model and upstream MIT license/attribution are documented in NOTICE and docs/teed-outline-integration.md; no training dataset is redistributed."
+}

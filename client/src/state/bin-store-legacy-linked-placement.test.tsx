@@ -7,7 +7,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { type CutoutPlacement } from "@shared/gridfinity/cutout";
 import { designLinkErrors } from "@shared/gridfinity/design-links";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
-import { resetPocketPlane, rigidPocket, rigidPocketVertices } from "@shared/gridfinity/rigid-pocket";
+import { hasRigidPocket, resetPocketPlane, rigidPocket, rigidPocketVertices } from "@shared/gridfinity/rigid-pocket";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { arrangeObjects, createPlacementGroup, transformObjects, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { objectTransformOffsets, setObjectTransformOffsets } from "@/lib/gridfinity/object-transform-offsets";
@@ -206,6 +206,9 @@ it.each(["XY", "Z", "rotation"] as const)("preserves an unlinked tilted legacy p
   ui.send({ type: "UPDATE_OBJECTS", edits: edits!, historyLabel: `Move ${operation}` });
   const next = ui.state().cutouts[0];
   expect(next.depth).toEqual(source.cutout.depth);
+  // Only a Z move materializes elevation; XY moves and Z turns keep the legacy anchor.
+  expect(hasRigidPocket(next)).toBe(operation === "Z");
+  expect(next.zOffsetMm).toBe(operation === "Z" ? undefined : source.cutout.zOffsetMm);
   expect(ui.state().cutouts[1]).toEqual(legacy[1]);
   const offsets = objectTransformOffsets(ui.objects()[0], spec, ui.state().transformOrigins, "translate", [basic.shape]);
   offsets.forEach((value, axis) => expect(value).toBeCloseTo(delta.toArray()[axis], 7));
@@ -215,7 +218,7 @@ it.each(["XY", "Z", "rotation"] as const)("preserves an unlinked tilted legacy p
       expect(value).toBeCloseTo(original[i][axis] + delta.toArray()[axis], 7)));
   } else {
     const original = rigidPocketVertices(basic.shape.outlineMm, rigidPocket(source.cutout, basic.shape, spec));
-    rigidPocketVertices(basic.shape.outlineMm, next).forEach((point, i) => {
+    rigidPocketVertices(basic.shape.outlineMm, rigidPocket(next, basic.shape, spec)).forEach((point, i) => {
       const vertex = original[i];
       const expected = new Vector3(vertex.x - source.cutout.position.x, vertex.y - source.cutout.position.y, vertex.z)
         .applyQuaternion(rotation).add(new Vector3(source.cutout.position.x, source.cutout.position.y, 0)).add(delta);

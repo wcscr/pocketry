@@ -35,7 +35,7 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 
 vi.mock("@/hooks/use-pocket-geometry", () => {
   const outlines = new Map();
-  return { usePocketGeometry: () => outlines };
+  return { usePocketGeometry: () => outlines, usePocketGeometryPreview: () => ({ outlines, status: "ready" }) };
 });
 
 vi.mock("@/components/gridfinity/bin-viewport", () => ({
@@ -134,6 +134,8 @@ const binGeometryMock = vi.hoisted(() => ({
   previewIsDraft: false,
   progress: 1,
   error: null as string | null,
+  /** Worker-reported issues, e.g. labels the build left out. */
+  validationIssues: [] as import("@shared/gridfinity/validate").ValidationIssue[],
   builtSpec: null as ReturnType<typeof parseBinSpec> | null,
   hasPocketFloor: false,
   hasStackingRim: true,
@@ -156,6 +158,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     previewIsDraft: binGeometryMock.previewIsDraft,
     statsAreStale: binGeometryMock.statsAreStale,
     cutoutReports: [],
+    validationIssues: binGeometryMock.validationIssues,
     building: binGeometryMock.building,
     progress: binGeometryMock.progress,
     error: binGeometryMock.error,
@@ -295,6 +298,7 @@ beforeEach(() => {
   binGeometryMock.building = false;
   binGeometryMock.progress = 1;
   binGeometryMock.error = null;
+  binGeometryMock.validationIssues = [];
   binGeometryMock.builtSpec = null;
   binGeometryMock.hasPocketFloor = false;
   binGeometryMock.hasStackingRim = true;

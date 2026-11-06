@@ -1,10 +1,39 @@
 # Changelog
 
-## 1.8.0 — 2026-11-05
+## 1.9.0 — 2026-11-05
 
 - Opt into learned outer outlines for tools on white calibration sheets. Automatically recover weak outer boundaries without manual sensitivity tuning, using one tiny on-device model inference. Preserve thin features and handle reference strips locally, with short hidden edges estimated and highlighted for review.
 - Auto-simplify detected outlines into points by default, with an opt-in Editable curves switch, detail presets and original/preview comparison. Preserve curves through symmetry, straightening, calibration and Undo. Keep click-to-add/right-click-to-delete in curve editing, with visible point selection and group movement/deletion.
 - Repair selected outline sections with a previewed line or smooth curve, or edit Bézier contours in Trace and Bin. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
+
+## 1.8.3 — 2026-11-05
+
+- Describe wall conflicts correctly for raised or lowered pockets without tilt, and show one authoritative wall error instead of a duplicate layout warning. Invalid wall cuts still block export.
+
+## 1.8.2 — 2026-11-05
+
+- Place linked pocket copies in nearby clear space, avoiding existing pockets, finger access, and surface labels instead of stepping them out of the bin. If no clear position is found, keep the copy on its source and explain how to move it.
+
+## 1.8.1 — 2026-11-05
+
+- Keep a visible placement guide in Layout while raised or tilted pocket outlines update, with progress and unavailable-outline messages.
+
+## 1.8.0 — 2026-11-05
+
+- Warn when surface text or hardware-symbol strokes may disappear with a typical 0.4 mm nozzle. Select the affected label from the warning to adjust its font or size; exports remain available.
+
+## 1.7.3 — 2026-11-05
+
+- Add Bambu 3MF color compatibility and a Prusa color preview 3MF that automatically sets up filament slots and colors in PrusaSlicer 2.9.7 and 3.0 alpha12/alpha13. The Prusa preview loads a temporary printer setup; choose the actual printer before printing. Regular multi-color export retains separate named parts.
+
+## 1.7.2 — 2026-11-05
+
+- Fix "Raise the pocket" errors after moving an experimental group or rotating pockets about Z. Moving or turning pockets no longer changes their depth or elevation.
+
+## 1.7.1 — 2026-11-05
+
+- A label that doesn't fit no longer blanks the 3D preview: the bin still previews, the label is outlined in Layout and listed with a link to place it, and export waits until it is fixed. New text starts in a clear spot instead of over a pocket, and on lipped bins clear of the stacking lip's overhang.
+- Labels on sub-bin tabs follow their sub-bin when you change rows, columns or bin size. Labels whose tab disappears stay flagged until you restore that tab or move them, including after reopening a saved project. Fix the invisible "Retry preview" button.
 
 ## 1.7.0 — 2026-11-05
 

@@ -19,6 +19,20 @@ export type PocketWire = [number, number, number][];
 const RAD = Math.PI / 180;
 const tidy = (value: number) => Math.round(value * 1e6) / 1e6;
 
+/** Heading change of a turn about the bin's Z axis, or null when the rotation
+ * also tilts. In the Rz * Ry * Rx pose below, such a turn adds to rotationDeg
+ * ahead of any tilt and changes no height. */
+export function zTurnDeg(quaternion: Quaternion): number | null {
+  if (Math.abs(quaternion.x) > 1e-8 || Math.abs(quaternion.y) > 1e-8) return null;
+  return 2 * Math.atan2(quaternion.z, quaternion.w) / RAD;
+}
+
+/** Keep composed headings in the (-180, 180] range used by Euler readback. */
+function wrapDegrees(deg: number): number {
+  const wrapped = ((deg + 180) % 360 + 360) % 360 - 180;
+  return wrapped === -180 ? 180 : wrapped;
+}
+
 /** Three's ZYX Euler convention is the shared Rz * Ry * Rx pocket transform. */
 export function pocketQuaternion(pocket: CutoutPlacement): Quaternion {
   const rotation = pocket.profileBottom ? pocket.profileRotation : pocket.tilt;
@@ -61,6 +75,14 @@ export function pocketTransformPatch(
     return patch;
   }
   if (mode === "translate" && Math.abs(position.z - top) < 1e-8) return patch;
+  // A Z-only turn changes no height either. Keep the depth model, including a
+  // legacy surface anchor: materializing it would hold an unchanged floor to
+  // the rigid minimum. Insertion follows tilt, which this turn leaves alone.
+  const turn = mode === "rotate" ? zTurnDeg(quaternion) : null;
+  if (turn !== null && Math.abs(position.z - top) < 1e-8 && Math.abs(rigidZOffsetMm) < 1e-8) {
+    patch.rotationDeg = wrapDegrees(original.rotationDeg + turn);
+    return Number.isFinite(patch.rotationDeg) ? patch : null;
+  }
   const rigid = rigidPocket(original, shape, spec);
   patch.zOffsetMm = undefined;
   patch.depth = rigid.depth;

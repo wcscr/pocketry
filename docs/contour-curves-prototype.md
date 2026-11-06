@@ -99,7 +99,7 @@ independent lengths.
 
 Trace stores the authoritative source as `curves` in image coordinates and in
 every affected undo entry. Draft version 2 accepts version 1. Bin shapes store
-`curvesMm`; project schema 60 migrates version 59 and earlier supported files.
+`curvesMm`; project schema 61 migrates version 60 and earlier supported files.
 The scale/Y-flip boundary transforms anchors and handles together once, then
 centres the shape. Reversing winding swaps incoming/outgoing handles. Pocket
 placement, mirroring and scale stay separate from the immutable shape source.
