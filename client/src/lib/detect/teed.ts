@@ -5,7 +5,7 @@ import { checkDetectionAbort } from "./grabcut";
 import { maskFromEdges, scoreFromEdgeMask } from "./edge-mask";
 import { cleanupEdgeMask, type EdgeCleanupReport } from "./edge-cleanup";
 import { pointInRing } from "@shared/geometry/rings";
-import { selectAutomaticEdges } from "./adaptive-edges";
+import { reconstructEdges } from "./reconstruct-edges";
 
 export const TEED_MODEL_URL = "/models/teed/teed-512-f1a4f305.onnx";
 export const TEED_MODEL_SHA256 = "f1a4f305356f9752e1a9af0f43f067ecb93ab4f27c8a5ed7beb9b37970797837";
@@ -105,7 +105,7 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
         const threshold = Math.max(0.48, Math.min(0.85, 0.60 + ((options.sensitivity ?? 128) - 128) / 500));
         const reconstructStarted = performance.now();
         const automatic = (options.sensitivity ?? 128) === 128 && !!baseline.evidence;
-        const selected = automatic ? selectAutomaticEdges(edges, width, height, seeds, background) : undefined;
+        const selected = automatic ? reconstructEdges(edges, width, height, seeds, background, unknownMask) : undefined;
         const result = selected?.result ?? maskFromEdges(edges, width, height, seeds, threshold);
         const selection = selected?.selection ?? { edgeThreshold: threshold, edgeThresholdTrials: 1, automaticSensitivity: false,
           seedCoverage: seeds.reduce((sum, value, i) => sum + (value && result.mask[i] ? 1 : 0), 0) / Math.max(1, seeds.reduce((sum, value) => sum + value, 0)) };

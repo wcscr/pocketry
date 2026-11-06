@@ -1,5 +1,6 @@
 import type { Outline, Rect, Ring } from "@shared/geometry/types";
 import type { EdgeCleanupReport } from "./edge-cleanup";
+import type { BoundaryRecoveryReport } from "./boundary-recovery";
 
 /**
  * The pixel input the pipeline accepts.
@@ -131,6 +132,10 @@ export const DETECT_DEFAULTS = {
 } as const satisfies Partial<DetectOptions>;
 
 export interface EdgeSensitivityReport {
+  /** Additional reconstruction accepted after the coarse sensitivity search. */
+  edgeReconstruction?: "clipped-boundary-recovery" | "fine-threshold-confirmation";
+  /** Clipped-region retry diagnostics; thin unseeded features still need review. */
+  boundaryRecovery?: BoundaryRecoveryReport;
   edgeThreshold: number;
   edgeThresholdTrials: number;
   automaticSensitivity: boolean;

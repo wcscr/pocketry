@@ -29,9 +29,14 @@ describe("self-hosted learned-outline model", () => {
     try {
       const first = await detectOutline(image, { boundary: "teed" }, { loadCV: async () => cv, teed });
       expect(first.refinement?.cached).toBe(false);
+      expect(first.refinement?.automaticSensitivity).toBe(true);
+      expect(first.refinement?.edgeThresholdTrials).toBeLessThanOrEqual(14);
       expect(first.outline.length).toBeGreaterThan(0);
       const cached = await detectOutline(image, { boundary: "teed", sensitivity: 135 }, { loadCV: async () => cv, teed });
       expect(cached.refinement?.cached).toBe(true);
+      expect(cached.refinement?.automaticSensitivity).toBe(false);
+      expect(cached.refinement?.edgeThresholdTrials).toBe(1);
+      expect(cached.refinement?.edgeReconstruction).toBeUndefined();
       const changed = { ...image, data: image.data.slice().fill(128) };
       for (let i = 3; i < changed.data.length; i += 4) changed.data[i] = 255;
       const other = await detectOutline(changed, { boundary: "teed" }, { loadCV: async () => cv, teed });
