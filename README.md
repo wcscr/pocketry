@@ -106,8 +106,12 @@ The original slicer screenshot below shows an earlier **1.2 mm** fit check.
 
 Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.
 Open the file in your slicer at **100% scale** and review the layer preview
-before printing. **Multi-color 3MF** preserves selected colors; SVG and DXF
-layouts are available for shadow boards and CNC work.
+before printing. **Multi-color 3MF** exports selected colors as separate parts.
+For Bambu Studio 2.9.1.70 or PrusaSlicer, use **Bambu / Prusa 3MF**,
+which keeps painted color regions in one model without separate named parts.
+In PrusaSlicer, select a multicolor printer and set your filament colors
+([details](docs/bambu-3mf-compatibility.md)). SVG and DXF layouts are available
+for shadow boards and CNC work.
 
 ![The original printed black-and-orange Wolfbox bin with the duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
 

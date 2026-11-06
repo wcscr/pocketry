@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.7.3 — 2026-11-05
+
+- Add Bambu 3MF color compatibility and a Prusa color preview 3MF that automatically sets up filament slots and colors in PrusaSlicer 2.9.7 and 3.0 alpha12/alpha13. The Prusa preview loads a temporary printer setup; choose the actual printer before printing. Regular multi-color export retains separate named parts.
+
 ## 1.7.2 — 2026-11-05
 
 - Fix "Raise the pocket" errors after moving an experimental group or rotating pockets about Z. Moving or turning pockets no longer changes their depth or elevation.
