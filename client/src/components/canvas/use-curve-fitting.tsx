@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { curvePath, curveRing, type CurveOutline } from "@shared/geometry/curves";
+import { curvePath, curveRing, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { curveFitRange, fitContour, type CurveFitResult } from "@shared/geometry/curve-fit";
-import { reconstructDetectedOutline, recommendedReconstructionTolerance, type ReconstructionResult } from "@shared/geometry/contour-reconstruction";
+import { recommendedReconstructionTolerance, type ReconstructionResult } from "@shared/geometry/contour-reconstruction";
+import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
 import { reconstructInWorker } from "@/lib/detect/worker-client";
-import { simplifyContour, simplifyDetectedOutline } from "@shared/geometry/contour-simplification";
+import { simplifyContour } from "@shared/geometry/contour-simplification";
 import type { Outline, Point, RingRef } from "@shared/geometry/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,8 +78,12 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
         if (!reconstructionSource) throw new Error("The original detected boundary is no longer available.");
         const dense = reconstructionSource;
         const tolerance = Number(next.deviation) / unitsPerUnit;
-        const result = typeof Worker === "undefined" ? (editableCurves ? reconstructDetectedOutline : simplifyDetectedOutline)(source, dense, tolerance)
-          : await reconstructInWorker({ source, dense, tolerance, editableCurves }, controller.signal);
+        // A fresh automatic fit can be adjusted from its retained dense source.
+        // Authored/manual curves never receive reconstructionSource.
+        const fittingSource = source.some(s => [s.outer, ...s.holes].some(r => r.some(a => a.in || a.out)))
+          ? curvesFromOutline(sampleCurves(source, tolerance / 8)) : source;
+        const result = typeof Worker === "undefined" ? reconstructDetectedForEditing(fittingSource, dense, tolerance, editableCurves)
+          : await reconstructInWorker({ source: fittingSource, dense, tolerance, editableCurves }, controller.signal);
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, result, pending: false });
       } catch (error) {
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, pending: false,
@@ -124,7 +129,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     {current.mode !== "reconstruct" && previewRing && <path d={curvePath(previewRing, toCanvas)} fill="none" className="stroke-emerald-500" strokeWidth={3} vectorEffect="non-scaling-stroke" data-testid="curve-fit-preview" />}
   </g>;
   const actions = !current && <>
-    {!!reconstructionSource?.length && !source.some(s => [s.outer, ...s.holes].some(r => r.some(a => a.in || a.out))) &&
+    {!!reconstructionSource?.length &&
       <Button size="sm" variant="outline" title="Simplify the detected outline with supported straight lines and smooth curves. Review the preview before applying." onClick={() => start("reconstruct")}>Auto-simplify outline</Button>}
     <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>
     <Button size="sm" variant="outline" onClick={() => start("auto")}>Auto-fit contour</Button>

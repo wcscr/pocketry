@@ -71,7 +71,8 @@ export function reconstructDetectedOutline(source: CurveOutline, dense: Outline,
  * Endpoints remain on the source. Lines have a finite-chord distance bound;
  * cubics are verified continuously against every source edge, not just vertices.
  * Corner support is measured in arc length, independently of pixel orientation.
- * This is an explicit replacement preview, never a load/detection side effect.
+ * Fresh detection and explicit previews call this; saved/authored curves are
+ * never reconstructed on load.
  */
 export function reconstructContour(source: CurveOutline, ref: RingRef, dense: Ring, tolerance: number): ReconstructionResult {
   if (!Number.isFinite(tolerance) || tolerance <= 0) throw new Error("Enter a positive maximum deviation.");

@@ -4,8 +4,7 @@ import { detectOutline } from "./pipeline";
 import type { OpenCV } from "./segment-opencv";
 import type { DetectOptions, ImageLike } from "./types";
 import { createTeedDetector } from "./teed";
-import { reconstructDetectedOutline } from "@shared/geometry/contour-reconstruction";
-import { simplifyDetectedOutline } from "@shared/geometry/contour-simplification";
+import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
 import type { CurveOutline } from "@shared/geometry/curves";
 import type { Outline } from "@shared/geometry/types";
 import { symmetrizeCurves, type CurveSymmetryRequest } from "../geometry/curve-symmetry";
@@ -30,7 +29,7 @@ export function createDetectionHandlers(loadCV: () => Promise<OpenCV>) {
     reconstruct(payload: ReconstructionRequest, { signal }: HandlerContext) {
       const result = tail.then(() => {
         checkDetectionAbort(signal);
-        return (payload.editableCurves === false ? simplifyDetectedOutline : reconstructDetectedOutline)(payload.source, payload.dense, payload.tolerance);
+        return reconstructDetectedForEditing(payload.source, payload.dense, payload.tolerance, payload.editableCurves !== false);
       });
       tail = result.catch(() => undefined);
       return result;

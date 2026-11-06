@@ -4,14 +4,15 @@ Tracks [#156](https://github.com/wcscr/pocketry/issues/156).
 
 ## Controls
 
-**Editable curves** is off by default. Auto-simplify normally produces points,
-including point approximations of rounded edges. Enabling the switch on an
+**Editable curves** is off by default. Detection automatically reconstructs
+lines and rounded sections, producing points sampled from the fitted curves. Enabling the switch on an
 existing detection asks whether to keep that outline or re-detect from the photo
 and replace edits. Undo restores the previous outline. The switch enables native
-curves for later simplification; it does not silently fit or re-detect.
+curves for re-detection or the next adjustment; it does not discard current edits
+without that choice. Detection and cleanup form one Undo step.
 
-Use **Auto-simplify outline** after detection to preview supported straight lines
-and rounded sections. More detail / Balanced / Smoother choose an allowance;
+Use **Adjust simplification** after detection to preview another allowance for
+the supported straight lines and rounded sections. More detail / Balanced / Smoother choose an allowance;
 **Maximum change from detected outline** bounds movement from the dense detected
 polygon in mm after calibration, or px otherwise. It is not distance from the
 physical tool or pocket clearance. Compare original/preview, then Apply or Cancel.

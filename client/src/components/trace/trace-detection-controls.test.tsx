@@ -49,7 +49,7 @@ it.each(["Cancel", "Keep current outline", "Re-detect photo"])("asks before enab
     React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === choice)!.click());
     expect(trace.editableCurves).toBe(choice !== "Cancel");
     expect(trace.outline).toBe(outline); expect(trace.history).toBe(history);
-    if (choice === "Re-detect photo") expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "auto" });
+    if (choice === "Re-detect photo") expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "auto", editableCurves: true });
     else expect(reprocess).not.toHaveBeenCalled();
   } finally { React.act(() => root.unmount()); }
 });

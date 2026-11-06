@@ -72,10 +72,11 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver }: TraceControlsPanelProps) => <>
+  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver, onReprocess }: TraceControlsPanelProps) => <>
     <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
     <button data-testid="controls-add-to-bin" onClick={handoff.addToBin}>Add to bin</button>
     <button data-testid="controls-start-over" onClick={onStartOver}>Reset confirmed trace</button>
+    <button data-testid="re-detect-native" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, editableCurves: true })}>Re-detect with curves</button>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
       points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
@@ -978,9 +979,31 @@ describe("Trace detection workflow", () => {
     expect(getToolDetectionFrameMock).toHaveBeenCalledWith(region);
     expect(getImageDataMock).not.toHaveBeenCalled();
     expect(processImageMock).toHaveBeenCalledWith(imageData, expect.objectContaining({
+      autoCleanup: true, editableCurves: false,
       region: { originalRegion: region, isCropped: true, toWorking: { x: .5, y: .5 } },
       detect: expect.objectContaining({ boundary: "teed", sensitivity: 128 }),
     }));
+  });
+
+  it("passes the newly enabled curve choice into re-detection before the store render catches up", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="re-detect-native"]')!.click());
+    expect(processImageMock.mock.lastCall![1]).toMatchObject({ autoCleanup: true, editableCurves: true });
+  });
+
+  it("keeps shaded, recognized Pocketry paper in tool-edge mode", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    const width = 120, height = 180, data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++)
+      data.set(y < 8 && x < 30 ? [185, 180, 175, 255] : [112, 108, 105, 255], (y * width + x) * 4);
+    getToolDetectionFrameMock.mockReturnValue({ imageData: { width, height, data },
+      region: { x: 80, y: 90, width: 200, height: 100 }, toWorking: { x: 1, y: 1 } });
+    getDetectionFrameMock.mockReturnValue(detectionFrame());
+    vi.mocked(autoCalibrate).mockResolvedValue(detectedSheet());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(processImageMock.mock.lastCall![1].detect.boundary).toBe("teed");
+    expect(processImageMock.mock.lastCall![1].autoCleanup).toBe(true);
   });
 
   it.each([false, true])("Automatic uses color for a dark background or requested interior holes (holes=%s)", async holes => {

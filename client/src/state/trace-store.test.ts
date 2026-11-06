@@ -1,7 +1,7 @@
 import { mmPerPixel } from "@shared/geometry/scale";
 import { doubleSignedArea } from "@shared/geometry/rings";
 import type { Outline } from "@shared/geometry/types";
-import { curvesFromOutline, editCurves } from "@shared/geometry/curves";
+import { curvesFromOutline, editCurves, sampleCurves } from "@shared/geometry/curves";
 import { traceObjects } from "@/lib/gridfinity/trace-objects";
 import { describe, expect, it } from "vitest";
 
@@ -1209,6 +1209,24 @@ function overlappingPocketsWithSharedHole(): Outline {
       holes: [[hole[2], hole[1], hole[0], hole[3]]] }, // Same hole, different start and winding.
   ];
 }
+
+it("commits automatically fitted curves and their clean baseline as one detection Undo step", () => {
+  const region = { x: 0, y: 0, width: 100, height: 100 };
+  const before = run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" },
+    { type: "SET_REGION", region }, { type: "OUTLINE_COMMITTED", outline: ringA });
+  const curves = editCurves(curvesFromOutline(ringA), { shapeIndex: 0, ringIndex: -1 },
+    { kind: "bend", index: 0, t: .5, delta: { x: 0, y: -1 } });
+  const outline = sampleCurves(curves, .25);
+  const after = run(before, { type: "DETECTED", imageUrl: "photo", expectedOutline: before.outline,
+    outline, rawOutline: ringA, curves, refinementBase: outline, svg: "", region });
+  expect(after.curves).toEqual(curves);
+  expect(after.history.index).toBe(before.history.index + 1);
+  expect(after.history.stack[after.history.index]).toMatchObject({ curves, refinementBase: outline, hasManualEdits: false });
+  expect(after.rawOutline).toEqual(ringA);
+  expect(run(after, { type: "UNDO" }).outline).toEqual(before.outline);
+  expect(run(after, { type: "UNDO" }, { type: "REDO" }).curves).toEqual(curves);
+});
 
 it.each([false, true])("keeps a bent shared hole as one exclusion with Undo (already native: %s)", native => {
   const outline = overlappingPocketsWithSharedHole();

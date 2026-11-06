@@ -75,8 +75,10 @@ there was estimated. You’ll set pocket depths in Bin.
 **Automatic · match background** is the default for new traces. It chooses
 **Tool edges · white sheet** for light neutral paper and **Color contrast** for
 other or uncertain backgrounds. You can select either method under **Find the
-outline using**; interior holes use Color contrast. These choices find the boundary; they do not
-apply curve fitting. Review tool tips and shadows; rejected tool-edge detections
+outline using**; interior holes use Color contrast. Detection cleans up straight
+lines and rounded sections automatically,
+using points unless you enable Editable curves. Adjust simplification previews
+a different allowance. Review tool tips and shadows; rejected tool-edge detections
 retain the color result. Processing stays on your device.
 
 Leave **Sensitivity** at **Auto** for tool edges. It checks weak boundaries
@@ -87,9 +89,9 @@ Recognized measurement aids are removed locally without disabling learned edges
 around the rest of the tool. Short hidden sections can be continued from visible
 edges; the amber region remains an estimate to review.
 
-Choose **Auto-simplify outline** directly in Outline settings. By default it
-reduces straight runs and approximates rounded sections with points. Turn on the
-visible **Editable curves** switch to retain true curves and handles instead. Use **More detail**, **Balanced**, or **Smoother**,
+Use **Adjust simplification** in Outline settings to change the automatic
+cleanup allowance. Turn on **Editable curves** to retain true curves and handles
+instead of their point approximations. Use **More detail**, **Balanced**, or **Smoother**,
 compare with **Show original outline**, then **Apply simplified outline**. Cancel
 keeps the detected outline, and Apply is one undoable edit. Keep Trace margin at
 zero and simplify before manual editing. Under Advanced, **Maximum change from

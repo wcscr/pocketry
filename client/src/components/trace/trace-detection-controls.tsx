@@ -10,6 +10,7 @@ import { LabelledSlider } from "./labelled-slider";
 import { TraceSymmetryTool } from "./trace-symmetry-tool";
 
 export interface DetectionSettings {
+  editableCurves?: boolean;
   sensitivity: number;
   includeInteriorHoles: boolean;
   boundary?: "auto" | "color" | "teed";
@@ -73,7 +74,7 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
   return <>
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-1"><Label htmlFor="editable-curves" className="text-xs">Editable curves</Label>
-        <HelpHint label="editable curves">Off by default: Auto-simplify makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
+        <HelpHint label="editable curves">Off by default: detection makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles after re-detection or adjustment. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
       <Switch id="editable-curves" checked={trace.editableCurves || !!trace.curves} disabled={processing}
         onCheckedChange={enabled => {
           if (enabled && trace.outline.length > 0 && trace.region && trace.imageUrl) setConfirmCurves(true);
@@ -83,7 +84,7 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>
-          <HelpHint label="outline detection method">Automatic checks the paper around the selected tool: it uses on-device Tool edges for light neutral paper, and Color contrast for other or uncertain backgrounds. You can choose either method yourself. Auto-simplify outline fits straight lines and curves in a separate preview.</HelpHint></div>
+          <HelpHint label="outline detection method">Automatic checks the paper around the selected tool: it uses on-device Tool edges for light neutral paper, and Color contrast for other or uncertain backgrounds. You can choose either method yourself. Detection also cleans up straight lines and rounded sections. Adjust simplification previews a different allowance.</HelpHint></div>
         <select id="outline-detection-method" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
           value={trace.boundaryMethod} disabled={processing}
           onChange={event => { const boundary = event.target.value as "auto" | "color" | "teed";
@@ -106,12 +107,12 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
     <Dialog open={confirmCurves} onOpenChange={setConfirmCurves}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect before using curves?</DialogTitle>
-          <DialogDescription>Editable curves lets Auto-simplify keep true curves. Re-detecting starts again from the photo and replaces your outline edits; Undo restores them. You can also keep the current outline.</DialogDescription>
+          <DialogDescription>Detection cleans up lines and rounded sections automatically. Editable curves retains true curves after re-detection or adjustment. Re-detecting starts again from the photo and replaces your outline edits; Undo restores them. You can also keep the current outline.</DialogDescription>
         </DialogHeader>
         <Button onClick={() => {
           setConfirmCurves(false);
           dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
-          apply({ sensitivity, includeInteriorHoles, boundary: trace.boundaryMethod });
+          apply({ sensitivity, includeInteriorHoles, boundary: trace.boundaryMethod, editableCurves: true });
         }}>Re-detect photo</Button>
         <Button variant="outline" onClick={() => { setConfirmCurves(false); dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }); }}>Keep current outline</Button>
         <Button variant="ghost" onClick={() => setConfirmCurves(false)}>Cancel</Button>

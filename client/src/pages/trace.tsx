@@ -199,6 +199,7 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const runDetection = useCallback(async (settings?: {
+    editableCurves?: boolean;
     sensitivity: number;
     includeInteriorHoles: boolean;
     boundary?: "auto" | "color" | "teed";
@@ -220,13 +221,6 @@ function TraceWorkspace(): JSX.Element {
     const candidateFrame = requestedBoundary !== "color" ? getToolDetectionFrame(region) : null;
     const initialPixels = candidateFrame?.imageData ?? getImageData(region);
     if (!initialPixels) return;
-    const boundary = requestedBoundary === "auto"
-      ? !includeInteriorHoles && hasWhitePaperBackground(initialPixels) ? "teed" : "color"
-      : requestedBoundary;
-    const toolFrame = boundary === "teed" ? candidateFrame : null;
-    const imageData = toolFrame?.imageData ?? (candidateFrame ? getImageData(region) : initialPixels);
-    if (!imageData) return;
-
     const request = ++detectionRequest.current;
     detectionAbort.current?.abort();
     const controller = new AbortController();
@@ -238,11 +232,13 @@ function TraceWorkspace(): JSX.Element {
       // This also works after draft recovery or choosing a manual/paper scale;
       // the carrier footprint is independent of the accepted scale ruler.
       let occlusions: Ring[] = [];
+      let recognizedSheet = false;
       try {
         for (const limit of [undefined, AID_RETRY_CANVAS_MAX]) {
           const frame = getDetectionFrame(limit);
           if (frame?.sourceImageUrl !== source.url) break;
           const reference = await autoCalibrate(frame.imageData);
+          recognizedSheet ||= reference.kind === "calibrated" || reference.kind === "calibrated-strip" && !!reference.sheet;
           if (reference.kind === "calibrated-strip" && reference.aidOutline) {
             occlusions = [reference.aidOutline.map(p => ({
               x: p.x * frame.toWorking.x - Math.max(0, Math.round(region.x)),
@@ -257,7 +253,15 @@ function TraceWorkspace(): JSX.Element {
         // Optional reference recognition must not disable ordinary tracing.
       }
       if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      const boundary = requestedBoundary === "auto"
+        ? !includeInteriorHoles && hasWhitePaperBackground(initialPixels, recognizedSheet) ? "teed" : "color"
+        : requestedBoundary;
+      const toolFrame = boundary === "teed" ? candidateFrame : null;
+      const imageData = toolFrame?.imageData ?? (candidateFrame ? getImageData(region) : initialPixels);
+      if (!imageData) return;
       const result = await processImage(imageData, {
+        autoCleanup: true,
+        editableCurves: settings?.editableCurves ?? store.editableCurves,
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
           ? { originalRegion: toolFrame?.region ?? region, isCropped: true, toWorking: toolFrame?.toWorking }
@@ -282,6 +286,8 @@ function TraceWorkspace(): JSX.Element {
         imageUrl: source.url,
         outline: result.outline,
         rawOutline: result.rawOutline,
+        curves: result.curves,
+        refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
         svg: result.svg,
         region,
@@ -315,6 +321,7 @@ function TraceWorkspace(): JSX.Element {
     store.sensitivity,
     store.includeInteriorHoles,
     store.boundaryMethod,
+    store.editableCurves,
     getToolDetectionFrame,
     store.tolerancePx,
     store.smoothing,

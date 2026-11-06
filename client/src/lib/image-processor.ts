@@ -2,7 +2,11 @@ import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
 
 import { detectOutline } from "./detect/pipeline";
-import { detectInWorker } from "./detect/worker-client";
+import { detectInWorker, reconstructInWorker } from "./detect/worker-client";
+import { recommendedReconstructionTolerance } from "@shared/geometry/contour-reconstruction";
+import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
+import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
+import { checkDetectionAbort } from "./detect/grabcut";
 import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
 import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
 import {
@@ -103,6 +107,9 @@ export async function adjustOutlineMargin(
 }
 
 export interface ProcessOptions {
+  /** Reconstruct the detected boundary before exposing it for editing. */
+  autoCleanup?: boolean;
+  editableCurves?: boolean;
   /** Tool pockets normally need only the outside silhouette. */
   includeInteriorHoles?: boolean;
   /** Region of interest, or a region already cropped from the source. */
@@ -115,6 +122,10 @@ export interface ProcessOptions {
 }
 
 export interface ProcessResult {
+  curves?: CurveOutline;
+  /** Cleaned, unoffset baseline for later point/detail adjustments. */
+  refinementBase?: Outline;
+  cleanup?: { applied: boolean; tolerancePx?: number; reason?: string };
   /** Source-image regions where a calibration aid hid an estimated edge. */
   estimatedEdgeRegions?: Ring[];
   /** Rings in source-image coordinates, margin applied. */
@@ -205,6 +216,35 @@ export async function processImage(
   let outline = translate(mapToWorking(silhouette(result.outline)), origin);
   let rawOutline = translate(mapToWorking(silhouette(result.rawOutline)), origin);
 
+  let curves: CurveOutline | undefined, refinementBase: Outline | undefined;
+  let cleanup: ProcessResult["cleanup"];
+  if (options.autoCleanup && outline.length && rawOutline.length) {
+    const began = performance.now();
+    try {
+      checkDetectionAbort(detect.signal);
+      const units = mmPerPixel(calibration), unitsPerPixel = units ?? 1;
+      const recommended = Math.max(...rawOutline.flatMap(s => [s.outer, ...s.holes])
+        .map(ring => recommendedReconstructionTolerance(ring, unitsPerPixel, units ? "mm" : "px")));
+      const tolerance = Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel;
+      const native = !!options.editableCurves && (margin ?? 0) === 0;
+      const request = { source: curvesFromOutline(outline), dense: rawOutline, tolerance, editableCurves: native };
+      const fitted = typeof Worker === "undefined"
+        ? reconstructDetectedForEditing(request.source, request.dense, tolerance, native)
+        : await reconstructInWorker(request, detect.signal);
+      checkDetectionAbort(detect.signal);
+      outline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (units ?? .1));
+      if (native) curves = fitted.curves;
+      refinementBase = outline;
+      cleanup = { applied: true, tolerancePx: tolerance };
+    } catch (error) {
+      checkDetectionAbort(detect.signal);
+      if (error instanceof Error && (error.name === "AbortError" || error.name === "WorkerCancelledError")) throw error;
+      cleanup = { applied: false, reason: error instanceof Error ? error.message : "Could not simplify this boundary." };
+      onNotice?.("Kept the detected outline", "Automatic line and curve cleanup could not preserve this outline reliably. The detected boundary has been kept for review.");
+    }
+    result.timings.cleanup = performance.now() - began;
+  }
+
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Keep independently detected tools separate as their margins grow.
@@ -216,10 +256,14 @@ export async function processImage(
   if (marginPx !== 0) rawOutline = await retainSurvivingDetectionHoles(rawOutline, outline);
 
   return {
+    curves,
+    refinementBase,
+    cleanup,
     outline,
     rawOutline,
     estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x * toWorking.x + origin.x, y: p.y * toWorking.y + origin.y }))),
     svg: generateOutlineSVG(outline, {
+      curves,
       width: imageData.width,
       height: imageData.height,
       fill: "rgba(100, 100, 255, 0.3)",

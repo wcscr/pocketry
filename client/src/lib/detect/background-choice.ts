@@ -4,7 +4,7 @@ import type { ImageLike } from "./types";
  * Bright, nearly neutral pixels tolerate ordinary paper shading/white balance.
  * Require support on three sides so a white tool on a dark surface cannot
  * select the learned-paper mode. Ambiguous/dark/colored rims use color. */
-export function hasWhitePaperBackground(image: ImageLike): boolean {
+export function hasWhitePaperBackground(image: ImageLike, recognizedSheet = false): boolean {
   const { width, height, data } = image;
   if (width < 8 || height < 8 || data.length !== width * height * 4) return false;
   const fractions = [0, 1, 2, 3].map(side => {
@@ -25,8 +25,14 @@ export function hasWhitePaperBackground(image: ImageLike): boolean {
   });
   // Shadows can darken white paper on more than one side. Require some bright
   // paper on two sides as well, so a uniformly gray/dark surface is ambiguous.
+  const paper = fractions.reduce((sum, value) => sum + value.paper, 0) / 4;
+  const bright = fractions.reduce((sum, value) => sum + value.bright, 0) / 4;
+  // Validated sheet markers add evidence that a neutral, heavily shaded rim is
+  // paper. They do not override a wood/colored/dark selection elsewhere in the
+  // photo: the selection must still have a neutral majority and a lit patch.
+  if (recognizedSheet && fractions.filter(value => value.paper >= .5).length >= 2 && paper >= .55 && bright >= .05) return true;
   return fractions.filter(value => value.paper >= .5).length >= 3
-    && fractions.reduce((sum, value) => sum + value.paper, 0) / 4 >= .6
+    && paper >= .6
     && fractions.filter(value => value.bright >= .15).length >= 2
-    && fractions.reduce((sum, value) => sum + value.bright, 0) / 4 >= .2;
+    && bright >= .2;
 }

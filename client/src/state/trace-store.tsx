@@ -271,6 +271,8 @@ export type TraceAction =
       type: "DETECTED";
       outline: Outline;
       rawOutline: Outline;
+      curves?: CurveOutline;
+      refinementBase?: Outline;
       estimatedEdgeRegions?: Ring[];
       svg: string;
       imageUrl: string | null;
@@ -727,7 +729,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         outline: action.outline,
         rawOutline: action.rawOutline,
         estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
-        curves: undefined,
+        curves: action.curves,
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
         selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
@@ -735,7 +737,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           (state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl) ||
             state.history.stack[state.history.index]?.hasManualEdits ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
-          { refinementBase: action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
+          { curves: action.curves, refinementBase: action.refinementBase ?? action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
             ...historyPhotoFrame(state),
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
         ),

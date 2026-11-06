@@ -12,6 +12,15 @@ const fixture = (background: number[], shadow = false) => {
 };
 
 describe("automatic background choice", () => {
+  it("uses validated sheet evidence for shaded paper, without overriding wood or dark surfaces", () => {
+    const image = fixture([112, 108, 105, 255]);
+    for (let x = 0; x < image.width * .25; x++) for (let y = 0; y < 8; y++)
+      image.data.set([185, 180, 175, 255], (y * image.width + x) * 4);
+    expect(hasWhitePaperBackground(image)).toBe(false);
+    expect(hasWhitePaperBackground(image, true)).toBe(true);
+    for (const background of [[170, 110, 65, 255], [25, 25, 25, 255], [100, 100, 100, 255]])
+      expect(hasWhitePaperBackground(fixture(background), true)).toBe(false);
+  });
   it.each([[255, 255, 255, 255], [180, 173, 165, 255]].map(color => ({ color })))("recognizes light neutral paper $color despite a shadowed side", ({ color }) => {
     expect(hasWhitePaperBackground(fixture(color, true))).toBe(true);
   });

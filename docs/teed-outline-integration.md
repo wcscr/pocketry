@@ -2,7 +2,8 @@
 
 **Automatic · match background** is the default for new traces. Draw a region
 around one tool, leaving paper visible around it. Automatic checks that rim:
-light neutral paper uses **Tool edges · white sheet**; dark, colored or uncertain
+light neutral paper uses **Tool edges · white sheet**; recognized sheet markers
+also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
 
@@ -26,17 +27,20 @@ keep the color result. It contains one selected driver from the five-driver phot
   recovering supported fragments while protecting paper gaps and independent
   tools. Recognized reference strips are handled locally; short hidden edges
   are estimated and highlighted amber for review.
-- **Lines and curves:** explicit Auto-simplify reconstructs supported straight
+- **Lines and curves:** automatic cleanup reconstructs supported straight
   runs and approximates rounded spans with points. Editable curves opts into
   native Bézier handles. Symmetry, straightening, calibration, recovery and Undo
   preserve the chosen representation.
 
 ## Editing
 
-Detection finds a boundary; **Auto-simplify outline** is a separate preview.
-Editable curves is off by default. Enabling it on an existing detection asks
-whether to keep the current outline or re-detect and replace edits; Undo can
-restore the previous source. It does not silently fit curves.
+Detection finds a boundary and automatically reconstructs supported lines and
+rounded sections. Point mode samples the fitted curves; Editable curves is off
+by default and retains native handles when enabled. **Adjust simplification**
+previews a different allowance from the retained dense boundary. Enabling
+Editable curves on an existing detection asks whether to keep the current outline or re-detect and replace edits; Undo can
+restore the previous source. Detection and cleanup commit together as one Undo
+step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
 right-click a point to delete it. Shift-click or box-select multiple points;
@@ -51,8 +55,8 @@ parts remain challenging; select one tool at a time.
 
 ## Performance and verification
 
-The HTML report gives fresh desktop CPU/WASM detection timings for each of its
-ten crops. Earlier broad testing covered 36 tool-on-white-sheet photos / 90 views.
+The HTML report gives fresh desktop CPU/WASM detection-plus-cleanup timings for
+ten white-sheet crops and two wood-background checks. Earlier broad testing covered 36 tool-on-white-sheet photos / 90 views.
 Automatic sensitivity improved the exact corrected no-strip tape control; the
 other views were unchanged. This is occasional failure recovery, not a broad
 quality improvement attributable to sensitivity alone. TEED supplied the broader
