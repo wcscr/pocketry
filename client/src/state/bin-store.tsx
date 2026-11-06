@@ -12,6 +12,7 @@ import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, t
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { expandGroupSelection, groupForRef, objectGroupSchema, pruneObjectGroups, rebaseLayoutGroups, type ObjectGroup } from "@shared/gridfinity/object-groups";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
+import { linkedPocketCopyPosition } from "@/lib/gridfinity/autoplace";
 import { useExperimentalFeatures } from "./experimental-features";
 
 import {
@@ -197,7 +198,7 @@ export type BinAction = (
   | { type: "CANCEL_REMOVE_CUTOUT" }
   | { type: "REMOVE_CUTOUT"; id: string }
   | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
-  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
+  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string>; shapes?: readonly TracedShape[] }
   | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean; shapes?: readonly TracedShape[] }
   | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind | "selection"; ids: string[] }
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
@@ -820,11 +821,15 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const designLink = source.designLink ?? { id: action.linkId, tilt: false };
       const name = copyNameAllocator(state, action.labels)(source.id);
       let doc: BinDoc;
+      let placementMessage: string | null = null;
       if (action.kind === "pocket") {
         const pocket = source as CutoutPlacement;
+        const position = linkedPocketCopyPosition(state.spec, pocket, state.cutouts,
+          new Map(action.shapes?.map(shape => [shape.id, shape])), state.fingerHoles);
+        if (!position) placementMessage = "No clear space was found. The linked copy is on top of its source; move it or enlarge the bin.";
         doc = { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: [
           ...state.cutouts.map(c => c.id === source.id ? { ...c, designLink } : c),
-          { ...pocket, name, id: action.newId, designLink, placementGroup: undefined, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
+          { ...pocket, name, id: action.newId, designLink, placementGroup: undefined, position: position ?? { ...pocket.position } },
         ] };
       } else {
         const hole = source as FingerHole;
@@ -833,7 +838,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           { ...hole, name, id: action.newId, designLink, placementGroup: undefined, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
         ] };
       }
-      return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
+      return { ...commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }])), editError: placementMessage };
     }
     case "REPLACE_LAYOUT": {
       if (action.operation === "auto-arrange" && [...state.cutouts, ...state.fingerHoles].some(object => object.placementGroup)) {
