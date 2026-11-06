@@ -57,7 +57,8 @@ Unlink before changing geometry for just one copy.
 
 Duplicate linked searches nearby space inside the current bin without moving
 existing pockets or changing the copy’s size or orientation. The search uses
-conservative bounds including clearance, rounding, and separate finger access.
+conservative bounds including clearance, rounding, separate finger access, and
+existing text or symbol labels on the bin surface.
 If no clear position is found (including slanted-wall bins), the copy stays on
 its source and a message explains that it needs moving or a larger bin. Exact
 3D validation remains authoritative.

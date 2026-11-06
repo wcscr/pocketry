@@ -30,9 +30,13 @@ import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { minAreaObb } from "@shared/geometry/obb";
 import type { Bounds, Point } from "@shared/geometry/types";
 import type { TracePlacements } from "@shared/gridfinity/trace-placement";
+import { surfaceTextSurface } from "@shared/gridfinity/surface-text";
+import { outlineBounds } from "@/lib/geometry/outline";
+import { surfaceTextOutline } from "./surface-text";
 
 /** Find nearby space for one linked pocket without changing its pose, size, or
- * the other objects. Bounds include clearance/rounding and shaft projection.
+ * the other objects. Bounds include clearance/rounding, shaft projection,
+ * and existing labels on the bin's fill surface.
  * This bounded 2D search is conservative, not an exact nesting/solid check.
  * A null result lets the caller duplicate in place with explicit guidance. */
 export function linkedPocketCopyPosition(spec: BinSpec, source: CutoutPlacement,
@@ -48,6 +52,17 @@ export function linkedPocketCopyPosition(spec: BinSpec, source: CutoutPlacement,
     ...cutouts.map(c => existingBounds([c], shapes, [], spec)),
     ...fingerHoles.map(h => existingBounds([], shapes, [h], spec)),
   ].filter((bounds): bounds is Bounds => bounds !== null);
+  for (const label of spec.surfaceTexts) {
+    if (surfaceTextSurface(spec, label) !== "bin") continue;
+    try {
+      const bounds = outlineBounds(surfaceTextOutline(label));
+      if (!bounds) return null;
+      obstacles.push(bounds);
+    } catch {
+      // Unresolved lettering cannot safely steer a new placement.
+      return null;
+    }
+  }
   const inset = placementInsetMm(spec.lip);
   const halfW = binWidthMm(spec) / 2 - inset, halfH = binLengthMm(spec) / 2 - inset;
   const minX = -halfW - local.minX, maxX = halfW - local.maxX;

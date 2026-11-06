@@ -4,7 +4,7 @@
 
 ## 1.8.2 — 2026-11-05
 
-- Place linked pocket copies in nearby clear space instead of stepping them out of the bin. If no clear position is found, keep the copy on its source and explain how to move it.
+- Place linked pocket copies in nearby clear space, avoiding existing pockets, finger access, and surface labels instead of stepping them out of the bin. If no clear position is found, keep the copy on its source and explain how to move it.
 
 ## 1.8.1 — 2026-11-05
 

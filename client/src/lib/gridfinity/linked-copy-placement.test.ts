@@ -2,8 +2,12 @@ import { expect, it } from "vitest";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
+import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
+import { withKernel } from "@/lib/manifold/runtime";
 import { createBasicPocket } from "./basic-shape";
 import { linkedPocketCopyPosition } from "./autoplace";
+import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
+import { expectAllSurfaceTextBuilt } from "./surface-text.test-support";
 
 it.each([0, 90, 180])("places four long linked copies inside the available axis at %s degrees", rotationDeg => {
   const tool = createBasicPocket("rectangle", { x: -5, y: -134 }, { x: 5, y: 134 }, "driver")!;
@@ -38,4 +42,38 @@ it("returns no guessed location for a full bin or unavailable outline", () => {
   const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6 });
   expect(linkedPocketCopyPosition(spec, tool.cutout, [tool.cutout], new Map([[tool.shape.id, tool.shape]]))).toBeNull();
   expect(linkedPocketCopyPosition(spec, tool.cutout, [tool.cutout], new Map())).toBeNull();
+});
+
+it.each([
+  { name: "text", text: "M", rotationDeg: 0 },
+  { name: "rotated text", text: "M4", rotationDeg: 45 },
+  { name: "symbol", text: "", symbol: "hex-nut", rotationDeg: 90 },
+])("keeps existing $name printable when placing a linked copy", async labelFields => {
+  const tool = createBasicPocket("rectangle", { x: -5, y: -5 }, { x: 5, y: 5 }, "tool")!;
+  const source = { ...tool.cutout, depth: { mode: "mm" as const, value: 10 } };
+  const shapes = new Map([[tool.shape.id, tool.shape]]);
+  // This valid label occupies the first position chosen without label obstacles.
+  const { name: _name, ...content } = labelFields;
+  const label = surfaceTextSchema.parse({ ...content, id: "label", font: "helvetiker", sizeMm: 4, position: { x: 0, y: 11.21 } });
+  const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, surfaceTexts: [label] });
+  const position = linkedPocketCopyPosition(spec, source, [source], shapes);
+  expect(position).not.toBeNull();
+  const cutouts = [source, { ...source, id: "copy", position: position! }];
+  expect(validateLayout(spec, cutouts, shapes)).toEqual([]);
+  await withKernel(kernel => {
+    for (const placed of [[source], cutouts]) {
+      const built = buildBinWithCutouts(kernel, spec, { cutouts: placed, shapesById: shapes, fingerHoles: [] }, EXPORT_QUALITY);
+      expectAllSurfaceTextBuilt(built, 1);
+      expect(built.validationIssues.filter(issue => issue.severity === "error")).toEqual([]);
+    }
+  });
+  expect(spec.surfaceTexts).toEqual([label]);
+  expect(source.position).toEqual({ x: 0, y: 0 });
+});
+
+it("uses the in-place fallback when an existing label cannot be resolved", () => {
+  const tool = createBasicPocket("rectangle", { x: -5, y: -5 }, { x: 5, y: 5 }, "tool")!;
+  const label = surfaceTextSchema.parse({ id: "unsupported", text: "🦆", font: "helvetiker", position: { x: 0, y: 15 } });
+  const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, surfaceTexts: [label] });
+  expect(linkedPocketCopyPosition(spec, tool.cutout, [tool.cutout], new Map([[tool.shape.id, tool.shape]]))).toBeNull();
 });
