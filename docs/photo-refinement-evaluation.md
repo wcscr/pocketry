@@ -13,7 +13,7 @@ Early single-photo results and intermediate curve prototypes are superseded by
 the current comparison.
 
 See [current behavior, limits and model provenance](teed-outline-integration.md)
-and the [ten-photo HTML report](../client/public/reports/outline-comparison/index.html).
+and the [single-tool HTML report](../client/public/reports/outline-comparison/index.html).
 Raw benchmarks and per-regression logs are retained locally rather than shipped
 as repository documentation. Development evaluators in `scripts/` accept local
 photo manifests; source photos are not required to run the application tests.

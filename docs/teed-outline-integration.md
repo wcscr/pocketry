@@ -7,11 +7,15 @@ also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
 
-[Ten before/after photo comparisons](../client/public/reports/outline-comparison/index.html)
-and two additional wood-background checks are included as a portable HTML report. In a running build, open
+[Before/after comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
+are included as a portable HTML report, with one view per distinct tool or
+attachment. Tools photographed together have separate regions; repeated views,
+trays and retail cases are omitted. A tighter input region around the deburring
+tool leaves the support wire's long tail outside the crop, identically for both
+detectors. In a running build, open
 `/reports/outline-comparison/`. The report compares the original detector with
-Automatic at default detection settings, including a case where mixed surroundings
-keep the color result. It contains one selected driver from the five-driver photo.
+Automatic at default detection settings. Each driver from the five-driver photo
+is selected individually. Wood-background controls were tested separately.
 
 ## What we tried and kept
 
@@ -60,7 +64,7 @@ including the lower Gerber spur shown in the report, are deliberately retained.
 ## Performance and verification
 
 The HTML report gives fresh desktop CPU/WASM detection-plus-cleanup timings for
-ten white-sheet crops and two wood-background checks. Local corpus testing covers
+each white-sheet tool region. Local corpus testing covers
 36 tool-on-white-sheet photos / 90 views, with additional crop/rotation controls.
 Automatic sensitivity improved the exact corrected no-strip tape control; the
 other views were unchanged. This is occasional failure recovery, not a broad
