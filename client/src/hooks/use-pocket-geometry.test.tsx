@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import type { PocketGeometry, ResolvePocketGeometryRequest } from "@/lib/gridfinity/worker-api";
-import { usePocketGeometry } from "./use-pocket-geometry";
+import { usePocketGeometry, usePocketGeometryPreview } from "./use-pocket-geometry";
 
 const build = vi.hoisted(() => ({ calls: [] as { request: ResolvePocketGeometryRequest; finish: () => void; fail: () => void }[], dispose: vi.fn() }));
 vi.mock("@/lib/worker/client", () => ({ createWorkerClient: () => ({
@@ -28,22 +28,27 @@ function mount() {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div"), root = createRoot(container);
   let current: Map<string, PocketGeometry>[] = [];
+  let status = "ready";
   function View({ items = cutouts, sources = shapes, bin = spec, enabled = true }) {
     current = [usePocketGeometry(items, sources, bin, enabled), usePocketGeometry(items, sources, bin, enabled)];
+    status = usePocketGeometryPreview(items, sources, bin, enabled).status;
     return null;
   }
   const render = (props: React.ComponentProps<typeof View> = {}) => React.act(() => root.render(<View {...props} />));
   const unmount = () => React.act(() => root.unmount());
   cleanups.push(unmount);
   render();
-  return { render, current: () => current, unmount };
+  return { render, current: () => current, status: () => status, unmount };
 }
 const tick = () => React.act(async () => { await vi.advanceTimersByTimeAsync(0); });
 const finish = (index: number) => React.act(async () => { build.calls[index].finish(); });
 
 it("shares detached geometry, coalesces pending poses, and rejects stale publication", async () => {
   const view = mount(); await tick();
-  expect(build.calls).toHaveLength(1); await finish(0);
+  expect(build.calls).toHaveLength(1);
+  expect(view.status()).toBe("pending");
+  await finish(0);
+  expect(view.status()).toBe("ready");
   expect(view.current()[0].get("p")).toBe(view.current()[1].get("p"));
   const first = view.current()[0].get("p");
   view.render({ items: [{ ...pocket, elevationMm: 12 }] }); await tick();
@@ -100,10 +105,23 @@ it("batches multiple pockets once and can recover an optional outline after a fa
   expect(build.calls).toHaveLength(1);
   expect(build.calls[0].request.pockets).toHaveLength(2);
   await React.act(async () => build.calls[0].fail());
+  expect(view.status()).toBe("error");
   expect(view.current()[0].size).toBe(0);
   view.render({ items: [...items] }); await tick();
   expect(build.calls).toHaveLength(2);
   await finish(1);
+  expect(view.status()).toBe("ready");
   expect(view.current()[0].get("p")).toHaveProperty("elevation", 7);
   expect(view.current()[0].get("other")).toHaveProperty("elevation", 10);
+});
+
+
+it("does not report missing shapes or removed pockets as pending", async () => {
+  const view = mount(); await tick();
+  view.render({ sources: new Map() });
+  expect(view.status()).toBe("ready");
+  await finish(0);
+  expect(view.current()[0].size).toBe(0);
+  view.render({ items: [] });
+  expect(view.status()).toBe("ready");
 });
