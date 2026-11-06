@@ -22,3 +22,16 @@ refinement. The 50 mm case uses stored detector bias 128 (**auto**); the 40 mm
 case uses 100 (**+28** sensitivity) because glare still breaks its shaft at the default threshold.
 These are regression landmarks, not complete ground-truth boundaries or
 physical dimensional measurements.
+
+## Gerber refinement regression
+
+`gerber.rgba.gz` is 384 × 600 RGBA (gzip), derived from the maintainer-supplied
+`20260927_164649.jpg` using Pillow bilinear downsampling, matching the original
+experimental diagnostic. Source SHA-256:
+`8aee30736ac6f15f9d2c6f366023a5fe18906a204f2a64030a60ec5ea8334546`.
+No EXIF metadata is retained. It tests reflective metal, dark inserts, shadow
+rejection and the two open end recesses at unchanged default detail settings.
+
+See [the refinement evaluation](../../../../../docs/photo-refinement-evaluation.md)
+for sparse manual boundary annotations, their uncertainty, and before/after
+comparisons. These are not full ground-truth masks or physical measurements.

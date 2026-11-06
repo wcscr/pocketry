@@ -29,10 +29,9 @@ import { DETECT_DEFAULTS, type DetectOptions, type ImageLike, type ScoreField } 
  *    to adopt its hierarchy semantics, whereas the tracer interpolates
  *    sub-pixel boundaries and is unit-testable without wasm.
  *
- * GrabCut survives only as an opt-in refinement seeded from our own mask. As it
- * was used before — rect-initialised to the whole ROI minus three pixels — very
- * nearly everything was seeded "probably foreground", which is why it kept
- * converging on near-rectangular silhouettes.
+ * Mask-seeded GrabCut is a separate, guarded stage of the shared pipeline.
+ * Keep the original colour evidence: morphology's zeroes are not proof of
+ * background colour, and must not become confident background seeds.
  */
 
 // The OpenCV.js runtime is loaded from a UMD bundle at runtime and has no
@@ -56,7 +55,7 @@ interface Deletable {
  * models — and leaked one wrapper per contour in the selection loop. Disposing
  * from a `finally` removes that whole class of bug.
  */
-class MatScope {
+export class MatScope {
   private readonly tracked: Deletable[] = [];
 
   track<T extends Deletable>(mat: T): T {
@@ -127,6 +126,9 @@ export function buildScoreFieldOpenCV(
     const otsu = alphaWanted ? 128 : otsuThreshold(score);
     const iso = alphaWanted ? 128 : applySensitivity(otsu, sensitivity);
 
+    const evidence = !alphaWanted && (options.boundary === "teed" || (options.refine ?? DETECT_DEFAULTS.refine) === "grabcut")
+      ? score.slice() : undefined;
+
     cleanAndGate(cv, scope, score, width, height, iso);
 
     return {
@@ -138,6 +140,8 @@ export function buildScoreFieldOpenCV(
       offsetY: roi.y,
       iso,
       otsu,
+      evidence,
+      alphaUsed: alphaWanted,
     };
   } finally {
     scope.dispose();

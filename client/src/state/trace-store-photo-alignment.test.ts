@@ -3,6 +3,9 @@ import { mmPerPixel } from "@shared/geometry/scale";
 import { rotateImageAlignment, transformImagePoint, transformImageRect } from "@shared/geometry/image-alignment";
 import { rectRing } from "@/lib/geometry/fixtures";
 import { initialTraceState, traceReducer, type TraceState } from "./trace-store";
+import { mapCurves, sampleCurves } from "@shared/geometry/curves";
+import { asymmetricHandle } from "@/lib/geometry/curve-symmetry.test-support";
+import { symmetrizeCurves } from "@/lib/geometry/curve-symmetry";
 
 const imageUrl = "data:image/png;base64,AA==";
 function ready(): TraceState {
@@ -20,6 +23,41 @@ const undo = (state: TraceState) => traceReducer(state, { type: "UNDO" });
 const redo = (state: TraceState) => traceReducer(state, { type: "REDO" });
 
 describe("photo and contour alignment", () => {
+  it("straightens native curves without flattening handles and restores the exact source and calibration", () => {
+    const before = traceReducer(ready(), { type: "CURVES_COMMITTED", curves: mapCurves(asymmetricHandle, p => ({ x: p.x + 100, y: p.y + 100 })), label: "Auto-simplify outline" });
+    const after = align(before), matrix = rotateImageAlignment(before.imageSize, .6, before.imageAlignment).transform;
+    expect(after.curves).toEqual(mapCurves(before.curves!, p => transformImagePoint(p, matrix)));
+    expect(after.outline).toEqual(sampleCurves(after.curves!, .05));
+    expect(mmPerPixel(after.calibration)).toBeCloseTo(mmPerPixel(before.calibration)!, 12);
+    expect(after.history.index).toBe(before.history.index + 1);
+    const restored = undo(after);
+    expect(restored.curves).toEqual(before.curves); expect(restored.outline).toEqual(before.outline); expect(restored.calibration).toEqual(before.calibration);
+    expect(redo(restored).curves).toEqual(after.curves);
+  });
+
+  it.each(["left", "right", "average"] as const)("applies %s curve symmetry with optional upright rotation as one edit", side => {
+    const point = (p: { x: number; y: number }) => ({ x: 100 + .8 * p.x - .6 * p.y, y: 150 + .6 * p.x + .8 * p.y });
+    const before = traceReducer(ready(), { type: "CURVES_COMMITTED", curves: mapCurves(asymmetricHandle, point), label: "Auto-simplify outline" });
+    const result = symmetrizeCurves({ source: before.curves!, shapeIndex: 0, axis: { start: point({ x: 0, y: 0 }), end: point({ x: 0, y: 100 }) }, side, tolerance: .05 });
+    for (const radians of [undefined, -Math.atan2(.6, .8)]) {
+      const after = traceReducer(before, { type: "CURVE_SYMMETRY_COMMITTED", curves: result.curves,
+        expectedCurves: before.curves!, expectedOutline: before.outline, expectedCalibration: before.calibration, radians, label: "Symmetry" });
+      expect(after.history.index).toBe(before.history.index + 1); expect(mmPerPixel(after.calibration)).toBeCloseTo(mmPerPixel(before.calibration)!, 12);
+      if (radians === undefined) { expect(after.calibration).toBe(before.calibration); expect(after.curves).toEqual(result.curves); }
+      expect(undo(after).curves).toEqual(before.curves); expect(undo(after).calibration).toEqual(before.calibration);
+      expect(redo(undo(after)).curves).toEqual(after.curves);
+    }
+  });
+
+  it("keeps curves opt-in, converts them to points as one undoable edit and preserves old curve sources", () => {
+    expect(initialTraceState.editableCurves).toBe(false);
+    const before = traceReducer(ready(), { type: "CURVES_COMMITTED", curves: asymmetricHandle, label: "Curves" });
+    const after = traceReducer(before, { type: "SET_EDITABLE_CURVES", enabled: false });
+    expect(after.curves).toBeUndefined(); expect(after.outline).toEqual(before.outline); expect(after.history.index).toBe(before.history.index + 1);
+    expect(undo(after).curves).toEqual(before.curves); expect(redo(undo(after)).curves).toBeUndefined();
+    const enabled = traceReducer(ready(), { type: "SET_EDITABLE_CURVES", enabled: true });
+    expect(enabled.history).toBeDefined(); expect(traceReducer(enabled, { type: "SOURCE_LOADED", imageUrl: "next", fileName: "next" }).editableCurves).toBe(true);
+  });
   it("turns all contours, the crop, and scale together while retaining original pixels", () => {
     const before = ready(), after = align(before), matrix = after.imageAlignment!.matrix;
     expect(after.imageUrl).toBe(before.imageUrl);

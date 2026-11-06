@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.9.0 — 2026-11-06
+
+- Automatically choose learned outer outlines for light calibration-sheet backgrounds or Color contrast for other backgrounds and interior holes. Automatically recover weak outer boundaries and some outlines attached to sheet printing without manual sensitivity tuning, using one tiny on-device model inference and bounded reconstruction. Protect supported features and handle reference strips locally, with short hidden edges estimated and highlighted for review.
+- Repair evidence-supported narrow slits and parallel shadow foldbacks before simplification, preserving thin features, paper gaps and separate tools. Retain ambiguous attached shadows for manual review.
+- Automatically reconstruct detected outlines with lines and smooth curves, producing editable points by default. Opt into native Editable curves; adjust the allowance with detail presets and original/preview comparison. Ask before re-detecting and replacing edits when enabling curves. Preserve curves through symmetry, straightening, calibration and Undo. Keep click-to-add/right-click-to-delete in curve editing, with visible point selection and group movement/deletion.
+- Repair selected outline sections with a previewed line or smooth curve, or edit Bézier contours in Trace and Bin. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
+- Keep Add contour and shared holes working alongside curves, recover interrupted touch edits, and restore each saved Undo frame at its own calibration. Protect small independent tools when automatic sensitivity recovers a larger neighbor.
 
 ## 1.8.3 — 2026-11-05
 
@@ -34,6 +40,7 @@
 ## 1.7.0 — 2026-11-05
 
 - Choose independent label-background colors, with adjustable material thickness, in the preview and multicolor 3MF exports. Existing labels keep their body color.
+- Automatically refine photo outlines with guarded, mask-seeded GrabCut in a cancellable worker. Preserve detected recesses, thin features and holes, and retain the original outline when refinement is unreliable.
 
 ## 1.6.1 — 2026-11-05
 

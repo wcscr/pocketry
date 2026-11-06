@@ -148,11 +148,24 @@ export interface UseImageSourceResult {
    * or `null` until the image is ready.
    */
   getDetectionFrame(detectMax?: ImageRasterLimit): DetectionFrame | null;
+  getToolDetectionFrame(region: Rect): (DetectionFrame & { region: Rect }) | null;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
 export function fitWithin(natural: Size, max: ImageRasterLimit): Size {
   return fitImageWithin(natural, max);
+}
+
+/** Higher-resolution ROI sampling leaves the established photo frame intact. */
+export function toolCropGeometry(working: Size, naturalPerWorking: number, region: Rect) {
+  const x = Math.max(0, Math.min(Math.round(region.x), working.width - 1));
+  const y = Math.max(0, Math.min(Math.round(region.y), working.height - 1));
+  const width = Math.max(1, Math.min(Math.round(region.width), working.width - x));
+  const height = Math.max(1, Math.min(Math.round(region.height), working.height - y));
+  const ratio = Math.min(naturalPerWorking, 1024 / Math.max(width, height));
+  const target = { width: Math.max(1, Math.round(width * ratio)), height: Math.max(1, Math.round(height * ratio)) };
+  return { region: { x, y, width, height }, target,
+    toWorking: { x: width / target.width, y: height / target.height } };
 }
 
 /** Draws the decoded source into a canvas using its selected quarter-turn. */
@@ -344,5 +357,26 @@ export function useImageSource(
     };
   }, [source, max, rotation, alignment]);
 
-  return { source, getImageData, getDetectionFrame };
+  const getToolDetectionFrame = useCallback((region: Rect): (DetectionFrame & { region: Rect }) | null => {
+    const image = imageRef.current;
+    if (!image || source.status !== "ready") return null;
+    const natural = rotatedImageDimensions(source.naturalSize, rotation);
+    const reference = alignment?.sourceSize ?? source.size;
+    const geometry = toolCropGeometry(source.size, Math.min(natural.width / reference.width, natural.height / reference.height), region);
+    const { target, region: { x, y, width, height }, toWorking } = geometry;
+    const canvas = document.createElement("canvas");
+    canvas.width = target.width; canvas.height = target.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    // Canvas clips the draw to this small ROI. Original source pixels are
+    // sampled directly; no full-resolution temporary raster is allocated.
+    context.scale(target.width / width, target.height / height);
+    context.translate(-x, -y);
+    drawAlignedImage(context, image, source.size, rotation, alignment, transparentRef.current);
+    return { imageData: context.getImageData(0, 0, target.width, target.height),
+      toWorking,
+      region: { x, y, width, height }, sourceImageUrl: source.url };
+  }, [source, rotation, alignment]);
+
+  return { source, getImageData, getDetectionFrame, getToolDetectionFrame };
 }

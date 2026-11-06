@@ -72,6 +72,57 @@ const BODY = { x: 50, y: 45 };
 const JS = { engine: "js" } as const;
 
 describe("processImage", () => {
+  it.each([false, true])("automatically reconstructs a rounded outline while preserving dense evidence (curves=%s)", async editableCurves => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const detected = await processImage(image, { detect: JS });
+    const result = await processImage(image, { detect: JS, autoCleanup: true, editableCurves });
+    expect(result.cleanup?.applied).toBe(true);
+    expect(result.rawOutline).toEqual(detected.rawOutline);
+    expect(result.refinementBase).toEqual(result.outline);
+    expect(!!result.curves).toBe(editableCurves);
+    expect(result.outline[0].outer.length).toBeLessThan(result.rawOutline[0].outer.length);
+    expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
+    expect(result.timings.cleanup).toBeGreaterThanOrEqual(0);
+    if (editableCurves) expect(result.curves![0].outer.some(a => a.in || a.out)).toBe(true);
+  });
+
+  it("cleans before adding calibrated clearance and keeps its unoffset baseline", async () => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const original = await processImage(image, { detect: JS, autoCleanup: true, calibration, margin: 0 });
+    const offset = await processImage(image, { detect: JS, autoCleanup: true, editableCurves: true, calibration, margin: .5 });
+    expect(offset.curves).toBeUndefined(); // Native editing still requires zero Trace margin.
+    expect(offset.refinementBase).toEqual(original.outline);
+    expect(offset.rawOutline).toEqual(original.rawOutline);
+    expect(outlineArea(offset.outline)).toBeGreaterThan(outlineArea(original.outline));
+  });
+
+  it("keeps detection intact if automatic reconstruction exceeds its complexity budget", async () => {
+    const image = photo(400, 400, (x, y) => {
+      const cx = 20 + Math.round((x - 20) / 28) * 28, cy = 20 + Math.round((y - 20) / 28) * 28;
+      return cx >= 20 && cy >= 20 && cx <= 380 && cy <= 380 && Math.hypot(x - cx, y - cy) < 5;
+    });
+    const detected = await processImage(image, { detect: JS });
+    expect(detected.outline.length).toBeGreaterThan(128);
+    const cleaned = await processImage(image, { detect: JS, autoCleanup: true });
+    expect(cleaned.cleanup?.applied).toBe(false);
+    expect(cleaned.outline).toEqual(detected.outline);
+    expect(cleaned.rawOutline).toEqual(detected.rawOutline);
+  });
+
+  it("maps a crop-first detection back per axis before applying physical margins", async () => {
+    const image = photo(100, 120, (x, y) => x > 20 && x < 80 && y > 20 && y < 100);
+    const detect = { ...JS, tolerancePx: 0, smoothing: 0 };
+    const original = await processImage(image, { detect });
+    const mapped = await processImage(image, { detect, region: {
+      isCropped: true, originalRegion: { x: 15, y: 25, width: 20, height: 36 },
+      toWorking: { x: 0.2, y: 0.3 },
+    } });
+    expect(mapped.rawOutline).toEqual(original.rawOutline.map(s => ({
+      outer: s.outer.map(p => ({ x: p.x * 0.2 + 15, y: p.y * 0.3 + 25 })), holes: [],
+    })));
+    expect(mapped.outline).toEqual(mapped.rawOutline);
+  });
   it("keeps manually overlapping shapes when suppressing newly created holes", () => {
     const first = {
       outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],

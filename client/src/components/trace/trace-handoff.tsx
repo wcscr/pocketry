@@ -22,13 +22,13 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
     if (!ready || adding.current) return;
     const names = new Set(library.shapes.map(shape => shape.name));
     let number = 1;
-    const parts = traceObjects(trace.outline);
+    const parts = traceObjects(trace.outline, trace.curves);
     let holeNumber = 1;
     const shapes = parts.map(part => {
       while (names.has(`Tool ${number}`)) number++;
       while (names.has(`Hole ${holeNumber}`)) holeNumber++;
       const name = part.role === "hole" ? `Hole ${holeNumber++}` : `Tool ${number++}`;
-      const normalized = normalizeTracedShapeWithPlacement(part.outline, scale, name);
+      const normalized = normalizeTracedShapeWithPlacement(part.outline, scale, name, part.curves);
       return normalized ? { ...normalized, role: part.role } : null;
     });
     if (shapes.some(shape => !shape)) return;

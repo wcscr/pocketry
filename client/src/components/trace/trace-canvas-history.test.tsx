@@ -11,6 +11,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { TraceCanvas } from "./trace-canvas";
 import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
+import { traceDraftSnapshot } from "@/lib/trace-draft";
+import { traceDraftSchema } from "@shared/trace-draft";
+import { projectFromTrace } from "@/lib/project/trace-export";
+import { parseProjectDoc } from "@shared/gridfinity/project";
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -316,6 +320,109 @@ describe("TraceCanvas edit history", () => {
       expect(trace!.outline[2].outer[0]).toEqual({ x: 255, y: 255 });
       expect(trace!.outline[1].outer).toEqual(square);
     } finally { React.act(() => root.unmount()); restoreCoordinates(); }
+  });
+
+  it.each(["auto", "range", "reconstruct"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => {
+        trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
+        if (mode === "reconstruct") {
+          const dense: Outline = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
+          trace!.dispatch({ type: "DETECTED", imageUrl: trace!.imageUrl, outline: rounded, rawOutline: dense, svg: "", region: trace!.region });
+        } else trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded });
+        trace!.dispatch({ type: "SET_MODE", mode: mode === "reconstruct" ? "pan" : "edit" });
+      });
+      const before = trace!.history.stack.length;
+      const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
+      expect(trace!.curves).toBeUndefined();
+      if (mode === "reconstruct") await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineCleanupRequest={{ id: 1, sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
+      else { click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
+      if (mode === "range") {
+        for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
+          const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+          select.value = value; select.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        click("Preview fit");
+      }
+      expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
+      expect(trace!.history.stack).toHaveLength(before); expect(trace!.curves).toBeUndefined();
+      click(mode === "reconstruct" ? "Apply simplified outline" : "Apply fit");
+      const curves = trace!.curves!;
+      expect(curves[0].outer.length).toBeLessThan(48); expect(trace!.history.stack).toHaveLength(before + 1);
+      const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace!)!)));
+      React.act(() => trace!.dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+      expect(trace!.curves).toEqual(curves);
+      React.act(() => trace!.undo()); expect(trace!.curves).toBeUndefined(); expect(trace!.outline).toEqual(rounded);
+      React.act(() => trace!.redo()); expect(trace!.curves).toEqual(curves);
+      const project = projectFromTrace(trace!.outline, { mmPerPx: mmPerPixel(trace!.calibration)!, imageHeight: 100 }, "Fitted trace", 0, curves);
+      const saved = parseProjectDoc(JSON.parse(JSON.stringify(project)))!;
+      expect(saved.shapes[0].curvesMm).toEqual(project.shapes[0].curvesMm);
+      expect(saved.shapes[0].curvesMm![0].outer).toHaveLength(curves[0].outer.length);
+    } finally { React.act(() => root.unmount()); }
+  });
+  it.each([{ editable: false, mode: "Line" }, { editable: false, mode: "Smooth curve" }, { editable: true, mode: "Line" }, { editable: true, mode: "Smooth curve" }])(
+    "previews and repairs a selected section with calibration and one undo: $mode, editable $editable", async ({ editable, mode }) => {
+      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+      vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+      const restore = installIdentitySvgCoordinates(), host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+      let trace: TraceStore; function Probe() { trace = useTrace(); return null; }
+      const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
+      try {
+        await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+        React.act(() => { trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: editable }); trace!.dispatch({ type: "SET_MODE", mode: "edit" }); });
+        const before = trace!.history.index, calibration = trace!.calibration;
+        const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
+        const selectEndpoints = () => {
+          const svg = host.querySelector("svg")!;
+          for (const index of [6, 12]) for (const type of ["pointerdown", "pointerup"]) React.act(() => {
+            const p = rounded[0].outer[index], event = new MouseEvent(type, { bubbles: true, button: 0, clientX: p.x, clientY: p.y, shiftKey: true });
+            Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } }); svg.dispatchEvent(event);
+          });
+        };
+        selectEndpoints(); click("Repair section"); expect(host.querySelector('[data-testid="outline-repair-preview"]')).not.toBeNull();
+        expect(trace!.history.index).toBe(before); click("Cancel repair"); expect(trace!.outline).toEqual(rounded);
+        selectEndpoints(); click("Repair section"); click(mode); click("Apply repair");
+        expect(trace!.history.index).toBe(before + 1); expect(trace!.calibration).toEqual(calibration);
+        expect(!!trace!.curves).toBe(editable);
+        if (editable && mode === "Smooth curve") expect(trace!.curves![0].outer.some(a => a.in || a.out)).toBe(true);
+        const after = trace!.outline, curves = trace!.curves;
+        for (const index of [6, 12]) expect(after[0].outer).toContainEqual(rounded[0].outer[index]);
+        React.act(() => trace!.undo()); expect(trace!.outline).toEqual(rounded); expect(trace!.curves).toBeUndefined(); expect(trace!.calibration).toEqual(calibration);
+        React.act(() => trace!.redo()); expect(trace!.outline).toEqual(after); expect(trace!.curves).toEqual(curves);
+      } finally { React.act(() => root.unmount()); host.remove(); restore(); }
+    });
+  it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+    let trace: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
+      React.act(() => trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }));
+      const entry = host.querySelector<HTMLButtonElement>('[data-testid="button-edit-curves"]');
+      expect(entry).not.toBeNull(); React.act(() => entry!.click());
+      const before = trace!.history.stack.length;
+      const bend = host.querySelector<HTMLButtonElement>('[aria-label="Bend curve outward"]')!;
+      React.act(() => bend.click());
+      const curves = trace!.curves;
+      expect(curves?.[0].outer).toHaveLength(edited[0].outer.length);
+      expect(host.querySelector('[data-testid="curve-source-path"]')!.getAttribute("d")).toContain("C");
+      expect(trace!.history.stack).toHaveLength(before + 1);
+      React.act(() => trace!.undo()); expect(trace!.curves).toBeUndefined(); expect(trace!.outline).toEqual(edited);
+      React.act(() => trace!.redo()); expect(trace!.curves).toEqual(curves);
+    } finally { React.act(() => root.unmount()); restore(); }
   });
   it.each(["click", "tiny", "cancel", "escape", "commit", "decline"])("preserves edited geometry through region %s", async gesture => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -1254,7 +1361,7 @@ describe("touch-accessible trace tools", () => {
         Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: id } });
         svg.dispatchEvent(event);
       });
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit contours"]')!.click());
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
       const historyIndex = trace!.history.index;
       pointer("pointerdown", 10, 10); pointer("pointermove", 25, 25);
       expect(trace!.outline[0].outer[0]).toEqual({ x: 25, y: 25 });
@@ -1297,7 +1404,7 @@ describe("touch-accessible trace tools", () => {
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit contours"]')!.click());
+      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
       const tools = host.querySelector('[aria-label="Contour editing tools"]')!;
       const buttons = tools.querySelectorAll<HTMLButtonElement>('button');
       expect(tools.textContent).toContain("Contour 1");

@@ -1,4 +1,6 @@
 import type { Outline, Rect, Ring } from "@shared/geometry/types";
+import type { EdgeCleanupReport } from "./edge-cleanup";
+import type { BoundaryRecoveryReport } from "./boundary-recovery";
 
 /**
  * The pixel input the pipeline accepts.
@@ -16,6 +18,8 @@ export interface ImageLike {
 export type DetectEngine = "opencv" | "js";
 
 export interface DetectOptions {
+  /** Optional learned outer silhouettes for tools on white calibration sheets. */
+  boundary?: "color" | "teed";
   /** Validated calibration carriers, in input-image pixels. Their contents are unknown. */
   occlusions?: readonly Ring[];
   /** Restrict detection to this region of the image. */
@@ -44,7 +48,7 @@ export interface DetectOptions {
    * "auto" detects it; "always" forces it; "never" ignores alpha.
    */
   useAlpha?: "auto" | "always" | "never";
-  /** Optional GrabCut refinement seeded from the Otsu mask. Off by default. */
+  /** Guarded CPU GrabCut refinement, automatic by default when available. */
   refine?: "none" | "grabcut";
   /** Force a backend. "auto" prefers OpenCV and falls back to the JS path. */
   engine?: "auto" | DetectEngine;
@@ -75,6 +79,8 @@ export interface DetectResult {
   engine: DetectEngine;
   /** Per-stage wall-clock milliseconds. */
   timings: Record<string, number>;
+  /** Why automatic mask refinement was accepted, skipped, or rejected. */
+  refinement?: RefinementReport;
   debug?: DetectDebug;
 }
 
@@ -93,11 +99,17 @@ export interface DetectDebug {
  * tracer interpolate sub-pixel boundaries.
  */
 export interface ScoreField {
+  /** Original colour evidence before morphology, used only during refinement. */
+  evidence?: Uint8Array;
+  /** Alpha silhouettes are authoritative; never refine them by RGB colour. */
+  alphaUsed?: boolean;
   score: Uint8Array;
   width: number;
   height: number;
-  /** Segmentation-space pixels per source pixel (<= 1 when downscaled). */
+  /** Segmentation-space pixels per source pixel; models may also upscale. */
   scale: number;
+  /** Exact vertical mapping when model dimensions were rounded independently. */
+  scaleY?: number;
   /** Source-space origin of the segmented region. */
   offsetX: number;
   offsetY: number;
@@ -115,6 +127,26 @@ export const DETECT_DEFAULTS = {
   minShellAreaFrac: 0.01,
   minHoleAreaFrac: 0.001,
   useAlpha: "auto",
-  refine: "none",
+  refine: "grabcut",
   engine: "auto",
 } as const satisfies Partial<DetectOptions>;
+
+export interface EdgeSensitivityReport {
+  /** Additional reconstruction accepted after the coarse sensitivity search. */
+  edgeReconstruction?: "clipped-boundary-recovery" | "fine-threshold-confirmation";
+  /** Clipped-region retry diagnostics; thin unseeded features still need review. */
+  boundaryRecovery?: BoundaryRecoveryReport;
+  edgeThreshold: number;
+  edgeThresholdTrials: number;
+  automaticSensitivity: boolean;
+  seedCoverage: number;
+}
+
+export interface RefinementReport extends Partial<EdgeSensitivityReport> {
+  boundaryCleanup?: EdgeCleanupReport;
+  status: "accepted" | "skipped" | "fallback";
+  reason: string;
+  iterations: number;
+  changedPixels?: number;
+  cached?: boolean;
+}
