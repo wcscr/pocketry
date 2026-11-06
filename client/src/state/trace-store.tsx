@@ -142,7 +142,7 @@ export interface TraceState {
 
   /** Bias on the automatic threshold; 128 is "trust the automatic level". */
   sensitivity: number;
-  boundaryMethod: "color" | "teed";
+  boundaryMethod: "auto" | "color" | "teed";
   /** Opt-in preference; an existing curve source always remains editable. */
   editableCurves: boolean;
   includeInteriorHoles: boolean;
@@ -219,7 +219,7 @@ export const initialTraceState: TraceState = {
     index: 0,
   },
   sensitivity: 128,
-  boundaryMethod: "color",
+  boundaryMethod: "auto",
   editableCurves: false,
   includeInteriorHoles: false,
   tolerancePx: 1.2,
@@ -308,7 +308,7 @@ export type TraceAction =
   | { type: "REGION_COMMITTED" }
   | { type: "SET_PROCESSING"; processing: boolean }
   | { type: "SET_SENSITIVITY"; sensitivity: number }
-  | { type: "SET_BOUNDARY_METHOD"; method: "color" | "teed" }
+  | { type: "SET_BOUNDARY_METHOD"; method: "auto" | "color" | "teed" }
   | { type: "SET_TOLERANCE"; tolerancePx: number }
   | { type: "SET_SMOOTHING"; smoothing: number }
   | { type: "SET_MARGIN"; margin: Margin }

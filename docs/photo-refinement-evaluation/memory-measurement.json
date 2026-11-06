@@ -1,8 +1,0 @@
-{
-  "scope": "whole Node 22.22.2 macOS arm64 five-photo benchmark; not browser or detector-only incremental memory",
-  "tool": "/usr/bin/time -l",
-  "maximumResidentSetSizeBytes": 343048192,
-  "peakMemoryFootprintBytes": 312345736,
-  "wasmHeapCapacityBytes": 134217728,
-  "physicalMobilePeakMeasured": false
-}

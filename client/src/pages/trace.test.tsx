@@ -34,6 +34,7 @@ const {
   getImageDataMock,
   processImageMock,
   getDetectionFrameMock,
+  getToolDetectionFrameMock,
   correctPerspectiveMock,
 } = vi.hoisted(() => ({
     decodeImageFileMock: vi.fn(),
@@ -41,6 +42,7 @@ const {
     getImageDataMock: vi.fn(),
     processImageMock: vi.fn(),
     getDetectionFrameMock: vi.fn(),
+    getToolDetectionFrameMock: vi.fn(),
     correctPerspectiveMock: vi.fn(),
   }));
 
@@ -147,6 +149,7 @@ vi.mock("@/components/trace/use-image-source", () => {
     source: { status: "empty" as const },
     getImageData: getImageDataMock,
     getDetectionFrame: getDetectionFrameMock,
+    getToolDetectionFrame: getToolDetectionFrameMock,
   };
   const ready = {
     source: {
@@ -158,6 +161,7 @@ vi.mock("@/components/trace/use-image-source", () => {
     },
     getImageData: getImageDataMock,
     getDetectionFrame: getDetectionFrameMock,
+    getToolDetectionFrame: getToolDetectionFrameMock,
   };
   const readySources = new Map<string, typeof ready>();
 
@@ -247,6 +251,7 @@ describe("Trace detection workflow", () => {
     vi.mocked(loadTraceDraft).mockResolvedValue(null);
     vi.mocked(saveTraceDraft).mockResolvedValue();
     getDetectionFrameMock.mockReturnValue(null);
+    getToolDetectionFrameMock.mockReturnValue(null);
     vi.mocked(autoCalibrate).mockReset().mockResolvedValue({ kind: "no-markers" });
     getImageDataMock.mockReturnValue({
       width: 300,
@@ -387,6 +392,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
     expect(autoCalibrate).toHaveBeenCalledTimes(2);
     getDetectionFrameMock.mockReturnValue(null);
+    getToolDetectionFrameMock.mockReturnValue(null);
     await React.act(async () => current.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,replacement", fileName: "replacement" }));
     await React.act(async () => finish(detectedAid()));
     expect(current.imageUrl).toBe("data:image/png;base64,replacement");
@@ -961,6 +967,35 @@ describe("Trace detection workflow", () => {
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
     expect(getImageDataMock).toHaveBeenCalledExactlyOnceWith({ x: 80, y: 90, width: 200, height: 100 });
     expect(processImageMock).toHaveBeenCalledOnce();
+  });
+
+  it("uses original-photo crop pixels for the default tool-edge detection", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    const imageData = { width: 400, height: 200, data: new Uint8ClampedArray(400 * 200 * 4).fill(255) };
+    const region = { x: 80, y: 90, width: 200, height: 100 };
+    getToolDetectionFrameMock.mockReturnValue({ imageData, region, toWorking: { x: .5, y: .5 } });
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getToolDetectionFrameMock).toHaveBeenCalledWith(region);
+    expect(getImageDataMock).not.toHaveBeenCalled();
+    expect(processImageMock).toHaveBeenCalledWith(imageData, expect.objectContaining({
+      region: { originalRegion: region, isCropped: true, toWorking: { x: .5, y: .5 } },
+      detect: expect.objectContaining({ boundary: "teed", sensitivity: 128 }),
+    }));
+  });
+
+  it.each([false, true])("Automatic uses color for a dark background or requested interior holes (holes=%s)", async holes => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    const data = new Uint8ClampedArray(40 * 20 * 4).fill(holes ? 255 : 45);
+    for (let i = 3; i < data.length; i += 4) data[i] = 255;
+    getToolDetectionFrameMock.mockReturnValue({ imageData: { width: 40, height: 20, data },
+      region: { x: 80, y: 90, width: 200, height: 100 }, toWorking: { x: 5, y: 5 } });
+    if (holes) {
+      function EnableHoles() { const { dispatch } = useTrace(); React.useEffect(() => dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true }), [dispatch]); return null; }
+      await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><EnableHoles /><TracePage /></TraceProvider></PanelProvider>));
+    }
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getImageDataMock).toHaveBeenCalledWith({ x: 80, y: 90, width: 200, height: 100 });
+    expect(processImageMock.mock.lastCall![1].detect.boundary).toBe("color");
   });
 
   it("waits for a detection region instead of tracing immediately on image load", async () => {

@@ -28,6 +28,15 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("preserves color detection for legacy drafts that predate tool edges", () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const { boundaryMethod: _method, ...legacyState } = snapshot.state;
+    const recovered = traceDraftSchema.parse({ ...snapshot, state: legacyState });
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: recovered });
+    expect(restored.boundaryMethod).toBe("color");
+    expect(restored.outline).toEqual(outline);
+    expect(traceReducer(restored, { type: "SOURCE_LOADED", imageUrl: image, fileName: "Next photo" }).boundaryMethod).toBe("color");
+  });
   it("recovers an explicitly uncalibrated curve history frame at its own precision", async () => {
     const before = { ...calibrated(), processing: false, margin: 0, calibration: null };
     const curves = editCurves(curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: -1 },

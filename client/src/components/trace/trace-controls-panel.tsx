@@ -897,7 +897,7 @@ export function TraceControlsPanel({
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
             onClick={() => { dispatch({ type: "ADD_CONTOUR" }); onCanvasInteraction(); }}
             data-testid="button-add-contour">
-            <SquarePlus className="h-4 w-4" />Add contour
+            <SquarePlus className="h-4 w-4" />Add manual contour
           </Button>
           <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
             size="sm" className="w-full" disabled={!hasOutline || processing}
@@ -911,7 +911,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Auto-simplify outline previews automatic line and curve cleanup. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
+                Auto-simplify outline previews automatic line and curve cleanup. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>

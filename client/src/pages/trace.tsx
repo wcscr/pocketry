@@ -66,6 +66,7 @@ import { generateOutlineSVG } from "@/lib/export/svg";
 import { CURVE_TOLERANCE_MM, sampleCurves } from "@shared/geometry/curves";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
+import { hasWhitePaperBackground } from "@/lib/detect/background-choice";
 import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 
 /** The tracing workspace. */
@@ -200,7 +201,7 @@ function TraceWorkspace(): JSX.Element {
   const runDetection = useCallback(async (settings?: {
     sensitivity: number;
     includeInteriorHoles: boolean;
-    boundary?: "color" | "teed";
+    boundary?: "auto" | "color" | "teed";
   }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
@@ -214,9 +215,16 @@ function TraceWorkspace(): JSX.Element {
         : null;
     if (!region) return;
 
-    const boundary = settings?.boundary ?? store.boundaryMethod;
-    const toolFrame = boundary === "teed" ? getToolDetectionFrame(region) : null;
-    const imageData = toolFrame?.imageData ?? getImageData(region);
+    const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
+    const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
+    const candidateFrame = requestedBoundary !== "color" ? getToolDetectionFrame(region) : null;
+    const initialPixels = candidateFrame?.imageData ?? getImageData(region);
+    if (!initialPixels) return;
+    const boundary = requestedBoundary === "auto"
+      ? !includeInteriorHoles && hasWhitePaperBackground(initialPixels) ? "teed" : "color"
+      : requestedBoundary;
+    const toolFrame = boundary === "teed" ? candidateFrame : null;
+    const imageData = toolFrame?.imageData ?? (candidateFrame ? getImageData(region) : initialPixels);
     if (!imageData) return;
 
     const request = ++detectionRequest.current;

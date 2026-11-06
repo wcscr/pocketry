@@ -12,7 +12,7 @@ import { TraceSymmetryTool } from "./trace-symmetry-tool";
 export interface DetectionSettings {
   sensitivity: number;
   includeInteriorHoles: boolean;
-  boundary?: "color" | "teed";
+  boundary?: "auto" | "color" | "teed";
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
@@ -24,9 +24,11 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
   const { dispatch, sensitivity, tolerancePx, includeInteriorHoles, processing } = trace;
   const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
   const [pendingDetection, setPendingDetection] = useState<DetectionSettings | null>(null);
+  const [confirmCurves, setConfirmCurves] = useState(false);
   useEffect(() => {
     setDraftSensitivity(null);
     setPendingDetection(null);
+    setConfirmCurves(false);
   }, [trace.sourceRevision, trace.region]);
 
   const apply = (settings: DetectionSettings) => {
@@ -56,8 +58,8 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
         disabled={processing} onChange={(value) => setDraftSensitivity(128 - value)}
         onCommit={(value) => request({ sensitivity: 128 - value, includeInteriorHoles })}
         touchTarget={compact}
-        hint={compact ? undefined : trace.boundaryMethod === "teed"
-          ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto; higher includes more. Updates on release and asks before replacing edits."
+        hint={compact ? undefined : trace.boundaryMethod !== "color"
+          ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto. Higher includes more of the image. Updates on release and asks before replacing edits."
           : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
       <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
@@ -73,30 +75,48 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
       <div className="flex items-center gap-1"><Label htmlFor="editable-curves" className="text-xs">Editable curves</Label>
         <HelpHint label="editable curves">Off by default: Auto-simplify makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
       <Switch id="editable-curves" checked={trace.editableCurves || !!trace.curves} disabled={processing}
-        onCheckedChange={enabled => dispatch({ type: "SET_EDITABLE_CURVES", enabled })} />
+        onCheckedChange={enabled => {
+          if (enabled && trace.outline.length > 0 && trace.region && trace.imageUrl) setConfirmCurves(true);
+          else dispatch({ type: "SET_EDITABLE_CURVES", enabled });
+        }} />
     </div>}
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>
-          <HelpHint label="outline detection method">Color contrast separates the tool from its background and can include interior holes. Tool edges is for the outside silhouette on white Pocketry calibration sheets; it uses an on-device model. Both methods find a boundary. Auto-simplify outline then fits straight lines and curves in a separate preview.</HelpHint></div>
+          <HelpHint label="outline detection method">Automatic checks the paper around the selected tool: it uses on-device Tool edges for light neutral paper, and Color contrast for other or uncertain backgrounds. You can choose either method yourself. Auto-simplify outline fits straight lines and curves in a separate preview.</HelpHint></div>
         <select id="outline-detection-method" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
           value={trace.boundaryMethod} disabled={processing}
-          onChange={event => { const boundary = event.target.value as "color" | "teed";
+          onChange={event => { const boundary = event.target.value as "auto" | "color" | "teed";
             request({ sensitivity, includeInteriorHoles: boundary === "teed" ? false : includeInteriorHoles, boundary }); }}>
-          <option value="color">Color contrast</option>
+          <option value="auto">Automatic · match background</option>
           <option value="teed">Tool edges · white sheet</option>
+          <option value="color">Color contrast</option>
         </select>
       </div>
     </div>}
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-1">
         <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
-        <HelpHint label="interior holes">Trace openings inside the tool. Reflections are usually not holes. Changing this setting asks before replacing manual edits.</HelpHint>
+        <HelpHint label="interior holes">Trace openings inside the tool. Reflections are usually not holes. Automatic uses Color contrast when this is enabled. Changing this setting asks before replacing manual edits.</HelpHint>
       </div>
       <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
         onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
     </div>}
     {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Advanced detection settings</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
+    <Dialog open={confirmCurves} onOpenChange={setConfirmCurves}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Re-detect before using curves?</DialogTitle>
+          <DialogDescription>Editable curves lets Auto-simplify keep true curves. Re-detecting starts again from the photo and replaces your outline edits; Undo restores them. You can also keep the current outline.</DialogDescription>
+        </DialogHeader>
+        <Button onClick={() => {
+          setConfirmCurves(false);
+          dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
+          apply({ sensitivity, includeInteriorHoles, boundary: trace.boundaryMethod });
+        }}>Re-detect photo</Button>
+        <Button variant="outline" onClick={() => { setConfirmCurves(false); dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }); }}>Keep current outline</Button>
+        <Button variant="ghost" onClick={() => setConfirmCurves(false)}>Cancel</Button>
+      </DialogContent>
+    </Dialog>
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>

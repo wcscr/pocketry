@@ -809,7 +809,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
-    expect(host.textContent).toContain("No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
+    expect(host.textContent).toContain("No outline found. Choose Add manual contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();

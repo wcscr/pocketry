@@ -72,9 +72,10 @@ Draw a **Region** around each tool and refine its **Outline**. Add clearance wit
 **Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
 there was estimated. You’ll set pocket depths in Bin.
 
-For white Pocketry calibration sheets, choose **Tool edges · white sheet** under
-**Find the outline using**. **Color contrast** remains available for other
-backgrounds and interior holes. These choices find the boundary; they do not
+**Automatic · match background** is the default for new traces. It chooses
+**Tool edges · white sheet** for light neutral paper and **Color contrast** for
+other or uncertain backgrounds. You can select either method under **Find the
+outline using**; interior holes use Color contrast. These choices find the boundary; they do not
 apply curve fitting. Review tool tips and shadows; rejected tool-edge detections
 retain the color result. Processing stays on your device.
 
