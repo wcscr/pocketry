@@ -14,9 +14,10 @@ trays and retail cases are omitted. A tighter input region around the deburring
 tool leaves the support wire's long tail outside the crop, identically for both
 detectors. In a running build, open
 `/reports/outline-comparison/`. The report compares this PR's unchanged Automatic
-default with one combined, report-only reconstruction experiment. An optional
-third column retains the original detector from before the PR. The experiment
-is not enabled in the app; its improvements, regressions and retained fallbacks
+default with a report-only reconstruction experiment that disables color fusion.
+An optional third column shows either the previous experiment with color fusion
+or the original detector from before the PR. Neither experiment is enabled in
+the app; improvements, regressions and retained fallbacks
 are labeled separately. Each driver from the five-driver photo is selected
 individually. Wood-background controls were tested separately.
 
