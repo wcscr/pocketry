@@ -24,6 +24,7 @@ import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-q
 import { PocketClearanceDialog } from "@/components/gridfinity/pocket-clearance-dialog";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
 import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import { mergeValidationIssues } from "@shared/gridfinity/validation-issues";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
@@ -556,13 +557,10 @@ function BinDesignerWorkspace(): JSX.Element {
     { spec, layout, gesture: spec !== committedSpec || cutouts !== committedCutouts || fingerHoles !== committedFingerHoles ? committedDoc : undefined },
   );
 
-  // Pure and worker validation can both report the same invalid insertion.
-  // A label deleted since the last build no longer needs its stale issue.
-  const issues = [...layoutIssues, ...solidIssues.filter(issue => !issue.surfaceTextIds?.length
-    || issue.surfaceTextIds.some(id => spec.surfaceTexts.some(label => label.id === id))).filter(issue => !layoutIssues.some(local =>
-    local.code === issue.code && local.message === issue.message && local.severity === issue.severity
-    && JSON.stringify(local.cutoutIds) === JSON.stringify(issue.cutoutIds)
-    && JSON.stringify(local.surfaceTextIds) === JSON.stringify(issue.surfaceTextIds)))];
+  // A deleted label no longer needs its stale issue. Exact wall errors replace
+  // duplicate layout warnings without weakening the worker's export checks.
+  const issues = mergeValidationIssues(layoutIssues, solidIssues.filter(issue => !issue.surfaceTextIds?.length
+    || issue.surfaceTextIds.some(id => spec.surfaceTexts.some(label => label.id === id))));
   const invalidSurfaceTextIds = new Set(issues.flatMap(issue => issue.severity === "error" ? issue.surfaceTextIds ?? [] : []));
   const editablePockets = useMemo(() => cutouts.flatMap(cutout => {
     const shape = library.shapes.find(shape => shape.id === cutout.shapeId);

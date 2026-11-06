@@ -142,3 +142,8 @@ flat and Gridfinity bases.
 
 Physical insertion fit remains unqualified. Verification runs locally under Node
 22; GitHub Actions remains disabled.
+
+Wall-contact messages distinguish tilted pockets from pockets at a changed
+height. Once the solid check confirms a wall contact, its export-blocking error
+replaces the duplicate layout wall warning for that pocket. Other validation
+messages remain visible.
