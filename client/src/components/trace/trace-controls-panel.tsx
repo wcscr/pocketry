@@ -917,7 +917,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1"><Button variant="default" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
               data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
               <Spline className="h-4 w-4" />Auto simplify outline
-            </Button><HelpHint label="auto-simplify outline">Choose More detail, Balanced or Smoother and compare the preview with the original outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
+            </Button><HelpHint label="auto-simplify outline">Compare the automatic preview with the original outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
             {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
           </div>}
           </TraceDetectionControls>

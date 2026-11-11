@@ -58,14 +58,14 @@ were tested separately.
 Detection finds a boundary and automatically reconstructs supported lines and
 rounded sections. Point mode samples the fitted curves; Editable curves is off
 by default and retains native handles when enabled. **Auto simplify outline**
-offers More detail, Balanced and Smoother with automatic previews and an
-Original/Preview comparison. These levels smooth the current accepted outline,
-including manual point and curve edits, with progressively wider filtering and a
-fine curve approximation. After Apply, a checkmark identifies the applied level;
-hover or keyboard focus explains it. Selecting it again leaves the outline unchanged and Apply is disabled.
+offers one automatic preview and an Original/Preview comparison. It smooths the
+current accepted outline, including manual point and curve edits, and selects the
+smoothest candidate allowed by the existing shape safeguards. After Apply, a
+checkmark identifies the applied result; hover or keyboard focus explains it.
+Opening it again leaves the outline unchanged and Apply is disabled.
 A dash marks a preview that would make no change, with the reason in a hover hint.
-Presets share the same accepted starting outline across Apply, Undo and recovery,
-so moving from Balanced to Smoother matches choosing Smoother directly. Manual
+The accepted starting outline survives Apply, Undo and recovery, including drafts
+saved with the former detail presets, so smoothing does not compound. Manual
 outline edits, fresh detection, or changes to scale/geometry establish a new source.
 The Manual detection settings button beneath Auto exposes sensitivity and point
 simplification.
@@ -87,8 +87,8 @@ chosen for one detector need not suit another. Within a method, sensitivity and
 interior-hole changes re-read the photo with the current tuning and correction
 strokes; they ask before replacing manual edits. The manual Simplification slider
 works from the accepted refinement base, including committed edits. Auto simplify
-starts from the currently displayed boundary; changing its level reuses that source
-until another edit or detection establishes a new one. It smooths small bumps within its
+starts from the currently displayed boundary and retains that source until
+another edit or detection establishes a new one. It smooths small bumps within its
 allowance; it cannot recover missing material or remove a large segmentation error.
 
 Fresh detection publishes geometry, its evidence and its settings together.

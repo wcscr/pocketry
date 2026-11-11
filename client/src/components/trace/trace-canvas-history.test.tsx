@@ -371,7 +371,7 @@ describe("TraceCanvas edit history", () => {
       expect(saved.shapes[0].curvesMm![0].outer).toHaveLength(curves[0].outer.length);
     } finally { React.act(() => root.unmount()); }
   });
-  it.each([false, true])("marks applied Auto levels without compounding, including recovery and edits (curves=%s)", async editableCurves => {
+  it.each([false, true])("uses one Auto preview without compounding legacy presets, including recovery and edits (curves=%s)", async editableCurves => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
@@ -388,26 +388,38 @@ describe("TraceCanvas edit history", () => {
       }), holes: [] }];
       React.act(() => { trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: editableCurves }); trace.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace.dispatch({ type: "SET_MODE", mode: "pan" }); });
       const source = curvesFromOutline(trace.outline), unitsPerUnit = mmPerPixel(trace.calibration)!;
-      await open(); await click("Apply");
-      expect(trace.history.stack[trace.history.index].autoSimplification).toMatchObject({ source, allowance: .1 });
-      const applied = trace.outline, index = trace.history.index;
-      const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace)!)));
-      React.act(() => trace.dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+      // A synthetic draft saved by the former Balanced preset must still use
+      // its original accepted source when opened in the single-preview UI.
+      const legacy = simplifyAcceptedOutline({ source, tolerance: .1 / unitsPerUnit, sampleTolerance: CURVE_TOLERANCE_MM / unitsPerUnit, editableCurves });
+      const autoSimplification = { source, allowance: .1, unitsPerUnit, unit: "mm" as const };
+      React.act(() => trace.dispatch(editableCurves
+        ? { type: "CURVES_COMMITTED", curves: legacy.curves, label: "Auto simplify outline", autoSimplification }
+        : { type: "OUTLINE_COMMITTED", outline: legacy.curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label: "Auto simplify outline", autoSimplification }));
+      const legacyDraft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace)!)));
+      React.act(() => trace.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: legacyDraft }));
       await open();
-      expect(button("Balanced").getAttribute("aria-label")).toBe("Balanced, applied");
-      expect(button("Balanced").querySelector('[data-testid="applied-simplification"]')).not.toBeNull();
-      expect(button("Apply").disabled).toBe(true);
-      await click("Balanced"); await click("Apply");
-      expect(trace.outline).toEqual(applied); expect(trace.history.index).toBe(index);
-      await click("Smoother"); expect(button("Apply").disabled).toBe(false);
+      expect(host.querySelector('[data-testid="applied-simplification"]')).toBeNull();
+      expect(button("Apply").disabled).toBe(false);
       const direct = simplifyAcceptedOutline({ source, tolerance: .2 / unitsPerUnit, sampleTolerance: CURVE_TOLERANCE_MM / unitsPerUnit, editableCurves });
       await click("Apply");
       const expected = editableCurves ? sampleCurves(normalizeCurves(direct.curves), CURVE_TOLERANCE_MM / unitsPerUnit)
         : direct.curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) }));
-      expect(trace.outline).toEqual(expected); // Same as choosing Smoother directly, not smoothing Balanced again.
-      expect(trace.history.stack[trace.history.index].autoSimplification?.source).toEqual(source);
+      expect(trace.outline).toEqual(expected);
+      expect(trace.history.stack[trace.history.index].autoSimplification).toMatchObject({ source, allowance: .2 });
+      const applied = trace.outline, index = trace.history.index;
+      const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace)!)));
+      React.act(() => trace.dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+      await open();
+      expect(host.querySelector('[data-testid="applied-simplification"]')).not.toBeNull();
+      expect(button("Apply").disabled).toBe(true);
+      await click("Apply");
+      expect(trace.outline).toEqual(applied); expect(trace.history.index).toBe(index);
+      await click("Cancel");
       React.act(() => trace.undo());
-      await open(); expect(button("Balanced").getAttribute("aria-label")).toBe("Balanced, applied"); await click("Cancel");
+      await open(); expect(host.querySelector('[data-testid="applied-simplification"]')).toBeNull();
+      expect(button("Apply").disabled).toBe(false); await click("Cancel");
+      React.act(() => trace.redo());
+      await open(); expect(host.querySelector('[data-testid="applied-simplification"]')).not.toBeNull(); await click("Cancel");
       React.act(() => {
         if (trace.curves) trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: false });
         trace.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded.map(s => ({ ...s, outer: s.outer.map(p => ({ ...p, x: p.x + 2 })) })) });

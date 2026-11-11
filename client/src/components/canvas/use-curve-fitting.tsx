@@ -45,6 +45,9 @@ interface Session {
 /** Preview never writes to Trace/Bin. Only Apply invokes the single-commit path. */
 export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, editableCurves = true, appliedSimplification }: Options) {
   const applied = appliedSimplification?.unitsPerUnit === unitsPerUnit && appliedSimplification.unit === unit ? appliedSimplification : undefined;
+  // Same bounded search as the former Smoother choice: weaker candidates are
+  // retained whenever they produce a smoother safe boundary.
+  const automaticAllowance = unit === "mm" ? .2 : 2;
   const task = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const stop = () => {
@@ -101,9 +104,8 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
       }
     })();
   };
-  const roundAllowance = (value: number) => Math.ceil(value * (unit === "mm" ? 100 : 10)) / (unit === "mm" ? 100 : 10);
   const start = (mode: Session["mode"], range?: { start: number; end: number }) => {
-    const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: String(mode === "reconstruct" && applied ? applied.allowance : unit === "mm" ? .1 : 1) };
+    const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: String(mode === "reconstruct" ? automaticAllowance : unit === "mm" ? .1 : 1) };
     if (range) { next.start = range.start; next.end = range.end; }
     if (mode === "range" && !range) { stop(); setSession(next); } else performPreview(next);
   };
@@ -117,13 +119,6 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const indices = current && ring && current.start !== null && current.end !== null
     ? curveFitRange(ring.length, current.start, current.end) : [];
   const previewRing = current?.result && curveRing(current.result.curves, ringRef);
-  // Manual allowances describe movement from the current shape, independent
-  // of detector resolution or the spacing of its already simplified points.
-  const recommended = unit === "mm" ? .1 : 1;
-  const presets = [{ value: "fine", label: "More detail", allowance: recommended / 2 },
-    { value: "balanced", label: "Balanced", allowance: recommended }, { value: "smooth", label: "Smoother", allowance: recommended * 2 }];
-  const appliedPreset = applied && presets.find(p => Math.abs(applied.allowance - roundAllowance(p.allowance)) < 1e-9)?.value;
-  const preset = current && presets.find(p => Math.abs(Number(current.deviation) - roundAllowance(p.allowance)) < 1e-9)?.value;
   const overlay = current && ring && <g pointerEvents="none" data-testid="curve-fit-overlay">
     {indices.slice(0, -1).map((index, i) => {
       const a = toCanvas(ring[index].point), b = toCanvas(ring[indices[i + 1]].point);
@@ -151,11 +146,9 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     dismiss();
   };
   const controls = current && ring && (current.mode === "reconstruct" ? <OutlineSimplificationPanel
-    presets={presets} preset={preset ?? undefined} appliedPreset={appliedPreset}
+    alreadyApplied={applied?.allowance === automaticAllowance}
     result={current.result && { ...current.result, before: source.reduce((n, s) => n + s.outer.length + s.holes.reduce((m, r) => m + r.length, 0), 0) }}
     pending={current.pending} error={current.error} showOriginal={showOriginal}
-    onPreset={value => { const selected = presets.find(p => p.value === value);
-      if (selected) performPreview({ ...current, deviation: String(roundAllowance(selected.allowance)) }); }}
     onCompare={setShowOriginal} onApply={apply} onCancel={dismiss}
   /> : <>
     <span className="text-sm font-medium">{current.mode === "auto" ? "Auto-fit contour" : "Simplify selected section · preview"}</span>

@@ -25,7 +25,7 @@ Across **108 UI previews / 36 tools**, the largest More detail → Smoother boun
 
 The mini ratchet and syringe plunger produce identical boundaries for all three levels. Balanced and Smoother also coincide for digital calipers and the flux syringe. Most other changes are subpixel at the working image scale of 0.25 mm/px; enlarged views make them more visible. The pink needle hub, clear needle hub and Gerber illustrate some larger local changes.
 
-Recommendation: one automatic preview using the smoothest candidate admitted by the existing safeguards, retaining Original/Preview, Apply and Cancel. The current Smoother computation already considers weaker candidates and keeps a smoother safe result. Do not enlarge tolerances merely to make the selector look effective. The level selector has not been changed in this patch.
+The comparison supported one automatic preview using the smoothest candidate admitted by the existing safeguards, retaining Original/Preview, Apply and Cancel. The former Smoother computation already considers weaker candidates and keeps a smoother safe result. The user approved removing the selector after reviewing these results; the follow-up uses that computation without enlarging tolerances or changing the geometry algorithm. The table below records the earlier three-level comparison.
 
 | Case | Detail → Smoother P95 (mm) | Maximum (mm) | Balanced → Smoother maximum (mm) |
 | --- | ---: | ---: | ---: |
@@ -65,6 +65,36 @@ Recommendation: one automatic preview using the smoothest candidate admitted by 
 | s34-wolfbox-air-duster | 0.031 | 0.160 | 0.114 |
 | s35-wolfbox-cone-nozzle | 0.059 | 0.159 | 0.120 |
 | s36-wolfbox-long-nozzle | 0.084 | 0.165 | 0.130 |
+
+## Single-preview follow-up
+
+Auto simplify now opens one preview using the former Smoother search: up to
+0.2 mm of movement, with weaker candidates retained when they produce a smoother
+safe boundary. The geometry algorithm and safeguards are unchanged. Original /
+Preview and Apply / Cancel remain. A checkmark marks an already-applied result;
+a dash marks no change. Hover and keyboard focus explain the icons. Reopening
+does not compound smoothing, including after Undo/Redo or saved-draft recovery.
+Drafts saved with a weaker preset still use their retained original source.
+
+Fresh original-photo UI checks repeated calibration and region selection for
+Craftsman `(260,392,428,414)` and Rub ’n Buff `(327,521,372,158)`. Craftsman's
+new preview path is byte-identical to the prior Smoother UI path. Cancel leaves
+its detected outline unchanged; Apply makes one Undo step; reopening marks it
+applied and disables Apply; Undo/Redo restore the exact displayed outlines.
+Rub ’n Buff runs defaults before setting sensitivity to +31 with the slider.
+Auto then changes that accepted manual result; Undo restores the exact +31
+outline. Original hashes, ordered UI actions, region/settings, paths and
+screenshots are retained locally as `single-auto-craftsman` and `single-auto-rub`
+artifacts. No saved calibration or outline was used as a photo-test input.
+
+Synthetic component/history tests cover saved legacy presets, one automatic
+preview, no-change indicators and focus hints, pending cancellation, and
+recovery/Undo with point and native-curve representations (65 focused checks).
+The quick suite passed again (3,989 passed, one existing expected failure, nine
+quarantined crop assertions), as did the 99 affected pocket-editing workflows,
+type checking, production build and `git diff --check`.
+The 36-photo level comparison above was not rerun for this UI-only follow-up;
+its former Smoother output is the chosen automatic computation.
 
 ## Verification scope
 

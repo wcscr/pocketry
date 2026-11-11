@@ -11,23 +11,25 @@ and replace edits. Undo restores the previous outline. The switch enables native
 curves for re-detection or the next adjustment; it does not discard current edits
 without that choice. Detection and cleanup form one Undo step.
 
-Use **Auto simplify outline** after detection. **More detail**, **Balanced** and
-**Smoother** update one preview; **Original / Preview** compares it with the
+Use **Auto simplify outline** after detection. It prepares one automatic preview;
+**Original / Preview** compares it with the
 current outline. Apply saves one Undo step; Cancel or Escape keeps the outline.
 Sensitivity and the point simplification slider are under the **Manual detection
 settings** button directly below Auto simplify. Auto has no numeric controls.
 
 Auto smoothing uses the accepted outline, never the raw segmentation boundary.
-The levels permit at most 0.05 / 0.1 / 0.2 mm of movement (0.5 / 1 / 2 px without
-calibration), with progressively wider smoothing along the boundary. Sharp
-corners stop the filter. A bounded curve fit retains fine sampling independently
-of the level. Stronger choices retain a weaker safe result if a new fit would
-cross an edge or increase measured alternating bumps. Already smooth or constrained
+The search permits at most 0.2 mm of movement (2 px without calibration), and
+compares progressively wider smoothing along the boundary. Sharp corners stop
+the filter. A bounded curve fit retains fine sampling. The search retains a
+weaker safe result if a new fit would cross an edge or increase measured
+alternating bumps. Already smooth or constrained
 features can therefore plateau. Point counts can increase to describe a smoother
 edge; a lower count is not the quality criterion. This allowance measures movement
 from the current outline, not accuracy against the physical tool or pocket clearance.
-Manual edits must be undone before running Auto again.
-See the [November 11 smoothing validation](outline-simplification-fix-2026-11-11.md).
+Manual edits establish a new accepted source for Auto. Reopening an applied
+preview shows a checkmark and disables Apply; a dash marks a result that would
+make no change. Hover or keyboard focus explains either indicator.
+See the [original-photo UI validation](outline-ui-validation-2026-11-11.md).
 
 Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
 upright Bin pocket. Tilted/profile pockets retain their editing restriction.

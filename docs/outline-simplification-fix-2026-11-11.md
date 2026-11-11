@@ -1,5 +1,7 @@
 # Auto simplify smoothing fix — November 11, 2026
 
+**Historical three-level UI.** The later [original-photo comparison](outline-ui-validation-2026-11-11.md) led to one automatic preview using the same bounded smoothing search.
+
 Local follow-up to `ab621029` on `codex/outline-combined`, in the independent
 worktree. This supersedes the raw-evidence preview and numeric Auto controls in
 [the earlier UI validation](outline-controls-2026-11-11.md).
