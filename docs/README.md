@@ -33,6 +33,8 @@ and internal refactors usually need no changelog entry.
 - [Hardware symbols and label surfaces](hardware-symbols.md).
 - [ULTIM8-compatible fixtures](ultim8-peg-bottom.md).
 - [Learned outer outlines](teed-outline-integration.md) and [editable curves](contour-curves-prototype.md).
+  [How outlines are evaluated](outline-evaluation.md); the
+  [detection plan](outline-detection-plan.md) is a proposal, not implemented behavior.
 - [Contour symmetry](contour-symmetry-prototype.md) and
   [calibration aids](calibration/object-reference-strip.md).
 - [DXF compatibility](dxf-compatibility.md) and [import limits](import-limits.md).
