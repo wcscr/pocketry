@@ -252,21 +252,22 @@ it("adds a square from the Outline controls after empty detection and guards pro
   expect(trace.outline).toHaveLength(2);
 });
 
-it("offers auto-simplify directly after detection without entering manual editing", async () => {
+it("keeps optional smoothing inside Manual detection settings", async () => {
   await prepareOutline();
   const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
   React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
   const action = () => host.querySelector<HTMLButtonElement>('[data-testid="button-smooth-outline"]')!;
-  expect(action().textContent).toContain("Auto simplify outline"); expect(action().disabled).toBe(false);
+  expect(action().textContent).toContain("Smooth outline"); expect(action().disabled).toBe(false);
   const manual = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Manual detection settings")!;
   expect(manual).toBeDefined();
   const restart = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Restart outline detection")!;
   const contours = host.querySelector('[data-testid="detection-contours"]')!;
   expect(contours.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(action().compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.compareDocumentPosition(action()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(manual.getAttribute("aria-expanded")).toBe("false");
   const tuning = document.getElementById(manual.getAttribute("aria-controls")!)!;
   expect(tuning.hidden).toBe(true);
+  expect(tuning.contains(action())).toBe(true);
   React.act(() => manual.click());
   expect(manual.getAttribute("aria-expanded")).toBe("true");
   expect(tuning.hidden).toBe(false);

@@ -1,5 +1,8 @@
 # Original-photo UI validation — 2026-11-11
 
+This records the earlier detector and preview-level evaluation. For the subsequent
+automatic smoothing change, see the [full original-photo comparison](outline-default-smoothing-validation-2026-11-11.md).
+
 This comparison uses baseline `9316de86` and the bounded area-sampling recovery change. It supersedes cropped-photo replay as end-to-end evidence. All verification ran locally; GitHub CI remained disabled.
 
 ## Method

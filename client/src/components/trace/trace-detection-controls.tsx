@@ -88,6 +88,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         disabled={processing || !!trace.curves} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
+    {children}
     {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
@@ -115,7 +116,6 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
       <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
         onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
     </div>}
-    {children}
     {compact ? tuning : <>
       <Button variant="outline" size="sm" className="w-full" aria-expanded={manualOpen} aria-controls={manualId}
         onClick={() => setManualOpen(open => !open)}>

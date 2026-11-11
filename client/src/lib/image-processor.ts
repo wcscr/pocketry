@@ -4,9 +4,11 @@ import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
 
 import { detectOutline } from "./detect/pipeline";
-import { detectInWorker, reconstructInWorker } from "./detect/worker-client";
+import { detectInWorker, reconstructInWorker, simplifyInWorker } from "./detect/worker-client";
 import { recommendedReconstructionTolerance } from "@shared/geometry/contour-reconstruction";
 import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
+import { AUTO_SMOOTHING_ALLOWANCE, simplifyAcceptedOutline, type AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
+import { outlineRoughness } from "@shared/geometry/contour-metrics";
 import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { checkDetectionAbort } from "./detect/grabcut";
 import { SHEET_STROKE_MM, type SheetInkRegion } from "./detect/sheet-ink";
@@ -138,9 +140,12 @@ export interface ProcessOptions {
 
 export interface ProcessResult {
   curves?: CurveOutline;
+  /** Retains the pre-smoothing source so a manual preview never compounds it. */
+  autoSimplification?: AppliedOutlineSimplification;
   /** Cleaned, unoffset baseline for later point/detail adjustments. */
   refinementBase?: Outline;
   cleanup?: { applied: boolean; tolerancePx?: number; reason?: string };
+  smoothing?: { applied: boolean; reason?: string };
   /** Source-image regions where a calibration aid hid an estimated edge. */
   estimatedEdgeRegions?: Ring[];
   /** Rings in source-image coordinates, margin applied. */
@@ -254,6 +259,8 @@ export async function processImage(
   const material = translate(mapToWorking(silhouette(result.materialOutline ?? result.rawOutline)), origin);
 
   let curves: CurveOutline | undefined, refinementBase: Outline | undefined;
+  let autoSimplification: AppliedOutlineSimplification | undefined;
+  let smoothing: ProcessResult["smoothing"];
   let cleanup: ProcessResult["cleanup"];
   if (options.autoCleanup && outline.length && rawOutline.length) {
     const began = performance.now();
@@ -285,8 +292,46 @@ export async function processImage(
     result.timings.cleanup = performance.now() - began;
   }
 
+  if (cleanup?.applied) {
+    const began = performance.now();
+    try {
+      checkDetectionAbort(detect.signal);
+      const unitsPerUnit = workingMmPerPixel ?? 1, unit = workingMmPerPixel ? "mm" : "px";
+      const allowance = AUTO_SMOOTHING_ALLOWANCE[unit];
+      const source = curves ?? curvesFromOutline(outline);
+      const request = { source, tolerance: allowance / unitsPerUnit,
+        sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves: !!curves };
+      const smoothed = typeof Worker === "undefined" ? simplifyAcceptedOutline(request)
+        : await simplifyInWorker(request, detect.signal);
+      checkDetectionAbort(detect.signal);
+      const candidate = sampleCurves(smoothed.curves, request.sampleTolerance);
+      // The combined cleanup must still respect the original material boundary,
+      // not just the second pass's allowance around an already-fitted outline.
+      if (!validDetectionGeometry(material, candidate, detectionOptions.inwardTolerancePx! * workingPerDetectPixel,
+        detectionOptions.outwardTolerancePx! * workingPerDetectPixel)) throw new Error("Smoothing would exceed the detection detail allowance.");
+      // The fitter guards fine-scale noise. Before applying it automatically,
+      // also protect broader ripples that a locally smoother fit can introduce.
+      const spacing = (unit === "mm" ? .1 : 1) / unitsPerUnit;
+      const roughnessOptions = { spacing, scale: spacing * 10, minAmplitude: spacing };
+      const before = outlineRoughness(outline, roughnessOptions), after = outlineRoughness(candidate, roughnessOptions);
+      if (after.reversals > before.reversals || after.jaggedLength > before.jaggedLength + spacing)
+        throw new Error("Smoothing would add boundary ripples.");
+      validateDetectionHints(candidate, detect.hints ?? []);
+      outline = candidate;
+      if (curves) curves = smoothed.curves;
+      refinementBase = outline;
+      if ((margin ?? 0) === 0) autoSimplification = { source, allowance, unitsPerUnit, unit };
+      smoothing = { applied: true };
+    } catch (error) {
+      checkDetectionAbort(detect.signal);
+      if (error instanceof Error && (error.name === "AbortError" || error.name === "WorkerCancelledError")) throw error;
+      smoothing = { applied: false, reason: error instanceof Error ? error.message : "Could not smooth this boundary." };
+    }
+    result.timings.smoothing = performance.now() - began;
+  }
+
   validateDetectionHints(outline, detect.hints ?? []);
-  // Future simplification starts from the accepted, unsmoothed material too.
+  // Preserve the accepted material boundary before geometric smoothing/fitting.
   rawOutline = material;
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
@@ -300,8 +345,10 @@ export async function processImage(
 
   return {
     curves,
+    autoSimplification,
     refinementBase,
     cleanup,
+    smoothing,
     outline,
     rawOutline,
     estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x * toWorking.x + origin.x, y: p.y * toWorking.y + origin.y }))),

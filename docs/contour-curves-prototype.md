@@ -11,25 +11,28 @@ and replace edits. Undo restores the previous outline. The switch enables native
 curves for re-detection or the next adjustment; it does not discard current edits
 without that choice. Detection and cleanup form one Undo step.
 
-Use **Auto simplify outline** after detection. It prepares one automatic preview;
-**Original / Preview** compares it with the
-current outline. Apply saves one Undo step; Cancel or Escape keeps the outline.
-Sensitivity and the point simplification slider are under the **Manual detection
-settings** button directly below Auto simplify. Auto has no numeric controls.
+Default detection includes bounded smoothing after line and curve reconstruction.
+Under **Manual detection settings**, **Smooth outline** prepares an optional
+preview of the current outline, including manual edits. **Original / Preview**
+compares it with the accepted outline. Apply saves one Undo step; Cancel or Escape
+keeps the outline. Sensitivity and the point simplification slider share this section.
 
-Auto smoothing uses the accepted outline, never the raw segmentation boundary.
-The search permits at most 0.2 mm of movement (2 px without calibration), and
-compares progressively wider smoothing along the boundary. Sharp corners stop
-the filter. A bounded curve fit retains fine sampling. The search retains a
-weaker safe result if a new fit would cross an edge or increase measured
-alternating bumps. Already smooth or constrained
-features can therefore plateau. Point counts can increase to describe a smoother
-edge; a lower count is not the quality criterion. This allowance measures movement
-from the current outline, not accuracy against the physical tool or pocket clearance.
-Manual edits establish a new accepted source for Auto. Reopening an applied
-preview shows a checkmark and disables Apply; a dash marks a result that would
-make no change. Hover or keyboard focus explains either indicator.
-See the [original-photo UI validation](outline-ui-validation-2026-11-11.md).
+Smoothing uses the accepted outline, never the raw segmentation boundary. The
+search permits at most 0.2 mm of movement (2 px without calibration), and compares
+progressively wider smoothing along the boundary. Sharp corners stop the filter.
+A bounded curve fit retains fine sampling. The search retains a weaker safe
+result if a new fit would cross an edge or increase measured alternating bumps.
+Automatic detection additionally checks the combined result against the original
+material boundary and rejects broader ripple increases. A rejection keeps the
+previous reconstruction. Already smooth or constrained features can plateau.
+Point counts can increase to describe a smoother edge; fewer points is not the
+quality criterion. These bounds describe changes to detected geometry, not
+physical accuracy or pocket clearance.
+
+Manual edits establish a new accepted source. Opening a preview already applied
+by detection or a previous Apply shows a checkmark and disables Apply; a dash
+marks a result that would make no change. Hover or keyboard focus explains either
+indicator. See the [default-smoothing UI comparison](outline-default-smoothing-validation-2026-11-11.md).
 
 Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
 upright Bin pocket. Tilted/profile pockets retain their editing restriction.

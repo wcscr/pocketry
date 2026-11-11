@@ -1246,14 +1246,17 @@ it("commits automatically fitted curves and their clean baseline as one detectio
   const curves = editCurves(curvesFromOutline(ringA), { shapeIndex: 0, ringIndex: -1 },
     { kind: "bend", index: 0, t: .5, delta: { x: 0, y: -1 } });
   const outline = sampleCurves(curves, .25);
+  const autoSimplification = { source: curvesFromOutline(ringA), allowance: .2, unitsPerUnit: .25, unit: "mm" as const };
   const after = run(before, { type: "DETECTED", imageUrl: "photo", expectedOutline: before.outline,
-    outline, rawOutline: ringA, curves, refinementBase: outline, svg: "", region });
+    outline, rawOutline: ringA, curves, autoSimplification, refinementBase: outline, svg: "", region });
   expect(after.curves).toEqual(curves);
   expect(after.history.index).toBe(before.history.index + 1);
-  expect(after.history.stack[after.history.index]).toMatchObject({ curves, refinementBase: outline, hasManualEdits: false });
+  expect(after.history.stack[after.history.index]).toMatchObject({ curves, autoSimplification, refinementBase: outline, hasManualEdits: false });
   expect(after.rawOutline).toEqual(ringA);
   expect(run(after, { type: "UNDO" }).outline).toEqual(before.outline);
   expect(run(after, { type: "UNDO" }, { type: "REDO" }).curves).toEqual(curves);
+  const redone = run(after, { type: "UNDO" }, { type: "REDO" });
+  expect(redone.history.stack[redone.history.index].autoSimplification).toEqual(autoSimplification);
 });
 
 it.each([false, true])("keeps a bent shared hole as one exclusion with Undo (already native: %s)", native => {

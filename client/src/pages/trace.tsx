@@ -304,6 +304,7 @@ function TraceWorkspace(): JSX.Element {
         outline: result.outline,
         rawOutline: result.rawOutline,
         curves: result.curves,
+        autoSimplification: result.autoSimplification,
         refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
         detectionHints: hints,

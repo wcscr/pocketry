@@ -283,6 +283,7 @@ export type TraceAction =
       outline: Outline;
       rawOutline: Outline;
       curves?: CurveOutline;
+      autoSimplification?: AppliedOutlineSimplification;
       refinementBase?: Outline;
       estimatedEdgeRegions?: Ring[];
       detectionHints?: DetectionHint[];
@@ -778,7 +779,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           ((state.rawOutline.length > 0 || state.detectedImageUrl !== null) && state.detectedImageUrl === action.imageUrl) ||
             state.history.stack[state.history.index]?.hasManualEdits ? history : { stack: [], index: -1 },
           action.outline, action.label ?? "Detected outline", state.margin,
-          { curves: action.curves, refinementBase: action.refinementBase ?? action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
+          { curves: action.curves, autoSimplification: action.autoSimplification, refinementBase: action.refinementBase ?? action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
             ...historyPhotoFrame(next), detectionHints: action.detectionHints ?? state.detectionHints,
             tolerancePx: next.tolerancePx, smoothing: next.smoothing },
         ),

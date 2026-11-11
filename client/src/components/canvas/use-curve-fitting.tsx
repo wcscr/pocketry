@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { curvePath, curveRing, CURVE_TOLERANCE_MM, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { curveFitRange, fitContour, type CurveFitResult } from "@shared/geometry/curve-fit";
 import type { ReconstructionResult } from "@shared/geometry/contour-reconstruction";
-import { simplifyAcceptedOutline, type AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
+import { AUTO_SMOOTHING_ALLOWANCE, simplifyAcceptedOutline, type AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
 import { simplifyInWorker } from "@/lib/detect/worker-client";
 import { simplifyContour } from "@shared/geometry/contour-simplification";
 import type { Point, RingRef } from "@shared/geometry/types";
@@ -47,7 +47,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const applied = appliedSimplification?.unitsPerUnit === unitsPerUnit && appliedSimplification.unit === unit ? appliedSimplification : undefined;
   // Same bounded search as the former Smoother choice: weaker candidates are
   // retained whenever they produce a smoother safe boundary.
-  const automaticAllowance = unit === "mm" ? .2 : 2;
+  const automaticAllowance = AUTO_SMOOTHING_ALLOWANCE[unit];
   const task = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const stop = () => {
@@ -135,13 +135,13 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   </g>;
   const actions = !current && <>
     {allowOutlineSimplification &&
-      <Button size="sm" variant="outline" title="Remove small bumps and review the result before applying." onClick={() => start("reconstruct")}>Auto simplify outline</Button>}
+      <Button size="sm" variant="outline" title="Remove small bumps and review the result before applying." onClick={() => start("reconstruct")}>Smooth outline</Button>}
     <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>
     <Button size="sm" variant="outline" onClick={() => start("auto")}>Auto-fit contour</Button>
   </>;
   const apply = () => {
     if (!current?.result?.changed || current.pending) return;
-    onCommit(current.result.curves, current.mode === "reconstruct" ? "Auto simplify outline" : current.mode === "auto" ? "Auto-fit contour" : "Fit selected points",
+    onCommit(current.result.curves, current.mode === "reconstruct" ? "Smooth outline" : current.mode === "auto" ? "Auto-fit contour" : "Fit selected points",
       current.mode === "reconstruct" ? { source: applied?.source ?? source, allowance: Number(current.deviation), unitsPerUnit, unit } : undefined);
     dismiss();
   };

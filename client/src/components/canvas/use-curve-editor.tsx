@@ -224,7 +224,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
   </g>;
   const coordinate = anchor && (selected.kind === "in" || selected.kind === "out" ? anchor[selected.kind] : anchor.point);
   const controls = active && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
-    <div className="flex w-full items-center gap-2"><span className="text-sm font-medium">{repair.open ? "Edit outline" : fitting.open ? "Auto simplify outline" : "Edit outline · Bend edges"}</span>
+    <div className="flex w-full items-center gap-2"><span className="text-sm font-medium">{repair.open ? "Edit outline" : fitting.open ? "Smooth outline" : "Edit outline · Bend edges"}</span>
       <HelpHint label="curve editing">Click an edge to add a point. Right-click a point to delete it. Drag edges to bend them into curves, points to move them, or handles to shape a curve. Shift-click adds points; drag empty space for a selection box. Select two endpoints for Repair section and preview a line or curve. Use Select points without a keyboard. Space-drag pans. Edits apply immediately; Undo restores them.</HelpHint>
       {!curves && <Button size="sm" variant="outline" onClick={() => { cancel(); points.clear(); setStarted(false); }}>Points</Button>}
       {onDone && <Button size="sm" variant="secondary" onClick={onDone}>Done</Button>}</div>

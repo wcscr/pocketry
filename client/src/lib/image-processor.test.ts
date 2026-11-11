@@ -1,5 +1,8 @@
 import { ringArea } from "@shared/geometry/rings";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as smoothing from "@shared/geometry/outline-simplification";
+import { curvesFromOutline, mapCurves, sampleCurves } from "@shared/geometry/curves";
+import { sampleRing } from "@shared/geometry/contour-metrics";
 
 import type { ImageLike } from "./detect/types";
 import { convexHullForTest, polygonArea } from "./geometry/fixtures";
@@ -91,6 +94,10 @@ describe("processImage", () => {
     const detected = await processImage(image, { detect: JS });
     const result = await processImage(image, { detect: JS, autoCleanup: true, editableCurves });
     expect(result.cleanup?.applied).toBe(true);
+    expect(result.smoothing?.applied).toBe(true);
+    expect(result.autoSimplification).toMatchObject({ allowance: 2, unitsPerUnit: 1, unit: "px" });
+    const request = { source: result.autoSimplification!.source, tolerance: 2, sampleTolerance: .1, editableCurves };
+    expect(result.outline).toEqual(sampleCurves(smoothing.simplifyAcceptedOutline(request).curves, .1));
     expect(result.rawOutline).toEqual(detected.rawOutline);
     expect(result.refinementBase).toEqual(result.outline);
     expect(!!result.curves).toBe(editableCurves);
@@ -100,12 +107,53 @@ describe("processImage", () => {
     if (editableCurves) expect(result.curves![0].outer.some(a => a.in || a.out)).toBe(true);
   });
 
+  it("retains the reconstructed boundary and raw evidence when extra smoothing violates the material guard", async () => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const detected = await processImage(image, { detect: JS });
+    const invoke = vi.spyOn(smoothing, "simplifyAcceptedOutline").mockImplementation(({ source }) => ({
+      curves: mapCurves(source, p => ({ x: p.x + 100, y: p.y })), changed: true,
+      before: 0, after: 0, maxDeviation: 0, lines: 0, cubics: 0, corners: 0, smoothJoins: 0,
+    }));
+    try {
+      const result = await processImage(image, { detect: JS, autoCleanup: true });
+      expect(result.cleanup?.applied).toBe(true);
+      expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would exceed the detection detail allowance." });
+      expect(result.autoSimplification).toBeUndefined();
+      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+      expect(result.rawOutline).toEqual(detected.rawOutline);
+      expect(result.refinementBase).toEqual(result.outline);
+    } finally { invoke.mockRestore(); }
+  });
+
+  it("retains the earlier outline when a bounded smoothing proposal adds broad ripples", async () => {
+    const image = photo(160, 160, box(30, 30, 130, 130));
+    const invoke = vi.spyOn(smoothing, "simplifyAcceptedOutline").mockImplementation(({ source }) => {
+      const outline = sampleCurves(source, .1).map(shape => ({ ...shape,
+        outer: sampleRing(shape.outer, .25).map(p => {
+          const ripple = p.y < 31 && p.x > 40 && p.x < 120 ? 1.5 * (1 + Math.sin(p.x * Math.PI / 8)) : 0;
+          return { x: p.x, y: p.y - ripple };
+        }),
+      }));
+      return { curves: curvesFromOutline(outline), changed: true,
+        before: 0, after: 0, maxDeviation: 3, lines: 0, cubics: 0, corners: 0, smoothJoins: 0 };
+    });
+    try {
+      const result = await processImage(image, { detect: JS, autoCleanup: true });
+      expect(result.cleanup?.applied).toBe(true);
+      expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would add boundary ripples." });
+      expect(result.autoSimplification).toBeUndefined();
+      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+    } finally { invoke.mockRestore(); }
+  });
+
   it("cleans before adding calibrated clearance and keeps its unoffset baseline", async () => {
     const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
     const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
     const original = await processImage(image, { detect: JS, autoCleanup: true, calibration, margin: 0 });
     const offset = await processImage(image, { detect: JS, autoCleanup: true, editableCurves: true, calibration, margin: .5 });
     expect(offset.curves).toBeUndefined(); // Native editing still requires zero Trace margin.
+    expect(original.autoSimplification).toMatchObject({ allowance: .2, unitsPerUnit: .25, unit: "mm" });
+    expect(offset.autoSimplification).toBeUndefined(); // Offset geometry starts a different manual source.
     expect(offset.refinementBase).toEqual(original.outline);
     expect(offset.rawOutline).toEqual(original.rawOutline);
     expect(outlineArea(offset.outline)).toBeGreaterThan(outlineArea(original.outline));

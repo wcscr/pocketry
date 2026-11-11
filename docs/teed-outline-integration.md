@@ -55,20 +55,22 @@ were tested separately.
 
 ## Editing
 
-Detection finds a boundary and automatically reconstructs supported lines and
-rounded sections. Point mode samples the fitted curves; Editable curves is off
-by default and retains native handles when enabled. **Auto simplify outline**
-offers one automatic preview and an Original/Preview comparison. It smooths the
-current accepted outline, including manual point and curve edits, and selects the
-smoothest candidate allowed by the existing shape safeguards. After Apply, a
-checkmark identifies the applied result; hover or keyboard focus explains it.
-Opening it again leaves the outline unchanged and Apply is disabled.
-A dash marks a preview that would make no change, with the reason in a hover hint.
-The accepted starting outline survives Apply, Undo and recovery, including drafts
-saved with the former detail presets, so smoothing does not compound. Manual
-outline edits, fresh detection, or changes to scale/geometry establish a new source.
-The Manual detection settings button beneath Auto exposes sensitivity and point
-simplification.
+Detection finds a boundary, reconstructs supported lines and rounded sections,
+and applies the bounded smoothing pass automatically. The finishing pass permits
+up to 0.2 mm of movement (2 px without calibration) from the reconstructed outline.
+It must also stay within the original material-detail allowance and must not add
+broader boundary ripples. A rejected proposal keeps the reconstructed boundary.
+Point mode samples fitted curves; Editable curves is off by default.
+
+**Manual detection settings** contains sensitivity, point simplification and
+**Smooth outline**. Optional smoothing previews the current accepted outline,
+including manual edits, with Original/Preview comparison and one undoable Apply.
+A checkmark indicates smoothing already applied during detection or a previous
+Apply; Apply is disabled. A dash marks a preview that would make no change.
+Hover or keyboard focus explains either indicator. The retained source survives
+Apply, Undo and recovery, including drafts saved with the former detail presets,
+so smoothing does not compound. Manual edits or geometry changes establish a new
+source. Fresh detection establishes its own automatically smoothed result.
 
 **Restart outline detection**, at the bottom of the Outline section, starts again
 from the current photo within the selected region. Switching detection methods
@@ -86,10 +88,17 @@ Method-specific tuning is reset because a sensitivity bias or point tolerance
 chosen for one detector need not suit another. Within a method, sensitivity and
 interior-hole changes re-read the photo with the current tuning and correction
 strokes; they ask before replacing manual edits. The manual Simplification slider
-works from the accepted refinement base, including committed edits. Auto simplify
+works from the accepted refinement base, including committed edits. Optional smoothing
 starts from the currently displayed boundary and retains that source until
 another edit or detection establishes a new one. It smooths small bumps within its
 allowance; it cannot recover missing material or remove a large segmentation error.
+
+The earlier dense silhouette is retained as `rawOutline` in working-photo
+coordinates, sourced from the pipeline's `materialOutline` before geometric
+smoothing, simplification and fitting. It includes segmentation/refinement,
+correction strokes and accepted occlusion repair. It can expose detail removed by
+fitting, but cannot recover material segmentation never detected. It may contain
+pixel noise, shadows or slits. There is no raw-contour UI control yet.
 
 Fresh detection publishes geometry, its evidence and its settings together.
 Failure keeps the previous outline and settings. Undo/Redo and saved-draft recovery
@@ -105,7 +114,7 @@ right-click a point to delete it. Shift-click or box-select multiple points;
 **Select points** also works without a keyboard. **Repair section** replaces a
 selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
 
-The auto simplification allowance measures movement from the current accepted outline,
+The smoothing allowance measures movement from the current accepted outline,
 not from the physical tool and not pocket clearance. Review tool tips, recesses,
 shadows and amber estimated edges. Interior-hole detection requires Color contrast;
 Automatic selects that method when holes are enabled. Multiple tools and transparent

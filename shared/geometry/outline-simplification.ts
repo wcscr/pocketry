@@ -6,6 +6,9 @@ import { validateFittedContour } from "./curve-fit";
 import { smoothAcceptedPolygon } from "./outline-smoothing";
 import type { Outline } from "./types";
 
+/** Shared by fresh detection and the optional manual smoothing preview. */
+export const AUTO_SMOOTHING_ALLOWANCE = { mm: .2, px: 2 } as const;
+
 const perimeter = (outline: Outline) => outline.flatMap(s => [s.outer, ...s.holes]).reduce((total, ring) =>
   total + ring.reduce((sum, p, i) => sum + Math.hypot(p.x - ring[(i + 1) % ring.length].x,
     p.y - ring[(i + 1) % ring.length].y), 0), 0);

@@ -393,8 +393,8 @@ describe("TraceCanvas edit history", () => {
       const legacy = simplifyAcceptedOutline({ source, tolerance: .1 / unitsPerUnit, sampleTolerance: CURVE_TOLERANCE_MM / unitsPerUnit, editableCurves });
       const autoSimplification = { source, allowance: .1, unitsPerUnit, unit: "mm" as const };
       React.act(() => trace.dispatch(editableCurves
-        ? { type: "CURVES_COMMITTED", curves: legacy.curves, label: "Auto simplify outline", autoSimplification }
-        : { type: "OUTLINE_COMMITTED", outline: legacy.curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label: "Auto simplify outline", autoSimplification }));
+        ? { type: "CURVES_COMMITTED", curves: legacy.curves, label: "Smooth outline", autoSimplification }
+        : { type: "OUTLINE_COMMITTED", outline: legacy.curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label: "Smooth outline", autoSimplification }));
       const legacyDraft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace)!)));
       React.act(() => trace.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: legacyDraft }));
       await open();

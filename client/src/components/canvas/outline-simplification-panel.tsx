@@ -18,12 +18,12 @@ interface Props {
 export function OutlineSimplificationPanel(props: Props) {
   const { alreadyApplied, result, pending, error, showOriginal } = props;
   const noChange = !!result && !result.changed && !pending;
-  const applyHint = pending ? "Updating preview…" : alreadyApplied ? "Auto simplify is already applied."
-    : noChange ? "Auto simplify would not change the outline." : error ? "Resolve the preview error before applying." : "Apply this preview to the outline.";
+  const applyHint = pending ? "Updating preview…" : alreadyApplied ? "Smoothing is already applied."
+    : noChange ? "Smoothing would not change the outline." : error ? "Resolve the preview error before applying." : "Apply this preview to the outline.";
   return <TooltipProvider delayDuration={250}><div className="w-full space-y-4" aria-busy={!!pending}>
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Auto simplify outline</h3>
+        <h3 className="text-sm font-semibold">Smooth outline</h3>
         {(alreadyApplied || noChange) && <Tooltip><TooltipTrigger asChild>
           <span tabIndex={0} role="img" aria-label={applyHint} className="inline-flex text-muted-foreground">
             {alreadyApplied ? <Check className="h-4 w-4" aria-hidden="true" data-testid="applied-simplification" />
@@ -37,8 +37,8 @@ export function OutlineSimplificationPanel(props: Props) {
     <div className="flex min-h-10 flex-wrap items-center justify-between gap-2">
       <span role="status" className="text-muted-foreground">
         {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-        <span className="sr-only">{pending ? "Updating preview…" : alreadyApplied ? "Auto simplify is already applied."
-          : result ? result.changed ? "Preview ready." : "Auto simplify would not change the outline."
+        <span className="sr-only">{pending ? "Updating preview…" : alreadyApplied ? "Smoothing is already applied."
+          : result ? result.changed ? "Preview ready." : "Smoothing would not change the outline."
           : "Preparing preview…"}</span>
       </span>
       <div className="flex rounded-md border p-0.5" role="group" aria-label="Compare outline">

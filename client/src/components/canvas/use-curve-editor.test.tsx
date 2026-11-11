@@ -33,7 +33,7 @@ it("simplifies the accepted outline in an explicit preview and applies one edit"
   const dense = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 42 * Math.cos(i * Math.PI / 128), y: 50 + 42 * Math.sin(i * Math.PI / 128) })), holes: [] }];
   React.act(() => root.render(<Harness input={rounded} dense={dense} />));
   React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Auto simplify outline").click());
+  await React.act(async () => button("Smooth outline").click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).toBeNull();
   React.act(() => button("Original").click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).not.toBeNull();
@@ -45,7 +45,7 @@ it("simplifies the accepted outline in an explicit preview and applies one edit"
   expect(host.querySelector('[data-testid="curve-fit-preview"]')!.getAttribute("d")).toContain("C");
   React.act(() => button("Apply").click());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit.mock.calls[0][1]).toBe("Auto simplify outline");
+  expect(onCommit.mock.calls[0][1]).toBe("Smooth outline");
   // Smoothing may need additional samples; geometry quality, not a lower
   // point count, establishes whether the preview is useful.
   // The raw evidence differs from the accepted shape by 2 mm.
@@ -57,12 +57,12 @@ it("simplifies the accepted outline in an explicit preview and applies one edit"
 it("marks a no-effect preview visually and explains it on keyboard focus", async () => {
   React.act(() => root.render(<Harness input={outline} dense={outline} />));
   React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Auto simplify outline").click());
-  const indicator = host.querySelector<HTMLElement>('[aria-label="Auto simplify would not change the outline."]')!;
+  await React.act(async () => button("Smooth outline").click());
+  const indicator = host.querySelector<HTMLElement>('[aria-label="Smoothing would not change the outline."]')!;
   expect(indicator.querySelector('[data-testid="unchanged-simplification"]')).not.toBeNull();
   expect(button("Apply").disabled).toBe(true);
   await React.act(async () => indicator.focus());
-  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Auto simplify would not change the outline.");
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Smoothing would not change the outline.");
   expect(onCommit).not.toHaveBeenCalled();
 });
 
@@ -75,7 +75,7 @@ it("cancels a pending reconstruction and ignores its late worker result", async 
   try {
     React.act(() => root.render(<Harness input={rounded} dense={rounded} />));
     React.act(() => button("Bend edges").click());
-    await React.act(async () => button("Auto simplify outline").click());
+    await React.act(async () => button("Smooth outline").click());
     expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ source: expect.any(Array), tolerance: .2,
       sampleTolerance: .025 }), expect.any(AbortSignal));
     expect(host.textContent).toContain("Updating preview");
@@ -90,7 +90,7 @@ it("cancels a pending reconstruction and ignores its late worker result", async 
 
 it("opens one automatic preview with no amount controls and cancels without saving", async () => {
   React.act(() => root.render(<Harness input={rounded} dense={rounded} />)); React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Auto simplify outline").click());
+  await React.act(async () => button("Smooth outline").click());
   expect(host.querySelector('input[type="number"]')).toBeNull();
   expect(host.querySelector('[aria-label="Simplification amount"]')).toBeNull();
   expect(host.textContent).not.toMatch(/More detail|Balanced|Smoother/);
