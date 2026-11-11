@@ -304,14 +304,22 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
   const cleanupSource = useMemo(() => store.curves ?? curvesFromOutline(outline), [store.curves, outline]);
   const cleanupAvailable = !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
+  // Existing native curves remain authoritative after Undo or draft recovery,
+  // even when the preference for future detections is point mode.
+  const cleanupUsesCurves = store.editableCurves || !!store.curves;
+  const cleanupEntry = store.history.stack[store.history.index];
+  const appliedSimplification = useMemo(() => cleanupEntry?.autoSimplification &&
+    (cleanupEntry.outline === outline || JSON.stringify(cleanupEntry.outline) === JSON.stringify(outline))
+    ? cleanupEntry.autoSimplification : undefined, [cleanupEntry, outline]);
   const cleanup = useCurveFitting({ source: cleanupSource, ringRef: { shapeIndex: 0, ringIndex: -1 },
-    editableCurves: store.editableCurves,
+    editableCurves: cleanupUsesCurves,
+    appliedSimplification,
     enabled: cleanupAvailable && (mode === "pan" || mode === "navigate"), contextKey: String(store.sourceRevision),
     allowOutlineSimplification: cleanupAvailable,
     scale: viewport.transform.scale, toCanvas: p => p,
     unitsPerUnit: mmPerPixel(calibration) ?? 1, unit: mmPerPixel(calibration) ? "mm" : "px",
-    onCommit: (curves, label) => store.editableCurves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
-      outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
+    onCommit: (curves, label, autoSimplification) => cleanupUsesCurves ? dispatch({ type: "CURVES_COMMITTED", curves, label, autoSimplification }) : dispatch({ type: "OUTLINE_COMMITTED",
+      outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label, autoSimplification }),
   });
   useEffect(() => {
     // Only a new user request starts work. Later source changes dismiss the

@@ -884,15 +884,7 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
-          <TraceDetectionControls onReprocess={onReprocess}>
-          {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
-            <div className="flex items-center gap-1"><Button variant="default" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
-              data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
-              <Spline className="h-4 w-4" />Auto simplify outline
-            </Button><HelpHint label="auto-simplify outline">Choose More detail, Balanced or Smoother and compare the preview with the original outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
-            {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
-          </div>}
-          </TraceDetectionControls>
+          <TraceDetectionControls onReprocess={onReprocess} outlineActions={<>
           {hasOutline && <TraceSymmetryTool />}
           <Button variant="outline" size="sm" className="w-full"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
@@ -920,6 +912,15 @@ export function TraceControlsPanel({
             </div>
             <RingList />
           </div>
+          </>}>
+          {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
+            <div className="flex items-center gap-1"><Button variant="default" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
+              data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
+              <Spline className="h-4 w-4" />Auto simplify outline
+            </Button><HelpHint label="auto-simplify outline">Choose More detail, Balanced or Smoother and compare the preview with the original outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
+            {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
+          </div>}
+          </TraceDetectionControls>
         </PanelSection>
 
         <PanelSection

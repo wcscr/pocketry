@@ -80,7 +80,7 @@ it("defaults to tool edges, allows manual choices, and suppresses holes in tool-
     expect(trace.boundaryMethod).toBe("teed");
     expect(trace.includeInteriorHoles).toBe(false);
     expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
-    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed" });
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", restart: true });
     React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:new", fileName: "next tool" }));
     expect(trace.boundaryMethod).toBe("teed");
     expect(trace.includeInteriorHoles).toBe(false);
@@ -144,5 +144,44 @@ it.each([false, true])("names point reduction consistently in drawer and compact
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       expect(document.querySelector('[role="tooltip"]')).toBeNull();
     }
+  } finally { React.act(() => root.unmount()); }
+});
+
+
+it.each(["restart", "switch"])("confirms %s even without point edits, and keeps the accepted state until success", async action => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore; const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    const restart = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Restart outline detection")!;
+    expect(restart().disabled).toBe(true);
+    React.act(() => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" });
+      trace.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+      trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+      trace.dispatch({ type: "SET_TOLERANCE", tolerancePx: 3 });
+      const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 50, y: 90 }], holes: [] }];
+      trace.dispatch({ type: "DETECTED", imageUrl: "photo", region: { x: 10, y: 20, width: 300, height: 200 }, outline, rawOutline: outline, svg: "" });
+    });
+    const before = trace;
+    const request = () => React.act(() => {
+      if (action === "restart") restart().click();
+      else { const select = host.querySelector<HTMLSelectElement>("select")!; select.value = "color"; select.dispatchEvent(new Event("change", { bubbles: true })); }
+    });
+    const choose = (label: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === label)!.click());
+    request();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Your photo, calibration, region and margin stay in place");
+    expect(reprocess).not.toHaveBeenCalled();
+    choose("Keep current outline");
+    expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+    expect(trace.sensitivity).toBe(97); expect(trace.boundaryMethod).toBe("teed");
+    request(); choose(action === "restart" ? "Restart detection" : "Switch and restart");
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ restart: true, sensitivity: 128, includeInteriorHoles: false, boundary: action === "restart" ? "teed" : "color" });
+    expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+    expect(trace.sensitivity).toBe(97); expect(trace.tolerancePx).toBe(3); expect(trace.boundaryMethod).toBe("teed");
+    React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: true }));
+    expect(restart().disabled).toBe(true);
   } finally { React.act(() => root.unmount()); }
 });

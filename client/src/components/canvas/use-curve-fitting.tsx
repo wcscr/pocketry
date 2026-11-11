@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { curvePath, curveRing, CURVE_TOLERANCE_MM, type CurveOutline } from "@shared/geometry/curves";
+import { curvePath, curveRing, CURVE_TOLERANCE_MM, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { curveFitRange, fitContour, type CurveFitResult } from "@shared/geometry/curve-fit";
 import type { ReconstructionResult } from "@shared/geometry/contour-reconstruction";
-import { simplifyAcceptedOutline } from "@shared/geometry/outline-simplification";
+import { simplifyAcceptedOutline, type AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
 import { simplifyInWorker } from "@/lib/detect/worker-client";
 import { simplifyContour } from "@shared/geometry/contour-simplification";
 import type { Point, RingRef } from "@shared/geometry/types";
@@ -24,7 +24,8 @@ interface Options {
   toCanvas: (point: Point) => Point;
   allowOutlineSimplification?: boolean;
   editableCurves?: boolean;
-  onCommit: (curves: CurveOutline, label: string) => void;
+  appliedSimplification?: AppliedOutlineSimplification;
+  onCommit: (curves: CurveOutline, label: string, autoSimplification?: AppliedOutlineSimplification) => void;
 }
 interface Session {
   source: CurveOutline;
@@ -42,7 +43,8 @@ interface Session {
 }
 
 /** Preview never writes to Trace/Bin. Only Apply invokes the single-commit path. */
-export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, editableCurves = true }: Options) {
+export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, editableCurves = true, appliedSimplification }: Options) {
+  const applied = appliedSimplification?.unitsPerUnit === unitsPerUnit && appliedSimplification.unit === unit ? appliedSimplification : undefined;
   const task = useRef<AbortController | null>(null);
   const revision = useRef(0);
   const stop = () => {
@@ -73,16 +75,26 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     stop();
     setShowOriginal(false);
     if (next.mode !== "reconstruct") { setSession(preview(next)); return; }
+    if (applied?.allowance === Number(next.deviation)) {
+      setSession({ ...next, result: { curves: source, changed: false, before: 0, after: 0, maxDeviation: 0 }, pending: false, error: undefined });
+      return;
+    }
     const controller = new AbortController(); task.current = controller;
     const request = revision.current;
     setSession({ ...next, result: undefined, error: undefined, pending: true });
     void (async () => {
       try {
-        const payload = { source, tolerance: Number(next.deviation) / unitsPerUnit,
+        const payload = { source: applied?.source ?? source, tolerance: Number(next.deviation) / unitsPerUnit,
           sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves };
         const result = typeof Worker === "undefined" ? simplifyAcceptedOutline(payload)
           : await simplifyInWorker(payload, controller.signal);
-        if (!controller.signal.aborted && request === revision.current) setSession({ ...next, result, pending: false });
+        if (!controller.signal.aborted && request === revision.current) {
+          // Editing flags alone are not an outline change. Compare the visible
+          // boundary with the currently applied outline, not the retained base.
+          const changed = JSON.stringify(sampleCurves(result.curves, payload.sampleTolerance / 8)) !==
+            JSON.stringify(sampleCurves(source, payload.sampleTolerance / 8));
+          setSession({ ...next, result: { ...result, changed }, pending: false });
+        }
       } catch (error) {
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, pending: false,
           error: error instanceof Error ? error.message : "Could not reconstruct this contour." });
@@ -91,7 +103,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   };
   const roundAllowance = (value: number) => Math.ceil(value * (unit === "mm" ? 100 : 10)) / (unit === "mm" ? 100 : 10);
   const start = (mode: Session["mode"], range?: { start: number; end: number }) => {
-    const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: unit === "mm" ? "0.1" : "1" };
+    const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: String(mode === "reconstruct" && applied ? applied.allowance : unit === "mm" ? .1 : 1) };
     if (range) { next.start = range.start; next.end = range.end; }
     if (mode === "range" && !range) { stop(); setSession(next); } else performPreview(next);
   };
@@ -110,6 +122,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const recommended = unit === "mm" ? .1 : 1;
   const presets = [{ value: "fine", label: "More detail", allowance: recommended / 2 },
     { value: "balanced", label: "Balanced", allowance: recommended }, { value: "smooth", label: "Smoother", allowance: recommended * 2 }];
+  const appliedPreset = applied && presets.find(p => Math.abs(applied.allowance - roundAllowance(p.allowance)) < 1e-9)?.value;
   const preset = current && presets.find(p => Math.abs(Number(current.deviation) - roundAllowance(p.allowance)) < 1e-9)?.value;
   const overlay = current && ring && <g pointerEvents="none" data-testid="curve-fit-overlay">
     {indices.slice(0, -1).map((index, i) => {
@@ -133,11 +146,12 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   </>;
   const apply = () => {
     if (!current?.result?.changed || current.pending) return;
-    onCommit(current.result.curves, current.mode === "reconstruct" ? "Auto simplify outline" : current.mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+    onCommit(current.result.curves, current.mode === "reconstruct" ? "Auto simplify outline" : current.mode === "auto" ? "Auto-fit contour" : "Fit selected points",
+      current.mode === "reconstruct" ? { source: applied?.source ?? source, allowance: Number(current.deviation), unitsPerUnit, unit } : undefined);
     dismiss();
   };
   const controls = current && ring && (current.mode === "reconstruct" ? <OutlineSimplificationPanel
-    presets={presets} preset={preset ?? undefined}
+    presets={presets} preset={preset ?? undefined} appliedPreset={appliedPreset}
     result={current.result && { ...current.result, before: source.reduce((n, s) => n + s.outer.length + s.holes.reduce((m, r) => m + r.length, 0), 0) }}
     pending={current.pending} error={current.error} showOriginal={showOriginal}
     onPreset={value => { const selected = presets.find(p => p.value === value);

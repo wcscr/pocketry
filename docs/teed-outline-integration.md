@@ -57,11 +57,41 @@ rounded sections. Point mode samples the fitted curves; Editable curves is off
 by default and retains native handles when enabled. **Auto simplify outline**
 offers More detail, Balanced and Smoother with automatic previews and an
 Original/Preview comparison. These levels smooth the current accepted outline,
-with progressively wider filtering and a fine curve approximation. The Manual
-detection settings button beneath Auto exposes sensitivity and point simplification.
-Enabling
-Editable curves on an existing detection asks whether to keep the current outline or re-detect and replace edits; Undo can
-restore the previous source. Detection and cleanup commit together as one Undo
+including manual point and curve edits, with progressively wider filtering and a
+fine curve approximation. After Apply, a checkmark identifies the applied level;
+hover or keyboard focus explains it. Selecting it again leaves the outline unchanged and Apply is disabled.
+A dash marks a preview that would make no change, with the reason in a hover hint.
+Presets share the same accepted starting outline across Apply, Undo and recovery,
+so moving from Balanced to Smoother matches choosing Smoother directly. Manual
+outline edits, fresh detection, or changes to scale/geometry establish a new source.
+The Manual detection settings button beneath Auto exposes sensitivity and point
+simplification.
+
+**Restart outline detection**, at the bottom of the Outline section, starts again
+from the current photo within the selected region. Switching detection methods
+uses the same restart flow. With an existing outline, both ask for confirmation:
+Sensitivity returns to Auto, Simplification to 1.2 px, and detection smoothing
+to its default. Outline edits and tool/paper correction strokes are replaced.
+Photo selection, rotation/perspective correction, calibration, region and margin
+are retained, as is the editable-curve preference. The interior-hole preference
+is retained where supported; Tool edges turns it off.
+
+Method-specific tuning is reset because a sensitivity bias or point tolerance
+chosen for one detector need not suit another. Within a method, sensitivity and
+interior-hole changes re-read the photo with the current tuning and correction
+strokes; they ask before replacing manual edits. The manual Simplification slider
+works from the accepted refinement base, including committed edits. Auto simplify
+starts from the currently displayed boundary; changing its level reuses that source
+until another edit or detection establishes a new one. It smooths small bumps within its
+allowance; it cannot recover missing material or remove a large segmentation error.
+
+Fresh detection publishes geometry, its evidence and its settings together.
+Failure keeps the previous outline and settings. Undo/Redo and saved-draft recovery
+restore the matching method, sensitivity, hole choice and raw boundary with the
+outline, so later refinements use the correct source.
+
+Enabling Editable curves on an existing detection asks whether to keep the current
+outline or re-detect and replace edits; Undo can restore the previous source. Detection and cleanup commit together as one Undo
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;

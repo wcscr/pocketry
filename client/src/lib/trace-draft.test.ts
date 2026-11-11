@@ -37,6 +37,23 @@ describe("browser-local Trace recovery", () => {
     expect(restored.outline).toEqual(outline);
     expect(traceReducer(restored, { type: "SOURCE_LOADED", imageUrl: image, fileName: "Next photo" }).boundaryMethod).toBe("color");
   });
+  it("recovers detection settings and raw evidence with each history step, including an empty detection", async () => {
+    const before = traceReducer({ ...calibrated(), processing: false }, { type: "DETECTED", imageUrl: image, region: null, outline, rawOutline: outline, svg: "",
+      settings: { sensitivity: 97, tolerancePx: 3, smoothing: 2, boundaryMethod: "teed", includeInteriorHoles: false } });
+    const settings = { sensitivity: 128, tolerancePx: 1.2, smoothing: 1, boundaryMethod: "color" as const, includeInteriorHoles: true };
+    const empty = traceReducer(before, { type: "DETECTED", imageUrl: image, region: null, outline: [], rawOutline: [], settings, svg: "" });
+    const again = traceReducer(empty, { type: "DETECTED", imageUrl: image, region: null, outline, rawOutline: outline, settings: { ...settings, sensitivity: 100 }, svg: "" });
+    await saveTraceDraft(traceDraftSnapshot(again));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    const undone = traceReducer(restored, { type: "UNDO" });
+    expect(undone.outline).toEqual([]); expect(undone.rawOutline).toEqual([]); expect(undone.sensitivity).toBe(128);
+    const original = traceReducer(undone, { type: "UNDO" });
+    expect(original.outline).toEqual(before.outline); expect(original.rawOutline).toEqual(before.rawOutline);
+    expect(original.sensitivity).toBe(97); expect(original.boundaryMethod).toBe("teed"); expect(original.includeInteriorHoles).toBe(false);
+    expect(original.tolerancePx).toBe(3); expect(original.smoothing).toBe(2);
+    const redone = traceReducer(original, { type: "REDO" });
+    expect(redone.boundaryMethod).toBe("color"); expect(redone.includeInteriorHoles).toBe(true); expect(redone.rawOutline).toEqual([]);
+  });
   it("recovers an explicitly uncalibrated curve history frame at its own precision", async () => {
     const before = { ...calibrated(), processing: false, margin: 0, calibration: null };
     const curves = editCurves(curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: -1 },

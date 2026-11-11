@@ -70,7 +70,7 @@ import { CURVE_TOLERANCE_MM, sampleCurves } from "@shared/geometry/curves";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
 import { hasWhitePaperBackground } from "@/lib/detect/background-choice";
-import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
+import { hasPendingManualCalibration, initialTraceState, useTrace } from "@/state/trace-store";
 
 /** The tracing workspace. */
 export default function TracePage(): JSX.Element {
@@ -209,6 +209,7 @@ function TraceWorkspace(): JSX.Element {
     sensitivity: number;
     includeInteriorHoles: boolean;
     boundary?: "auto" | "color" | "teed";
+    restart?: boolean;
   }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
@@ -229,12 +230,16 @@ function TraceWorkspace(): JSX.Element {
     const sourceRevision = store.sourceRevision;
     const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
     const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
+    const detectionSettings = { boundaryMethod: requestedBoundary, includeInteriorHoles,
+      sensitivity: settings?.restart ? initialTraceState.sensitivity : settings?.sensitivity ?? store.sensitivity,
+      tolerancePx: settings?.restart ? initialTraceState.tolerancePx : store.tolerancePx,
+      smoothing: settings?.restart ? initialTraceState.smoothing : store.smoothing };
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
       const candidateFrame = requestedBoundary !== "color" ? await getToolDetectionFrame(region, controller.signal) : null;
       const initialPixels = candidateFrame?.imageData ?? getImageData(region);
       if (!initialPixels || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision || controller.signal.aborted) return;
-      const hints = requestedRegion ? [] : settings?.hints ?? store.detectionHints;
+      const hints = requestedRegion || settings?.restart ? [] : settings?.hints ?? store.detectionHints;
       // Re-read the current photo, including any rotation/perspective warp.
       // This also works after draft recovery or choosing a manual/paper scale;
       // the carrier footprint is independent of the accepted scale ruler.
@@ -284,9 +289,9 @@ function TraceWorkspace(): JSX.Element {
           boundary, hints,
           signal: controller.signal,
           occlusions,
-          sensitivity: settings?.sensitivity ?? store.sensitivity,
-          tolerancePx: store.tolerancePx,
-          smoothing: store.smoothing,
+          sensitivity: detectionSettings.sensitivity,
+          tolerancePx: detectionSettings.tolerancePx,
+          smoothing: detectionSettings.smoothing,
         },
         onNotice: notice,
       });
@@ -302,6 +307,8 @@ function TraceWorkspace(): JSX.Element {
         refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
         detectionHints: hints,
+        settings: detectionSettings,
+        label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection" : undefined,
         svg: result.svg,
         region,
       });

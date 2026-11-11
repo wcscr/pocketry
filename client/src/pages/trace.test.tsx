@@ -76,6 +76,8 @@ vi.mock("@/components/trace/trace-controls-panel", () => ({
     <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
     <button data-testid="controls-add-to-bin" onClick={handoff.addToBin}>Add to bin</button>
     <button data-testid="controls-start-over" onClick={onStartOver}>Reset confirmed trace</button>
+    <button data-testid="restart-detection" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", restart: true })}>Restart detection</button>
+    <button data-testid="switch-detection" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, boundary: "color", restart: true })}>Switch detection</button>
     <button data-testid="re-detect-native" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, editableCurves: true })}>Re-detect with curves</button>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
@@ -980,6 +982,53 @@ describe("Trace detection workflow", () => {
     React.act(()=>current.dispatch({type:"SOURCE_CLEARED"}));
     await React.act(async()=>finish({imageData:getImageDataMock(),region:{x:80,y:90,width:200,height:100},toWorking:{x:1,y:1}}));
     expect(processImageMock).not.toHaveBeenCalled();expect(current.processing).toBe(false);expect(current.outline).toEqual([]);
+  });
+
+  it.each(["restart", "switch", "failure"])("%s detection preserves photo setup and commits settings with geometry, undoably", async action => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe() { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => {
+      current.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+      current.dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+      current.dispatch({ type: "SET_MARGIN", margin: 1 });
+      current.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+      current.dispatch({ type: "SET_TOLERANCE", tolerancePx: 3 });
+      current.dispatch({ type: "SET_SMOOTHING", smoothing: 2 });
+      current.dispatch({ type: "DETECTED", imageUrl: current.imageUrl, region: { x: 10, y: 20, width: 300, height: 200 }, outline: exportOutline, rawOutline: exportOutline,
+        detectionHints: [{ kind: "tool", points: [{ x: 25, y: 25 }], radius: 4 }], svg: "" });
+      current.dispatch({ type: "OUTLINE_COMMITTED", outline: exportOutline.map(shape => ({ ...shape, outer: shape.outer.map(p => ({ ...p, x: p.x + 2 })) })), label: "Move outline" });
+    });
+    const before = current;
+    let finish!: (result: unknown) => void, fail!: (error: Error) => void;
+    processImageMock.mockReturnValueOnce(new Promise((resolve, reject) => { finish = resolve; fail = reject; }));
+    await React.act(async () => host.querySelector<HTMLButtonElement>(`[data-testid="${action === "switch" ? "switch" : "restart"}-detection"]`)!.click());
+    expect(current.processing).toBe(true);
+    expect(current.outline).toBe(before.outline); expect(current.history).toBe(before.history);
+    expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2); expect(current.boundaryMethod).toBe("teed");
+    expect(getImageDataMock).toHaveBeenLastCalledWith(before.region);
+    expect(processImageMock.mock.lastCall![1]).toMatchObject({ margin: 1, calibration: before.calibration,
+      region: { originalRegion: before.region, isCropped: true }, detect: { boundary: action === "switch" ? "color" : "teed", sensitivity: 128, tolerancePx: 1.2, smoothing: 1, hints: [] } });
+    if (action === "failure") {
+      await React.act(async () => fail(new Error("Detection failed")));
+      expect(current.outline).toBe(before.outline); expect(current.history).toBe(before.history);
+      expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2);
+      expect(current.detectionHints).toBe(before.detectionHints);
+    } else {
+      const fresh = exportOutline.map(shape => ({ ...shape, outer: shape.outer.map(p => ({ ...p, x: p.x + 10 })) }));
+      await React.act(async () => finish({ outline: fresh, rawOutline: fresh, refinementBase: fresh, svg: "" }));
+      expect(current.outline).toBe(fresh); expect(current.rawOutline).toBe(fresh);
+      expect(current.sensitivity).toBe(128); expect(current.tolerancePx).toBe(1.2); expect(current.smoothing).toBe(1);
+      expect(current.boundaryMethod).toBe(action === "switch" ? "color" : "teed"); expect(current.detectionHints).toEqual([]);
+      expect(current.history.index).toBe(before.history.index + 1);
+      React.act(() => current.undo());
+      expect(current.outline).toBe(before.outline); expect(current.rawOutline).toBe(before.rawOutline);
+      expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2);
+      expect(current.boundaryMethod).toBe("teed"); expect(current.detectionHints).toEqual(before.detectionHints);
+      React.act(() => current.redo()); expect(current.outline).toBe(fresh); expect(current.sensitivity).toBe(128);
+    }
+    expect(current.processing).toBe(false); expect(current.imageUrl).toBe(before.imageUrl);
+    expect(current.calibration).toBe(before.calibration); expect(current.region).toBe(before.region); expect(current.margin).toBe(1);
   });
 
   it("uses original-photo crop pixels for the default tool-edge detection", async () => {

@@ -71,6 +71,26 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("cancels pending manual refinement when a fresh detection takes over", async () => {
+    let finish!: (outline: Outline) => void;
+    const refiner = vi.fn<OutlineRefiner>(() => new Promise(resolve => { finish = resolve; }));
+    const mounted = mountHook(refiner);
+    try {
+      React.act(() => mounted.store().dispatch({ type: "DETECTED", imageUrl: null, region: null, outline: OUTLINE, rawOutline: OUTLINE, svg: "" }));
+      React.act(() => mounted.store().dispatch({ type: "SET_TOLERANCE", tolerancePx: 4 }));
+      expect(refiner).toHaveBeenCalledOnce();
+      React.act(() => mounted.store().dispatch({ type: "SET_PROCESSING", processing: true }));
+      const fresh = OUTLINE.map(shape => ({ ...shape, outer: shape.outer.map(p => ({ ...p, x: p.x + 5 })) }));
+      await React.act(async () => {
+        mounted.store().dispatch({ type: "DETECTED", imageUrl: null, region: null, outline: fresh, rawOutline: fresh, svg: "",
+          settings: { tolerancePx: 1.2, smoothing: 1, sensitivity: 128, boundaryMethod: "color", includeInteriorHoles: false } });
+        mounted.store().dispatch({ type: "SET_PROCESSING", processing: false });
+        finish(OUTLINE);
+      });
+      expect(mounted.store().outline).toBe(fresh); expect(mounted.store().rawOutline).toBe(fresh);
+      expect(mounted.store().tolerancePx).toBe(1.2); expect(refiner).toHaveBeenCalledOnce();
+    } finally { mounted.unmount(); }
+  });
   it("refines a manually started contour even when detection found nothing", async () => {
     const refiner = vi.fn<OutlineRefiner>(async outline => outline.map(shape => ({ ...shape })));
     const mounted = mountHook(refiner);

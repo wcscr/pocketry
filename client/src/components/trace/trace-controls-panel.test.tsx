@@ -260,6 +260,9 @@ it("offers auto-simplify directly after detection without entering manual editin
   expect(action().textContent).toContain("Auto simplify outline"); expect(action().disabled).toBe(false);
   const manual = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Manual detection settings")!;
   expect(manual).toBeDefined();
+  const restart = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Restart outline detection")!;
+  const contours = host.querySelector('[data-testid="detection-contours"]')!;
+  expect(contours.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(action().compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(manual.getAttribute("aria-expanded")).toBe("false");
   const tuning = document.getElementById(manual.getAttribute("aria-controls")!)!;
@@ -270,7 +273,7 @@ it("offers auto-simplify directly after detection without entering manual editin
   const history = trace.history;
   await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
   React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
-  expect(action().disabled).toBe(true); expect(host.textContent).toContain("already simplified or edited");
+  expect(action().disabled).toBe(false); // Auto always previews the currently edited outline.
 });
 
 async function changeNumber(id: string, value: string): Promise<void> {
@@ -955,7 +958,7 @@ describe("automatic sensitivity detection", () => {
     await prepareOutline();
     await stepSensitivity();
     expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // Committed only when re-detection succeeds.
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Re-detect outline")).toBe(false);
     await React.act(async () => {
@@ -983,7 +986,7 @@ describe("automatic sensitivity detection", () => {
     await stepSensitivity();
     await chooseConfirmation("Replace manual edits");
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 127, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // Committed only when re-detection succeeds.
   });
 
   it("does not ask after all manual vertex edits have been undone", async () => {
@@ -997,12 +1000,12 @@ describe("automatic sensitivity detection", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("applies the interior-hole option immediately through the same detection flow", async () => {
+  it("requests interior holes through the same atomic detection flow", async () => {
     await prepareOutline();
     React.act(() => trace.dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" }));
     await React.act(async () => host.querySelector<HTMLButtonElement>('#include-interior-holes')!.click());
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
-    expect(trace.includeInteriorHoles).toBe(true);
+    expect(trace.includeInteriorHoles).toBe(false); // Published with successful detection.
   });
 });
 

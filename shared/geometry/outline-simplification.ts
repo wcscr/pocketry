@@ -10,6 +10,14 @@ const perimeter = (outline: Outline) => outline.flatMap(s => [s.outer, ...s.hole
   total + ring.reduce((sum, p, i) => sum + Math.hypot(p.x - ring[(i + 1) % ring.length].x,
     p.y - ring[(i + 1) % ring.length].y), 0), 0);
 
+/** Applied Auto levels share one accepted source until another outline edit. */
+export interface AppliedOutlineSimplification {
+  source: CurveOutline;
+  allowance: number;
+  unitsPerUnit: number;
+  unit: "mm" | "px";
+}
+
 export interface OutlineSimplificationRequest {
   source: CurveOutline;
   tolerance: number;

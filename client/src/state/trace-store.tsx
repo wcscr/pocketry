@@ -1,3 +1,4 @@
+import type { AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
 import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { transformPhotoProjection, type Homography } from "@shared/geometry/projective";
 import {
@@ -103,6 +104,9 @@ export interface TraceHistoryEntry {
   baselineMarginPx?: number;
   tolerancePx?: number;
   smoothing?: number;
+  autoSimplification?: AppliedOutlineSimplification;
+  /** Detection evidence and controls travel with this exact outline through Undo. */
+  detection?: Pick<TraceState, "rawOutline" | "sensitivity" | "boundaryMethod" | "includeInteriorHoles">;
   /** Vertex/ring edits since detection; follows undo/redo, unlike general history. */
   hasManualEdits?: boolean;
   /** Review regions belong to this detection and follow its image frame. */
@@ -261,7 +265,7 @@ export type TraceRefinementSettings = Pick<TraceState,
   "tolerancePx" | "smoothing" | "margin" | "calibration" | "calibrationSource" | "rulerLengthMm" | "rulerLengthInput">;
 
 export type TraceAction =
-  | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string }
+  | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string; autoSimplification?: AppliedOutlineSimplification }
   | { type: "SET_EDITABLE_CURVES"; enabled: boolean }
   | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
@@ -288,6 +292,8 @@ export type TraceAction =
       region: Rect | null;
       /** Reject a result if a contour edit landed while detection was running. */
       expectedOutline?: Outline;
+      settings?: Pick<TraceState, "sensitivity" | "boundaryMethod" | "includeInteriorHoles" | "tolerancePx" | "smoothing">;
+      label?: string;
     }
   | { type: "OUTLINE_REFINED"; outline: Outline }
   | { type: "REFINEMENT_REJECTED"; expectedOutline: Outline; expectedSourceRevision: number;
@@ -295,7 +301,7 @@ export type TraceAction =
       settings: TraceRefinementSettings }
   | { type: "SET_INCLUDE_INTERIOR_HOLES"; include: boolean }
   /** A committed edit: pushes onto the undo stack. */
-  | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string }
+  | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string; autoSimplification?: AppliedOutlineSimplification }
   /** Start a manually traced outer contour with four editable corners. */
   | { type: "ADD_CONTOUR" }
   | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number; label?: string }
@@ -375,7 +381,8 @@ function pushHistory(
   // Anything redone-past is discarded, as in every undo stack.
   const stack = [
     ...history.stack.slice(0, history.index + 1),
-    { estimatedEdgeRegions: history.stack[history.index]?.estimatedEdgeRegions, ...refinement, outline, label, margin },
+    { estimatedEdgeRegions: history.stack[history.index]?.estimatedEdgeRegions,
+      detection: history.stack[history.index]?.detection, ...refinement, outline, label, margin },
   ];
   const trimmed = stack.length > HISTORY_LIMIT ? stack.slice(-HISTORY_LIMIT) : stack;
   return { stack: trimmed, index: trimmed.length - 1 };
@@ -446,8 +453,14 @@ function photoFrame(state: TraceState): TracePhotoFrame {
     draftCalibration, region, pendingPerspective, manualPerspectivePoints, perspectiveCorrection };
 }
 
-function historyPhotoFrame(state: TraceState): Pick<TraceHistoryEntry, "photoFrame" | "detectionHints"> {
-  return { detectionHints: state.detectionHints, ...(state.imageAlignment || state.history.stack.some(entry => entry.photoFrame) ? { photoFrame: photoFrame(state) } : {}) };
+function detectionSnapshot(state: TraceState): NonNullable<TraceHistoryEntry["detection"]> {
+  const { rawOutline, sensitivity, boundaryMethod, includeInteriorHoles } = state;
+  return { rawOutline, sensitivity, boundaryMethod, includeInteriorHoles };
+}
+
+function historyPhotoFrame(state: TraceState): Pick<TraceHistoryEntry, "photoFrame" | "detectionHints" | "detection"> {
+  return { detection: detectionSnapshot(state), detectionHints: state.detectionHints,
+    ...(state.imageAlignment || state.history.stack.some(entry => entry.photoFrame) ? { photoFrame: photoFrame(state) } : {}) };
 }
 
 function samePhotoFrame(a: TracePhotoFrame, b: TracePhotoFrame): boolean {
@@ -505,7 +518,7 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   }
   next.history = pushHistory({ ...state.history, stack: state.history.stack.map(entry => ({ ...entry,
     photoFrame: !entry.photoFrame || samePhotoFrame(entry.photoFrame, before) ? before : entry.photoFrame })) },
-    rotated, label, state.margin, { ...current, curves: next.curves, estimatedEdgeRegions: next.estimatedEdgeRegions, detectionHints: next.detectionHints, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
+    rotated, label, state.margin, { ...current, autoSimplification: undefined, detection: detectionSnapshot(next), curves: next.curves, estimatedEdgeRegions: next.estimatedEdgeRegions, detectionHints: next.detectionHints, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
       refinementBase: manual ? rotated : transformOutline(current?.refinementBase ?? state.rawOutline, transform),
       baselineMarginPx: manual ? marginToPixels(state.margin, state.calibration) : current?.baselineMarginPx,
       tolerancePx: state.tolerancePx, smoothing: state.smoothing });
@@ -540,7 +553,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       if (JSON.stringify(curves) === JSON.stringify(state.curves)) return state;
       const outline = sampleCurves(curves, tolerance);
       return { ...state, curves, outline, margin: 0, history: pushHistory(state.history, outline, action.label, 0,
-        { curves, refinementBase: outline, hasManualEdits: true, baselineMarginPx: 0,
+        { curves, autoSimplification: action.autoSimplification, refinementBase: outline, hasManualEdits: true, baselineMarginPx: 0,
           tolerancePx: state.tolerancePx, smoothing: state.smoothing, ...historyPhotoFrame(state) }) };
     }
     case "SET_EDITABLE_CURVES": {
@@ -655,6 +668,9 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           ...state.history,
           stack: state.history.stack.map((entry) => ({
             ...entry,
+            autoSimplification: undefined,
+            detection: entry.detection && { ...entry.detection, rawOutline: rotateImageOutline(
+              entry.detection.rawOutline, state.imageSize, imageSize, action.direction) },
             detectionHints: entry.detectionHints?.map(rotateHint),
             estimatedEdgeRegions: entry.estimatedEdgeRegions?.map(ring => ring.map(p => rotateImagePoint(p, state.imageSize, imageSize, action.direction))),
             curves: entry.curves && mapCurves(entry.curves, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
@@ -726,7 +742,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         editableCurves: state.editableCurves,
       };
 
-    case "DETECTED":
+    case "DETECTED": {
       // An older asynchronous detection may finish after a replacement image
       // has loaded or after its region was cleared/replaced. Never let that
       // stale result overwrite the current Trace session.
@@ -742,8 +758,14 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       ) {
         return state;
       }
+      const next = { ...state, ...action.settings, rawOutline: action.rawOutline };
+      // Capture legacy/current controls before replacing them. New edits inherit
+      // this snapshot so Undo also restores the matching refinement evidence.
+      const history = { ...state.history, stack: state.history.stack.map((entry, index) => index === state.history.index
+        ? { ...entry, detection: detectionSnapshot(state) } : entry) };
       return {
         ...state,
+        ...action.settings,
         outline: action.outline,
         rawOutline: action.rawOutline,
         estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
@@ -753,14 +775,15 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         detectedImageUrl: action.imageUrl,
         selection: state.mode === "edit" || state.mode === "remove" ? primaryContour(action.outline) : null,
         history: pushHistory(
-          (state.rawOutline.length > 0 && state.detectedImageUrl === action.imageUrl) ||
-            state.history.stack[state.history.index]?.hasManualEdits ? state.history : { stack: [], index: -1 },
-          action.outline, "Detected outline", state.margin,
+          ((state.rawOutline.length > 0 || state.detectedImageUrl !== null) && state.detectedImageUrl === action.imageUrl) ||
+            state.history.stack[state.history.index]?.hasManualEdits ? history : { stack: [], index: -1 },
+          action.outline, action.label ?? "Detected outline", state.margin,
           { curves: action.curves, refinementBase: action.refinementBase ?? action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
-            ...historyPhotoFrame(state), detectionHints: action.detectionHints ?? state.detectionHints,
-            tolerancePx: state.tolerancePx, smoothing: state.smoothing },
+            ...historyPhotoFrame(next), detectionHints: action.detectionHints ?? state.detectionHints,
+            tolerancePx: next.tolerancePx, smoothing: next.smoothing },
         ),
       };
+    }
 
     case "REFINEMENT_REJECTED":
       if (state.outline !== action.expectedOutline || state.sourceRevision !== action.expectedSourceRevision
@@ -772,7 +795,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 
     case "OUTLINE_REFINED": {
       const current = state.history.stack[state.history.index];
-      const entry = { ...current, outline: action.outline, label: "Refine outline",
+      const entry = { ...current, autoSimplification: undefined, outline: action.outline, label: "Refine outline",
         tolerancePx: state.tolerancePx, smoothing: state.smoothing };
       const history = current?.label === "Refine outline"
         ? { ...state.history, stack: state.history.stack.slice(0, state.history.index + 1).map((item, index) => index === state.history.index ? entry : item) }
@@ -844,7 +867,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           outline,
           action.label ?? "Edit contour",
           state.margin,
-          { curves, refinementBase: outline, hasManualEdits: true,
+          { curves, autoSimplification: action.autoSimplification, refinementBase: outline, hasManualEdits: true,
             ...historyPhotoFrame(state),
             baselineMarginPx: marginToPixels(state.margin, state.calibration),
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
@@ -878,7 +901,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           action.outline,
           `Set contour margin to ${action.margin ?? 0} mm`,
           action.margin,
-          state.history.stack[state.history.index],
+          { ...state.history.stack[state.history.index], autoSimplification: undefined },
         ),
       };
 
@@ -890,6 +913,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       const index = state.history.index - 1;
       return {
         ...restorePhotoFrame(state, state.history.stack[index]),
+        ...state.history.stack[index].detection,
         outline: state.history.stack[index].outline,
         estimatedEdgeRegions: state.history.stack[index].estimatedEdgeRegions ?? [],
         detectionHints: state.history.stack[index].detectionHints ?? [],
@@ -907,6 +931,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       const index = state.history.index + 1;
       return {
         ...restorePhotoFrame(state, state.history.stack[index]),
+        ...state.history.stack[index].detection,
         outline: state.history.stack[index].outline,
         estimatedEdgeRegions: state.history.stack[index].estimatedEdgeRegions ?? [],
         detectionHints: state.history.stack[index].detectionHints ?? [],
@@ -930,6 +955,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       }
       return {
         ...restorePhotoFrame(state, state.history.stack[action.index]),
+        ...state.history.stack[action.index].detection,
         outline: state.history.stack[action.index].outline,
         estimatedEdgeRegions: state.history.stack[action.index].estimatedEdgeRegions ?? [],
         detectionHints: state.history.stack[action.index].detectionHints ?? [],

@@ -1,13 +1,13 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-import { ChevronDown, Settings2 } from "lucide-react";
+import { ChevronDown, RotateCcw, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useTrace } from "@/state/trace-store";
+import { initialTraceState, useTrace } from "@/state/trace-store";
 import { LabelledSlider } from "./labelled-slider";
 import { TraceSymmetryTool } from "./trace-symmetry-tool";
 
@@ -16,13 +16,17 @@ export interface DetectionSettings {
   sensitivity: number;
   includeInteriorHoles: boolean;
   boundary?: "auto" | "color" | "teed";
+  /** Start fresh from photo pixels, resetting tuning and correction strokes. */
+  restart?: boolean;
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
-export function TraceDetectionControls({ onReprocess, compact = false, children }: {
+export function TraceDetectionControls({ onReprocess, compact = false, children, outlineActions }: {
   onReprocess: (settings: DetectionSettings) => void;
   compact?: boolean;
   children?: ReactNode;
+  /** Editing and contour controls precede the final restart action. */
+  outlineActions?: ReactNode;
 }) {
   const trace = useTrace();
   const [manualOpen, setManualOpen] = useState(false);
@@ -34,24 +38,31 @@ export function TraceDetectionControls({ onReprocess, compact = false, children 
     setDraftSensitivity(null);
     setPendingDetection(null);
   }, [trace.sourceRevision, trace.region]);
+  useEffect(() => { if (!processing) setDraftSensitivity(null); }, [processing, sensitivity]);
 
   const apply = (settings: DetectionSettings) => {
     setPendingDetection(null);
-    setDraftSensitivity(null);
-    dispatch({ type: "SET_SENSITIVITY", sensitivity: settings.sensitivity });
-    dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: settings.includeInteriorHoles });
-    if (settings.boundary) dispatch({ type: "SET_BOUNDARY_METHOD", method: settings.boundary });
+    setDraftSensitivity(settings.sensitivity);
+    // With an existing outline, publish controls with the successful detection
+    // result. Failure/cancellation must not relabel the old geometry.
+    if (!trace.outline.length) {
+      dispatch({ type: "SET_SENSITIVITY", sensitivity: settings.sensitivity });
+      dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: settings.includeInteriorHoles });
+      if (settings.boundary) dispatch({ type: "SET_BOUNDARY_METHOD", method: settings.boundary });
+    }
     // Commit the exact released value; the next store render has not happened yet.
     onReprocess(settings);
   };
   const request = (settings: DetectionSettings) => {
     setDraftSensitivity(null);
-    if (settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
+    if (!settings.restart && settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
         (settings.boundary ?? trace.boundaryMethod) === trace.boundaryMethod) return;
-    if (trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
+    if ((settings.restart && trace.outline.length > 0) || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
     else apply(settings);
   };
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };
+  const restart = (boundary = trace.boundaryMethod) => request({ boundary, restart: true,
+    sensitivity: initialTraceState.sensitivity, includeInteriorHoles: boundary === "teed" ? false : includeInteriorHoles });
 
   const tuning = <>
 <div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
@@ -82,7 +93,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children 
         <select id="outline-detection-method" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
           value={trace.boundaryMethod} disabled={processing}
           onChange={event => { const boundary = event.target.value as "auto" | "color" | "teed";
-            request({ sensitivity, includeInteriorHoles: boundary === "teed" ? false : includeInteriorHoles, boundary }); }}>
+            if (boundary !== trace.boundaryMethod) restart(boundary); }}>
           <option value="teed">Tool edges · white sheet</option>
           <option value="auto">Automatic · match background</option>
           <option value="color">Color contrast</option>
@@ -106,13 +117,21 @@ export function TraceDetectionControls({ onReprocess, compact = false, children 
       </Button>
       <div id={manualId} hidden={!manualOpen} className="space-y-3 rounded-md border p-3">{tuning}</div>
     </>}
+    {outlineActions}
+    <div className="border-t pt-3"><Button variant="outline" size="sm" className="w-full" disabled={processing || !trace.imageUrl || !trace.region}
+      onClick={() => restart()}><RotateCcw className="h-4 w-4" />Restart outline detection</Button></div>
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
-          <DialogDescription>This replaces manual contour edits with a fresh detection. Undo restores your edited outline.</DialogDescription>
+        <DialogHeader><DialogTitle>{pendingDetection?.restart
+          ? pendingDetection.boundary !== trace.boundaryMethod ? "Switch detection method?" : "Restart outline detection?"
+          : "Re-detect from the photo?"}</DialogTitle>
+          <DialogDescription>{pendingDetection?.restart
+            ? `Start again from the photo inside the selected region. This replaces the outline and tool/paper corrections, resets Sensitivity to Auto and Simplification to ${initialTraceState.tolerancePx.toFixed(1)} px. Your photo, calibration, region and margin stay in place. Undo restores the previous outline and settings.`
+            : "This replaces manual contour edits with a fresh detection. Undo restores your edited outline."}</DialogDescription>
         </DialogHeader>
-        <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>Replace manual edits</Button>
-        <Button variant="outline" onClick={cancel}>Keep my edits</Button>
+        <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>{pendingDetection?.restart
+          ? pendingDetection.boundary !== trace.boundaryMethod ? "Switch and restart" : "Restart detection" : "Replace manual edits"}</Button>
+        <Button variant="outline" onClick={cancel}>{pendingDetection?.restart ? "Keep current outline" : "Keep my edits"}</Button>
       </DialogContent>
     </Dialog>
   </>;

@@ -53,6 +53,7 @@ export function useOutlineRefinement(
     sourceRevision,
     history,
     curves,
+    processing,
     dispatch,
   } = useTrace();
   const settings: TraceRefinementSettings = { tolerancePx, smoothing, margin, calibration,
@@ -64,6 +65,9 @@ export function useOutlineRefinement(
   const entry = history.stack[history.index];
 
   useEffect(() => {
+    // A fresh detection owns its geometry and controls as one transaction.
+    // Cancel an older refinement rather than racing it against the new result.
+    if (processing) return;
     const outlineChanged = previousOutline.current !== outline;
     const imageRotated = previousImageRotation.current !== imageRotation;
     const sourceReplaced = previousSourceRevision.current !== sourceRevision;
@@ -135,6 +139,7 @@ export function useOutlineRefinement(
   }, [
     rawOutline,
     curves,
+    processing,
     outline,
     tolerancePx,
     smoothing,

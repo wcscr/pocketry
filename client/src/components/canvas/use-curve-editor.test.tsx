@@ -54,6 +54,17 @@ it("simplifies the accepted outline in an explicit preview and applies one edit"
   expect(Math.max(distance.missingMax!, distance.excessMax!, distance.cutInMax!)).toBeLessThanOrEqual(.1);
 });
 
+it("marks a no-effect level visually and explains it on keyboard focus", async () => {
+  React.act(() => root.render(<Harness input={outline} dense={outline} />));
+  React.act(() => button("Bend edges").click());
+  await React.act(async () => button("Auto simplify outline").click());
+  expect(button("Balanced").getAttribute("aria-label")).toBe("Balanced, no change");
+  expect(button("Apply").disabled).toBe(true);
+  await React.act(async () => button("Balanced").focus());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Balanced would not change the outline.");
+  expect(onCommit).not.toHaveBeenCalled();
+});
+
 it("cancels a pending reconstruction and ignores its late worker result", async () => {
   vi.stubGlobal("Worker", class {});
   let finish!: (value: never) => void, signal: AbortSignal | undefined;

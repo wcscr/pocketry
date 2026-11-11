@@ -37,6 +37,34 @@ const detected = (
   region: null,
 });
 
+it.each([false, true])("keeps detection evidence and settings with rotated history (aligned=%s)", aligned => {
+  const firstSettings = { sensitivity: 97, boundaryMethod: "teed" as const, includeInteriorHoles: false, tolerancePx: 3, smoothing: 2 };
+  const settings = { sensitivity: 128, boundaryMethod: "color" as const, includeInteriorHoles: true, tolerancePx: 1.2, smoothing: 1 };
+  const detectedFirst = run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" },
+    { type: "SOURCE_READY", imageSize: { width: 100, height: 100 } },
+    { ...detected(ringA), imageUrl: "photo", settings: firstSettings });
+  const first = aligned ? run(detectedFirst, { type: "ALIGN_UPRIGHT", outline: detectedFirst.outline, expectedOutline: detectedFirst.outline, radians: .1 }) : detectedFirst;
+  const second = run(first, { ...detected(ringB), imageUrl: "photo", settings });
+  const rotated = run(second, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: { width: 100, height: 100 }, maxSize: { width: 100, height: 100 } });
+  expect(rotated.rawOutline).not.toEqual(second.rawOutline);
+  const undoneRotation = run(rotated, { type: "UNDO" });
+  if (aligned) {
+    expect(undoneRotation.rawOutline).toEqual(second.rawOutline); expect(undoneRotation.outline).toEqual(second.outline);
+    expect(undoneRotation).toMatchObject(settings);
+  } else {
+    // Quarter-turn rotation transforms every legacy history frame in place.
+    expect(undoneRotation.rawOutline).toEqual(undoneRotation.outline);
+    expect(undoneRotation.rawOutline).not.toEqual(first.rawOutline);
+    expect(undoneRotation).toMatchObject(firstSettings);
+  }
+  const original = run(rotated, { type: "JUMP_TO_HISTORY", index: first.history.index });
+  expect(original.rawOutline).toEqual(original.outline);
+  if (aligned) expect(original.rawOutline).toEqual(first.rawOutline);
+  expect(original).toMatchObject(firstSettings);
+  expect(run(undoneRotation, { type: "REDO" }).rawOutline).toEqual(rotated.rawOutline);
+});
+
 describe("manually added contours", () => {
   const photo = () => run(initialTraceState,
     { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" },
