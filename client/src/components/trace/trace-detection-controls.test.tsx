@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
-import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
+import { initialTraceState, TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { applySensitivity } from "@/lib/detect/otsu";
 import { TraceCurveSettings, TraceDetectionControls } from "./trace-detection-controls";
 import { asymmetricHandle } from "@/lib/geometry/curve-symmetry.test-support";
@@ -185,3 +185,65 @@ it.each(["restart", "switch"])("confirms %s even without point edits, and keeps 
     expect(restart().disabled).toBe(true);
   } finally { React.act(() => root.unmount()); }
 });
+
+it.each(["none", "sensitivity", "simplification", "smoothing", "corrections", "edits", "undone edits", "restored defaults", "compatible holes", "incompatible holes", "curves preference"])(
+  "warns on a method switch only when adjustments would be discarded: %s", async adjustment => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    let trace!: TraceStore;
+    const reprocess = vi.fn((settings: Parameters<React.ComponentProps<typeof TraceDetectionControls>["onReprocess"]>[0]) => {
+      trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, region: trace.region,
+        outline: trace.outline.map(shape => ({ ...shape })), rawOutline: trace.rawOutline, detectionHints: [], svg: "",
+        settings: { boundaryMethod: settings.boundary!, sensitivity: settings.sensitivity,
+          includeInteriorHoles: settings.includeInteriorHoles, tolerancePx: initialTraceState.tolerancePx, smoothing: initialTraceState.smoothing } });
+    });
+    function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+    const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+    try {
+      await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+      const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 50, y: 90 }], holes: [] }];
+      React.act(() => {
+        trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" });
+        trace.dispatch({ type: "SET_REGION", region: { x: 0, y: 0, width: 100, height: 100 } });
+        if (adjustment === "sensitivity") trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+        if (adjustment === "simplification") trace.dispatch({ type: "SET_TOLERANCE", tolerancePx: 3 });
+        if (adjustment === "smoothing") trace.dispatch({ type: "SET_SMOOTHING", smoothing: 2 });
+        if (adjustment.includes("holes")) {
+          trace.dispatch({ type: "SET_BOUNDARY_METHOD", method: "color" });
+          trace.dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true });
+        }
+        if (adjustment === "curves preference") trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
+        trace.dispatch({ type: "DETECTED", imageUrl: "photo", region: { x: 0, y: 0, width: 100, height: 100 }, outline, rawOutline: outline, svg: "",
+          detectionHints: adjustment === "corrections" ? [{ kind: "tool", points: [{ x: 50, y: 50 }], radius: 4 }] : [] });
+        if (adjustment === "edits" || adjustment === "undone edits") {
+          trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ ...outline[0], outer: [...outline[0].outer, { x: 5, y: 50 }] }], label: "Edit contour" });
+          if (adjustment === "undone edits") trace.dispatch({ type: "UNDO" });
+        }
+        if (adjustment === "restored defaults") {
+          trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+          trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: initialTraceState.sensitivity });
+        }
+      });
+      const before = trace;
+      const nextMethod = adjustment === "incompatible holes" ? "teed" : adjustment === "compatible holes" ? "auto" : "color";
+      const change = (method: string) => React.act(() => {
+        const select = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
+        select.value = method; select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      change(nextMethod);
+      const needsWarning = ["sensitivity", "simplification", "smoothing", "corrections", "edits", "incompatible holes"].includes(adjustment);
+      if (needsWarning) {
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Switch detection method?");
+        expect(reprocess).not.toHaveBeenCalled(); expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+      } else {
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+        expect(reprocess).toHaveBeenCalledOnce(); expect(trace.boundaryMethod).toBe(nextMethod);
+        expect(trace.history.index).toBe(before.history.index + 1);
+        expect(trace.includeInteriorHoles).toBe(before.includeInteriorHoles); expect(trace.editableCurves).toBe(before.editableCurves);
+        React.act(() => trace.undo()); expect(trace.boundaryMethod).toBe(before.boundaryMethod); expect(trace.outline).toBe(before.outline);
+        React.act(() => trace.redo());
+        // A previous method-only switch is not itself an adjustment to protect.
+        change(before.boundaryMethod);
+        expect(document.querySelector('[role="dialog"]')).toBeNull(); expect(reprocess).toHaveBeenCalledTimes(2);
+      }
+    } finally { React.act(() => root.unmount()); }
+  });

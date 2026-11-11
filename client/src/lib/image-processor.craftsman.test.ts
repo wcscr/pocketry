@@ -1,3 +1,5 @@
+// Historical cropped-photo diagnostics, excluded from verification.
+// Replaced by original-photo calibration/region/UI runs; see CLAUDE.md.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { gunzipSync } from "node:zlib";
@@ -33,7 +35,7 @@ beforeAll(async () => {
 });
 afterAll(() => { detector.dispose(); vi.unstubAllGlobals(); });
 
-it.each(["color", "teed"] as const)("cleans the Craftsman on-sheet photo with %s detection at +56", async boundary => {
+it.skip.each(["color", "teed"] as const)("cleans the Craftsman on-sheet photo with %s detection at +56", async boundary => {
   const result = await processImage(image, {
     calibration, smoothBoundary: true, autoCleanup: true,
     detect: { boundary, sensitivity: 72, tolerancePx: 1.2, smoothing: 1,

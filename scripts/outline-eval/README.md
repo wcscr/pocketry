@@ -1,5 +1,7 @@
 # Outline evaluation helpers
 
+**The replay tools below are diagnostic only.** Current photo tests must load the original calibration-sheet photograph, accept the available automatic calibration/perspective action, draw the region, and choose settings through the rendered UI in order (defaults first). No crop, cached calibration, injected settings or saved outline can substitute for that workflow. Record original hashes, ordered actions, selected regions and actual settings. See [CLAUDE.md](../../CLAUDE.md#photo-outline-regression-testing) and the [current UI validation](../../docs/outline-ui-validation-2026-11-11.md).
+
 Local, development-only tools for measuring photo-outline detection on what the
 app really feeds its detector. Nothing here is imported by the application, and
 photos and captured cases stay on the maintainer's machine. See

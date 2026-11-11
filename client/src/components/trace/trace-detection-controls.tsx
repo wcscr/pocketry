@@ -57,7 +57,14 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     setDraftSensitivity(null);
     if (!settings.restart && settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
         (settings.boundary ?? trace.boundaryMethod) === trace.boundaryMethod) return;
-    if ((settings.restart && trace.outline.length > 0) || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
+    const switchingMethod = settings.boundary !== undefined && settings.boundary !== trace.boundaryMethod;
+    // Comparing untouched detector results is reversible and needs no warning.
+    // Only protect adjustments the fresh method would actually discard.
+    const discardsSettings = sensitivity !== initialTraceState.sensitivity ||
+      tolerancePx !== initialTraceState.tolerancePx || trace.smoothing !== initialTraceState.smoothing ||
+      trace.detectionHints.length > 0 || settings.includeInteriorHoles !== includeInteriorHoles;
+    const confirmRestart = settings.restart && trace.outline.length > 0 && (!switchingMethod || discardsSettings);
+    if (confirmRestart || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
     else apply(settings);
   };
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };

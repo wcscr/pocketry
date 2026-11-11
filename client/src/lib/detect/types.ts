@@ -164,6 +164,10 @@ export const DETECT_DEFAULTS = {
 } as const satisfies Partial<DetectOptions>;
 
 export interface EdgeSensitivityReport {
+  /** An area-averaged retry recovered material missed by bilinear sampling. */
+  inputSampling?: "area-recovery";
+  /** At most one additional inference for an incomplete automatic detection. */
+  samplingRetry?: boolean;
   /** Additional reconstruction accepted after the coarse sensitivity search. */
   edgeReconstruction?: "clipped-boundary-recovery" | "fine-threshold-confirmation";
   /** Clipped-region retry diagnostics; thin unseeded features still need review. */

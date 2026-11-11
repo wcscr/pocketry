@@ -267,6 +267,32 @@ Tests are type-checked — `tsconfig.json` deliberately does *not* exclude `*.te
 
 No linter is configured yet (prefer ESLint when one lands).
 
+### Photo outline regression testing
+
+- **Every photo-based outline detection test and evaluation must start with the
+  original, unmodified photo on its calibration sheet.** Run the full application
+  workflow: load the photo, detect its calibration markers, accept the available
+  auto-calibration/perspective option, select the tool region, then detect the
+  outline. Do not start from a crop, rectified image, cached detector pixels,
+  precomputed calibration, or saved outline.
+- **Choose detection and simplification settings only through the controls the
+  UI actually provides, in a sequence the UI permits.** Exercise the defaults
+  first; open manual settings before adjusting them, handle any confirmation,
+  and wait for each operation to finish before the next action. Do not inject
+  settings or seed application state to bypass a preceding step. Test method
+  switching, restart, and auto simplification from states reached through these
+  same user actions.
+- Record the original photo's hash, selected region, ordered UI actions, and
+  resulting settings with each evaluation. A missing original, unsuccessful
+  calibration, or unavailable UI action is a failed/incomplete case, never a
+  reason to substitute a prepared image or silently skip the case.
+- Apply this rule to all photo regression tests and comparisons, including
+  existing cases when revisiting them. Cropped-image replay and direct detector
+  probes are diagnostic evidence only and cannot qualify a photo regression or
+  support a claim that the end-to-end workflow passes. Synthetic unit tests may
+  continue checking isolated algorithms and state transitions; report their
+  results separately from photo workflow validation.
+
 ## Code Conventions
 
 - TypeScript strict mode; no `any` unless annotated with a reason.

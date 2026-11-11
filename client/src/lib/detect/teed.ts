@@ -2,7 +2,7 @@ import type { DetectOptions, EdgeSensitivityReport, ImageLike, ScoreField } from
 import type { OpenCV } from "./segment-opencv";
 import { clampRoi } from "./segment-js";
 import { checkDetectionAbort } from "./grabcut";
-import { maskFromEdges, scoreFromEdgeMask } from "./edge-mask";
+import { labelMaskComponents, maskFromEdges, scoreFromEdgeMask } from "./edge-mask";
 import { cleanupEdgeMask, type EdgeCleanupReport } from "./edge-cleanup";
 import { pointInRing } from "@shared/geometry/rings";
 import { reconstructEdges } from "./reconstruct-edges";
@@ -42,14 +42,37 @@ interface NativeMat { delete(): void; data: Uint8Array; data32F: Float32Array }
 interface NativeNet { delete(): void; setInput(blob: NativeMat): void; forward(): NativeMat }
 export interface TeedResult { field?: ScoreField; reason?: string; cached?: boolean; reconstructionMs?: number; selection?: EdgeSensitivityReport; cleanup?: EdgeCleanupReport }
 
-/** A worker owns one warm net and one bounded image embedding (edge map) cache.
+/** A retry may join fragments of an already-associated object, but must not
+ * bridge independent seeded objects that the primary result kept separate. */
+function preservesSeedSeparation(primary: Uint8Array, candidate: Uint8Array, seeds: Uint8Array, width: number, height: number): boolean {
+  const source = labelMaskComponents(seeds, width, height, 4);
+  const parents = Int32Array.from(source.sizes, (_, i) => i);
+  const minimum = Math.max(16, seeds.reduce((sum, value) => sum + (value ? 1 : 0), 0) * .001);
+  const root = (id: number): number => {
+    while (parents[id] !== id) { parents[id] = parents[parents[id]]; id = parents[id]; }
+    return id;
+  };
+  const associations = (mask: Uint8Array) => {
+    const parts = labelMaskComponents(mask, width, height, 4), sets = parts.sizes.map(() => new Set<number>());
+    for (let i = 0; i < mask.length; i++) if (parts.labels[i] && source.labels[i] && source.sizes[source.labels[i]] >= minimum) {
+      sets[parts.labels[i]].add(source.labels[i]);
+    }
+    return sets;
+  };
+  for (const set of associations(primary)) {
+    const ids = [...set]; for (const id of ids.slice(1)) parents[root(id)] = root(ids[0]);
+  }
+  return associations(candidate).every(set => new Set([...set].map(root)).size <= 1);
+}
+
+/** A worker owns one warm net and two bounded image embeddings (edge map cache).
  * Native nets are released explicitly by dispose; worker termination also frees
  * its entire WASM heap. Per-inference Mats always leave through finally.
  */
 export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8Array> = loadTeedModel) {
   let net: NativeNet | undefined;
-  let lastFrame: Uint8Array | undefined, lastEdges: Float32Array | undefined;
-  const dispose = () => { net?.delete(); net = undefined; lastFrame = undefined; lastEdges = undefined; };
+  const cache = new Map<number, { frame: Uint8Array; edges: Float32Array }>();
+  const dispose = () => { net?.delete(); net = undefined; cache.clear(); };
   return {
     dispose,
     async segment(cv: OpenCV, image: ImageLike, options: DetectOptions, baseline: ScoreField): Promise<TeedResult> {
@@ -72,21 +95,28 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
         const left = Math.floor((SIDE - width) / 2), top = Math.floor((SIDE - height) / 2);
         const rgba = track(cv.matFromImageData(image));
         const crop = track((rgba as unknown as { roi(rect: unknown): NativeMat }).roi(new cv.Rect(roi.x, roi.y, roi.width, roi.height)));
-        const small = track(new cv.Mat());
-        cv.resize(crop, small, new cv.Size(width, height), 0, 0, cv.INTER_LINEAR);
-        const bgr = track(new cv.Mat()); cv.cvtColor(small, bgr, cv.COLOR_RGBA2BGR);
-        const frame = track(new cv.Mat());
-        cv.copyMakeBorder(bgr, frame, top, SIDE - height - top, left, SIDE - width - left, cv.BORDER_REPLICATE);
-        const cached = !!lastFrame && lastFrame.length === frame.data.length && frame.data.every((v, i) => v === lastFrame![i]);
-        if (!cached || !lastEdges) {
+        const infer = (interpolation: number): { edges: Float32Array; cached: boolean } => {
+          const small = track(new cv.Mat());
+          cv.resize(crop, small, new cv.Size(width, height), 0, 0, interpolation);
+          const bgr = track(new cv.Mat()); cv.cvtColor(small, bgr, cv.COLOR_RGBA2BGR);
+          const frame = track(new cv.Mat());
+          cv.copyMakeBorder(bgr, frame, top, SIDE - height - top, left, SIDE - width - left, cv.BORDER_REPLICATE);
+          const previous = cache.get(interpolation);
+          if (previous && previous.frame.length === frame.data.length && frame.data.every((v, i) => v === previous.frame[i])) {
+            return { edges: previous.edges, cached: true };
+          }
           const blob = track(cv.blobFromImage(frame, 1, new cv.Size(SIDE, SIDE), new cv.Scalar(103.939, 116.779, 123.68, 0), false, false));
           checkDetectionAbort(options.signal);
-          net.setInput(blob);
-          const output = track(net.forward());
+          net!.setInput(blob);
+          const output = track(net!.forward());
           if (output.data32F.length !== SIDE * SIDE) throw new Error("Unexpected learned-outline output");
-          lastEdges = new Float32Array(output.data32F);
-          lastFrame = new Uint8Array(frame.data);
-        }
+          const edges = new Float32Array(output.data32F);
+          cache.set(interpolation, { frame: new Uint8Array(frame.data), edges });
+          return { edges, cached: false };
+        };
+        const initial = infer(cv.INTER_LINEAR);
+        let cached = initial.cached;
+        const lastEdges = initial.edges;
         checkDetectionAbort(options.signal);
         const edges = new Float32Array(width * height), seeds = new Uint8Array(edges.length), background = new Uint8Array(edges.length);
         const colour = new Uint8Array(edges.length), unknownMask = new Uint8Array(edges.length);
@@ -106,9 +136,40 @@ export function createTeedDetector(load: (signal?: AbortSignal) => Promise<Uint8
         const reconstructStarted = performance.now();
         const automatic = (options.sensitivity ?? 128) === 128 && !!baseline.evidence;
         const selected = automatic ? reconstructEdges(edges, width, height, seeds, background, unknownMask) : undefined;
-        const result = selected?.result ?? maskFromEdges(edges, width, height, seeds, threshold);
-        const selection = selected?.selection ?? { edgeThreshold: threshold, edgeThresholdTrials: 1, automaticSensitivity: false,
+        let result = selected?.result ?? maskFromEdges(edges, width, height, seeds, threshold);
+        let selection = selected?.selection ?? { edgeThreshold: threshold, edgeThresholdTrials: 1, automaticSensitivity: false,
           seedCoverage: seeds.reduce((sum, value, i) => sum + (value && result.mask[i] ? 1 : 0), 0) / Math.max(1, seeds.reduce((sum, value) => sum + value, 0)) };
+        // Keep the model's established sampling and manual sensitivity response.
+        // A large original-photo crop can alias weak boundaries when bilinearly
+        // shrunk to 512px. Retry once with area averaging only after automatic
+        // reconstruction misses substantial seeded material. Complete detections
+        // never change. The normal polygon topology guard still applies later.
+        if (automatic && scale < 1 && selection.seedCoverage < .95 && result.reason !== "selection-too-tight") {
+          const initialSelection = selection;
+          try {
+            const alternate = infer(cv.INTER_AREA), averaged = new Float32Array(edges.length);
+            cached = cached && alternate.cached;
+            for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+              averaged[y * width + x] = alternate.edges[(y + top) * SIDE + x + left];
+            }
+            const retry = reconstructEdges(averaged, width, height, seeds, background, unknownMask);
+            const trials = selection.edgeThresholdTrials + retry.selection.edgeThresholdTrials;
+            selection = { ...selection, edgeThresholdTrials: trials, samplingRetry: true };
+            if (!retry.result.reason && retry.selection.seedCoverage >= .98 &&
+              !seeds.some((value, i) => value && result.mask[i] && !retry.result.mask[i]) &&
+              !unknownMask.some((value, i) => value && result.mask[i] !== retry.result.mask[i]) &&
+              preservesSeedSeparation(result.mask, retry.result.mask, seeds, width, height)) {
+              result = retry.result;
+              selection = { ...retry.selection, edgeThresholdTrials: trials, samplingRetry: true, inputSampling: "area-recovery" };
+            }
+          } catch (error) {
+            checkDetectionAbort(options.signal);
+            if (error instanceof Error && error.name === "AbortError") throw error;
+            // A failed optional retry cannot discard the usable first result.
+            dispose(); cached = false;
+            selection = { ...initialSelection, samplingRetry: true };
+          }
+        }
         if (result.reason) return { reason: result.reason, cached, reconstructionMs: performance.now() - reconstructStarted, selection };
         const cleaned = baseline.evidence ? cleanupEdgeMask(result.mask, width, height, { colour, iso: baseline.iso, seeds, unknown: unknownMask }) : undefined;
         const score = cleaned && cleaned.mask !== result.mask ? scoreFromEdgeMask(cleaned.mask, width, height) : result.score;

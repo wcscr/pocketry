@@ -3,7 +3,7 @@
 The [combined detector](outline-combined-detector.md) adds geometry preservation,
 tool/paper correction strokes, and original-photo sampling to Claude's detector.
 The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) records the current
-36-case comparison; earlier report measurements below remain historical.
+historical cropped comparison. The [original-photo UI comparison](outline-ui-validation-2026-11-11.md) is the current workflow evidence; cached replays cannot qualify photo behavior.
 
 **Tool edges · white sheet** is the default for new sessions. Draw a region
 around one tool, leaving light paper visible around it. **Automatic · match
@@ -35,7 +35,10 @@ were tested separately.
 - **Boundary cleanup:** class-preserving edge interpolation avoids artificial
   slits. Auto sensitivity checks a bounded set of thresholds on one inference,
   recovering supported fragments while protecting paper gaps and independent
-  tools. A finer search confirms candidates at adjacent thresholds when the coarse
+  tools. Incomplete automatic detections on large original-photo inputs may retry
+  once with area-averaged model input, preserving existing manual sensitivity
+  behavior and complete detections. Acceptance must recover seeded material
+  without losing already-covered seeds or changing unknown regions. A finer search confirms candidates at adjacent thresholds when the coarse
   search cannot recover a stable boundary. Crop-spanning printing can trigger a
   bounded recovery using raw and gap-repaired enclosed regions. Broad genuinely
   cropped foreground and losses of supported material reject that recovery.
@@ -69,7 +72,10 @@ simplification.
 
 **Restart outline detection**, at the bottom of the Outline section, starts again
 from the current photo within the selected region. Switching detection methods
-uses the same restart flow. With an existing outline, both ask for confirmation:
+uses the same restart flow. Switching an untouched detection needs no confirmation;
+switching asks only when it would discard manual tuning, tool/paper corrections,
+outline edits, or an incompatible interior-hole setting. Explicit Restart still
+asks before replacing an existing outline.
 Sensitivity returns to Auto, Simplification to 1.2 px, and detection smoothing
 to its default. Outline edits and tool/paper correction strokes are replaced.
 Photo selection, rotation/perspective correction, calibration, region and margin
@@ -121,8 +127,10 @@ experiment but also gave up its syringe improvement. Printing, reflections and
 transparent material remain difficult. These development photos are not a held-out
 accuracy benchmark, and sparse feature checks are not contour ground truth.
 
-Integration checks compare the actual app pipeline against the approved results
-across all 36 subjects and 115 cached views, including crop and rotation controls.
+Historical diagnostics replay 36 subjects and 115 cached views, including crop
+and rotation controls. Those replays are not end-to-end qualification. Current
+photo checks start from originals and use the full calibration, region and
+settings UI flow required by CLAUDE.md.
 Local synthetic checks cover separate tools, paper recesses, unknown reference
 strips and supported shafts; the unseeded-shaft counterexample is retained as an
 explicit expected failure. Phone speed, peak memory and physical fit remain

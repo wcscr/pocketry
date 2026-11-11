@@ -1,5 +1,7 @@
 # Outline evaluation
 
+**Current photo qualification must follow [CLAUDE.md](../CLAUDE.md#photo-outline-regression-testing): original calibration-sheet photos, full automatic calibration and region selection, then settings selected through the UI in order.** The [original-photo UI report](outline-ui-validation-2026-11-11.md) supersedes the historical crop/replay measurements below. Cached detector replay is diagnostic only, even when it reproduces an earlier app output exactly.
+
 The measurements below are historical. The [combined detector comparison](outline-combined-validation-2026-11-11.md)
 reruns these 36 cases against Claude's `5aefd804` baseline. Current replay checks
 use exact captured raster transforms and complete boundary checks; legacy cases

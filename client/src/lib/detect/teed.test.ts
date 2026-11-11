@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
-import { gunzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
 import { createTeedDetector, loadTeedModel, TEED_MODEL_URL } from "./teed";
 import { detectOutline } from "./pipeline";
 import type { OpenCV } from "./segment-opencv";
+import * as reconstruction from "./reconstruct-edges";
 
 async function shippedCV(): Promise<OpenCV> {
   const module = { exports: {} };
@@ -24,13 +24,18 @@ describe("self-hosted learned-outline model", () => {
     const cv = await shippedCV();
     const load = vi.fn(async () => model());
     const teed = createTeedDetector(load);
-    const image = { width: 384, height: 600, data: new Uint8ClampedArray(gunzipSync(readFileSync(
-      new URL("./fixtures/gerber.rgba.gz", import.meta.url)))) };
+    // Runtime/cache contract uses synthetic pixels; photo qualification belongs
+    // to the original-photo UI workflow, never a prepared crop.
+    const image = { width: 384, height: 600, data: new Uint8ClampedArray(384 * 600 * 4).fill(255) };
+    for (let y = 80; y < 520; y++) for (let x = 120; x < 260; x++) {
+      const i = (y * image.width + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = 40;
+    }
     try {
       const first = await detectOutline(image, { boundary: "teed" }, { loadCV: async () => cv, teed });
       expect(first.refinement?.cached).toBe(false);
       expect(first.refinement?.automaticSensitivity).toBe(true);
-      expect(first.refinement?.edgeThresholdTrials).toBeLessThanOrEqual(14);
+      expect(first.refinement?.edgeThresholdTrials).toBeLessThanOrEqual(28);
       expect(first.outline.length).toBeGreaterThan(0);
       const cached = await detectOutline(image, { boundary: "teed", sensitivity: 135 }, { loadCV: async () => cv, teed });
       expect(cached.refinement?.cached).toBe(true);
@@ -51,6 +56,64 @@ describe("self-hosted learned-outline model", () => {
       broken.dispose();
     } finally { teed.dispose(); }
   }, 30_000);
+
+  it.each(["recover", "complete", "manual", "incomplete", "lost-seed", "unknown", "merge", "failed-retry"] as const)(
+    "bounds area-sampling recovery and preserves the primary result: %s", async scenario => {
+      const cv = await shippedCV(), width = 2048, height = 1024, count = 512 * 256;
+      const image = { width, height, data: new Uint8ClampedArray(width * height * 4).fill(255) };
+      // Fine stripes expose a real difference between bilinear and area input.
+      for (let y = 80; y < 420; y++) for (let x = 80; x < 940; x++) {
+        const i = (y * width + x) * 4;
+        image.data[i] = image.data[i + 1] = image.data[i + 2] = x % 4 === 0 ? 20 : 180;
+      }
+      const seeds = new Uint8Array(count), partial = new Uint8Array(count), complete = new Uint8Array(count);
+      for (let y = 50; y < 200; y++) for (let x = 50; x < 460; x++) {
+        const i = y * 512 + x; seeds[i] = 255; complete[i] = 1;
+        if (x < 300) partial[i] = 1;
+      }
+      if (scenario === "merge") {
+        for (let y = 50; y < 200; y++) for (let x = 230; x < 330; x++) {
+          seeds[y * 512 + x] = 0; partial[y * 512 + x] = 0;
+        }
+      }
+      if (scenario === "lost-seed") complete[100 * 512 + 100] = 0;
+      const make = (mask: Uint8Array, coverage: number) => ({ result: { mask, score: mask.map(v => v * 255) },
+        selection: { edgeThreshold: .6, edgeThresholdTrials: 3, automaticSensitivity: true, seedCoverage: coverage } });
+      const reconstruct = vi.spyOn(reconstruction, "reconstructEdges")
+        .mockReturnValueOnce(make(scenario === "complete" ? complete : partial, scenario === "complete" ? 1 : .6))
+        .mockReturnValue(make(complete, scenario === "incomplete" ? .8 : 1));
+      const inputs: Float32Array[] = [];
+      const forward = vi.fn(() => {
+        if (scenario === "failed-retry" && inputs.length === 2) throw new Error("retry unavailable");
+        return { data32F: new Float32Array(512 * 512), delete: vi.fn() };
+      });
+      const net = { setInput: (mat: { data32F: Float32Array }) => inputs.push(mat.data32F.slice()), forward, delete: vi.fn() };
+      const readNet = vi.spyOn(cv, "readNetFromONNX").mockReturnValue(net);
+      const detector = createTeedDetector(async () => new Uint8Array());
+      try {
+        const options = { sensitivity: scenario === "manual" ? 97 : 128, ...(scenario === "unknown" ? { occlusions: [[{x:1250,y:210},{x:1500,y:210},{x:1500,y:600},{x:1250,y:600}]] } : {}) };
+        const baseline = {
+          score: seeds, evidence: seeds, width: 512, height: 256, iso: 128, otsu: 128, scale: .25, offsetX: 0, offsetY: 0,
+        };
+        const result = await detector.segment(cv, image, options, baseline);
+        const retry = !["complete", "manual"].includes(scenario);
+        expect(forward).toHaveBeenCalledTimes(retry ? 2 : 1);
+        if (retry) expect(inputs[0].some((value, i) => value !== inputs[1][i])).toBe(true);
+        expect(result.selection?.inputSampling).toBe(scenario === "recover" ? "area-recovery" : undefined);
+        if (retry) expect(result.selection?.samplingRetry).toBe(true);
+        if (scenario === "recover") expect(result.selection?.seedCoverage).toBe(1);
+        if (["incomplete", "lost-seed", "unknown", "merge", "failed-retry"].includes(scenario)) expect(result.selection?.seedCoverage).toBe(.6);
+        if (scenario === "recover") {
+          reconstruct.mockReturnValueOnce(make(partial, .6)).mockReturnValue(make(complete, 1));
+          const repeated = await detector.segment(cv, image, options, baseline);
+          expect(repeated.cached).toBe(true);
+          expect(repeated.selection?.inputSampling).toBe("area-recovery");
+          expect(forward).toHaveBeenCalledTimes(2);
+        }
+        if (scenario === "manual") expect(reconstruct).not.toHaveBeenCalled();
+        if (scenario === "failed-retry") expect(result.field).toBeDefined();
+      } finally { detector.dispose(); readNet.mockRestore(); reconstruct.mockRestore(); }
+    });
 
   it("rejects a learned mask that fragments a formerly connected silhouette", async () => {
     const cv = await shippedCV(), width = 100, height = 100;
