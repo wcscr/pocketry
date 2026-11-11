@@ -25,11 +25,9 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
   const { dispatch, sensitivity, tolerancePx, includeInteriorHoles, processing } = trace;
   const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
   const [pendingDetection, setPendingDetection] = useState<DetectionSettings | null>(null);
-  const [confirmCurves, setConfirmCurves] = useState(false);
   useEffect(() => {
     setDraftSensitivity(null);
     setPendingDetection(null);
-    setConfirmCurves(false);
   }, [trace.sourceRevision, trace.region]);
 
   const apply = (settings: DetectionSettings) => {
@@ -73,24 +71,15 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
 
   return <>
     {!compact && <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1"><Label htmlFor="editable-curves" className="text-xs">Editable curves</Label>
-        <HelpHint label="editable curves">Off by default: detection makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles after re-detection or adjustment. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
-      <Switch id="editable-curves" checked={trace.editableCurves || !!trace.curves} disabled={processing}
-        onCheckedChange={enabled => {
-          if (enabled && trace.outline.length > 0 && trace.region && trace.imageUrl) setConfirmCurves(true);
-          else dispatch({ type: "SET_EDITABLE_CURVES", enabled });
-        }} />
-    </div>}
-    {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>
-          <HelpHint label="outline detection method">Automatic checks the paper around the selected tool: it uses on-device Tool edges for light neutral paper, and Color contrast for other or uncertain backgrounds. You can choose either method yourself. Detection also cleans up straight lines and rounded sections. Adjust simplification previews a different allowance.</HelpHint></div>
+          <HelpHint label="outline detection method">Tool edges is the default for new sessions and works best on light paper. Automatic chooses between Tool edges and Color contrast for the photo's background. Saved drafts keep their chosen method.</HelpHint></div>
         <select id="outline-detection-method" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
           value={trace.boundaryMethod} disabled={processing}
           onChange={event => { const boundary = event.target.value as "auto" | "color" | "teed";
             request({ sensitivity, includeInteriorHoles: boundary === "teed" ? false : includeInteriorHoles, boundary }); }}>
-          <option value="auto">Automatic · match background</option>
           <option value="teed">Tool edges · white sheet</option>
+          <option value="auto">Automatic · match background</option>
           <option value="color">Color contrast</option>
         </select>
       </div>
@@ -103,7 +92,35 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
       <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
         onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
     </div>}
-    {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Manual</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
+    {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Manual detection settings</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
+    <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
+          <DialogDescription>This replaces manual contour edits with a fresh detection. Undo restores your edited outline.</DialogDescription>
+        </DialogHeader>
+        <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>Replace manual edits</Button>
+        <Button variant="outline" onClick={cancel}>Keep my edits</Button>
+      </DialogContent>
+    </Dialog>
+  </>;
+}
+
+/** Optional curve editing lives below the primary outline actions. */
+export function TraceCurveSettings({ onReprocess }: { onReprocess: (settings: DetectionSettings) => void }) {
+  const trace = useTrace();
+  const { dispatch, sensitivity, includeInteriorHoles, processing } = trace;
+  const [confirmCurves, setConfirmCurves] = useState(false);
+  useEffect(() => { setConfirmCurves(false); }, [trace.sourceRevision, trace.region]);
+  return <>
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1"><Label htmlFor="editable-curves" className="text-xs">Editable curves</Label>
+        <HelpHint label="editable curves">Off by default: detection makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles after re-detection or adjustment. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
+      <Switch id="editable-curves" checked={trace.editableCurves || !!trace.curves} disabled={processing}
+        onCheckedChange={enabled => {
+          if (enabled && trace.outline.length > 0 && trace.region && trace.imageUrl) setConfirmCurves(true);
+          else dispatch({ type: "SET_EDITABLE_CURVES", enabled });
+        }} />
+    </div>
     <Dialog open={confirmCurves} onOpenChange={setConfirmCurves}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect before using curves?</DialogTitle>
@@ -112,19 +129,10 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
         <Button onClick={() => {
           setConfirmCurves(false);
           dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
-          apply({ sensitivity, includeInteriorHoles, boundary: trace.boundaryMethod, editableCurves: true });
+          onReprocess({ sensitivity, includeInteriorHoles, boundary: trace.boundaryMethod, editableCurves: true });
         }}>Re-detect photo</Button>
         <Button variant="outline" onClick={() => { setConfirmCurves(false); dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }); }}>Keep current outline</Button>
         <Button variant="ghost" onClick={() => setConfirmCurves(false)}>Cancel</Button>
-      </DialogContent>
-    </Dialog>
-    <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>
-          <DialogDescription>This replaces manual contour edits with a fresh detection. Undo restores your edited outline.</DialogDescription>
-        </DialogHeader>
-        <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>Replace manual edits</Button>
-        <Button variant="outline" onClick={cancel}>Keep my edits</Button>
       </DialogContent>
     </Dialog>
   </>;

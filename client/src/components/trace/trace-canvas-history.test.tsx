@@ -354,7 +354,7 @@ describe("TraceCanvas edit history", () => {
       }
       expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
       expect(trace!.history.stack).toHaveLength(before); expect(trace!.curves).toBeUndefined();
-      click(mode === "reconstruct" ? "Apply simplified outline" : "Apply fit");
+      click(mode === "reconstruct" ? "Apply" : "Apply fit");
       const curves = trace!.curves!;
       expect(curves[0].outer.length).toBeLessThan(48); expect(trace!.history.stack).toHaveLength(before + 1);
       const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(trace!)!)));

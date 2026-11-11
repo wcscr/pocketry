@@ -1005,7 +1005,8 @@ describe("Trace detection workflow", () => {
   });
 
   it("keeps shaded, recognized Pocketry paper in tool-edge mode", async () => {
-    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    function Automatic() { const { dispatch } = useTrace(); React.useEffect(() => dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" }), [dispatch]); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Automatic /><TracePage /></TraceProvider></PanelProvider>));
     const width = 120, height = 180, data = new Uint8ClampedArray(width * height * 4);
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++)
       data.set(y < 8 && x < 30 ? [185, 180, 175, 255] : [112, 108, 105, 255], (y * width + x) * 4);
@@ -1019,15 +1020,15 @@ describe("Trace detection workflow", () => {
   });
 
   it.each([false, true])("Automatic uses color for a dark background or requested interior holes (holes=%s)", async holes => {
-    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    function Automatic() { const { dispatch } = useTrace(); React.useEffect(() => {
+      dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" });
+      dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: holes });
+    }, [dispatch]); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Automatic /><TracePage /></TraceProvider></PanelProvider>));
     const data = new Uint8ClampedArray(40 * 20 * 4).fill(holes ? 255 : 45);
     for (let i = 3; i < data.length; i += 4) data[i] = 255;
     getToolDetectionFrameMock.mockReturnValue({ imageData: { width: 40, height: 20, data },
       region: { x: 80, y: 90, width: 200, height: 100 }, toWorking: { x: 5, y: 5 } });
-    if (holes) {
-      function EnableHoles() { const { dispatch } = useTrace(); React.useEffect(() => dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true }), [dispatch]); return null; }
-      await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><EnableHoles /><TracePage /></TraceProvider></PanelProvider>));
-    }
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
     expect(getImageDataMock).toHaveBeenCalledWith({ x: 80, y: 90, width: 200, height: 100 });
     expect(processImageMock.mock.lastCall![1].detect.boundary).toBe("color");

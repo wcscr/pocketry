@@ -32,18 +32,19 @@ it("reconstructs from dense evidence in an explicit preview and applies one edit
   const dense = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
   React.act(() => root.render(<Harness input={rounded} dense={dense} />));
   React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Auto-simplify outline").click());
+  await React.act(async () => button("Simplify outline").click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).toBeNull();
-  React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  React.act(() => button("Original").click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).not.toBeNull();
   expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
-  React.act(() => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
-  expect(host.textContent).toContain("256 →");
+  React.act(() => button("Preview").click());
+  // Compare with the visible outline, not hidden 256-point detection evidence.
+  expect(host.textContent).toContain("48 →");
   expect(onCommit).not.toHaveBeenCalled();
   expect(host.querySelector('[data-testid="curve-fit-preview"]')!.getAttribute("d")).toContain("C");
-  React.act(() => button("Apply simplified outline").click());
+  React.act(() => button("Apply").click());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit.mock.calls[0][1]).toBe("Auto-simplify outline");
+  expect(onCommit.mock.calls[0][1]).toBe("Simplify outline");
   expect(saved![0].outer.length).toBeLessThan(rounded[0].outer.length);
 });
 
@@ -56,9 +57,9 @@ it("cancels a pending reconstruction and ignores its late worker result", async 
   try {
     React.act(() => root.render(<Harness input={rounded} dense={rounded} />));
     React.act(() => button("Bend edges").click());
-    await React.act(async () => button("Auto-simplify outline").click());
-    expect(host.textContent).toContain("Simplifying outline");
-    expect(button("Apply simplified outline").disabled).toBe(true);
+    await React.act(async () => button("Simplify outline").click());
+    expect(host.textContent).toContain("Updating preview");
+    expect(button("Apply").disabled).toBe(true);
     React.act(() => button("Cancel").click());
     expect(signal?.aborted).toBe(true);
     await React.act(async () => finish({ curves: [], changed: true } as never));
@@ -67,20 +68,44 @@ it("cancels a pending reconstruction and ignores its late worker result", async 
   } finally { invoke.mockRestore(); }
 });
 
-it("offers detail presets without applying and explains the detected-boundary reference", async () => {
+it("previews visible detail choices without saving and compares the original", async () => {
   React.act(() => root.render(<Harness input={rounded} dense={rounded} />)); React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Auto-simplify outline").click());
-  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Maximum change from detected outline (mm)"]')!;
+  await React.act(async () => button("Simplify outline").click());
+  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Allowed edge movement (mm)"]')!;
   const balanced = Number(field().value);
   expect(field().closest("details")!.open).toBe(false);
-  await React.act(async () => { const preset = host.querySelector<HTMLSelectElement>('[aria-label="Outline detail"]')!;
-    expect(preset.value).toBe("balanced"); preset.value = "smooth"; preset.dispatchEvent(new Event("change", { bubbles: true })); });
-  expect(Number(field().value)).toBeGreaterThan(balanced); expect(onCommit).not.toHaveBeenCalled();
-  React.act(() => field().closest("details")!.querySelector("summary")!.click());
-  await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About boundary allowance"]')!.click());
-  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("detected boundary");
-  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("0.2 mm");
+  expect(button("Balanced").getAttribute("aria-pressed")).toBe("true");
+  await React.act(async () => button("Smoother").click());
+  expect(Number(field().value)).toBeGreaterThan(balanced);
+  expect(button("Smoother").getAttribute("aria-pressed")).toBe("true");
+  expect(onCommit).not.toHaveBeenCalled();
+  expect(host.textContent).not.toContain("Update preview");
+  expect(host.textContent).not.toContain("Advanced");
   React.act(() => button("Cancel").click()); expect(onCommit).not.toHaveBeenCalled(); expect(saved).toBeUndefined();
+});
+
+it("updates a custom amount automatically, blocks stale Apply, and cancels queued previews", async () => {
+  vi.useFakeTimers();
+  try {
+    React.act(() => root.render(<Harness input={rounded} dense={rounded} />)); React.act(() => button("Bend edges").click());
+    await React.act(async () => button("Simplify outline").click());
+    const field = '[aria-label="Allowed edge movement (mm)"]';
+    inputValue(field, "2");
+    expect(button("Apply").disabled).toBe(true);
+    expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
+    await React.act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
+    expect(button("Apply").disabled).toBe(false);
+    expect(onCommit).not.toHaveBeenCalled();
+    inputValue(field, "");
+    expect(button("Apply").disabled).toBe(true);
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("greater than zero");
+    inputValue(field, "3");
+    React.act(() => button("Cancel").click());
+    await React.act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
+    expect(onCommit).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 const button = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!;

@@ -2,11 +2,12 @@
 
 The [combined detector](outline-combined-detector.md) adds geometry preservation,
 tool/paper correction strokes, and original-photo sampling to Claude's detector.
-Its [November 11 comparison](outline-combined-validation-2026-11-11.md) records the
-current 36-case comparison; earlier report measurements below remain historical.
+The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) records the current
+36-case comparison; earlier report measurements below remain historical.
 
-**Automatic · match background** is the default for new traces. Draw a region
-around one tool, leaving paper visible around it. Automatic checks that rim:
+**Tool edges · white sheet** is the default for new sessions. Draw a region
+around one tool, leaving light paper visible around it. **Automatic · match
+background** remains available and checks that rim:
 light neutral paper uses **Tool edges · white sheet**; recognized sheet markers
 also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
@@ -53,8 +54,10 @@ were tested separately.
 
 Detection finds a boundary and automatically reconstructs supported lines and
 rounded sections. Point mode samples the fitted curves; Editable curves is off
-by default and retains native handles when enabled. **Adjust simplification**
-previews a different allowance from the retained dense boundary. Enabling
+by default and retains native handles when enabled. **Simplify outline**
+offers More detail, Balanced and Smoother with automatic previews and an
+Original/Preview comparison. Custom amount exposes the exact allowance from
+the retained dense boundary. Enabling
 Editable curves on an existing detection asks whether to keep the current outline or re-detect and replace edits; Undo can
 restore the previous source. Detection and cleanup commit together as one Undo
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.

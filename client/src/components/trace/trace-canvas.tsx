@@ -1119,7 +1119,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             </div>}
           </div>}
           {cleanup.open && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto" data-testid="outline-cleanup-panel">
-            <div className="flex max-h-[60vh] max-w-lg flex-wrap items-center gap-2 overflow-y-auto rounded-lg border bg-background p-3 shadow-md" role="region" aria-label="Auto-simplify outline preview">{cleanup.controls}</div>
+            <div className="max-h-[60vh] w-full overflow-y-auto rounded-xl border bg-background p-4 shadow-lg md:w-[23rem]" role="region" aria-label="Simplify outline preview">{cleanup.controls}</div>
           </div>}
 
           <CanvasToolbar position="bottom-right">

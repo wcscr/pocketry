@@ -257,7 +257,7 @@ it("offers auto-simplify directly after detection without entering manual editin
   const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
   React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
   const action = () => host.querySelector<HTMLButtonElement>('[data-testid="button-smooth-outline"]')!;
-  expect(action().textContent).toContain("Adjust simplification"); expect(action().disabled).toBe(false);
+  expect(action().textContent).toContain("Simplify outline"); expect(action().disabled).toBe(false);
   const history = trace.history;
   await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
   React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
@@ -990,6 +990,7 @@ describe("automatic sensitivity detection", () => {
 
   it("applies the interior-hole option immediately through the same detection flow", async () => {
     await prepareOutline();
+    React.act(() => trace.dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" }));
     await React.act(async () => host.querySelector<HTMLButtonElement>('#include-interior-holes')!.click());
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
     expect(trace.includeInteriorHoles).toBe(true);

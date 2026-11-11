@@ -8,6 +8,11 @@ There is no printing-uncertainty mask or experimental source-edge fitting stage.
 
 ## Detection and corrections
 
+New sessions default to **Tool edges · white sheet**. Automatic background
+selection and Color contrast remain available; saved drafts retain their method.
+Sensitivity and the point simplification slider are under **Manual detection
+settings**. **Editable curves** sits below the main outline actions.
+
 The automatic detector still receives Claude's copy with inferred sheet ink
 removed. It preserves the original input separately. **Correct → Mark tool** or
 **Mark paper** supplies local hard seeds to a bounded region solve using that
@@ -44,7 +49,7 @@ A conservative simplification or the accepted silhouette is the fallback. These
 checks protect detected material; they cannot recover material segmentation
 already missed. User clearance is applied afterward.
 
-The **Manual** simplification control applies the user's chosen tolerance to
+The **Manual detection settings** simplification control applies the user's chosen tolerance to
 the refinement source. It does not silently cancel the adjustment under the
 automatic detector's fixed minimum allowance. Automatic cleanup also uses the
 same detail budget as detection; a separate sub-pixel cap previously defeated

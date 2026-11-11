@@ -4,19 +4,25 @@ Tracks [#156](https://github.com/wcscr/pocketry/issues/156).
 
 ## Controls
 
-**Editable curves** is off by default. Detection automatically reconstructs
+**Editable curves**, below the main outline actions, is off by default. Detection automatically reconstructs
 lines and rounded sections, producing points sampled from the fitted curves. Enabling the switch on an
 existing detection asks whether to keep that outline or re-detect from the photo
 and replace edits. Undo restores the previous outline. The switch enables native
 curves for re-detection or the next adjustment; it does not discard current edits
 without that choice. Detection and cleanup form one Undo step.
 
-Use **Adjust simplification** after detection to preview another allowance for
-the supported straight lines and rounded sections. More detail / Balanced / Smoother choose an allowance;
-**Maximum change from detected outline** bounds movement from the dense detected
-polygon in mm after calibration, or px otherwise. It is not distance from the
-physical tool or pocket clearance. Compare original/preview, then Apply or Cancel.
+Use **Simplify outline** after detection. The visible **More detail**, **Balanced**
+and **Smoother** choices update the preview immediately. **Custom amount** exposes
+the allowed movement from the dense detected polygon in mm after calibration,
+or px otherwise; typing updates the preview automatically. It is not distance
+from the physical tool or pocket clearance. **Original** shows the outline that
+was on screen before opening the panel; **Preview** shows the proposed result.
+Point counts compare those same two outlines, rather than hidden detection
+samples. A finer setting can add points to an already simplified outline.
+Apply saves the preview; Cancel or Escape keeps the current outline.
 Apply makes one Undo step. Manual edits must be undone before reconstructing again.
+See the [November 11 controls validation](outline-controls-2026-11-11.md) for
+local browser and automated checks of this flow.
 
 Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
 upright Bin pocket. Tilted/profile pockets retain their editing restriction.

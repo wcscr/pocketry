@@ -226,7 +226,7 @@ export const initialTraceState: TraceState = {
     index: 0,
   },
   sensitivity: 128,
-  boundaryMethod: "auto",
+  boundaryMethod: "teed",
   editableCurves: false,
   includeInteriorHoles: false,
   tolerancePx: 1.2,

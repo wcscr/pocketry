@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
+import { TraceCurveSettings, TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
 import {
   Tooltip,
   TooltipContent,
@@ -888,8 +888,8 @@ export function TraceControlsPanel({
           {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
             <div className="flex items-center gap-1"><Button variant="default" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
               data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
-              <Spline className="h-4 w-4" />Adjust simplification
-            </Button><HelpHint label="auto-simplify outline">Detection already cleans up straight lines and rounded sections. Adjust the amount with a More detail, Balanced or Smoother preview. Cancel keeps the current outline; Apply is one undoable edit. This works after either detection method.</HelpHint></div>
+              <Spline className="h-4 w-4" />Simplify outline
+            </Button><HelpHint label="auto-simplify outline">Choose More detail, Balanced or Smoother and compare the preview with the original outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
             {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
           </div>}
           {hasOutline && <TraceSymmetryTool />}
@@ -907,11 +907,13 @@ export function TraceControlsPanel({
             <Spline className="h-4 w-4" />Edit outline
           </Button>
 
+          <div className="border-t pt-3"><TraceCurveSettings onReprocess={onReprocess} /></div>
+
           <div className="space-y-1.5" data-testid="detection-contours">
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Detection cleans up lines and rounded sections automatically; Adjust simplification previews another allowance. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
+                Detection cleans up lines and rounded sections automatically; Simplify outline previews another allowance. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>

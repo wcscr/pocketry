@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { applySensitivity } from "@/lib/detect/otsu";
-import { TraceDetectionControls } from "./trace-detection-controls";
+import { TraceCurveSettings, TraceDetectionControls } from "./trace-detection-controls";
 import { asymmetricHandle } from "@/lib/geometry/curve-symmetry.test-support";
 
 class NoopResizeObserver implements ResizeObserver {
@@ -16,7 +16,7 @@ afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 it("makes editable curves discoverable and opt-in, with undoable conversion and recovery", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
-  let trace!: TraceStore; function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={() => {}} />; }
+  let trace!: TraceStore; function Harness() { trace = useTrace(); return <TraceCurveSettings onReprocess={() => {}} />; }
   const host = document.createElement("div"); document.body.appendChild(host); const root = createRoot(host);
   try {
     await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
@@ -33,7 +33,7 @@ it("makes editable curves discoverable and opt-in, with undoable conversion and 
 it.each(["Cancel", "Keep current outline", "Re-detect photo"])("asks before enabling curves on an existing trace: %s", async choice => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   let trace!: TraceStore; const reprocess = vi.fn();
-  function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+  function Harness() { trace = useTrace(); return <TraceCurveSettings onReprocess={reprocess} />; }
   const host = document.createElement("div"); document.body.appendChild(host); const root = createRoot(host);
   try {
     await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
@@ -49,12 +49,12 @@ it.each(["Cancel", "Keep current outline", "Re-detect photo"])("asks before enab
     React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === choice)!.click());
     expect(trace.editableCurves).toBe(choice !== "Cancel");
     expect(trace.outline).toBe(outline); expect(trace.history).toBe(history);
-    if (choice === "Re-detect photo") expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "auto", editableCurves: true });
+    if (choice === "Re-detect photo") expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", editableCurves: true });
     else expect(reprocess).not.toHaveBeenCalled();
   } finally { React.act(() => root.unmount()); }
 });
 
-it("defaults to automatic detection, allows manual choices, and suppresses holes in tool-edge mode", async () => {
+it("defaults to tool edges, allows manual choices, and suppresses holes in tool-edge mode", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   let trace!: TraceStore;
@@ -64,9 +64,9 @@ it("defaults to automatic detection, allows manual choices, and suppresses holes
   const root = createRoot(host);
   try {
     await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
-    expect(trace.boundaryMethod).toBe("auto");
-    expect(host.querySelector<HTMLSelectElement>("#outline-detection-method")!.value).toBe("auto");
-    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(false);
+    expect(trace.boundaryMethod).toBe("teed");
+    expect(host.querySelector<HTMLSelectElement>("#outline-detection-method")!.value).toBe("teed");
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
     expect(reprocess).not.toHaveBeenCalled();
     await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
       method.value = "color"; method.dispatchEvent(new Event("change", { bubbles: true })); });
