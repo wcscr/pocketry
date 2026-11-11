@@ -1,0 +1,77 @@
+# Editable outline curves
+
+Tracks [#156](https://github.com/wcscr/pocketry/issues/156).
+
+## Controls
+
+**Editable curves**, below the main outline actions, is off by default. Detection automatically reconstructs
+lines and rounded sections, producing points sampled from the fitted curves. Enabling the switch on an
+existing detection asks whether to keep that outline or re-detect from the photo
+and replace edits. Undo restores the previous outline. The switch enables native
+curves for re-detection or the next adjustment; it does not discard current edits
+without that choice. Detection and cleanup form one Undo step.
+
+Use **Auto simplify outline** after detection. **More detail**, **Balanced** and
+**Smoother** update one preview; **Original / Preview** compares it with the
+current outline. Apply saves one Undo step; Cancel or Escape keeps the outline.
+Sensitivity and the point simplification slider are under the **Manual detection
+settings** button directly below Auto simplify. Auto has no numeric controls.
+
+Auto smoothing uses the accepted outline, never the raw segmentation boundary.
+The levels permit at most 0.05 / 0.1 / 0.2 mm of movement (0.5 / 1 / 2 px without
+calibration), with progressively wider smoothing along the boundary. Sharp
+corners stop the filter. A bounded curve fit retains fine sampling independently
+of the level. Stronger choices retain a weaker safe result if a new fit would
+cross an edge or increase measured alternating bumps. Already smooth or constrained
+features can therefore plateau. Point counts can increase to describe a smoother
+edge; a lower count is not the quality criterion. This allowance measures movement
+from the current outline, not accuracy against the physical tool or pocket clearance.
+Manual edits must be undone before running Auto again.
+See the [November 11 smoothing validation](outline-simplification-fix-2026-11-11.md).
+
+Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
+upright Bin pocket. Tilted/profile pockets retain their editing restriction.
+
+- Drag an edge to bend it, an anchor to move it with its handles, or a handle to
+  shape the curve. Click an edge to add a point; right-click an anchor to delete.
+- Shift-click toggles points; drag empty space for a box selection. **Select
+  points** enables tap selection. Move/delete a group together; at least three
+  points remain per ring. **Add manual contour** starts a separate four-point trace.
+- **Repair section** accepts two endpoints or a continuous run. Preview a Line
+  or Smooth curve, choose Other side or adjust Bend, then Apply/Cancel. Repair
+  intentionally replaces that section; it has no fitting-deviation claim.
+- Selection and navigation do not make history. Completed geometry gestures
+  commit once. Escape, focus loss, a second finger or source changes cancel a
+  draft. Space/middle-drag pans; pinch zooms. Done leaves editing.
+
+Turning Editable curves off converts native curves to their displayed points in
+one undoable edit. Existing saved curves load intact. Symmetry and straightening
+preserve native curves, calibration and Undo. Left/Right symmetry mirrors the
+chosen controls; Average reconstructs a width profile. Unsupported topology keeps
+the original. Margin reshaping is disabled while curves are authoritative; use
+Bin clearance for fit.
+
+## Geometry and persistence
+
+`CurveOutline` retains the same outer/hole hierarchy as `Outline`. Anchors have
+optional absolute incoming/outgoing Bézier handles; an edge with no handles is
+a line. Reversing winding swaps handles. Rings are implicitly closed.
+
+Reconstruction detects persistent corners, prefers supported finite straight
+runs and fits cubic spans elsewhere. Bounds apply continuously along source
+edges, including between vertices; failed fits retain the previous source.
+Adaptive topology checks reject crossings and changed hole relationships, but
+are not a proof for arbitrarily tiny features. Fitting approximates detected
+geometry; it does not infer exact arcs or concealed tool shapes.
+
+Curve sources survive Trace recovery, one-step Undo/Redo, separate pocket/hole
+handoff, Bin revisions and project backups. Project schema 61 migrates supported
+older projects, including the two version-60 representations. Trace draft schema
+2 accepts schema 1. Scale/Y-flip conversion transforms points and handles together
+once. Derived samples use a 0.025 mm finite-chord bound; that is a sampling bound,
+not a manufacturing tolerance.
+
+Trace SVG can retain native cubics when no hole/material boolean is required.
+DXF, mesh and Bin exports use adaptive polygon samples. Save a Pocketry project
+backup to retain editable handles. Software checks, exported geometry, slicer
+checks and physical fit are separate forms of validation.

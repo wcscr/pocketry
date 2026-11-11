@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { RingList } from "./ring-list";
 import type { Outline } from "@shared/geometry/types";
+import { curvesFromOutline, editCurves } from "@shared/geometry/curves";
 
 const role = vi.hoisted(() => ({ change: vi.fn() }));
 vi.mock("@/lib/geometry/contour-role", () => ({ changeContourRole: role.change }));
@@ -27,6 +28,14 @@ function detect() {
     trace.dispatch({ type: "DETECTED", outline: pockets, rawOutline: pockets, svg: "", imageUrl: "photo", region: null });
   });
 }
+
+it("counts editable anchors rather than export samples after a curve edit", () => {
+  detect();
+  const curves = editCurves(curvesFromOutline(pockets), { shapeIndex: 0, ringIndex: -1 }, { kind: "bend", index: 0, t: .5, delta: { x: 0, y: -12 } });
+  React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves, label: "Bend edge" }));
+  expect(trace.outline[0].outer.length).toBeGreaterThan(4);
+  expect(host.querySelectorAll("li")[0].textContent).toContain("4 pts");
+});
 async function chooseHole() {
   const select = host.querySelector<HTMLSelectElement>('[aria-label="Shape 2 type"]')!;
   await React.act(async () => { select.value = "hole"; select.dispatchEvent(new Event("change", { bubbles: true })); });
@@ -77,7 +86,7 @@ it("distinguishes a missing region, active detection, and an empty result", () =
   });
   expect(host.querySelector('[role="status"]')?.textContent).toBe("Looking for the tool’s outline…");
   React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: false }));
-  expect(host.querySelector('[role="status"]')?.textContent).toBe("No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
+  expect(host.querySelector('[role="status"]')?.textContent).toBe("No outline found. Choose Add manual contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
   React.act(() => trace.dispatch({ type: "SET_REGION", region: null }));
   expect(host.textContent).toContain("Set a detection region around the tool");
 });

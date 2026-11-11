@@ -1,3 +1,4 @@
+import { compareContours, outlineRoughness } from "@shared/geometry/contour-metrics";
 import { ringArea, signedArea } from "@shared/geometry/rings";
 import { describe, expect, it } from "vitest";
 
@@ -96,6 +97,25 @@ const blockWithHole = (x: number, y: number): boolean => {
 };
 
 const JS = { engine: "js" } as const;
+
+describe("corrections after sheet-print removal", () => {
+  it.each(["color", "teed"] as const)("uses original appearance through the %s path", async (boundary) => {
+    const image = paint(120, 100, rect(40, 30, 80, 70));
+    const original = image.data.slice();
+    const options = { ...JS, boundary, paperBackground: true, refine: "none" as const,
+      sheetInk: { regions: [{ x: 30, y: 20, width: 60, height: 60, kind: "solid" as const }], strokePx: 5 } };
+    const automatic = await detectOutline(image, options);
+    expect(pointInOutline(automatic.outline, { x: 60, y: 50 })).toBe(false);
+    const corrected = await detectOutline(image, { ...options,
+      hints: [{ kind: "tool", points: [{ x: 60, y: 40 }, { x: 60, y: 60 }], radius: 1 }] });
+    // Recover the object beyond the brush, stopping at its original appearance
+    // boundary. A solve on the erased copy would grow into the surrounding paper.
+    expect(pointInOutline(corrected.outline, { x: 43, y: 50 })).toBe(true);
+    expect(pointInOutline(corrected.outline, { x: 38, y: 50 })).toBe(false);
+    expect(image.data).toEqual(original);
+    if (boundary === "teed") expect(corrected.refinement?.status).toBe("fallback");
+  });
+});
 
 describe("detectOutline: basic shapes", () => {
   it("finds a rectangle with the right bounds and area", async () => {
@@ -297,6 +317,61 @@ describe("detectOutline: options", () => {
     expect(Object.keys(result.timings)).toEqual(
       expect.arrayContaining(["segment", "trace", "refine"]),
     );
+  });
+
+  it("leaves the dense trace alone unless outward smoothing is asked for", async () => {
+    const image = paint(200, 200, (x, y) => Math.abs(x - 100) + Math.abs(y - 100) < 70);
+    const plain = await detectOutline(image, JS);
+    expect(plain.timings.outerSmoothing).toBeUndefined();
+    expect((await detectOutline(image, { ...JS, outerSmoothingPx: 0 })).rawOutline).toEqual(plain.rawOutline);
+  });
+
+  it.each([4, "auto"] as const)("smooths the dense trace outward when asked (%s)", async (outerSmoothingPx) => {
+    // A block whose top edge steps up and down by two pixels every four.
+    const image = paint(200, 200, (x, y) => x > 30 && x < 170 && y > 60 + (Math.floor(x / 4) % 2) * 2 && y < 150);
+    const plain = await detectOutline(image, JS);
+    const smooth = await detectOutline(image, { ...JS, outerSmoothingPx });
+    expect(smooth.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
+    expect(smooth.rawOutline).toHaveLength(1);
+    expect(signedArea(smooth.rawOutline[0].outer)).toBeGreaterThan(0);
+
+    const settings = { spacing: 0.2, scale: 2, minAmplitude: 0.2 };
+    expect(outlineRoughness(plain.rawOutline, settings).reversals).toBeGreaterThan(20);
+    expect(outlineRoughness(smooth.rawOutline, settings).reversals).toBe(0);
+    // The trace does not reach outside the smoothed ring, and the ring grew by well under a pixel on average.
+    expect(compareContours(plain.rawOutline, smooth.rawOutline, { spacing: 0.2 }).excessMax).toBeLessThan(0.25);
+    const grown = compareContours(smooth.rawOutline, plain.rawOutline, { spacing: 0.2 });
+    expect(grown.signedOffsetMean).toBeGreaterThan(0);
+    expect(grown.signedOffsetMean).toBeLessThan(0.5);
+    // The simplified outline is derived from the smoothed trace.
+    expect(outlineArea(smooth.outline)).toBeGreaterThan(outlineArea(plain.outline) * 0.99);
+  });
+
+  it("keeps holes and separate objects through outward smoothing", async () => {
+    const holed = await detectOutline(paint(200, 200, blockWithHole), { ...JS, outerSmoothingPx: 4 });
+    const plain = await detectOutline(paint(200, 200, blockWithHole), JS);
+    expect(holed.rawOutline.map((shape) => shape.holes.length)).toEqual(plain.rawOutline.map((shape) => shape.holes.length));
+    for (const shape of holed.rawOutline) for (const hole of shape.holes) expect(signedArea(hole)).toBeLessThan(0);
+    const two = paint(240, 120, (x, y) => rect(20, 30, 100, 90)(x, y) || rect(140, 30, 220, 90)(x, y));
+    expect((await detectOutline(two, { ...JS, outerSmoothingPx: 4 })).rawOutline).toHaveLength(2);
+  });
+
+  it("removes the sheet's known printing before it can attach to the tool", async () => {
+    // A block with a thin ruled line running out of both its sides, like a handle lying on the bar.
+    const image = paint(240, 160, (x, y) => rect(90, 30, 150, 130)(x, y) || (x >= 20 && x < 220 && y >= 100 && y < 102));
+    const plain = await detectOutline(image, JS);
+    expect(plain.timings.sheetInk).toBeUndefined();
+    expect(outlineBounds(plain.outline)!.maxX - outlineBounds(plain.outline)!.minX).toBeGreaterThan(150);
+
+    const sheetInk = { regions: [{ x: 10, y: 88, width: 220, height: 24, kind: "rule" as const }], strokePx: 5 };
+    const clean = await detectOutline(image, { ...JS, sheetInk });
+    expect(clean.timings.sheetInk).toBeGreaterThanOrEqual(0);
+    expect(clean.outline).toHaveLength(1);
+    const bounds = outlineBounds(clean.outline)!;
+    expect(bounds.minX).toBeGreaterThan(86);
+    expect(bounds.maxX).toBeLessThan(154);
+    expect(bounds.minY).toBeLessThan(33);
+    expect(bounds.maxY).toBeGreaterThan(127);
   });
 
   it("honours an abort signal", async () => {

@@ -4,6 +4,7 @@ import { Circle, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { ringArea } from "@shared/geometry/rings";
+import { curveRing } from "@shared/geometry/curves";
 import { mmPerPixel } from "@shared/geometry/scale";
 import { OUTER_RING, type RingRef } from "@shared/geometry/types";
 
@@ -31,7 +32,7 @@ export function RingList(): JSX.Element {
 
 function RingListContent(): JSX.Element {
   const openMenu = useContourContextMenu();
-  const { outline, selection, calibration, region, processing, sourceRevision, dispatch } = useTrace();
+  const { outline, curves, selection, calibration, region, processing, sourceRevision, dispatch } = useTrace();
   const [changingRole, setChangingRole] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
   const latest = useRef({ outline, sourceRevision });
@@ -75,7 +76,7 @@ function RingListContent(): JSX.Element {
     return (
       <p role="status" className="text-xs text-muted-foreground">
         {processing ? "Looking for the tool’s outline…"
-          : region ? "No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool."
+          : region ? "No outline found. Choose Add manual contour to trace manually, increase Sensitivity, or redraw the region around the whole tool."
           : "No outline yet. Set a detection region around the tool."}
       </p>
     );
@@ -160,7 +161,7 @@ function RingListContent(): JSX.Element {
                 </span>
                 {references.length > 1 && <span className="shrink-0 text-muted-foreground" title={`Shared by ${references.length} pockets`}>Shared</span>}
                 <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
-                  {ring.length} pts · {describeArea(ringArea(ring))}
+                  {curves ? curveRing(curves, ref)?.length ?? ring.length : ring.length} pts · {describeArea(ringArea(ring))}
                 </span>
               </button>
 

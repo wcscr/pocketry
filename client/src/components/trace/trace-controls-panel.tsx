@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TraceDetectionControls } from "./trace-detection-controls";
+import { TraceCurveSettings, TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
 import {
   Tooltip,
   TooltipContent,
@@ -71,6 +71,8 @@ import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { RingList } from "./ring-list";
 import { revealTraceStep } from "./reveal-trace-step";
 import { TracePanelSections } from "./trace-panel-sections";
+import { outlineCleanupUnavailable } from "./outline-cleanup";
+import { TraceSymmetryTool } from "./trace-symmetry-tool";
 import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 import { TraceRestartDialog } from "./trace-restart-dialog";
@@ -85,11 +87,12 @@ export interface TraceControlsPanelProps {
   active?: boolean;
   settingsSectionRequest?: { id: string };
   onCanvasInteraction?: () => void;
+  onSmoothOutline?: () => void;
   onReplaceImage: () => void;
   onStartOver: () => void;
   onRotateImage: (direction: ImageRotationDirection) => void;
   onExport: () => void;
-  onReprocess: (settings?: { sensitivity: number; includeInteriorHoles: boolean }) => void;
+  onReprocess: (settings?: DetectionSettings) => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
   onDetectMarkers: () => void;
   /** Paper scale by default; false for manual scale, or an aid ruler to transform. */
@@ -117,6 +120,7 @@ export function TraceControlsPanel({
   onRotateImage,
   onExport,
   onReprocess,
+  onSmoothOutline,
   onDetectMarkers,
   onApplyPerspective,
   settingsSectionRequest,
@@ -242,6 +246,7 @@ export function TraceControlsPanel({
   latestMarginGeometry.current = { outline, margin, calibration };
 
   const handleMarginChange = (nextMargin: number): void => {
+    if (store.curves) return;
     const request = ++marginRequest.current;
 
     void (async () => {
@@ -879,31 +884,43 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
-          <TraceDetectionControls onReprocess={onReprocess} />
+          <TraceDetectionControls onReprocess={onReprocess} outlineActions={<>
+          {hasOutline && <TraceSymmetryTool />}
           <Button variant="outline" size="sm" className="w-full"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
             onClick={() => { dispatch({ type: "ADD_CONTOUR" }); onCanvasInteraction(); }}
             data-testid="button-add-contour">
-            <SquarePlus className="h-4 w-4" />Add contour
+            <SquarePlus className="h-4 w-4" />Add manual contour
           </Button>
           <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
             size="sm" className="w-full" disabled={!hasOutline || processing}
             aria-pressed={store.mode === "edit" || store.mode === "remove"}
             onClick={() => { dispatch({ type: "SET_MODE", mode: "edit" }); onCanvasInteraction(); }}
             data-testid="button-edit-contour">
-            <Spline className="h-4 w-4" />Edit Contour
+            <Spline className="h-4 w-4" />Edit outline
           </Button>
+
+          <div className="border-t pt-3"><TraceCurveSettings onReprocess={onReprocess} /></div>
 
           <div className="space-y-1.5" data-testid="detection-contours">
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Choose Add contour to start another trace with a four-point square, or Edit Contour to adjust an existing trace. Drag a point to move it; click an edge to add one; right-click a point to remove it. On a phone, tap a point to show Delete point and pinch to zoom. Select only changes the selection.
+                Detection cleans up lines and rounded sections automatically; Auto simplify outline previews another allowance. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>
             <RingList />
           </div>
+          </>}>
+          {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
+            <div className="flex items-center gap-1"><Button variant="default" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
+              data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
+              <Spline className="h-4 w-4" />Auto simplify outline
+            </Button><HelpHint label="auto-simplify outline">Choose More detail, Balanced or Smoother and compare the preview with the original outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
+            {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
+          </div>}
+          </TraceDetectionControls>
         </PanelSection>
 
         <PanelSection
@@ -927,7 +944,7 @@ export function TraceControlsPanel({
             <Select
               value={scale.mmPerPx && margin !== null ? String(margin) : undefined}
               onValueChange={(value) => handleMarginChange(Number(value))}
-              disabled={!scale.mmPerPx}
+              disabled={!scale.mmPerPx || !!store.curves}
             >
               <SelectTrigger id="margin" className="w-full">
                 <SelectValue
@@ -944,7 +961,8 @@ export function TraceControlsPanel({
             </Select>
           </div>
 
-          <Button variant="outline" size="sm" className="w-full" disabled={!margin}
+          {store.curves && <p className="text-xs text-muted-foreground">Use Bin clearance to adjust fit while keeping your curves.</p>}
+          <Button variant="outline" size="sm" className="w-full" disabled={!margin || !!store.curves}
             data-testid="button-reset-margin" onClick={() => handleMarginChange(0)}>Reset to zero</Button>
         </PanelSection>
 

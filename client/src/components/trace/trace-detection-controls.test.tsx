@@ -3,7 +3,8 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { applySensitivity } from "@/lib/detect/otsu";
-import { TraceDetectionControls } from "./trace-detection-controls";
+import { TraceCurveSettings, TraceDetectionControls } from "./trace-detection-controls";
+import { asymmetricHandle } from "@/lib/geometry/curve-symmetry.test-support";
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -12,6 +13,79 @@ class NoopResizeObserver implements ResizeObserver {
 }
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+
+it("makes editable curves discoverable and opt-in, with undoable conversion and recovery", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore; function Harness() { trace = useTrace(); return <TraceCurveSettings onReprocess={() => {}} />; }
+  const host = document.createElement("div"); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    const toggle = () => host.querySelector<HTMLButtonElement>('#editable-curves')!;
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    React.act(() => toggle().click()); expect(trace.editableCurves).toBe(true); expect(trace.curves).toBeUndefined();
+    React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: asymmetricHandle, label: "Curves" }));
+    const curves = trace.curves, index = trace.history.index;
+    React.act(() => toggle().click()); expect(trace.curves).toBeUndefined(); expect(trace.editableCurves).toBe(false); expect(trace.history.index).toBe(index + 1);
+    React.act(() => trace.undo()); expect(trace.curves).toEqual(curves); expect(toggle().getAttribute("aria-checked")).toBe("true");
+  } finally { React.act(() => root.unmount()); }
+});
+
+it.each(["Cancel", "Keep current outline", "Re-detect photo"])("asks before enabling curves on an existing trace: %s", async choice => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore; const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceCurveSettings onReprocess={reprocess} />; }
+  const host = document.createElement("div"); document.body.appendChild(host); const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    React.act(() => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" });
+      trace.dispatch({ type: "SET_REGION", region: { x: 0, y: 0, width: 100, height: 100 } });
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 50, y: 90 }], holes: [] }], label: "Manual edit" });
+    });
+    const outline = trace.outline, history = trace.history;
+    React.act(() => host.querySelector<HTMLButtonElement>("#editable-curves")!.click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Undo restores them");
+    expect(trace.editableCurves).toBe(false); expect(reprocess).not.toHaveBeenCalled();
+    React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === choice)!.click());
+    expect(trace.editableCurves).toBe(choice !== "Cancel");
+    expect(trace.outline).toBe(outline); expect(trace.history).toBe(history);
+    if (choice === "Re-detect photo") expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", editableCurves: true });
+    else expect(reprocess).not.toHaveBeenCalled();
+  } finally { React.act(() => root.unmount()); }
+});
+
+it("defaults to tool edges, allows manual choices, and suppresses holes in tool-edge mode", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore;
+  const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+  const host = document.createElement("div"); document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    expect(trace.boundaryMethod).toBe("teed");
+    expect(host.querySelector<HTMLSelectElement>("#outline-detection-method")!.value).toBe("teed");
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
+    expect(reprocess).not.toHaveBeenCalled();
+    await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
+      method.value = "color"; method.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(trace.boundaryMethod).toBe("color");
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(false);
+    React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:color", fileName: "other background" }));
+    expect(trace.boundaryMethod).toBe("color");
+    React.act(() => trace.dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true }));
+    await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
+      method.value = "teed"; method.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(trace.boundaryMethod).toBe("teed");
+    expect(trace.includeInteriorHoles).toBe(false);
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", restart: true });
+    React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:new", fileName: "next tool" }));
+    expect(trace.boundaryMethod).toBe("teed");
+    expect(trace.includeInteriorHoles).toBe(false);
+  } finally { React.act(() => root.unmount()); }
+});
 
 it.each([false, true])("higher sensitivity includes more while preserving stored settings (compact=%s)", async compact => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -70,5 +144,44 @@ it.each([false, true])("names point reduction consistently in drawer and compact
       React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       expect(document.querySelector('[role="tooltip"]')).toBeNull();
     }
+  } finally { React.act(() => root.unmount()); }
+});
+
+
+it.each(["restart", "switch"])("confirms %s even without point edits, and keeps the accepted state until success", async action => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore; const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    const restart = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Restart outline detection")!;
+    expect(restart().disabled).toBe(true);
+    React.act(() => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" });
+      trace.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+      trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+      trace.dispatch({ type: "SET_TOLERANCE", tolerancePx: 3 });
+      const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 50, y: 90 }], holes: [] }];
+      trace.dispatch({ type: "DETECTED", imageUrl: "photo", region: { x: 10, y: 20, width: 300, height: 200 }, outline, rawOutline: outline, svg: "" });
+    });
+    const before = trace;
+    const request = () => React.act(() => {
+      if (action === "restart") restart().click();
+      else { const select = host.querySelector<HTMLSelectElement>("select")!; select.value = "color"; select.dispatchEvent(new Event("change", { bubbles: true })); }
+    });
+    const choose = (label: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === label)!.click());
+    request();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Your photo, calibration, region and margin stay in place");
+    expect(reprocess).not.toHaveBeenCalled();
+    choose("Keep current outline");
+    expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+    expect(trace.sensitivity).toBe(97); expect(trace.boundaryMethod).toBe("teed");
+    request(); choose(action === "restart" ? "Restart detection" : "Switch and restart");
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ restart: true, sensitivity: 128, includeInteriorHoles: false, boundary: action === "restart" ? "teed" : "color" });
+    expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+    expect(trace.sensitivity).toBe(97); expect(trace.tolerancePx).toBe(3); expect(trace.boundaryMethod).toBe("teed");
+    React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: true }));
+    expect(restart().disabled).toBe(true);
   } finally { React.act(() => root.unmount()); }
 });

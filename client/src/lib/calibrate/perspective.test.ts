@@ -1,3 +1,4 @@
+import { projectPoint } from "@shared/geometry/projective";
 import { createRequire } from "node:module";
 
 import { mmPerPixel } from "@shared/geometry/scale";
@@ -273,6 +274,9 @@ describe("perspective correction with the shipped OpenCV build", () => {
       expect(corrected.height).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.height);
       expect(corrected.width * corrected.height).toBeLessThanOrEqual(RECTIFIED_IMAGE_MAX.maxPixels);
       const paper = corrected.paperBounds!;
+      const mappedCorner = projectPoint(corrected.sourceToCorrected!, photographedCorners[0]);
+      expect(mappedCorner.x).toBeCloseTo(paper.x, 3);
+      expect(mappedCorner.y).toBeCloseTo(paper.y, 3);
       expect(paper.x).toBeGreaterThan(0);
       expect(paper.y).toBeGreaterThan(0);
       expect(mmPerPixel(corrected.calibration)).toBeCloseTo(1 / corrected.pxPerMm, 9);

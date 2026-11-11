@@ -1,3 +1,5 @@
+import { createSourcePhotoSampler } from "@/lib/source-photo";
+import type { Homography } from "@shared/geometry/projective";
 import { checkPhotoDimensions, normalizePhotoDataUrl } from "@/lib/photo-dimensions";
 import { tracePhotoError, TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -148,11 +150,24 @@ export interface UseImageSourceResult {
    * or `null` until the image is ready.
    */
   getDetectionFrame(detectMax?: ImageRasterLimit): DetectionFrame | null;
+  getToolDetectionFrame(region: Rect, signal?: AbortSignal): Promise<(DetectionFrame & { region: Rect }) | null>;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
 export function fitWithin(natural: Size, max: ImageRasterLimit): Size {
   return fitImageWithin(natural, max);
+}
+
+/** Higher-resolution ROI sampling leaves the established photo frame intact. */
+export function toolCropGeometry(working: Size, naturalPerWorking: number, region: Rect) {
+  const x = Math.max(0, Math.min(Math.round(region.x), working.width - 1));
+  const y = Math.max(0, Math.min(Math.round(region.y), working.height - 1));
+  const width = Math.max(1, Math.min(Math.round(region.width), working.width - x));
+  const height = Math.max(1, Math.min(Math.round(region.height), working.height - y));
+  const ratio = Math.min(naturalPerWorking, 1024 / Math.max(width, height));
+  const target = { width: Math.max(1, Math.round(width * ratio)), height: Math.max(1, Math.round(height * ratio)) };
+  return { region: { x, y, width, height }, target,
+    toWorking: { x: width / target.width, y: height / target.height } };
 }
 
 /** Draws the decoded source into a canvas using its selected quarter-turn. */
@@ -206,6 +221,8 @@ export function useImageSource(
   max: ImageRasterLimit = IMAGE_CANVAS_MAX,
   rotation: ImageQuarterTurns = 0,
   alignment: ImageAlignment | null = null,
+  originalUrl: string | null = null,
+  toOriginal?: Homography,
 ): UseImageSourceResult {
   const [source, setSource] = useState<ImageSource>({ status: "empty" });
   // Created imperatively: it is a pixel buffer, not part of the view.
@@ -214,6 +231,7 @@ export function useImageSource(
   // the photo at a higher resolution than the working canvas.
   const imageRef = useRef<HTMLImageElement | null>(null);
   const transparentRef = useRef(true);
+  const sampleOriginal = useRef(createSourcePhotoSampler());
 
   useEffect(() => {
     // A render can briefly still expose the previous ready state before this
@@ -344,5 +362,35 @@ export function useImageSource(
     };
   }, [source, max, rotation, alignment]);
 
-  return { source, getImageData, getDetectionFrame };
+  const getToolDetectionFrame = useCallback(async (region: Rect, signal?: AbortSignal): Promise<(DetectionFrame & { region: Rect }) | null> => {
+    const image = imageRef.current;
+    if (!image || source.status !== "ready") return null;
+    if (originalUrl && toOriginal) {
+      try {
+        const crop = toolCropGeometry(source.size, 1, region).region;
+        return { ...await sampleOriginal.current(originalUrl, toOriginal, crop, signal), sourceImageUrl: source.url };
+      } catch {
+        if (signal?.aborted) return null;
+        // Legacy/invalid geometry keeps the bounded working-raster fallback.
+      }
+    }
+    const natural = rotatedImageDimensions(source.naturalSize, rotation);
+    const reference = alignment?.sourceSize ?? source.size;
+    const geometry = toolCropGeometry(source.size, Math.min(natural.width / reference.width, natural.height / reference.height), region);
+    const { target, region: { x, y, width, height }, toWorking } = geometry;
+    const canvas = document.createElement("canvas");
+    canvas.width = target.width; canvas.height = target.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    // Canvas clips the draw to this small ROI. Original source pixels are
+    // sampled directly; no full-resolution temporary raster is allocated.
+    context.scale(target.width / width, target.height / height);
+    context.translate(-x, -y);
+    drawAlignedImage(context, image, source.size, rotation, alignment, transparentRef.current);
+    return { imageData: context.getImageData(0, 0, target.width, target.height),
+      toWorking,
+      region: { x, y, width, height }, sourceImageUrl: source.url };
+  }, [source, rotation, alignment, originalUrl, toOriginal]);
+
+  return { source, getImageData, getDetectionFrame, getToolDetectionFrame };
 }

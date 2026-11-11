@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { curveOutlineSchema } from "./geometry/curve-schema";
+import { CURVE_TOLERANCE_MM, normalizeCurves, sampleCurves } from "./geometry/curves";
+import { mmPerPixel } from "./geometry/scale";
 import { outlineSchema, vec2Schema } from "./gridfinity/cutout";
 
 const finite = z.number().finite();
@@ -9,6 +12,7 @@ const imageSize = z.object({ width: finite.positive(), height: finite.positive()
 const imageAlignment = z.object({ sourceSize: imageSize, size: imageSize,
   matrix: z.tuple([finite, finite, finite, finite, finite, finite]).refine(m => Math.abs(m[0]*m[3]-m[1]*m[2]) > 1e-12),
 });
+const detectionHints = z.array(z.object({ kind: z.enum(["tool", "paper"]), points: z.array(vec2Schema).min(1).max(4096), radius: finite.positive() })).max(100);
 const margin = finite.min(0).max(5).nullable();
 const calibrationFields = {
   startX: finite, startY: finite, endX: finite, endY: finite, lengthMm: finite.positive(),
@@ -27,6 +31,7 @@ const perspective = z.object({
 const perspectiveCorrection = z.object({
   source: z.enum(["template", "manual"]), paper, template: template.optional(),
   paperBounds: z.object({ x: finite.nonnegative(), y: finite.nonnegative(), width: finite.positive(), height: finite.positive() }).optional(),
+  toOriginal: z.tuple([finite,finite,finite,finite,finite,finite,finite,finite,finite]).optional(),
   showFullPhoto: z.boolean().optional(), fullPhotoUnavailableReason: z.string().max(500).optional(),
 }).nullable();
 const frameFields = {
@@ -37,11 +42,16 @@ const frameFields = {
   pendingPerspective: perspective.nullable(), manualPerspectivePoints: z.array(vec2Schema).max(4), perspectiveCorrection,
 };
 const historyEntry = z.object({
-  outline, label: z.string(), margin,
+  outline, curves: curveOutlineSchema.optional(), label: z.string(), margin,
   refinementBase: outline.optional(), baselineMarginPx: finite.optional(),
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
+  autoSimplification: z.object({ source: curveOutlineSchema, allowance: finite.positive(),
+    unitsPerUnit: finite.positive(), unit: z.enum(["mm", "px"]) }).optional(),
+  detection: z.object({ rawOutline: outline, sensitivity: finite.min(0).max(255),
+    boundaryMethod: z.enum(["auto", "color", "teed"]), includeInteriorHoles: z.boolean() }).optional(),
   hasManualEdits: z.boolean().optional(),
   estimatedEdgeRegions: z.array(z.array(vec2Schema).min(3)).optional(),
+  detectionHints: detectionHints.optional(),
   photoFrame: z.object(frameFields).optional(),
 });
 
@@ -49,7 +59,7 @@ const historyEntry = z.object({
  * Runtime-only processing flags and repeated image URLs are deliberately omitted.
  */
 export const traceDraftSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]).transform(() => 2 as const),
   detectionComplete: z.boolean(),
   referencesAttempted: z.boolean(),
   state: z.object({
@@ -57,12 +67,15 @@ export const traceDraftSchema = z.object({
     imageSize: z.object({ width: finite.positive(), height: finite.positive() }),
     imageRotation: rotation,
     imageAlignment: imageAlignment.nullable().default(null),
-    outline, rawOutline: outline,
+    outline, rawOutline: outline, curves: curveOutlineSchema.optional(),
     estimatedEdgeRegions: z.array(z.array(vec2Schema).min(3)).default([]),
+    detectionHints: detectionHints.default([]),
     selection: z.object({ shapeIndex: finite.int().nonnegative(), ringIndex: finite.int().min(-1) }).nullable(),
     history: z.object({ stack: z.array(historyEntry).min(1).max(50), index: finite.int().nonnegative() })
       .refine((value) => value.index < value.stack.length),
     sensitivity: finite.min(0).max(255), includeInteriorHoles: z.boolean(),
+    boundaryMethod: z.enum(["auto", "color", "teed"]).default("color"),
+    editableCurves: z.boolean().default(false),
     tolerancePx: finite.nonnegative(), smoothing: finite.nonnegative(), margin,
     calibration: calibration.nullable(), pendingAutoCalibration: calibration.nullable(),
     pendingPaperCalibration: calibration.nullable(), pendingAidRequiresPerspective: z.boolean(),
@@ -80,6 +93,25 @@ export const traceDraftSchema = z.object({
     exportFormat: z.enum(["svg", "dxf", "dwg", "stl"]).transform(format => format === "dwg" ? "dxf" : format),
     extrusionHeight: finite.positive(),
   }),
+}).transform((draft, ctx) => {
+  try {
+    const restore = <T extends { curves?: z.infer<typeof curveOutlineSchema> }>(value: T, scale: number | null) => {
+      if (!value.curves) return value;
+      const tolerance = CURVE_TOLERANCE_MM / (scale ?? 0.1);
+      const curves = normalizeCurves(value.curves, tolerance);
+      return { ...value, curves, outline: sampleCurves(curves, tolerance) };
+    };
+    const state = restore(draft.state, mmPerPixel(draft.state.calibration));
+    return { ...draft, state: { ...state, history: { ...state.history, stack: state.history.stack.map(entry => {
+      // Explicit null means this frame was uncalibrated. Only legacy frames
+      // without photo metadata inherit the current ruler.
+      const restored = restore(entry, mmPerPixel(entry.photoFrame ? entry.photoFrame.calibration : state.calibration));
+      return restored.curves ? { ...restored, refinementBase: restored.outline } : restored;
+    }) } } };
+  } catch (error) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: error instanceof Error ? error.message : "Invalid curves." });
+    return z.NEVER;
+  }
 });
 
 export type TraceDraft = z.infer<typeof traceDraftSchema>;

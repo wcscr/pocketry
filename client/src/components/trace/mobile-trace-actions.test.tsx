@@ -162,7 +162,7 @@ describe("Mobile trace progression", () => {
     await adjust("mobile-sensitivity");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Re-detect from the photo?");
     React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Keep my edits")!.click());
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // The mocked re-detection has not committed a result.
     expect(trace.outline).toBe(edited);
     expect(openSettings).not.toHaveBeenCalled();
   });

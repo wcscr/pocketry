@@ -34,6 +34,7 @@ const {
   getImageDataMock,
   processImageMock,
   getDetectionFrameMock,
+  getToolDetectionFrameMock,
   correctPerspectiveMock,
 } = vi.hoisted(() => ({
     decodeImageFileMock: vi.fn(),
@@ -41,6 +42,7 @@ const {
     getImageDataMock: vi.fn(),
     processImageMock: vi.fn(),
     getDetectionFrameMock: vi.fn(),
+    getToolDetectionFrameMock: vi.fn(),
     correctPerspectiveMock: vi.fn(),
   }));
 
@@ -70,10 +72,13 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver }: TraceControlsPanelProps) => <>
+  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver, onReprocess }: TraceControlsPanelProps) => <>
     <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
     <button data-testid="controls-add-to-bin" onClick={handoff.addToBin}>Add to bin</button>
     <button data-testid="controls-start-over" onClick={onStartOver}>Reset confirmed trace</button>
+    <button data-testid="restart-detection" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", restart: true })}>Restart detection</button>
+    <button data-testid="switch-detection" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, boundary: "color", restart: true })}>Switch detection</button>
+    <button data-testid="re-detect-native" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, editableCurves: true })}>Re-detect with curves</button>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
       points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
@@ -147,6 +152,7 @@ vi.mock("@/components/trace/use-image-source", () => {
     source: { status: "empty" as const },
     getImageData: getImageDataMock,
     getDetectionFrame: getDetectionFrameMock,
+    getToolDetectionFrame: getToolDetectionFrameMock,
   };
   const ready = {
     source: {
@@ -158,6 +164,7 @@ vi.mock("@/components/trace/use-image-source", () => {
     },
     getImageData: getImageDataMock,
     getDetectionFrame: getDetectionFrameMock,
+    getToolDetectionFrame: getToolDetectionFrameMock,
   };
   const readySources = new Map<string, typeof ready>();
 
@@ -247,6 +254,7 @@ describe("Trace detection workflow", () => {
     vi.mocked(loadTraceDraft).mockResolvedValue(null);
     vi.mocked(saveTraceDraft).mockResolvedValue();
     getDetectionFrameMock.mockReturnValue(null);
+    getToolDetectionFrameMock.mockReturnValue(null);
     vi.mocked(autoCalibrate).mockReset().mockResolvedValue({ kind: "no-markers" });
     getImageDataMock.mockReturnValue({
       width: 300,
@@ -387,6 +395,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
     expect(autoCalibrate).toHaveBeenCalledTimes(2);
     getDetectionFrameMock.mockReturnValue(null);
+    getToolDetectionFrameMock.mockReturnValue(null);
     await React.act(async () => current.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,replacement", fileName: "replacement" }));
     await React.act(async () => finish(detectedAid()));
     expect(current.imageUrl).toBe("data:image/png;base64,replacement");
@@ -961,6 +970,117 @@ describe("Trace detection workflow", () => {
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
     expect(getImageDataMock).toHaveBeenCalledExactlyOnceWith({ x: 80, y: 90, width: 200, height: 100 });
     expect(processImageMock).toHaveBeenCalledOnce();
+  });
+
+  it("stays busy during source sampling and discards a frame after the source changes", async () => {
+    let current!: ReturnType<typeof useTrace>, finish!: (value: unknown) => void;
+    function Probe(): null { current=useTrace();return null; }
+    await React.act(async()=>root.render(<PanelProvider><TraceProvider><WorkflowController/><Probe/><TracePage/></TraceProvider></PanelProvider>));
+    getToolDetectionFrameMock.mockReturnValue(new Promise(resolve=>{finish=resolve;}));
+    await React.act(async()=>host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(current.processing).toBe(true);
+    React.act(()=>current.dispatch({type:"SOURCE_CLEARED"}));
+    await React.act(async()=>finish({imageData:getImageDataMock(),region:{x:80,y:90,width:200,height:100},toWorking:{x:1,y:1}}));
+    expect(processImageMock).not.toHaveBeenCalled();expect(current.processing).toBe(false);expect(current.outline).toEqual([]);
+  });
+
+  it.each(["restart", "switch", "failure"])("%s detection preserves photo setup and commits settings with geometry, undoably", async action => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe() { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => {
+      current.dispatch({ type: "SET_REGION", region: { x: 10, y: 20, width: 300, height: 200 } });
+      current.dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+      current.dispatch({ type: "SET_MARGIN", margin: 1 });
+      current.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+      current.dispatch({ type: "SET_TOLERANCE", tolerancePx: 3 });
+      current.dispatch({ type: "SET_SMOOTHING", smoothing: 2 });
+      current.dispatch({ type: "DETECTED", imageUrl: current.imageUrl, region: { x: 10, y: 20, width: 300, height: 200 }, outline: exportOutline, rawOutline: exportOutline,
+        detectionHints: [{ kind: "tool", points: [{ x: 25, y: 25 }], radius: 4 }], svg: "" });
+      current.dispatch({ type: "OUTLINE_COMMITTED", outline: exportOutline.map(shape => ({ ...shape, outer: shape.outer.map(p => ({ ...p, x: p.x + 2 })) })), label: "Move outline" });
+    });
+    const before = current;
+    let finish!: (result: unknown) => void, fail!: (error: Error) => void;
+    processImageMock.mockReturnValueOnce(new Promise((resolve, reject) => { finish = resolve; fail = reject; }));
+    await React.act(async () => host.querySelector<HTMLButtonElement>(`[data-testid="${action === "switch" ? "switch" : "restart"}-detection"]`)!.click());
+    expect(current.processing).toBe(true);
+    expect(current.outline).toBe(before.outline); expect(current.history).toBe(before.history);
+    expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2); expect(current.boundaryMethod).toBe("teed");
+    expect(getImageDataMock).toHaveBeenLastCalledWith(before.region);
+    expect(processImageMock.mock.lastCall![1]).toMatchObject({ margin: 1, calibration: before.calibration,
+      region: { originalRegion: before.region, isCropped: true }, detect: { boundary: action === "switch" ? "color" : "teed", sensitivity: 128, tolerancePx: 1.2, smoothing: 1, hints: [] } });
+    if (action === "failure") {
+      await React.act(async () => fail(new Error("Detection failed")));
+      expect(current.outline).toBe(before.outline); expect(current.history).toBe(before.history);
+      expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2);
+      expect(current.detectionHints).toBe(before.detectionHints);
+    } else {
+      const fresh = exportOutline.map(shape => ({ ...shape, outer: shape.outer.map(p => ({ ...p, x: p.x + 10 })) }));
+      await React.act(async () => finish({ outline: fresh, rawOutline: fresh, refinementBase: fresh, svg: "" }));
+      expect(current.outline).toBe(fresh); expect(current.rawOutline).toBe(fresh);
+      expect(current.sensitivity).toBe(128); expect(current.tolerancePx).toBe(1.2); expect(current.smoothing).toBe(1);
+      expect(current.boundaryMethod).toBe(action === "switch" ? "color" : "teed"); expect(current.detectionHints).toEqual([]);
+      expect(current.history.index).toBe(before.history.index + 1);
+      React.act(() => current.undo());
+      expect(current.outline).toBe(before.outline); expect(current.rawOutline).toBe(before.rawOutline);
+      expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2);
+      expect(current.boundaryMethod).toBe("teed"); expect(current.detectionHints).toEqual(before.detectionHints);
+      React.act(() => current.redo()); expect(current.outline).toBe(fresh); expect(current.sensitivity).toBe(128);
+    }
+    expect(current.processing).toBe(false); expect(current.imageUrl).toBe(before.imageUrl);
+    expect(current.calibration).toBe(before.calibration); expect(current.region).toBe(before.region); expect(current.margin).toBe(1);
+  });
+
+  it("uses original-photo crop pixels for the default tool-edge detection", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    const imageData = { width: 400, height: 200, data: new Uint8ClampedArray(400 * 200 * 4).fill(255) };
+    const region = { x: 80, y: 90, width: 200, height: 100 };
+    getToolDetectionFrameMock.mockReturnValue({ imageData, region, toWorking: { x: .5, y: .5 } });
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getToolDetectionFrameMock).toHaveBeenCalledWith(region, expect.any(AbortSignal));
+    expect(getImageDataMock).not.toHaveBeenCalled();
+    expect(processImageMock).toHaveBeenCalledWith(imageData, expect.objectContaining({
+      autoCleanup: true, smoothBoundary: true, editableCurves: false,
+      region: { originalRegion: region, isCropped: true, toWorking: { x: .5, y: .5 } },
+      detect: expect.objectContaining({ boundary: "teed", sensitivity: 128 }),
+    }));
+  });
+
+  it("passes the newly enabled curve choice into re-detection before the store render catches up", async () => {
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="re-detect-native"]')!.click());
+    expect(processImageMock.mock.lastCall![1]).toMatchObject({ autoCleanup: true, editableCurves: true });
+  });
+
+  it("keeps shaded, recognized Pocketry paper in tool-edge mode", async () => {
+    function Automatic() { const { dispatch } = useTrace(); React.useEffect(() => dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" }), [dispatch]); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Automatic /><TracePage /></TraceProvider></PanelProvider>));
+    const width = 120, height = 180, data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++)
+      data.set(y < 8 && x < 30 ? [185, 180, 175, 255] : [112, 108, 105, 255], (y * width + x) * 4);
+    getToolDetectionFrameMock.mockReturnValue({ imageData: { width, height, data },
+      region: { x: 80, y: 90, width: 200, height: 100 }, toWorking: { x: 1, y: 1 } });
+    getDetectionFrameMock.mockReturnValue(detectionFrame());
+    vi.mocked(autoCalibrate).mockResolvedValue(detectedSheet());
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(processImageMock.mock.lastCall![1].detect.boundary).toBe("teed");
+    expect(processImageMock.mock.lastCall![1].autoCleanup).toBe(true);
+  });
+
+  it.each([false, true])("Automatic uses color for a dark background or requested interior holes (holes=%s)", async holes => {
+    function Automatic() { const { dispatch } = useTrace(); React.useEffect(() => {
+      dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" });
+      dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: holes });
+    }, [dispatch]); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Automatic /><TracePage /></TraceProvider></PanelProvider>));
+    const data = new Uint8ClampedArray(40 * 20 * 4).fill(holes ? 255 : 45);
+    for (let i = 3; i < data.length; i += 4) data[i] = 255;
+    getToolDetectionFrameMock.mockReturnValue({ imageData: { width: 40, height: 20, data },
+      region: { x: 80, y: 90, width: 200, height: 100 }, toWorking: { x: 5, y: 5 } });
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(getImageDataMock).toHaveBeenCalledWith({ x: 80, y: 90, width: 200, height: 100 });
+    expect(processImageMock.mock.lastCall![1].detect.boundary).toBe("color");
   });
 
   it("waits for a detection region instead of tracing immediately on image load", async () => {

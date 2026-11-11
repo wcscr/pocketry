@@ -1,3 +1,5 @@
+import type { DetectionHint } from "@shared/geometry/detection-hints";
+import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
 import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,6 +41,7 @@ import { outlineBounds } from "@/lib/geometry/outline";
 import { FileUpload } from "@/components/ui/file-upload";
 import { tracePhotoError } from "@/lib/trace-photo";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
 import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
 import {
@@ -49,6 +52,7 @@ import {
 } from "@/lib/calibrate/perspective";
 import { SKEW_WARN_FRACTION } from "@/lib/calibrate/solve";
 import {
+  rectifiedSheetInkRegions,
   templateDisplayName,
   templatePaper,
   type TemplateVariant,
@@ -62,9 +66,11 @@ import { generateSTL } from "@/lib/export/stl";
 import { traceMaterialOutline } from "@/lib/geometry/contour-role";
 import { withKernel } from "@/lib/manifold/runtime";
 import { generateOutlineSVG } from "@/lib/export/svg";
+import { CURVE_TOLERANCE_MM, sampleCurves } from "@shared/geometry/curves";
 import type { ImageRotationDirection } from "@/lib/geometry/image-rotation";
 import { processImage } from "@/lib/image-processor";
-import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
+import { hasWhitePaperBackground } from "@/lib/detect/background-choice";
+import { hasPendingManualCalibration, initialTraceState, useTrace } from "@/state/trace-store";
 
 /** The tracing workspace. */
 export default function TracePage(): JSX.Element {
@@ -107,6 +113,7 @@ function TraceWorkspace(): JSX.Element {
   const workflowLayout = inspectorEnabled && !isMobile;
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
+  const [outlineCleanupRequest, setOutlineCleanupRequest] = useState<{ id: number; sourceRevision: number }>();
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
     setPanelOpen(true);
@@ -124,6 +131,8 @@ function TraceWorkspace(): JSX.Element {
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
+  const detectionAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => detectionAbort.current?.abort(), [store.sourceRevision]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -160,12 +169,14 @@ function TraceWorkspace(): JSX.Element {
   const workingImageMax = store.perspectiveCorrection
     ? RECTIFIED_IMAGE_MAX
     : IMAGE_CANVAS_MAX;
-  const { source, getImageData, getDetectionFrame } = useImageSource(
+  const { source, getImageData, getDetectionFrame, getToolDetectionFrame } = useImageSource(
     store.imageUrl,
     store.fileName,
     workingImageMax,
     store.imageRotation,
     store.imageAlignment,
+    store.perspectiveOriginalImageUrl,
+    store.perspectiveCorrection?.toOriginal,
   );
   useOutlineRefinement();
 
@@ -193,8 +204,12 @@ function TraceWorkspace(): JSX.Element {
   );
 
   const runDetection = useCallback(async (settings?: {
+    editableCurves?: boolean;
+    hints?: DetectionHint[];
     sensitivity: number;
     includeInteriorHoles: boolean;
+    boundary?: "auto" | "color" | "teed";
+    restart?: boolean;
   }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
@@ -208,22 +223,34 @@ function TraceWorkspace(): JSX.Element {
         : null;
     if (!region) return;
 
-    const imageData = getImageData(region);
-    if (!imageData) return;
-
     const request = ++detectionRequest.current;
+    detectionAbort.current?.abort();
+    const controller = new AbortController();
+    detectionAbort.current = controller;
     const sourceRevision = store.sourceRevision;
+    const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
+    const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
+    const detectionSettings = { boundaryMethod: requestedBoundary, includeInteriorHoles,
+      sensitivity: settings?.restart ? initialTraceState.sensitivity : settings?.sensitivity ?? store.sensitivity,
+      tolerancePx: settings?.restart ? initialTraceState.tolerancePx : store.tolerancePx,
+      smoothing: settings?.restart ? initialTraceState.smoothing : store.smoothing };
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
+      const candidateFrame = requestedBoundary !== "color" ? await getToolDetectionFrame(region, controller.signal) : null;
+      const initialPixels = candidateFrame?.imageData ?? getImageData(region);
+      if (!initialPixels || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision || controller.signal.aborted) return;
+      const hints = requestedRegion || settings?.restart ? [] : settings?.hints ?? store.detectionHints;
       // Re-read the current photo, including any rotation/perspective warp.
       // This also works after draft recovery or choosing a manual/paper scale;
       // the carrier footprint is independent of the accepted scale ruler.
       let occlusions: Ring[] = [];
+      let recognizedSheet = false;
       try {
         for (const limit of [undefined, AID_RETRY_CANVAS_MAX]) {
           const frame = getDetectionFrame(limit);
           if (frame?.sourceImageUrl !== source.url) break;
           const reference = await autoCalibrate(frame.imageData);
+          recognizedSheet ||= reference.kind === "calibrated" || reference.kind === "calibrated-strip" && !!reference.sheet;
           if (reference.kind === "calibrated-strip" && reference.aidOutline) {
             occlusions = [reference.aidOutline.map(p => ({
               x: p.x * frame.toWorking.x - Math.max(0, Math.round(region.x)),
@@ -238,18 +265,33 @@ function TraceWorkspace(): JSX.Element {
         // Optional reference recognition must not disable ordinary tracing.
       }
       if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      const boundary = requestedBoundary === "auto"
+        ? !includeInteriorHoles && hasWhitePaperBackground(initialPixels, recognizedSheet) ? "teed" : "color"
+        : requestedBoundary;
+      const toolFrame = boundary === "teed" ? candidateFrame : null;
+      const imageData = toolFrame?.imageData ?? (candidateFrame ? getImageData(region) : initialPixels);
+      if (!imageData) return;
+      // The sheet's printing is known only while the photo is the rectified sheet, page upright:
+      // a template correction with nothing rotated or straightened since.
+      const sheetInk = rectifiedSheetInkRegions(store.perspectiveCorrection, store.imageRotation === 0 && !store.imageAlignment);
       const result = await processImage(imageData, {
+        autoCleanup: true,
+        smoothBoundary: true,
+        sheetInk,
+        editableCurves: settings?.editableCurves ?? store.editableCurves,
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region
-          ? { originalRegion: region, isCropped: true }
+          ? { originalRegion: toolFrame?.region ?? region, isCropped: true, toWorking: toolFrame?.toWorking }
           : null,
         margin: store.margin,
         calibration: store.calibration,
         detect: {
+          boundary, hints,
+          signal: controller.signal,
           occlusions,
-          sensitivity: settings?.sensitivity ?? store.sensitivity,
-          tolerancePx: store.tolerancePx,
-          smoothing: store.smoothing,
+          sensitivity: detectionSettings.sensitivity,
+          tolerancePx: detectionSettings.tolerancePx,
+          smoothing: detectionSettings.smoothing,
         },
         onNotice: notice,
       });
@@ -261,7 +303,12 @@ function TraceWorkspace(): JSX.Element {
         imageUrl: source.url,
         outline: result.outline,
         rawOutline: result.rawOutline,
+        curves: result.curves,
+        refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
+        detectionHints: hints,
+        settings: detectionSettings,
+        label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection" : undefined,
         svg: result.svg,
         region,
       });
@@ -269,7 +316,7 @@ function TraceWorkspace(): JSX.Element {
       // "opt-in or removed"): nothing ever read the copies back, and silently
       // uploading every trace is the wrong default for local tooling.
     } catch (error) {
-      if (request !== detectionRequest.current) return;
+      if (request !== detectionRequest.current || controller.signal.aborted) return;
       toast({
         title: "Tracing failed",
         description: error instanceof Error ? error.message : String(error),
@@ -293,6 +340,13 @@ function TraceWorkspace(): JSX.Element {
     store.calibration,
     store.sensitivity,
     store.includeInteriorHoles,
+    store.boundaryMethod,
+    store.editableCurves,
+    store.detectionHints,
+    store.perspectiveCorrection,
+    store.imageRotation,
+    store.imageAlignment,
+    getToolDetectionFrame,
     store.tolerancePx,
     store.smoothing,
     store.fileName,
@@ -509,6 +563,10 @@ function TraceWorkspace(): JSX.Element {
           imageSize: { width: corrected.width, height: corrected.height },
           paperBounds: corrected.paperBounds,
           fullPhotoUnavailableReason: corrected.fullPhotoUnavailableReason,
+          toOriginal: corrected.sourceToCorrected && (!store.perspectiveOriginalImageUrl || store.perspectiveCorrection?.toOriginal)
+            ? composeHomography(store.perspectiveCorrection?.toOriginal ?? workingToPhoto(store.imageSize, store.imageRotation, store.imageAlignment),
+              composeHomography(affineHomography([frame.toWorking.x,0,0,frame.toWorking.y,0,0]),
+                composeHomography(affineHomography([1,0,0,1,.5,.5]),composeHomography(inverseHomography(corrected.sourceToCorrected),affineHomography([1,0,0,1,-.5,-.5]))))) : undefined,
           calibration: usePaperScale === false ? null : corrected.calibration,
           calibrationSource: typeof usePaperScale === "object" ? "strip" : "sheet",
           source: proposal.source,
@@ -642,15 +700,18 @@ function TraceWorkspace(): JSX.Element {
     const stem = `${exportFormat === "stl" ? "model" : "outline"}_${base}`;
 
     try {
+      // Resample at the current calibration, which may have changed since editing.
+      const sampled = store.curves ? sampleCurves(store.curves, CURVE_TOLERANCE_MM / (scale.mmPerPx ?? 0.1)) : outline;
       // Capture the optional editable outline before asynchronous STL generation.
       const backup = includeProject
-        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0), null, 2)], { type: "application/json" })
+        ? new Blob([JSON.stringify(projectFromTrace(outline, scale, fileName || "Traced outline", margin ?? 0, store.curves), null, 2)], { type: "application/json" })
         : null;
-      const exportOutline = outline.some(part => part.holes.length)
-        ? await withKernel(kernel => traceMaterialOutline(kernel, outline)) : outline;
+      const exportOutline = sampled.some(part => part.holes.length)
+        ? await withKernel(kernel => traceMaterialOutline(kernel, sampled)) : sampled;
       let model: Blob;
       if (exportFormat === "svg") {
         model = new Blob([generateOutlineSVG(exportOutline, {
+          curves: outline.some(part => part.holes.length) ? undefined : store.curves,
           width: imageSize.width,
           height: imageSize.height,
           mmPerPx: scale.mmPerPx,
@@ -766,6 +827,10 @@ function TraceWorkspace(): JSX.Element {
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
+            onSmoothOutline={() => {
+              dispatch({ type: "SET_MODE", mode: "pan" });
+              setOutlineCleanupRequest(previous => ({ id: (previous?.id ?? 0) + 1, sourceRevision: store.sourceRevision }));
+            }}
             onReplaceImage={() => photoInputRef.current?.click()}
             onStartOver={startOver}
             onRotateImage={handleRotateImage}
@@ -795,11 +860,19 @@ function TraceWorkspace(): JSX.Element {
                 if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
                 setEstimatedEdgeFocusRequest(value => value + 1);
               }}>Show estimated area</Button>
+              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
+                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
+                dispatch({ type: "SET_MODE", mode: "edit" });
+                setEstimatedEdgeFocusRequest(value => value + 1);
+              }}>Edit this edge</Button>
+              <HelpHint label="repairing the estimated edge">Select two points on the visible outline on either side of the hidden section, then choose Repair section. Preview a line or smooth curve against the photo before applying. The amber area remains an estimate even after editing.</HelpHint>
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
+                  outlineCleanupRequest={outlineCleanupRequest}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
+                  onCorrection={hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints })}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                       <div className="w-full max-w-2xl self-center">

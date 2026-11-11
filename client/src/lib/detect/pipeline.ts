@@ -1,6 +1,9 @@
+import { buildRegionEvidence, solveRegionEvidence } from "./region-evidence";
+import { validDetectionGeometry } from "./boundary-validation";
 import type { Outline, Point, Ring } from "@shared/geometry/types";
 
-import { buildOutline, normalizeOutline } from "../geometry/outline";
+import { AUTO_OUTER_SMOOTHING_SEG_PIXELS, smoothOuterBoundary } from "../geometry/outer-smoothing";
+import { buildOutline, normalizeOutline, outsideSilhouettes } from "../geometry/outline";
 import {
   resampleOutline,
   simplifyOutline,
@@ -9,8 +12,12 @@ import {
 import { traceIsoRings } from "../geometry/trace";
 import { loadOpenCV } from "../opencv";
 import { buildScoreFieldJS, maskFromScore } from "./segment-js";
-import { buildScoreFieldOpenCV } from "./segment-opencv";
+import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
+import { eraseSheetInk } from "./sheet-ink";
+import { checkDetectionAbort, detectionCheckpoint, refineWithGrabCut } from "./grabcut";
 import { restoreOccludedScore } from "./occlusions";
+import { repairOccludedOutline } from "./occlusion-repair";
+import { createTeedDetector, type TeedDetector } from "./teed";
 import {
   DETECT_DEFAULTS,
   type DetectEngine,
@@ -18,6 +25,7 @@ import {
   type DetectResult,
   type ImageLike,
   type ScoreField,
+  type RefinementReport,
 } from "./types";
 
 /**
@@ -28,35 +36,104 @@ import {
  * a convex hull, so it could not represent a concave outline at all; the other
  * kept only the largest `RETR_EXTERNAL` contour, so it could not represent
  * holes. Both are gone. There is now one path, and its OpenCV and pure-JS
- * backends are behaviourally equivalent — the JS one is a genuine fallback
- * rather than a degraded second mode.
+ * base segmentation backends are behaviourally equivalent. When OpenCV is
+ * available, guarded GrabCut may refine that shared baseline; the JS fallback
+ * retains the complete original pipeline without this optional solver stage.
  */
 export async function detectOutline(
   image: ImageLike,
   options: DetectOptions = {},
+  runtime: { loadCV: () => Promise<OpenCV>; teed?: TeedDetector } = { loadCV: loadOpenCV },
 ): Promise<DetectResult> {
+  return detectPreparedOutline(image, options, runtime, image);
+}
+
+async function detectPreparedOutline(
+  image: ImageLike, options: DetectOptions,
+  runtime: { loadCV: () => Promise<OpenCV>; teed?: TeedDetector }, sourceImage: ImageLike,
+): Promise<DetectResult> {
+  checkDetectionAbort(options.signal);
   const timings: Record<string, number> = {};
 
-  const { field, engine } = await segment(image, options, timings);
+  // The sheet's own printing goes first, once: every later stage, and the
+  // colour re-entry below, then sees paper where the printing was.
+  if (options.sheetInk) {
+    const ink = options.sheetInk;
+    image = time(timings, "sheetInk", () => eraseSheetInk(image, ink));
+    options = { ...options, sheetInk: undefined };
+  }
+
+  let { field, engine, refinement, baseline } = await segment(image, options, timings, runtime.loadCV, runtime.teed);
   throwIfAborted(options.signal);
+  // A rejected optional model must preserve the normal color pipeline,
+  // including guarded GrabCut and its topology checks. Re-enter once with the
+  // model disabled; never leave users with an unrefined intermediate mask.
+  const colorFallback = async (report: RefinementReport): Promise<DetectResult> => {
+    const started = now();
+    // The sheet is still white paper when the learned outline is rejected.
+    const fallback = await detectPreparedOutline(image, { ...options, boundary: "color", paperBackground: options.paperBackground ?? true, engine }, runtime, sourceImage);
+    return { ...fallback, refinement: report, timings: { ...timings, colorFallback: now() - started } };
+  };
+  if (options.boundary === "teed" && refinement?.status === "fallback") return colorFallback(refinement);
   const estimatedEdgeRegions: Ring[] = [];
   const inferredOccludedEdge = options.occlusions?.length
     ? time(timings, "occlusions", () => restoreOccludedScore(field, options.occlusions!, estimatedEdgeRegions)) : false;
 
-  const rawOutline = time(timings, "trace", () => traceToOutline(field, options));
+  let rawOutline = time(timings, "trace", () => traceToOutline(field, options));
+  if (inferredOccludedEdge) rawOutline = time(timings, "occlusionRepair", () => repairOccludedOutline(rawOutline, estimatedEdgeRegions,
+    Math.max(1 / field.scale, 1 / (field.scaleY ?? field.scale))));
+  if (baseline && refinement?.status === "accepted") {
+    const original = time(timings, "validateTopology", () => traceToOutline(baseline, options));
+    // Polygon thresholds are relative to each parent (especially holes in a
+    // small second object). Check the actual normalized rings as well as the
+    // raster graph, before exposing any refined result to the editor.
+    const fragmented = options.boundary === "teed" &&
+      outsideSilhouettes(rawOutline).length > outsideSilhouettes(original).length;
+    if (fragmented) return colorFallback({ ...refinement, status: "fallback", reason: "fragmented-outline" });
+    if (options.boundary !== "teed" && (original.length !== rawOutline.length || original.some((shape, i) =>
+      shape.holes.length !== rawOutline[i].holes.length))) {
+      field = baseline;
+      rawOutline = original;
+      refinement = { ...refinement, status: "fallback", reason: "outline-topology" };
+    }
+  }
   throwIfAborted(options.signal);
 
-  const outline = time(timings, "refine", () => refineOutline(rawOutline, options, field));
+  // Every path that reaches the user passes here exactly once: the learned
+  // fallbacks above return the colour re-entry's result, which already ran it.
+  if (options.hints?.length) {
+    const evidence = time(timings, "evidence", () => buildRegionEvidence(sourceImage, field, options.hints));
+    field = time(timings, "regionCorrection", () => solveRegionEvidence(field, evidence));
+    rawOutline = traceToOutline(field, { ...options, minShellAreaFrac: 0, minHoleAreaFrac: 0 });
+  }
+  const materialOutline = rawOutline;
+  const allowance = options.inwardTolerancePx ?? Math.max(0.5, options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx);
+  if (options.outerSmoothingPx) {
+    const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
+    const lengthPx = options.outerSmoothingPx === "auto"
+      ? AUTO_OUTER_SMOOTHING_SEG_PIXELS * sourcePerSegPixel
+      : options.outerSmoothingPx;
+    rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx, allowance));
+  }
+
+  const candidate = time(timings, "refine", () => refineOutline(rawOutline, options, field));
+  const outline = time(timings, "containment", () => {
+    if (validDetectionGeometry(materialOutline, candidate, allowance, options.outwardTolerancePx ?? 4)) return candidate;
+    const conservative = refineOutline(materialOutline, { ...options, smoothing: 0, tolerancePx: Math.min(allowance*.4, options.tolerancePx ?? 1.2) }, field);
+    return validDetectionGeometry(materialOutline, conservative, allowance, options.outwardTolerancePx ?? 4) ? conservative : materialOutline;
+  });
 
   return {
     inferredOccludedEdge,
     estimatedEdgeRegions,
     outline,
     rawOutline,
+    materialOutline,
     threshold: field.iso,
     otsuThreshold: field.otsu,
     engine,
     timings,
+    refinement,
     debug: options.debug ? buildDebug(field) : undefined,
   };
 }
@@ -107,27 +184,63 @@ async function segment(
   image: ImageLike,
   options: DetectOptions,
   timings: Record<string, number>,
-): Promise<{ field: ScoreField; engine: DetectEngine }> {
+  loadCV: () => Promise<OpenCV>,
+  teed?: TeedDetector,
+): Promise<{ field: ScoreField; baseline?: ScoreField; engine: DetectEngine; refinement?: RefinementReport }> {
   const requested = options.engine ?? DETECT_DEFAULTS.engine;
 
   if (requested !== "js") {
     try {
-      const cv = await loadOpenCV();
+      const loadStarted = now();
+      const cv = await loadCV();
+      timings.initialize = now() - loadStarted;
+      await detectionCheckpoint(options.signal);
       const started = now();
       const field = buildScoreFieldOpenCV(cv, image, options);
       timings.segment = now() - started;
+      if (options.boundary === "teed") {
+        const detector = teed ?? createTeedDetector();
+        const began = now();
+        try {
+          const result = await detector.segment(cv, image, options, field);
+          timings.learnedEdges = now() - began;
+          if (result.reconstructionMs !== undefined) timings.reconstruct = result.reconstructionMs;
+          return { field: result.field ?? field, baseline: result.field ? field : undefined, engine: "opencv", refinement: {
+            status: result.field ? "accepted" : result.reason === "alpha-mask" ? "skipped" : "fallback",
+            reason: result.reason ?? "teed-edges", iterations: 0, cached: result.cached,
+            ...result.selection,
+            boundaryCleanup: result.cleanup,
+          } };
+        } catch (error) {
+          timings.learnedEdges = now() - began;
+          checkDetectionAbort(options.signal);
+          if (error instanceof Error && error.name === "AbortError") throw error;
+          return { field, engine: "opencv", refinement: { status: "fallback", reason: "teed-unavailable", iterations: 0 } };
+        } finally { if (!teed) detector.dispose(); }
+      }
+      if ((options.refine ?? DETECT_DEFAULTS.refine) === "grabcut") {
+        const refineStarted = now();
+        const refined = await refineWithGrabCut(cv, image, field, options);
+        timings.grabcut = now() - refineStarted;
+        return { field: refined.field, baseline: field, engine: "opencv", refinement: refined.report };
+      }
       return { field, engine: "opencv" };
     } catch (error) {
+      checkDetectionAbort(options.signal);
+      if (error instanceof Error && error.name === "AbortError") throw error;
       if (requested === "opencv") throw error;
       // "auto": fall through to the pure-JS backend. Same algorithm, slower.
       console.warn("[detect] OpenCV unavailable, using the JS backend:", error);
     }
   }
 
+  await detectionCheckpoint(options.signal);
   const started = now();
   const field = buildScoreFieldJS(image, options);
   timings.segment = now() - started;
-  return { field, engine: "js" };
+  return { field, engine: "js", ...(options.boundary === "teed" ? { refinement: {
+    status: "fallback" as const, reason: "teed-unavailable", iterations: 0,
+  } } : {}) };
 }
 
 /**
@@ -148,7 +261,7 @@ function traceToOutline(field: ScoreField, options: DetectOptions): Outline {
   const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
   const toSource = (point: Point): Point => ({
     x: (point.x + 0.5) * sourcePerSegPixel + field.offsetX,
-    y: (point.y + 0.5) * sourcePerSegPixel + field.offsetY,
+    y: (point.y + 0.5) / (field.scaleY ?? field.scale) + field.offsetY,
   });
 
   const mapped = rings.map((ring) => ring.map(toSource));

@@ -5,11 +5,12 @@ import {
   DEFAULT_SCORE_WEIGHTS,
   fitIlluminationPlane,
   hasUsefulAlpha,
+  isDarkOnPaper,
   medianOf,
   removeIlluminationPlane,
 } from "./background";
 import { applySensitivity, otsuThreshold } from "./otsu";
-import { clampRoi, morphKernelSize } from "./segment-js";
+import { clampRoi, liftDarkOnPaper, morphKernelSize } from "./segment-js";
 import { restoreThinFeatures } from "./thin-features";
 import { DETECT_DEFAULTS, type DetectOptions, type ImageLike, type ScoreField } from "./types";
 
@@ -29,10 +30,9 @@ import { DETECT_DEFAULTS, type DetectOptions, type ImageLike, type ScoreField } 
  *    to adopt its hierarchy semantics, whereas the tracer interpolates
  *    sub-pixel boundaries and is unit-testable without wasm.
  *
- * GrabCut survives only as an opt-in refinement seeded from our own mask. As it
- * was used before — rect-initialised to the whole ROI minus three pixels — very
- * nearly everything was seeded "probably foreground", which is why it kept
- * converging on near-rectangular silhouettes.
+ * Mask-seeded GrabCut is a separate, guarded stage of the shared pipeline.
+ * Keep the original colour evidence: morphology's zeroes are not proof of
+ * background colour, and must not become confident background seeds.
  */
 
 // The OpenCV.js runtime is loaded from a UMD bundle at runtime and has no
@@ -56,7 +56,7 @@ interface Deletable {
  * models — and leaked one wrapper per contour in the selection loop. Disposing
  * from a `finally` removes that whole class of bug.
  */
-class MatScope {
+export class MatScope {
   private readonly tracked: Deletable[] = [];
 
   track<T extends Deletable>(mat: T): T {
@@ -120,12 +120,20 @@ export function buildScoreFieldOpenCV(
       (useAlpha === "auto" &&
         hasUsefulAlpha(imageDataOf(cv, working, scope), width, height));
 
+    const paper = !alphaWanted && (options.paperBackground ?? options.boundary === "teed");
+    const dark = paper ? new Uint8Array(width * height) : undefined;
     const score = alphaWanted
       ? alphaScore(cv, working, scope, width, height)
-      : colorScore(cv, working, scope, width, height);
+      : colorScore(cv, working, scope, width, height, dark);
 
     const otsu = alphaWanted ? 128 : otsuThreshold(score);
     const iso = alphaWanted ? 128 : applySensitivity(otsu, sensitivity);
+    // As in the JS backend: darkness on paper is an object by rule, applied
+    // after the split is found and before the evidence copy is taken.
+    if (dark) liftDarkOnPaper(score, dark, iso);
+
+    const evidence = !alphaWanted && (options.boundary === "teed" || (options.refine ?? DETECT_DEFAULTS.refine) === "grabcut")
+      ? score.slice() : undefined;
 
     cleanAndGate(cv, scope, score, width, height, iso);
 
@@ -138,6 +146,8 @@ export function buildScoreFieldOpenCV(
       offsetY: roi.y,
       iso,
       otsu,
+      evidence,
+      alphaUsed: alphaWanted,
     };
   } finally {
     scope.dispose();
@@ -185,6 +195,7 @@ function colorScore(
   scope: MatScope,
   width: number,
   height: number,
+  dark?: Uint8Array,
 ): Uint8Array {
   const rgb = scope.track(new cv.Mat());
   cv.cvtColor(mat, rgb, mat.type() === cv.CV_8UC4 ? cv.COLOR_RGBA2RGB : cv.COLOR_RGB2RGB);
@@ -226,6 +237,7 @@ function colorScore(
       Math.abs(aData[i] - reference.a) * weights.a +
       Math.abs(bData[i] - reference.b) * weights.b;
     score[i] = distance > 255 ? 255 : distance;
+    if (dark && isDarkOnPaper(lData[i], reference.L)) dark[i] = 1;
   }
   return score;
 }

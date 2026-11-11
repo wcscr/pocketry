@@ -1,3 +1,4 @@
+import type { Homography } from "@shared/geometry/projective";
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Point, Rect } from "@shared/geometry/types";
 
@@ -53,6 +54,8 @@ export interface PerspectiveCorrectionResult extends PerspectiveLayout {
   fullPhotoUnavailableReason?: string;
   /** Root-mean-square destination error; null for a four-click manual fit. */
   reprojectionErrorPx: number | null;
+  /** Exact source-pixel to corrected-pixel transform, retained for ROI resampling. */
+  sourceToCorrected?: Homography;
 }
 
 /**
@@ -497,6 +500,7 @@ export function runPerspectiveCorrection(
       paperBounds,
       fullPhotoUnavailableReason,
       reprojectionErrorPx,
+      sourceToCorrected: Array.from((photoTransform ?? transform).data64F) as Homography,
       calibration,
     };
   } finally {

@@ -26,6 +26,7 @@ const CALIBRATION: Calibration = {
 const applyPerspective = vi.fn();
 const rotateImage = vi.fn();
 const reprocess = vi.fn();
+const simplifyOutline = vi.fn();
 const detectMarkers = vi.fn();
 let trace: TraceStore;
 
@@ -169,6 +170,7 @@ function Harness(): JSX.Element {
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
+        onSmoothOutline={simplifyOutline}
         onDetectMarkers={detectMarkers}
         onApplyPerspective={applyPerspective}
       />
@@ -248,6 +250,30 @@ it("adds a square from the Outline controls after empty detection and guards pro
   expect(add().disabled).toBe(true);
   await click("button-add-contour");
   expect(trace.outline).toHaveLength(2);
+});
+
+it("offers auto-simplify directly after detection without entering manual editing", async () => {
+  await prepareOutline();
+  const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+  React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
+  const action = () => host.querySelector<HTMLButtonElement>('[data-testid="button-smooth-outline"]')!;
+  expect(action().textContent).toContain("Auto simplify outline"); expect(action().disabled).toBe(false);
+  const manual = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Manual detection settings")!;
+  expect(manual).toBeDefined();
+  const restart = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Restart outline detection")!;
+  const contours = host.querySelector('[data-testid="detection-contours"]')!;
+  expect(contours.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(action().compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.getAttribute("aria-expanded")).toBe("false");
+  const tuning = document.getElementById(manual.getAttribute("aria-controls")!)!;
+  expect(tuning.hidden).toBe(true);
+  React.act(() => manual.click());
+  expect(manual.getAttribute("aria-expanded")).toBe("true");
+  expect(tuning.hidden).toBe(false);
+  const history = trace.history;
+  await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
+  React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
+  expect(action().disabled).toBe(false); // Auto always previews the currently edited outline.
 });
 
 async function changeNumber(id: string, value: string): Promise<void> {
@@ -795,7 +821,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
-    expect(host.textContent).toContain("No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
+    expect(host.textContent).toContain("No outline found. Choose Add manual contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();
@@ -932,7 +958,7 @@ describe("automatic sensitivity detection", () => {
     await prepareOutline();
     await stepSensitivity();
     expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // Committed only when re-detection succeeds.
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Re-detect outline")).toBe(false);
     await React.act(async () => {
@@ -960,7 +986,7 @@ describe("automatic sensitivity detection", () => {
     await stepSensitivity();
     await chooseConfirmation("Replace manual edits");
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 127, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // Committed only when re-detection succeeds.
   });
 
   it("does not ask after all manual vertex edits have been undone", async () => {
@@ -974,11 +1000,12 @@ describe("automatic sensitivity detection", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("applies the interior-hole option immediately through the same detection flow", async () => {
+  it("requests interior holes through the same atomic detection flow", async () => {
     await prepareOutline();
+    React.act(() => trace.dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" }));
     await React.act(async () => host.querySelector<HTMLButtonElement>('#include-interior-holes')!.click());
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
-    expect(trace.includeInteriorHoles).toBe(true);
+    expect(trace.includeInteriorHoles).toBe(false); // Published with successful detection.
   });
 });
 

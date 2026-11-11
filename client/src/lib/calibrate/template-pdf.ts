@@ -2,6 +2,7 @@ import { ARUCO_4X4_MODULES, markerBits } from "./aruco-4x4";
 import {
   TEMPLATE_PAPER_MM,
   TEMPLATE_SIGNATURE_VERSION,
+  estimatedTemplateTextWidth as estimatedTextWidth,
   formatTemplateMm,
   isExperimentalTemplate,
   templateHeaderBaselinesMm,
@@ -21,18 +22,6 @@ function number(value: number): string {
 
 function escapePdfText(text: string): string {
   return text.replace(/([\\()])/g, "\\$1");
-}
-
-/** Conservative Helvetica width estimate, sufficient for centred sheet labels. */
-function estimatedTextWidth(text: string, fontSize: number): number {
-  let units = 0;
-  for (const character of text) {
-    if ("ilI1.,:;!'".includes(character)) units += 0.28;
-    else if ("mwMW@".includes(character)) units += 0.86;
-    else if (character === " ") units += 0.28;
-    else units += 0.54;
-  }
-  return units * fontSize;
 }
 
 function concatBytes(parts: readonly Uint8Array[]): Uint8Array {

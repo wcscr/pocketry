@@ -1,4 +1,7 @@
 import type { Outline, Rect, Ring } from "@shared/geometry/types";
+import type { EdgeCleanupReport } from "./edge-cleanup";
+import type { BoundaryRecoveryReport } from "./boundary-recovery";
+import type { SheetInk } from "./sheet-ink";
 
 /**
  * The pixel input the pipeline accepts.
@@ -16,10 +19,29 @@ export interface ImageLike {
 export type DetectEngine = "opencv" | "js";
 
 export interface DetectOptions {
+  /** Optional learned outer silhouettes for tools on white calibration sheets. */
+  boundary?: "color" | "teed";
+  /**
+   * The background is known to be white paper (a recognised calibration
+   * sheet), so anything at most half as light as it counts as the object
+   * whatever the automatic threshold says. Defaults to true exactly when the
+   * learned boundary is requested, and is kept through its colour fallback.
+   */
+  paperBackground?: boolean;
+  /** Explicit tool/paper corrections in input-image pixels. */
+  hints?: readonly import("@shared/geometry/detection-hints").DetectionHint[];
   /** Validated calibration carriers, in input-image pixels. Their contents are unknown. */
   occlusions?: readonly Ring[];
+  /**
+   * Where the calibration sheet prints, in input-image pixels. Thin dark
+   * strokes there are painted out before detection unless they continue
+   * beyond the printing (see `sheet-ink.ts`). Off when omitted.
+   */
+  sheetInk?: SheetInk;
   /** Restrict detection to this region of the image. */
   roi?: Rect | null;
+  /** Exact input-to-working mapping retained by evaluation capture hooks. */
+  frameTransform?: import("@shared/geometry/contour-replay").RasterTransform;
   /**
    * Threshold bias, 0-255, where 128 means "use Otsu's answer unchanged".
    * Below 128 admits more foreground, above 128 less.
@@ -29,6 +51,18 @@ export interface DetectOptions {
   tolerancePx?: number;
   /** Taubin smoothing passes; 0 disables smoothing. */
   smoothing?: number;
+  /**
+   * Smooths the dense trace before simplification, with a checked inward
+   * allowance of 5% of the smoothing length (see
+   * `geometry/outer-smoothing`). The value is the smoothing length in source
+   * pixels, about one millimetre when a scale is known; "auto" uses a few
+   * segmentation pixels. Off when omitted, so existing callers are unchanged.
+   */
+  outerSmoothingPx?: number | "auto";
+  /** Maximum geometry-stage inward error in input pixels, independent of clearance. */
+  inwardTolerancePx?: number;
+  /** Maximum geometry-stage excess; user clearance is applied separately. */
+  outwardTolerancePx?: number;
   /**
    * Segmentation pixel budget. Larger inputs are area-averaged down to this
    * many pixels and the result is scaled back up, so a 48MP phone photo costs
@@ -44,7 +78,7 @@ export interface DetectOptions {
    * "auto" detects it; "always" forces it; "never" ignores alpha.
    */
   useAlpha?: "auto" | "always" | "never";
-  /** Optional GrabCut refinement seeded from the Otsu mask. Off by default. */
+  /** Guarded CPU GrabCut refinement, automatic by default when available. */
   refine?: "none" | "grabcut";
   /** Force a backend. "auto" prefers OpenCV and falls back to the JS path. */
   engine?: "auto" | DetectEngine;
@@ -68,6 +102,8 @@ export interface DetectResult {
    * of re-segmenting: without it, every slider tick re-runs the whole pipeline.
    */
   rawOutline: Outline;
+  /** Accepted unsmoothed silhouette, retained for the final containment check. */
+  materialOutline?: Outline;
   /** The iso level actually used, after the sensitivity bias. */
   threshold: number;
   /** The Otsu level before any bias was applied. */
@@ -75,6 +111,8 @@ export interface DetectResult {
   engine: DetectEngine;
   /** Per-stage wall-clock milliseconds. */
   timings: Record<string, number>;
+  /** Why automatic mask refinement was accepted, skipped, or rejected. */
+  refinement?: RefinementReport;
   debug?: DetectDebug;
 }
 
@@ -93,11 +131,17 @@ export interface DetectDebug {
  * tracer interpolate sub-pixel boundaries.
  */
 export interface ScoreField {
+  /** Original colour evidence before morphology, used only during refinement. */
+  evidence?: Uint8Array;
+  /** Alpha silhouettes are authoritative; never refine them by RGB colour. */
+  alphaUsed?: boolean;
   score: Uint8Array;
   width: number;
   height: number;
-  /** Segmentation-space pixels per source pixel (<= 1 when downscaled). */
+  /** Segmentation-space pixels per source pixel; models may also upscale. */
   scale: number;
+  /** Exact vertical mapping when model dimensions were rounded independently. */
+  scaleY?: number;
   /** Source-space origin of the segmented region. */
   offsetX: number;
   offsetY: number;
@@ -115,6 +159,26 @@ export const DETECT_DEFAULTS = {
   minShellAreaFrac: 0.01,
   minHoleAreaFrac: 0.001,
   useAlpha: "auto",
-  refine: "none",
+  refine: "grabcut",
   engine: "auto",
 } as const satisfies Partial<DetectOptions>;
+
+export interface EdgeSensitivityReport {
+  /** Additional reconstruction accepted after the coarse sensitivity search. */
+  edgeReconstruction?: "clipped-boundary-recovery" | "fine-threshold-confirmation";
+  /** Clipped-region retry diagnostics; thin unseeded features still need review. */
+  boundaryRecovery?: BoundaryRecoveryReport;
+  edgeThreshold: number;
+  edgeThresholdTrials: number;
+  automaticSensitivity: boolean;
+  seedCoverage: number;
+}
+
+export interface RefinementReport extends Partial<EdgeSensitivityReport> {
+  boundaryCleanup?: EdgeCleanupReport;
+  status: "accepted" | "skipped" | "fallback";
+  reason: string;
+  iterations: number;
+  changedPixels?: number;
+  cached?: boolean;
+}

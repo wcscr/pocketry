@@ -72,7 +72,56 @@ Draw a **Region** around each tool and refine its **Outline**. Add clearance wit
 **Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
 there was estimated. You’ll set pocket depths in Bin.
 
-![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
+**Automatic · match background** is the default for new traces. It chooses
+**Tool edges · white sheet** for light neutral paper and **Color contrast** for
+other or uncertain backgrounds. You can select either method under **Find the
+outline using**; interior holes use Color contrast. Detection cleans up straight
+lines and rounded sections automatically,
+using points unless you enable Editable curves. Adjust simplification previews
+a different allowance. Review tool tips and shadows; rejected tool-edge detections
+retain the color result. Processing stays on your device.
+
+Leave **Sensitivity** at **Auto** for tool edges. It checks weak boundaries
+automatically, protecting visible paper gaps and separate tools. A manual slider
+adjustment remains available under Advanced detection settings.
+
+Recognized measurement aids are removed locally without disabling learned edges
+around the rest of the tool. Short hidden sections can be continued from visible
+edges; the amber region remains an estimate to review.
+
+Use **Adjust simplification** in Outline settings to change the automatic
+cleanup allowance. Turn on **Editable curves** to retain true curves and handles
+instead of their point approximations. Use **More detail**, **Balanced**, or **Smoother**,
+compare with **Show original outline**, then **Apply simplified outline**. Cancel
+keeps the detected outline, and Apply is one undoable edit. Keep Trace margin at
+zero and simplify before manual editing. Under Advanced, **Maximum change from
+detected outline** limits how far the replacement can move from the dense detected
+boundary, using the photo calibration. It does not add pocket clearance.
+
+**Edit outline** opens manual tools. Click an edge to add a point; right-click a
+point to delete it. With Editable curves enabled, choose **Bend edges** to drag an edge into a curve or adjust its
+handles; the same add/delete shortcuts remain available on curves. Shift-click
+points or drag a box to select a group; **Select points** provides tap-to-toggle
+selection without a keyboard. Drag selected points to move them together, Delete
+to remove them, or **Simplify section** for adjacent points. Space-drag pans;
+Escape clears the selection. In Bin, these curve tools are under **Edit contour →
+Bend edges**. Each completed geometry edit is independently undoable.
+
+To replace an incorrect section, select two endpoints or a continuous group and
+choose **Repair section**. Preview **Line** or **Smooth curve**, use **Other side**
+to switch the selected route, then **Apply repair**. **Bend** controls the signed
+midpoint distance from the straight line between endpoints. Repair keeps those
+endpoints fixed and changes the faulty boundary deliberately; it is separate
+from the simplification allowance. Curves become points unless Editable curves
+is enabled. Cancel leaves the original intact; Apply is one Undo step.
+
+Curves stay editable through recovery, Trace → Bin transfer, and saved projects.
+Symmetry and straightening preserve authored curves, calibration and Undo.
+Turning **Editable curves** off converts them to the displayed points as one
+undoable edit; existing saved curves load intact. Use Bin clearance to adjust fit. Native Trace SVG retains
+curves when no hole/material boolean is needed; solid exports and DXF use adaptive
+samples. See [curve behavior and limits](docs/contour-curves-prototype.md) and
+[white-sheet evaluation and timings](docs/teed-outline-integration.md).
 
 ### 2. Arrange the pockets
 
