@@ -1,5 +1,10 @@
 # Combined detector comparison — November 11, 2026
 
+This records the **initial** combined version (`b907790c`). The
+[Craftsman regression follow-up](outline-craftsman-fix-2026-11-11.md) supersedes
+these automatic comparison results and adds the previously untested on-sheet
+Craftsman photo and manual slider checks.
+
 Local worktree: `codex/outline-combined`, based on Claude's
 `5aefd8048a02fe2d7c3e0f2e816f246beeef0f26`. The combined implementation keeps
 Claude's automatic detector and sheet-print removal. It adds the geometric

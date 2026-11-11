@@ -95,3 +95,23 @@ export function preservesMaterial(reference: Outline, candidate: Outline, allowa
   }
   return true;
 }
+
+/** Bound the proposed boundary's outward distance from existing material.
+ * Filling a thin recess is limited across its mouth, not by the depth of the
+ * discarded boundary. This is not a symmetric replay-distance check. */
+export function boundsMaterialGrowth(reference: Outline, candidate: Outline, allowance: number): boolean {
+  if (!Number.isFinite(allowance) || allowance <= 0 || reference.length !== candidate.length) return false;
+  let remaining = 100_000;
+  const budget = () => --remaining >= 0;
+  for (let s = 0; s < reference.length; s++) {
+    const before = reference[s], after = candidate[s];
+    if (before.holes.length !== after.holes.length) return false;
+    for (let h = -1; h < before.holes.length; h++) {
+      const original = h < 0 ? before.outer : before.holes[h];
+      const proposed = h < 0 ? after.outer : after.holes[h];
+      if (original.length < 3 || proposed.length < 3) return false;
+      if (original !== proposed && !bounded(proposed, index(original), h < 0 ? 1 : -1, allowance, budget)) return false;
+    }
+  }
+  return true;
+}

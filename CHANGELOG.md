@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Smooth detected outlines before simplification, with checks that preserve thin tips and gaps. Automatic cleanup limits inward changes to 0.1 mm and outward changes to 1 mm relative to the detected silhouette; pocket clearance is applied separately.
+- Smooth detected outlines before simplification, with checks that preserve thin tips and gaps. Use the selected detail allowance consistently so automatic cleanup does not fall back to jagged raw contours. Apply pocket clearance separately.
+- Restore the manual simplification slider and rename its settings section to Manual.
 - Find the dark parts of two-tone tools on a calibration sheet. Anything at most half as bright as the paper now counts as tool, so a black and yellow driver is no longer traced as its yellow parts only.
 - Remove the calibration sheet's own printing (title, instructions, marker labels and the 100 mm bar) before tracing, so it no longer sticks out of tool outlines. This applies while the photo is the corrected sheet and has not been rotated since; letters that touch a thin part of a tool can still attach.
 - Correct detection with tool/paper strokes, retained in draft recovery. Newly perspective-corrected photos retain their original-photo mapping so tool detection can sample a bounded region from the original pixels.

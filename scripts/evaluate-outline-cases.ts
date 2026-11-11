@@ -36,7 +36,7 @@ import { SHEET_STROKE_MM, type SheetInk } from "../client/src/lib/detect/sheet-i
 import { OUTER_SMOOTHING_MM } from "../client/src/lib/geometry/outer-smoothing";
 import { outsideSilhouettes } from "../client/src/lib/geometry/outline";
 import { createTeedDetector } from "../client/src/lib/detect/teed";
-import type { DetectOptions, DetectResult } from "../client/src/lib/detect/types";
+import { DETECT_DEFAULTS, type DetectOptions, type DetectResult } from "../client/src/lib/detect/types";
 import { recommendedReconstructionTolerance } from "../shared/geometry/contour-reconstruction";
 import { compareContours, isLoopback, outlineRoughness, scaleOutline, type ContourComparison } from "../shared/geometry/contour-metrics";
 import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves } from "../shared/geometry/curves";
@@ -154,7 +154,7 @@ function roughness(outline: Outline, mmPerPx: number) {
  * to the dense trace within its recommended allowance. Run here in crop pixels;
  * the app runs it in working-photo pixels, which differ by the region scale.
  */
-function appCleanup(result: DetectResult, captured: CapturedCase, mmPerPx: number | null): { outline: Outline; applied: boolean; reason?: string } {
+function appCleanup(result: DetectResult, captured: CapturedCase, mmPerPx: number | null, inward: number, outward: number): { outline: Outline; applied: boolean; reason?: string } {
   const silhouette = (outline: Outline) => captured.app.includeInteriorHoles ? outline : outsideSilhouettes(outline);
   const detected = silhouette(result.outline), dense = silhouette(result.rawOutline);
   if (!detected.length || !dense.length) return { outline: detected, applied: false, reason: "empty" };
@@ -162,11 +162,11 @@ function appCleanup(result: DetectResult, captured: CapturedCase, mmPerPx: numbe
     const unitsPerPixel = mmPerPx ?? 1;
     const recommended = Math.max(...dense.flatMap((shape) => [shape.outer, ...shape.holes])
       .map((ring) => recommendedReconstructionTolerance(ring, unitsPerPixel, mmPerPx ? "mm" : "px")));
-    const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, (mmPerPx ? .1 / mmPerPx : .5) * .4);
+    const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, inward);
     const native = !!captured.app.editableCurves && (captured.app.margin ?? 0) === 0;
     const fitted = reconstructDetectedForEditing(curvesFromOutline(detected), dense, tolerance, native);
     const outline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (mmPerPx ?? 0.1));
-    if (!validDetectionGeometry(silhouette(result.materialOutline ?? result.rawOutline), outline, mmPerPx ? .1 / mmPerPx : .5, mmPerPx ? 1 / mmPerPx : 4)) throw new Error("Cleanup would cut into the detected material.");
+    if (!validDetectionGeometry(silhouette(result.materialOutline ?? result.rawOutline), outline, inward, outward)) throw new Error("Cleanup would exceed the detection detail allowance.");
     return { outline: captured.app.includeInteriorHoles ? outline : outline.map((shape) => ({ ...shape, holes: [] })), applied: true };
   } catch (error) {
     // The app keeps the detected outline when cleanup cannot preserve it.
@@ -207,7 +207,7 @@ for (const name of names) {
   const options: DetectOptions = {
     ...captured.detect.options,
     ...(hintCases[name] ? { hints: hintCases[name] } : {}),
-    inwardTolerancePx: captured.detect.options.inwardTolerancePx ?? (mmPerPx ? .1 / mmPerPx : .5),
+    inwardTolerancePx: captured.detect.options.inwardTolerancePx ?? Math.max(mmPerPx ? .1 / mmPerPx : .5, captured.detect.options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx),
     outwardTolerancePx: captured.detect.options.outwardTolerancePx ?? (mmPerPx ? 1 / mmPerPx : 4),
     ...(boundaryOverride ? { boundary: boundaryOverride } : {}),
     // The same length `processImage` passes: a millimetre in the crop's pixels, or "auto" without a scale.
@@ -231,7 +231,7 @@ for (const name of names) {
     replay = { matches: statusMatches && replayMatches(result.outline, appResult.outline, REPLAY_TOLERANCE_PX), p95Px: round(p95Px, 4), statusMatches };
   }
 
-  const cleaned = appCleanup(result, captured, mmPerPx);
+  const cleaned = appCleanup(result, captured, mmPerPx, options.inwardTolerancePx!, options.outwardTolerancePx!);
   const final = cleaned.outline;
   let correctionFailure: string | null = null;
   try { validateDetectionHints(final, options.hints ?? []); } catch (error) { correctionFailure = String(error); }

@@ -107,16 +107,16 @@ async function detectPreparedOutline(
     rawOutline = traceToOutline(field, { ...options, minShellAreaFrac: 0, minHoleAreaFrac: 0 });
   }
   const materialOutline = rawOutline;
+  const allowance = options.inwardTolerancePx ?? Math.max(0.5, options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx);
   if (options.outerSmoothingPx) {
     const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
     const lengthPx = options.outerSmoothingPx === "auto"
       ? AUTO_OUTER_SMOOTHING_SEG_PIXELS * sourcePerSegPixel
       : options.outerSmoothingPx;
-    rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx));
+    rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx, allowance));
   }
 
   const candidate = time(timings, "refine", () => refineOutline(rawOutline, options, field));
-  const allowance = options.inwardTolerancePx ?? 0.5;
   const outline = time(timings, "containment", () => {
     if (validDetectionGeometry(materialOutline, candidate, allowance, options.outwardTolerancePx ?? 4)) return candidate;
     const conservative = refineOutline(materialOutline, { ...options, smoothing: 0, tolerancePx: Math.min(allowance*.4, options.tolerancePx ?? 1.2) }, field);

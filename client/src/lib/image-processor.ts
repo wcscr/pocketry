@@ -10,7 +10,7 @@ import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup
 import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { checkDetectionAbort } from "./detect/grabcut";
 import { SHEET_STROKE_MM, type SheetInkRegion } from "./detect/sheet-ink";
-import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
+import { DETECT_DEFAULTS, type DetectOptions, type DetectResult, type ImageLike } from "./detect/types";
 import { OUTER_SMOOTHING_MM } from "./geometry/outer-smoothing";
 import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
 import {
@@ -185,7 +185,7 @@ export async function processImage(
   const workingMmPerPixel = mmPerPixel(calibration);
   const detectionOptions: DetectOptions = { ...detect, roi,
     frameTransform: { origin: cropped ? { x: region.originalRegion.x, y: region.originalRegion.y } : { x: 0, y: 0 }, scale: toWorking },
-    tolerancePx: detect.tolerancePx === undefined ? undefined : detect.tolerancePx / workingPerDetectPixel,
+    tolerancePx: (detect.tolerancePx ?? DETECT_DEFAULTS.tolerancePx) / workingPerDetectPixel,
     outerSmoothingPx: !options.smoothBoundary ? detect.outerSmoothingPx
       : workingMmPerPixel ? OUTER_SMOOTHING_MM / (workingMmPerPixel * workingPerDetectPixel) : "auto",
     // Printed areas arrive in working pixels and need the scale to size a stroke.
@@ -199,8 +199,10 @@ export async function processImage(
     } : detect.sheetInk,
     hints: detect.hints?.map(h => ({ ...h, radius: h.radius / workingPerDetectPixel,
       points: h.points.map(p => ({ x: (p.x - (cropped ? region.originalRegion.x : 0)) / toWorking.x, y: (p.y - (cropped ? region.originalRegion.y : 0)) / toWorking.y })) })),
-    inwardTolerancePx: workingMmPerPixel ? 0.1 / (workingMmPerPixel * workingPerDetectPixel) : 0.5,
-    outwardTolerancePx: workingMmPerPixel ? 1 / (workingMmPerPixel * workingPerDetectPixel) : 4,
+    // Cleanup must honor the requested detail, rather than reject it under a
+    // separate sub-pixel budget and silently restore the dense staircase.
+    inwardTolerancePx: Math.max(workingMmPerPixel ? 0.1 / workingMmPerPixel : 0.5, detect.tolerancePx ?? DETECT_DEFAULTS.tolerancePx) / workingPerDetectPixel,
+    outwardTolerancePx: (workingMmPerPixel ? 1 / workingMmPerPixel : 4) / workingPerDetectPixel,
     occlusions: detect.occlusions?.map(ring => ring.map(p => ({ x: p.x / toWorking.x, y: p.y / toWorking.y }))),
   };
 
@@ -260,7 +262,8 @@ export async function processImage(
       const units = mmPerPixel(calibration), unitsPerPixel = units ?? 1;
       const recommended = Math.max(...rawOutline.flatMap(s => [s.outer, ...s.holes])
         .map(ring => recommendedReconstructionTolerance(ring, unitsPerPixel, units ? "mm" : "px")));
-      const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, (units ? .1 / units : .5) * .4);
+      const inward = detectionOptions.inwardTolerancePx! * workingPerDetectPixel;
+      const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, inward);
       const native = !!options.editableCurves && (margin ?? 0) === 0;
       const request = { source: curvesFromOutline(outline), dense: rawOutline, tolerance, editableCurves: native };
       const fitted = typeof Worker === "undefined"
@@ -268,7 +271,7 @@ export async function processImage(
         : await reconstructInWorker(request, detect.signal);
       checkDetectionAbort(detect.signal);
       const fittedOutline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (units ?? .1));
-      if (!validDetectionGeometry(material, fittedOutline, units ? .1 / units : .5, units ? 1 / units : 4)) throw new Error("Cleanup would cut into the detected material.");
+      if (!validDetectionGeometry(material, fittedOutline, inward, units ? 1 / units : 4)) throw new Error("Cleanup would exceed the detection detail allowance.");
       outline = fittedOutline;
       if (native) curves = fitted.curves;
       refinementBase = outline;
@@ -334,9 +337,10 @@ export async function reprocessOutline(
 ): Promise<Outline> {
   const { detect = {}, margin = null, calibration = null } = options;
 
-  const proposed = refineTraceOutline(rawOutline, detect);
-  const scale = mmPerPixel(calibration), allowance = scale ? .1 / scale : .5;
-  const outline = validDetectionGeometry(rawOutline, proposed, allowance, scale ? 1 / scale : 4) ? proposed : rawOutline;
+  // Manual detail/smoothing is an explicit allowance chosen by the user.
+  // The automatic detector's fixed preservation budget must not silently
+  // cancel it or replace the displayed contour with the unsimplified source.
+  const outline = refineTraceOutline(rawOutline, detect);
   const marginPx = marginToPixels(margin, calibration);
   const adjusted = marginPx === 0 ? outline : await offsetTraceOutline(outline, marginPx);
   return withoutNewInteriorHoles(adjusted, rawOutline);

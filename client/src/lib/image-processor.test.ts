@@ -71,6 +71,20 @@ const BODY = { x: 50, y: 45 };
 
 const JS = { engine: "js" } as const;
 
+it("lets manual simplification exceed the automatic detection allowance", async () => {
+  const outer = [
+    ...Array.from({ length: 101 }, (_, x) => ({ x, y: x % 2 ? -1.5 : 0 })),
+    { x: 100, y: 60 }, { x: 0, y: 60 },
+  ];
+  const raw = [{ outer, holes: [] }];
+  const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+  const fine = await reprocessOutline(raw, { detect: { tolerancePx: .1, smoothing: 0 }, calibration });
+  const coarse = await reprocessOutline(raw, { detect: { tolerancePx: 3, smoothing: 0 }, calibration });
+  expect(fine[0].outer.length).toBeGreaterThan(90);
+  expect(coarse[0].outer.length).toBeLessThan(10);
+  expect(pointInOutline(coarse, { x: 50, y: 30 })).toBe(true);
+});
+
 describe("processImage", () => {
   it.each([false, true])("automatically reconstructs a rounded outline while preserving dense evidence (curves=%s)", async editableCurves => {
     const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);

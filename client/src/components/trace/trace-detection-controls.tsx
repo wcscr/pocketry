@@ -103,7 +103,7 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
       <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
         onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
     </div>}
-    {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Advanced detection settings</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
+    {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Manual</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
     <Dialog open={confirmCurves} onOpenChange={setConfirmCurves}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect before using curves?</DialogTitle>

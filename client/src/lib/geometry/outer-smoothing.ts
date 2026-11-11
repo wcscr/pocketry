@@ -5,7 +5,7 @@ import type { Outline, Point, Ring } from "@shared/geometry/types";
 import { resampleRing } from "./simplify";
 
 /**
- * Smoothing with a checked inward allowance of 5% of the smoothing length.
+ * Smoothing with a checked inward allowance (5% of the length by default).
  *
  * A detected silhouette is the edge of a yes-or-no mask, so its trace is a
  * staircase with risers of one segmentation pixel. An ordinary low-pass
@@ -67,9 +67,10 @@ const PINCH_SHRINK = 0.9;
 
 /**
  * Smooths every ring of an outline outward. `length` is in the outline's own
- * units; zero, negative or non-finite returns the outline unchanged.
+ * units; zero, negative or non-finite returns the outline unchanged. Detection
+ * supplies its detail allowance so smoothing and later cleanup share a budget.
  */
-export function smoothOuterBoundary(outline: Outline, length: number): Outline {
+export function smoothOuterBoundary(outline: Outline, length: number, inwardAllowance = length * .05): Outline {
   if (!(length > 0) || !Number.isFinite(length)) return outline;
   const rings = outline.flatMap((shape) => [shape.outer, ...shape.holes]);
   const perimeter = rings.reduce((sum, ring) => sum + ringPerimeter(ring), 0);
@@ -77,8 +78,8 @@ export function smoothOuterBoundary(outline: Outline, length: number): Outline {
   // (Smoothed rings come out a few percent longer than the trace, hence the margin.)
   const coarsen = Math.max(1, perimeter / (length / OUTPUT_SAMPLES_PER_LENGTH) / (MAX_OUTPUT_SAMPLES * 0.95));
   const smoothed = outline.map((shape) => ({
-    outer: smoothRingOutward(shape.outer, length, { hole: false, coarsen }),
-    holes: shape.holes.map((hole) => smoothRingOutward(hole, length, { hole: true, coarsen })),
+    outer: smoothRingOutward(shape.outer, length, { hole: false, coarsen, inwardAllowance }),
+    holes: shape.holes.map((hole) => smoothRingOutward(hole, length, { hole: true, coarsen, inwardAllowance })),
   }));
   // Two tools that have grown into each other are worse than two rough ones.
   for (let a = 0; a < smoothed.length; a++) {
@@ -101,7 +102,7 @@ export function smoothOuterBoundary(outline: Outline, length: number): Outline {
 export function smoothRingOutward(
   ring: Ring,
   length: number,
-  options: { hole?: boolean; coarsen?: number } = {},
+  options: { hole?: boolean; coarsen?: number; inwardAllowance?: number } = {},
 ): Ring {
   if (ring.length < 3 || !(length > 0) || !Number.isFinite(length)) return ring;
   const perimeter = ringPerimeter(ring), area = signedArea(ring);
@@ -127,7 +128,7 @@ export function smoothRingOutward(
     // which would eat material, so a smoothed hole must lie wholly inside the hole it came from.
     if (options.hole && !result.every((point) => pointInRing(ring, point))) continue;
     const before = [{ outer: ring, holes: [] }], after = [{ outer: result, holes: [] }];
-    if (!preservesMaterial(options.hole ? after : before, options.hole ? before : after, length * 0.05)) continue;
+    if (!preservesMaterial(options.hole ? after : before, options.hole ? before : after, options.inwardAllowance ?? length * 0.05)) continue;
     return result;
   }
   return ring;

@@ -32,13 +32,23 @@ subject to those limitations.
 
 The unsmoothed accepted silhouette is retained independently of its presentation.
 Smoothing, simplification, and final curve cleanup are checked against it, with
-0.1 mm inward and 1 mm outward allowances in calibrated app processing
-(0.5 and 4 input pixels without calibration). A spatial index and adaptive
-segment checks certify the distance bound between vertices; topology checks
-reject crossed rings and closed gaps. Work limits reject an uncertified result.
+an inward allowance equal to the requested detail tolerance, with a minimum
+of 0.1 mm (0.5 working pixels without calibration). The outward boundary
+allowance is 1 mm (4 working pixels without calibration). All lengths are mapped
+to detection pixels together. A spatial index and adaptive segment checks
+certify the distance bound between vertices; topology checks reject crossed
+rings and overlapping tools. Filling a narrow recess is bounded across its
+mouth, rather than rejected because the old recess was deep. Work limits reject
+an uncertified result.
 A conservative simplification or the accepted silhouette is the fallback. These
 checks protect detected material; they cannot recover material segmentation
 already missed. User clearance is applied afterward.
+
+The **Manual** simplification control applies the user's chosen tolerance to
+the refinement source. It does not silently cancel the adjustment under the
+automatic detector's fixed minimum allowance. Automatic cleanup also uses the
+same detail budget as detection; a separate sub-pixel cap previously defeated
+smoothing and caused the Craftsman regression.
 
 New perspective corrections retain the exact homography back to the original
 photo. Tool detection samples a bounded original-image tile and reprojects the
@@ -61,12 +71,15 @@ boundaries, so short notches cannot hide below a percentile threshold. Empty or
 unmeasurable outputs count as missing-material failures when a reference exists.
 
 See the [November 11 comparison](outline-combined-validation-2026-11-11.md) for
-the 36-case results, regressions, and verification limits.
+the initial 36-case results and the [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md)
+for the corrected comparison, manual controls, and expanded photo coverage.
 
 ## Local provenance review
 
 Dependencies and third-party code/assets: **None added or changed.** This combines
 existing Pocketry work with maintainer-requested original implementation and
-tests. Claude's baseline remains in the branch ancestry; existing notices and
+tests. A maintainer-photo crop was added as a regression fixture; its source hash
+and preparation are recorded in `client/src/lib/detect/fixtures/README.md`.
+Claude's baseline remains in the branch ancestry; existing notices and
 attribution are preserved. No package version, PR, publication, deployment, or
 hosted CI run is part of this local integration.
