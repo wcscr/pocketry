@@ -1,16 +1,18 @@
+import { preservesMaterial } from "@shared/geometry/boundary-contract";
 import { pointInRing, ringPerimeter, signedArea } from "@shared/geometry/rings";
 import type { Outline, Point, Ring } from "@shared/geometry/types";
 
 import { resampleRing } from "./simplify";
 
 /**
- * Smoothing that can only grow the tool.
+ * Smoothing with a checked inward allowance of 5% of the smoothing length.
  *
  * A detected silhouette is the edge of a yes-or-no mask, so its trace is a
  * staircase with risers of one segmentation pixel. An ordinary low-pass
  * removes the stairs but also pulls every convex part inward, and a pocket cut
  * inside the tool's edge does not fit. This smooths the ring and then moves the
- * result away from the material until the traced ring nowhere lies outside it:
+ * result away from the material, then checks the entire boundary against the
+ * stated inward allowance:
  *
  * 1. **Base.** Blur the ring along its own length (a Gaussian of the given
  *    length). The base is smooth but cuts corners and the tops of the stairs.
@@ -21,7 +23,8 @@ import { resampleRing } from "./simplify";
  *    is wide.
  * 3. Offset the base along its normal by the lift.
  *
- * Holes move the other way, into the hole, so the material only ever grows.
+ * Holes move the other way, into the hole. A failed containment check retries
+ * a shorter smoothing length, then falls back to the original ring.
  * The cost is a small outward offset: about a twentieth of the length on a
  * stair-stepped edge and up to about two thirds of it beside a sharp corner.
  *
@@ -110,26 +113,28 @@ export function smoothRingOutward(
   const spacing = Math.max(fitted / OUTPUT_SAMPLES_PER_LENGTH * Math.max(1, options.coarsen ?? 1), perimeter / MAX_OUTPUT_SAMPLES_PER_RING);
   // Material lies inside an outer ring and outside a hole.
   const away = (options.hole ? -1 : 1) * Math.sign(area);
-  // Replacing a curve by chords loses a sliver of area; anything beyond that is the material shrinking.
+  // Reject excessive net-area loss as an early filter; local loss is checked below.
   const sliver = perimeter * spacing * CHORD_LOSS;
   for (const factor of RETRY_FACTORS) {
-    const candidate = envelope(ring, perimeter, fitted * factor, away);
+    const candidate = envelope(ring, perimeter, fitted * factor, away, fitted);
     if (!candidate) continue;
     // The smoothed ring is a little longer than the trace, and the cap is on what is returned.
     const result = resampleRing(candidate, Math.max(spacing, ringPerimeter(candidate) / MAX_OUTPUT_SAMPLES_PER_RING));
     const change = (Math.abs(signedArea(result)) - Math.abs(area)) * (options.hole ? -1 : 1);
-    // Same winding, and the material did not shrink: an outer ring gains area, a hole loses it.
+    // Preserve winding and bound net-area loss; area alone cannot protect tips.
     if (Math.sign(signedArea(result)) !== Math.sign(area) || change < -sliver || ringCrossesItself(result)) continue;
     // A hole has nowhere to go but into itself. One thinner than the smoothing bulges instead,
     // which would eat material, so a smoothed hole must lie wholly inside the hole it came from.
     if (options.hole && !result.every((point) => pointInRing(ring, point))) continue;
+    const before = [{ outer: ring, holes: [] }], after = [{ outer: result, holes: [] }];
+    if (!preservesMaterial(options.hole ? after : before, options.hole ? before : after, length * 0.05)) continue;
     return result;
   }
   return ring;
 }
 
 /** The lifted base at working resolution, or `null` when the ring is too short to work on. */
-function envelope(ring: Ring, perimeter: number, length: number, away: number): Ring | null {
+function envelope(ring: Ring, perimeter: number, length: number, away: number, protectedLength = length): Ring | null {
   const points = resampleRing(ring, length / WORKING_SAMPLES_PER_LENGTH), n = points.length;
   const step = perimeter / n;
   const radius = Math.min((n >> 1) - 1, Math.ceil(3 * length / step));
@@ -175,7 +180,7 @@ function envelope(ring: Ring, perimeter: number, length: number, away: number): 
   const result: Point[] = new Array(n);
   for (let i = 0; i < n; i++) result[i] = { x: baseX[i] + normalX[i] * lift[i], y: baseY[i] + normalY[i] * lift[i] };
   // Growth must not close a gap. Where it would, keep the trace and fade back to the smooth ring.
-  const keep = pinchWeights(points, result, step, length);
+  const keep = pinchWeights(points, result, step, protectedLength);
   if (keep) {
     for (let i = 0; i < n; i++) {
       result[i] = { x: points[i].x + (result[i].x - points[i].x) * keep[i], y: points[i].y + (result[i].y - points[i].y) * keep[i] };

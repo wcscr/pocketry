@@ -106,12 +106,9 @@ describe("processImage", () => {
     expect(plain.timings.outerSmoothing).toBeUndefined();
     expect(smooth.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
     expect(smooth.cleanup?.applied).toBe(true);
-    // The dense trace is resampled every quarter of the length: 1 mm is 4 px here, so 1 px.
-    const [first, second] = smooth.rawOutline[0].outer;
-    expect(Math.hypot(second.x - first.x, second.y - first.y)).toBeCloseTo(1, 1);
-    // It only grew, and the cleaned outline still covers the shape.
-    expect(outlineArea(smooth.rawOutline)).toBeGreaterThan(outlineArea(plain.rawOutline));
-    expect(outlineArea(smooth.rawOutline)).toBeLessThan(outlineArea(plain.rawOutline) * 1.03);
+    // Smoothing is a proposal; the original dense evidence remains available.
+    expect(smooth.rawOutline).toEqual(plain.rawOutline);
+    expect(outlineArea(smooth.outline)).toBeLessThan(outlineArea(plain.rawOutline) * 1.03);
     for (const [x, y] of [[100, 35], [165, 100], [100, 165], [35, 100], [100, 100]]) expect(pointInOutline(smooth.outline, { x, y })).toBe(true);
   });
 
@@ -122,12 +119,13 @@ describe("processImage", () => {
     const cropped = await processImage(image, { detect: JS, calibration, smoothBoundary: true, region: {
       isCropped: true, originalRegion: { x: 0, y: 0, width: 100, height: 100 }, toWorking: { x: 0.5, y: 0.5 },
     } });
-    const [a, b] = cropped.rawOutline[0].outer;
-    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(1, 1); // 2 detector pixels, mapped to working pixels
+    const original = await processImage(image, { detect: JS, calibration, region: {
+      isCropped: true, originalRegion: { x: 0, y: 0, width: 100, height: 100 }, toWorking: { x: .5, y: .5 },
+    } });
+    expect(cropped.rawOutline).toEqual(original.rawOutline);
     const unscaled = await processImage(image, { detect: JS, smoothBoundary: true });
     expect(unscaled.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
-    const [c, d] = unscaled.rawOutline[0].outer;
-    expect(Math.hypot(d.x - c.x, d.y - c.y)).toBeCloseTo(1, 1); // four segmentation pixels, sampled every one
+    expect(unscaled.rawOutline).toEqual((await processImage(image, { detect: JS })).rawOutline);
   });
 
   it("maps the sheet's printed areas from the working photo into the detection crop", async () => {

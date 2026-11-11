@@ -28,6 +28,8 @@ export interface DetectOptions {
    * learned boundary is requested, and is kept through its colour fallback.
    */
   paperBackground?: boolean;
+  /** Explicit tool/paper corrections in input-image pixels. */
+  hints?: readonly import("@shared/geometry/detection-hints").DetectionHint[];
   /** Validated calibration carriers, in input-image pixels. Their contents are unknown. */
   occlusions?: readonly Ring[];
   /**
@@ -38,6 +40,8 @@ export interface DetectOptions {
   sheetInk?: SheetInk;
   /** Restrict detection to this region of the image. */
   roi?: Rect | null;
+  /** Exact input-to-working mapping retained by evaluation capture hooks. */
+  frameTransform?: import("@shared/geometry/contour-replay").RasterTransform;
   /**
    * Threshold bias, 0-255, where 128 means "use Otsu's answer unchanged".
    * Below 128 admits more foreground, above 128 less.
@@ -48,13 +52,17 @@ export interface DetectOptions {
   /** Taubin smoothing passes; 0 disables smoothing. */
   smoothing?: number;
   /**
-   * Smooths the dense trace before simplification, moving it only away from
-   * the tool, so stair-steps go and nothing is cut off (see
+   * Smooths the dense trace before simplification, with a checked inward
+   * allowance of 5% of the smoothing length (see
    * `geometry/outer-smoothing`). The value is the smoothing length in source
    * pixels, about one millimetre when a scale is known; "auto" uses a few
    * segmentation pixels. Off when omitted, so existing callers are unchanged.
    */
   outerSmoothingPx?: number | "auto";
+  /** Maximum geometry-stage inward error in input pixels, independent of clearance. */
+  inwardTolerancePx?: number;
+  /** Maximum geometry-stage excess; user clearance is applied separately. */
+  outwardTolerancePx?: number;
   /**
    * Segmentation pixel budget. Larger inputs are area-averaged down to this
    * many pixels and the result is scaled back up, so a 48MP phone photo costs
@@ -94,6 +102,8 @@ export interface DetectResult {
    * of re-segmenting: without it, every slider tick re-runs the whole pipeline.
    */
   rawOutline: Outline;
+  /** Accepted unsmoothed silhouette, retained for the final containment check. */
+  materialOutline?: Outline;
   /** The iso level actually used, after the sensitivity bias. */
   threshold: number;
   /** The Otsu level before any bias was applied. */

@@ -1,3 +1,5 @@
+import type { DetectionHint } from "@shared/geometry/detection-hints";
+import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
 import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -173,6 +175,8 @@ function TraceWorkspace(): JSX.Element {
     workingImageMax,
     store.imageRotation,
     store.imageAlignment,
+    store.perspectiveOriginalImageUrl,
+    store.perspectiveCorrection?.toOriginal,
   );
   useOutlineRefinement();
 
@@ -201,6 +205,7 @@ function TraceWorkspace(): JSX.Element {
 
   const runDetection = useCallback(async (settings?: {
     editableCurves?: boolean;
+    hints?: DetectionHint[];
     sensitivity: number;
     includeInteriorHoles: boolean;
     boundary?: "auto" | "color" | "teed";
@@ -217,18 +222,19 @@ function TraceWorkspace(): JSX.Element {
         : null;
     if (!region) return;
 
-    const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
-    const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
-    const candidateFrame = requestedBoundary !== "color" ? getToolDetectionFrame(region) : null;
-    const initialPixels = candidateFrame?.imageData ?? getImageData(region);
-    if (!initialPixels) return;
     const request = ++detectionRequest.current;
     detectionAbort.current?.abort();
     const controller = new AbortController();
     detectionAbort.current = controller;
     const sourceRevision = store.sourceRevision;
+    const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
+    const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
     dispatch({ type: "SET_PROCESSING", processing: true });
     try {
+      const candidateFrame = requestedBoundary !== "color" ? await getToolDetectionFrame(region, controller.signal) : null;
+      const initialPixels = candidateFrame?.imageData ?? getImageData(region);
+      if (!initialPixels || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision || controller.signal.aborted) return;
+      const hints = requestedRegion ? [] : settings?.hints ?? store.detectionHints;
       // Re-read the current photo, including any rotation/perspective warp.
       // This also works after draft recovery or choosing a manual/paper scale;
       // the carrier footprint is independent of the accepted scale ruler.
@@ -275,7 +281,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
-          boundary,
+          boundary, hints,
           signal: controller.signal,
           occlusions,
           sensitivity: settings?.sensitivity ?? store.sensitivity,
@@ -295,6 +301,7 @@ function TraceWorkspace(): JSX.Element {
         curves: result.curves,
         refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
+        detectionHints: hints,
         svg: result.svg,
         region,
       });
@@ -328,6 +335,10 @@ function TraceWorkspace(): JSX.Element {
     store.includeInteriorHoles,
     store.boundaryMethod,
     store.editableCurves,
+    store.detectionHints,
+    store.perspectiveCorrection,
+    store.imageRotation,
+    store.imageAlignment,
     getToolDetectionFrame,
     store.tolerancePx,
     store.smoothing,
@@ -545,6 +556,10 @@ function TraceWorkspace(): JSX.Element {
           imageSize: { width: corrected.width, height: corrected.height },
           paperBounds: corrected.paperBounds,
           fullPhotoUnavailableReason: corrected.fullPhotoUnavailableReason,
+          toOriginal: corrected.sourceToCorrected && (!store.perspectiveOriginalImageUrl || store.perspectiveCorrection?.toOriginal)
+            ? composeHomography(store.perspectiveCorrection?.toOriginal ?? workingToPhoto(store.imageSize, store.imageRotation, store.imageAlignment),
+              composeHomography(affineHomography([frame.toWorking.x,0,0,frame.toWorking.y,0,0]),
+                composeHomography(affineHomography([1,0,0,1,.5,.5]),composeHomography(inverseHomography(corrected.sourceToCorrected),affineHomography([1,0,0,1,-.5,-.5]))))) : undefined,
           calibration: usePaperScale === false ? null : corrected.calibration,
           calibrationSource: typeof usePaperScale === "object" ? "strip" : "sheet",
           source: proposal.source,
@@ -850,6 +865,7 @@ function TraceWorkspace(): JSX.Element {
                   outlineCleanupRequest={outlineCleanupRequest}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
+                  onCorrection={hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints })}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                       <div className="w-full max-w-2xl self-center">

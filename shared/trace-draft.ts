@@ -12,6 +12,7 @@ const imageSize = z.object({ width: finite.positive(), height: finite.positive()
 const imageAlignment = z.object({ sourceSize: imageSize, size: imageSize,
   matrix: z.tuple([finite, finite, finite, finite, finite, finite]).refine(m => Math.abs(m[0]*m[3]-m[1]*m[2]) > 1e-12),
 });
+const detectionHints = z.array(z.object({ kind: z.enum(["tool", "paper"]), points: z.array(vec2Schema).min(1).max(4096), radius: finite.positive() })).max(100);
 const margin = finite.min(0).max(5).nullable();
 const calibrationFields = {
   startX: finite, startY: finite, endX: finite, endY: finite, lengthMm: finite.positive(),
@@ -30,6 +31,7 @@ const perspective = z.object({
 const perspectiveCorrection = z.object({
   source: z.enum(["template", "manual"]), paper, template: template.optional(),
   paperBounds: z.object({ x: finite.nonnegative(), y: finite.nonnegative(), width: finite.positive(), height: finite.positive() }).optional(),
+  toOriginal: z.tuple([finite,finite,finite,finite,finite,finite,finite,finite,finite]).optional(),
   showFullPhoto: z.boolean().optional(), fullPhotoUnavailableReason: z.string().max(500).optional(),
 }).nullable();
 const frameFields = {
@@ -45,6 +47,7 @@ const historyEntry = z.object({
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
   hasManualEdits: z.boolean().optional(),
   estimatedEdgeRegions: z.array(z.array(vec2Schema).min(3)).optional(),
+  detectionHints: detectionHints.optional(),
   photoFrame: z.object(frameFields).optional(),
 });
 
@@ -62,6 +65,7 @@ export const traceDraftSchema = z.object({
     imageAlignment: imageAlignment.nullable().default(null),
     outline, rawOutline: outline, curves: curveOutlineSchema.optional(),
     estimatedEdgeRegions: z.array(z.array(vec2Schema).min(3)).default([]),
+    detectionHints: detectionHints.default([]),
     selection: z.object({ shapeIndex: finite.int().nonnegative(), ringIndex: finite.int().min(-1) }).nullable(),
     history: z.object({ stack: z.array(historyEntry).min(1).max(50), index: finite.int().nonnegative() })
       .refine((value) => value.index < value.stack.length),

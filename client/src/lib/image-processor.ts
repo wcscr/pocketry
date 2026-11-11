@@ -1,3 +1,5 @@
+import { validateDetectionHints } from "./detect/hint-validation";
+import { validDetectionGeometry } from "./detect/boundary-validation";
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
 
@@ -182,6 +184,7 @@ export async function processImage(
   const workingPerDetectPixel = Math.max(toWorking.x, toWorking.y);
   const workingMmPerPixel = mmPerPixel(calibration);
   const detectionOptions: DetectOptions = { ...detect, roi,
+    frameTransform: { origin: cropped ? { x: region.originalRegion.x, y: region.originalRegion.y } : { x: 0, y: 0 }, scale: toWorking },
     tolerancePx: detect.tolerancePx === undefined ? undefined : detect.tolerancePx / workingPerDetectPixel,
     outerSmoothingPx: !options.smoothBoundary ? detect.outerSmoothingPx
       : workingMmPerPixel ? OUTER_SMOOTHING_MM / (workingMmPerPixel * workingPerDetectPixel) : "auto",
@@ -194,6 +197,10 @@ export async function processImage(
       })),
       strokePx: SHEET_STROKE_MM / (workingMmPerPixel * workingPerDetectPixel),
     } : detect.sheetInk,
+    hints: detect.hints?.map(h => ({ ...h, radius: h.radius / workingPerDetectPixel,
+      points: h.points.map(p => ({ x: (p.x - (cropped ? region.originalRegion.x : 0)) / toWorking.x, y: (p.y - (cropped ? region.originalRegion.y : 0)) / toWorking.y })) })),
+    inwardTolerancePx: workingMmPerPixel ? 0.1 / (workingMmPerPixel * workingPerDetectPixel) : 0.5,
+    outwardTolerancePx: workingMmPerPixel ? 1 / (workingMmPerPixel * workingPerDetectPixel) : 4,
     occlusions: detect.occlusions?.map(ring => ring.map(p => ({ x: p.x / toWorking.x, y: p.y / toWorking.y }))),
   };
 
@@ -242,6 +249,7 @@ export async function processImage(
     holes: s.holes.map(r => r.map(p => ({ x: p.x * toWorking.x, y: p.y * toWorking.y }))) }));
   let outline = translate(mapToWorking(silhouette(result.outline)), origin);
   let rawOutline = translate(mapToWorking(silhouette(result.rawOutline)), origin);
+  const material = translate(mapToWorking(silhouette(result.materialOutline ?? result.rawOutline)), origin);
 
   let curves: CurveOutline | undefined, refinementBase: Outline | undefined;
   let cleanup: ProcessResult["cleanup"];
@@ -252,14 +260,16 @@ export async function processImage(
       const units = mmPerPixel(calibration), unitsPerPixel = units ?? 1;
       const recommended = Math.max(...rawOutline.flatMap(s => [s.outer, ...s.holes])
         .map(ring => recommendedReconstructionTolerance(ring, unitsPerPixel, units ? "mm" : "px")));
-      const tolerance = Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel;
+      const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, (units ? .1 / units : .5) * .4);
       const native = !!options.editableCurves && (margin ?? 0) === 0;
       const request = { source: curvesFromOutline(outline), dense: rawOutline, tolerance, editableCurves: native };
       const fitted = typeof Worker === "undefined"
         ? reconstructDetectedForEditing(request.source, request.dense, tolerance, native)
         : await reconstructInWorker(request, detect.signal);
       checkDetectionAbort(detect.signal);
-      outline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (units ?? .1));
+      const fittedOutline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (units ?? .1));
+      if (!validDetectionGeometry(material, fittedOutline, units ? .1 / units : .5, units ? 1 / units : 4)) throw new Error("Cleanup would cut into the detected material.");
+      outline = fittedOutline;
       if (native) curves = fitted.curves;
       refinementBase = outline;
       cleanup = { applied: true, tolerancePx: tolerance };
@@ -272,6 +282,9 @@ export async function processImage(
     result.timings.cleanup = performance.now() - began;
   }
 
+  validateDetectionHints(outline, detect.hints ?? []);
+  // Future simplification starts from the accepted, unsmoothed material too.
+  rawOutline = material;
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Keep independently detected tools separate as their margins grow.
@@ -321,7 +334,9 @@ export async function reprocessOutline(
 ): Promise<Outline> {
   const { detect = {}, margin = null, calibration = null } = options;
 
-  const outline = refineTraceOutline(rawOutline, detect);
+  const proposed = refineTraceOutline(rawOutline, detect);
+  const scale = mmPerPixel(calibration), allowance = scale ? .1 / scale : .5;
+  const outline = validDetectionGeometry(rawOutline, proposed, allowance, scale ? 1 / scale : 4) ? proposed : rawOutline;
   const marginPx = marginToPixels(margin, calibration);
   const adjusted = marginPx === 0 ? outline : await offsetTraceOutline(outline, marginPx);
   return withoutNewInteriorHoles(adjusted, rawOutline);

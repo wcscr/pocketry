@@ -35,6 +35,8 @@ and internal refactors usually need no changelog entry.
 - [Learned outer outlines](teed-outline-integration.md) and [editable curves](contour-curves-prototype.md).
   [How outlines are evaluated](outline-evaluation.md); the
   [detection plan](outline-detection-plan.md) is a proposal, not implemented behavior.
+  [Combined detector](outline-combined-detector.md) describes source sampling,
+  explicit corrections, and the geometry preservation checks in this worktree.
 - [Contour symmetry](contour-symmetry-prototype.md) and
   [calibration aids](calibration/object-reference-strip.md).
 - [DXF compatibility](dxf-compatibility.md) and [import limits](import-limits.md).

@@ -1,3 +1,5 @@
+import { buildRegionEvidence, solveRegionEvidence } from "./region-evidence";
+import { validDetectionGeometry } from "./boundary-validation";
 import type { Outline, Point, Ring } from "@shared/geometry/types";
 
 import { AUTO_OUTER_SMOOTHING_SEG_PIXELS, smoothOuterBoundary } from "../geometry/outer-smoothing";
@@ -43,6 +45,13 @@ export async function detectOutline(
   options: DetectOptions = {},
   runtime: { loadCV: () => Promise<OpenCV>; teed?: TeedDetector } = { loadCV: loadOpenCV },
 ): Promise<DetectResult> {
+  return detectPreparedOutline(image, options, runtime, image);
+}
+
+async function detectPreparedOutline(
+  image: ImageLike, options: DetectOptions,
+  runtime: { loadCV: () => Promise<OpenCV>; teed?: TeedDetector }, sourceImage: ImageLike,
+): Promise<DetectResult> {
   checkDetectionAbort(options.signal);
   const timings: Record<string, number> = {};
 
@@ -62,7 +71,7 @@ export async function detectOutline(
   const colorFallback = async (report: RefinementReport): Promise<DetectResult> => {
     const started = now();
     // The sheet is still white paper when the learned outline is rejected.
-    const fallback = await detectOutline(image, { ...options, boundary: "color", paperBackground: options.paperBackground ?? true, engine }, runtime);
+    const fallback = await detectPreparedOutline(image, { ...options, boundary: "color", paperBackground: options.paperBackground ?? true, engine }, runtime, sourceImage);
     return { ...fallback, refinement: report, timings: { ...timings, colorFallback: now() - started } };
   };
   if (options.boundary === "teed" && refinement?.status === "fallback") return colorFallback(refinement);
@@ -92,6 +101,12 @@ export async function detectOutline(
 
   // Every path that reaches the user passes here exactly once: the learned
   // fallbacks above return the colour re-entry's result, which already ran it.
+  if (options.hints?.length) {
+    const evidence = time(timings, "evidence", () => buildRegionEvidence(sourceImage, field, options.hints));
+    field = time(timings, "regionCorrection", () => solveRegionEvidence(field, evidence));
+    rawOutline = traceToOutline(field, { ...options, minShellAreaFrac: 0, minHoleAreaFrac: 0 });
+  }
+  const materialOutline = rawOutline;
   if (options.outerSmoothingPx) {
     const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
     const lengthPx = options.outerSmoothingPx === "auto"
@@ -100,13 +115,20 @@ export async function detectOutline(
     rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx));
   }
 
-  const outline = time(timings, "refine", () => refineOutline(rawOutline, options, field));
+  const candidate = time(timings, "refine", () => refineOutline(rawOutline, options, field));
+  const allowance = options.inwardTolerancePx ?? 0.5;
+  const outline = time(timings, "containment", () => {
+    if (validDetectionGeometry(materialOutline, candidate, allowance, options.outwardTolerancePx ?? 4)) return candidate;
+    const conservative = refineOutline(materialOutline, { ...options, smoothing: 0, tolerancePx: Math.min(allowance*.4, options.tolerancePx ?? 1.2) }, field);
+    return validDetectionGeometry(materialOutline, conservative, allowance, options.outwardTolerancePx ?? 4) ? conservative : materialOutline;
+  });
 
   return {
     inferredOccludedEdge,
     estimatedEdgeRegions,
     outline,
     rawOutline,
+    materialOutline,
     threshold: field.iso,
     otsuThreshold: field.otsu,
     engine,

@@ -134,3 +134,33 @@ describe("photo and contour alignment", () => {
     expect(align(state, NaN)).toBe(state);
   });
 });
+
+it("keeps source-photo mapping and correction marks through rotation and undo without sheet bounds", async () => {
+  const { projectPoint } = await import("@shared/geometry/projective");
+  const before = ready();
+  before.perspectiveCorrection = {source:"manual",paper:"letter",toOriginal:[1/400,0,0,0,1/600,0,0,0,1]};
+  const hint = {kind:"tool" as const,points:[{x:120,y:140}],radius:2};
+  const marked = traceReducer(before,{type:"DETECTED",outline:before.outline,rawOutline:before.rawOutline,imageUrl,svg:"",region:null,detectionHints:[hint]});
+  const after = align(marked), p = after.detectionHints[0].points[0];
+  const mapped = projectPoint(after.perspectiveCorrection!.toOriginal!,p);
+  expect(mapped.x).toBeCloseTo(.3,12); expect(mapped.y).toBeCloseTo(140/600,12);
+  expect(undo(after).detectionHints).toEqual(marked.detectionHints);
+  expect(redo(undo(after)).detectionHints).toEqual(after.detectionHints);
+  expect(undo(marked).detectionHints).toEqual([]);
+  const turned = traceReducer(marked,{type:"ROTATE_SOURCE",direction:"clockwise",naturalSize:marked.imageSize,maxSize:{width:1600,height:1600}});
+  const turnedPoint=projectPoint(turned.perspectiveCorrection!.toOriginal!,turned.detectionHints[0].points[0]);
+  expect(turnedPoint.x).toBeCloseTo(.3,12);expect(turnedPoint.y).toBeCloseTo(140/600,12);
+});
+
+it("keeps a correction brush's physical width when a quarter-turn resizes the photo", () => {
+  const hint = { kind: "tool" as const, points: [{ x: 40, y: 40 }], radius: 2 };
+  const before = traceReducer({ ...ready(), imageSize: { width: 200, height: 100 }, imageRotation: 0,
+    calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 100 } },
+  { type: "DETECTED", outline: [], rawOutline: [], imageUrl, svg: "", region: null, detectionHints: [hint] });
+  const after = traceReducer(before, { type: "ROTATE_SOURCE", direction: "clockwise",
+    naturalSize: before.imageSize, maxSize: { width: 100, height: 100 } });
+  expect(after.imageSize).toEqual({ width: 50, height: 100 });
+  expect(after.detectionHints[0]).toEqual({ ...hint, radius: 1, points: [{ x: 30, y: 20 }] });
+  expect(after.detectionHints[0].radius * mmPerPixel(after.calibration)!).toBe(hint.radius * mmPerPixel(before.calibration)!);
+  expect(after.history.stack.at(-1)?.detectionHints).toEqual(after.detectionHints);
+});

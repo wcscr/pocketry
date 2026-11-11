@@ -62,7 +62,7 @@
   }
   const APP_FIELDS = ["fileName", "imageSize", "imageRotation", "imageAlignment", "calibration", "calibrationSource", "region",
     "perspectiveCorrection", "sensitivity", "includeInteriorHoles", "boundaryMethod", "editableCurves", "tolerancePx", "smoothing",
-    "margin", "outline", "rawOutline", "estimatedEdgeRegions"];
+    "margin", "outline", "rawOutline", "estimatedEdgeRegions", "detectionHints"];
 
   /**
    * Saves the most recent completed detection as a case.

@@ -1,5 +1,10 @@
 # Photo outlines
 
+The [combined detector](outline-combined-detector.md) adds geometry preservation,
+tool/paper correction strokes, and original-photo sampling to Claude's detector.
+Its [November 11 comparison](outline-combined-validation-2026-11-11.md) records the
+current 36-case comparison; earlier report measurements below remain historical.
+
 **Automatic · match background** is the default for new traces. Draw a region
 around one tool, leaving paper visible around it. Automatic checks that rim:
 light neutral paper uses **Tool edges · white sheet**; recognized sheet markers

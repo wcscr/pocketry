@@ -1,5 +1,10 @@
 # Outline evaluation
 
+The measurements below are historical. The [combined detector comparison](outline-combined-validation-2026-11-11.md)
+reruns these 36 cases against Claude's `5aefd804` baseline. Current replay checks
+use exact captured raster transforms and complete boundary checks; legacy cases
+without those transforms cannot qualify exact app replay.
+
 How photo-outline detection is measured. This is phase 0 of the
 [outline detection plan](outline-detection-plan.md): measurement only, no change
 to detection. Status on 2026-11-10: cases, evaluator, metrics and **draft**

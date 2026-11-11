@@ -36,7 +36,7 @@ Each case is `<name>.rgba` (the exact pixels sent to the detection worker),
 ## Evaluate
 
 ```
-node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off]
+node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off] [--hints prompts.json]
 ```
 
 `--outer-smoothing on` and `--sheet-ink on` apply the outward smoothing and the
@@ -48,3 +48,14 @@ The evaluator replays every case through `detectOutline`, checks that the
 replay matches what the app produced, and, where `<name>.truth.json` exists,
 reports boundary metrics in millimetres. A reference outline is
 `{ "outline": Outline, "status": "draft" | "reviewed" }` in crop pixels.
+
+Replay checks require both complete boundaries to agree within 0.05 crop pixels;
+P95 is informational. Final app replay uses the recorded `frameTransform`, never
+a fitted contour bounding box. Legacy captures without that mapping report final
+app replay as unavailable. Empty/unmeasurable outputs count as missing-material
+failures when a reference is present.
+
+For separate assisted runs, `--hints` accepts a JSON object mapping case names to
+arrays of `{ kind: "tool" | "paper", points: [{ x, y }], radius }` in captured
+input pixels. Only named cases run; failed final mark checks are reported. Keep
+these results separate from unassisted comparisons.

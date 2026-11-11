@@ -1,3 +1,4 @@
+import { reprojectPhoto, type ReprojectionRequest } from "./reproject";
 import type { HandlerContext } from "../worker/host";
 import { checkDetectionAbort } from "./grabcut";
 import { detectOutline } from "./pipeline";
@@ -21,6 +22,11 @@ export function createDetectionHandlers(loadCV: () => Promise<OpenCV>) {
   let tail: Promise<unknown> = Promise.resolve();
   const teed = createTeedDetector();
   return {
+    reproject(payload: ReprojectionRequest, { signal }: HandlerContext) {
+      const result = tail.then(() => { checkDetectionAbort(signal); return reprojectPhoto(payload); });
+      tail = result.catch(() => undefined);
+      return result;
+    },
     symmetry(payload: CurveSymmetryRequest, { signal }: HandlerContext) {
       const result = tail.then(() => { checkDetectionAbort(signal); return symmetrizeCurves(payload); });
       tail = result.catch(() => undefined);

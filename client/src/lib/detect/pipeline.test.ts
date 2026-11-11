@@ -98,6 +98,25 @@ const blockWithHole = (x: number, y: number): boolean => {
 
 const JS = { engine: "js" } as const;
 
+describe("corrections after sheet-print removal", () => {
+  it.each(["color", "teed"] as const)("uses original appearance through the %s path", async (boundary) => {
+    const image = paint(120, 100, rect(40, 30, 80, 70));
+    const original = image.data.slice();
+    const options = { ...JS, boundary, paperBackground: true, refine: "none" as const,
+      sheetInk: { regions: [{ x: 30, y: 20, width: 60, height: 60, kind: "solid" as const }], strokePx: 5 } };
+    const automatic = await detectOutline(image, options);
+    expect(pointInOutline(automatic.outline, { x: 60, y: 50 })).toBe(false);
+    const corrected = await detectOutline(image, { ...options,
+      hints: [{ kind: "tool", points: [{ x: 60, y: 40 }, { x: 60, y: 60 }], radius: 1 }] });
+    // Recover the object beyond the brush, stopping at its original appearance
+    // boundary. A solve on the erased copy would grow into the surrounding paper.
+    expect(pointInOutline(corrected.outline, { x: 43, y: 50 })).toBe(true);
+    expect(pointInOutline(corrected.outline, { x: 38, y: 50 })).toBe(false);
+    expect(image.data).toEqual(original);
+    if (boundary === "teed") expect(corrected.refinement?.status).toBe("fallback");
+  });
+});
+
 describe("detectOutline: basic shapes", () => {
   it("finds a rectangle with the right bounds and area", async () => {
     const image = paint(160, 160, rect(30, 40, 110, 130));

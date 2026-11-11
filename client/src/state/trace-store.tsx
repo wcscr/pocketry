@@ -1,3 +1,5 @@
+import type { DetectionHint } from "@shared/geometry/detection-hints";
+import { transformPhotoProjection, type Homography } from "@shared/geometry/projective";
 import {
   createContext,
   useCallback,
@@ -105,6 +107,7 @@ export interface TraceHistoryEntry {
   hasManualEdits?: boolean;
   /** Review regions belong to this detection and follow its image frame. */
   estimatedEdgeRegions?: Ring[];
+  detectionHints?: DetectionHint[];
   /** Coordinate frame saved only when photo alignment enters the undo history. */
   photoFrame?: TracePhotoFrame;
 }
@@ -130,6 +133,7 @@ export interface TraceState {
   rawOutline: Outline;
   /** Areas with estimated edges hidden by measurement aids; retained in recovery. */
   estimatedEdgeRegions: Ring[];
+  detectionHints: DetectionHint[];
   /** Preview SVG, also what gets POSTed. */
   svg: string | null;
   /** Source for which automatic tracing has completed, even if no rings were found. */
@@ -188,6 +192,8 @@ export interface TraceState {
     paperBounds?: Rect;
     showFullPhoto?: boolean;
     fullPhotoUnavailableReason?: string;
+    /** Current working pixels to normalized original-photo coordinates. */
+    toOriginal?: Homography;
   } | null;
 
   region: Rect | null;
@@ -210,6 +216,7 @@ export const initialTraceState: TraceState = {
   outline: [],
   rawOutline: [],
   estimatedEdgeRegions: [],
+  detectionHints: [],
   svg: null,
   detectedImageUrl: null,
   autoCalibrationAttemptedImageUrl: null,
@@ -274,6 +281,7 @@ export type TraceAction =
       curves?: CurveOutline;
       refinementBase?: Outline;
       estimatedEdgeRegions?: Ring[];
+      detectionHints?: DetectionHint[];
       svg: string;
       imageUrl: string | null;
       /** Region used by this asynchronous result, for stale-result rejection. */
@@ -350,6 +358,7 @@ export type TraceAction =
       template?: TemplateVariant;
       paperBounds?: Rect;
       fullPhotoUnavailableReason?: string;
+      toOriginal?: Homography;
     }
   | { type: "SET_SHOW_FULL_PHOTO"; show: boolean }
   | { type: "RESTORE_PERSPECTIVE_SOURCE" }
@@ -437,9 +446,8 @@ function photoFrame(state: TraceState): TracePhotoFrame {
     draftCalibration, region, pendingPerspective, manualPerspectivePoints, perspectiveCorrection };
 }
 
-function historyPhotoFrame(state: TraceState): Pick<TraceHistoryEntry, "photoFrame"> {
-  return state.imageAlignment || state.history.stack.some(entry => entry.photoFrame)
-    ? { photoFrame: photoFrame(state) } : {};
+function historyPhotoFrame(state: TraceState): Pick<TraceHistoryEntry, "photoFrame" | "detectionHints"> {
+  return { detectionHints: state.detectionHints, ...(state.imageAlignment || state.history.stack.some(entry => entry.photoFrame) ? { photoFrame: photoFrame(state) } : {}) };
 }
 
 function samePhotoFrame(a: TracePhotoFrame, b: TracePhotoFrame): boolean {
@@ -471,6 +479,7 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   const next: TraceState = {
     ...state, imageSize: alignment.size, imageAlignment: alignment, outline: rotated,
     estimatedEdgeRegions: state.estimatedEdgeRegions.map(ring => ring.map(point)),
+    detectionHints: state.detectionHints.map(h => ({ ...h, points: h.points.map(point) })),
     curves: rotatedCurves,
     rawOutline: transformOutline(state.rawOutline, transform), svg: null, sourceRevision: state.sourceRevision + 1,
     calibration: ruler(state.calibration), pendingAutoCalibration: ruler(state.pendingAutoCalibration),
@@ -481,8 +490,9 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
       points: state.pendingPerspective.points.map(point) as PerspectiveQuad,
       correspondences: state.pendingPerspective.correspondences && { ...state.pendingPerspective.correspondences,
         source: state.pendingPerspective.correspondences.source.map(point) } },
-    perspectiveCorrection: state.perspectiveCorrection?.paperBounds ? { ...state.perspectiveCorrection,
-      paperBounds: transformImageRect(state.perspectiveCorrection.paperBounds, transform) } : state.perspectiveCorrection,
+    perspectiveCorrection: state.perspectiveCorrection ? { ...state.perspectiveCorrection,
+      paperBounds: state.perspectiveCorrection.paperBounds && transformImageRect(state.perspectiveCorrection.paperBounds, transform),
+      toOriginal: state.perspectiveCorrection.toOriginal && transformPhotoProjection(state.perspectiveCorrection.toOriginal, transform) } : state.perspectiveCorrection,
   };
   if (quarterTurn) {
     const reorder = (points: Point[]) => points.length !== 4 ? [] : quarterTurn === "clockwise"
@@ -495,7 +505,7 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   }
   next.history = pushHistory({ ...state.history, stack: state.history.stack.map(entry => ({ ...entry,
     photoFrame: !entry.photoFrame || samePhotoFrame(entry.photoFrame, before) ? before : entry.photoFrame })) },
-    rotated, label, state.margin, { ...current, curves: next.curves, estimatedEdgeRegions: next.estimatedEdgeRegions, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
+    rotated, label, state.margin, { ...current, curves: next.curves, estimatedEdgeRegions: next.estimatedEdgeRegions, detectionHints: next.detectionHints, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
       refinementBase: manual ? rotated : transformOutline(current?.refinementBase ?? state.rawOutline, transform),
       baselineMarginPx: manual ? marginToPixels(state.margin, state.calibration) : current?.baselineMarginPx,
       tolerancePx: state.tolerancePx, smoothing: state.smoothing });
@@ -596,6 +606,11 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         rotatedImageDimensions(action.naturalSize, imageRotation),
         action.maxSize,
       );
+      const rotateHint = (hint: DetectionHint): DetectionHint => ({
+        ...hint,
+        radius: hint.radius * Math.min(imageSize.width / state.imageSize.height, imageSize.height / state.imageSize.width),
+        points: hint.points.map(p => rotateImagePoint(p, state.imageSize, imageSize, action.direction)),
+      });
       const rotateCalibration = (calibration: Calibration | null) =>
         calibration
           ? rotateImageCalibration(
@@ -614,10 +629,12 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         imageSize,
         imageRotation,
         estimatedEdgeRegions: state.estimatedEdgeRegions.map(ring => ring.map(p => rotateImagePoint(p, state.imageSize, imageSize, action.direction))),
+        detectionHints: state.detectionHints.map(rotateHint),
         curves: state.curves && mapCurves(state.curves, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
-        perspectiveCorrection: state.perspectiveCorrection?.paperBounds ? {
+        perspectiveCorrection: state.perspectiveCorrection ? {
           ...state.perspectiveCorrection,
-          paperBounds: rotateImageRect(state.perspectiveCorrection.paperBounds, state.imageSize, imageSize, action.direction),
+          paperBounds: state.perspectiveCorrection.paperBounds && rotateImageRect(state.perspectiveCorrection.paperBounds, state.imageSize, imageSize, action.direction),
+          toOriginal: state.perspectiveCorrection.toOriginal && transformPhotoProjection(state.perspectiveCorrection.toOriginal, action.direction === "clockwise" ? [0,imageSize.height/state.imageSize.width,-imageSize.width/state.imageSize.height,0,imageSize.width,0] : [0,-imageSize.height/state.imageSize.width,imageSize.width/state.imageSize.height,0,0,imageSize.height]),
         } : state.perspectiveCorrection,
         outline: rotateImageOutline(
           state.outline,
@@ -638,6 +655,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           ...state.history,
           stack: state.history.stack.map((entry) => ({
             ...entry,
+            detectionHints: entry.detectionHints?.map(rotateHint),
             estimatedEdgeRegions: entry.estimatedEdgeRegions?.map(ring => ring.map(p => rotateImagePoint(p, state.imageSize, imageSize, action.direction))),
             curves: entry.curves && mapCurves(entry.curves, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
             refinementBase: entry.refinementBase && rotateImageOutline(
@@ -729,6 +747,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         outline: action.outline,
         rawOutline: action.rawOutline,
         estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
+        detectionHints: action.detectionHints ?? state.detectionHints,
         curves: action.curves,
         svg: action.svg,
         detectedImageUrl: action.imageUrl,
@@ -738,7 +757,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
             state.history.stack[state.history.index]?.hasManualEdits ? state.history : { stack: [], index: -1 },
           action.outline, "Detected outline", state.margin,
           { curves: action.curves, refinementBase: action.refinementBase ?? action.rawOutline, baselineMarginPx: 0, hasManualEdits: false, estimatedEdgeRegions: action.estimatedEdgeRegions ?? [],
-            ...historyPhotoFrame(state),
+            ...historyPhotoFrame(state), detectionHints: action.detectionHints ?? state.detectionHints,
             tolerancePx: state.tolerancePx, smoothing: state.smoothing },
         ),
       };
@@ -873,6 +892,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...restorePhotoFrame(state, state.history.stack[index]),
         outline: state.history.stack[index].outline,
         estimatedEdgeRegions: state.history.stack[index].estimatedEdgeRegions ?? [],
+        detectionHints: state.history.stack[index].detectionHints ?? [],
         curves: state.history.stack[index].curves,
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
@@ -889,6 +909,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...restorePhotoFrame(state, state.history.stack[index]),
         outline: state.history.stack[index].outline,
         estimatedEdgeRegions: state.history.stack[index].estimatedEdgeRegions ?? [],
+        detectionHints: state.history.stack[index].detectionHints ?? [],
         curves: state.history.stack[index].curves,
         margin: state.history.stack[index].margin,
         tolerancePx: state.history.stack[index].tolerancePx ?? state.tolerancePx,
@@ -911,6 +932,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         ...restorePhotoFrame(state, state.history.stack[action.index]),
         outline: state.history.stack[action.index].outline,
         estimatedEdgeRegions: state.history.stack[action.index].estimatedEdgeRegions ?? [],
+        detectionHints: state.history.stack[action.index].detectionHints ?? [],
         curves: state.history.stack[action.index].curves,
         margin: state.history.stack[action.index].margin,
         tolerancePx: state.history.stack[action.index].tolerancePx ?? state.tolerancePx,
@@ -971,12 +993,13 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...state, region: action.region };
 
     case "SET_REGION":
-      if (action.region !== null) return { ...state, region: action.region };
+      if (action.region !== null) return { ...state, region: action.region, detectionHints: [] };
       // A contour is only meaningful for a chosen detection region. Clearing
       // that region removes both the visible result and its edit history.
       return {
         ...state,
         region: null,
+        detectionHints: [],
         outline: [],
         curves: undefined,
         rawOutline: [],
@@ -1181,6 +1204,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
           state.perspectiveOriginalImageRotation ?? state.imageRotation,
         perspectiveCorrection: {
           source: action.source,
+          toOriginal: action.toOriginal,
           paper: action.paper,
           ...(action.template ? { template: action.template } : {}),
           ...(action.paperBounds ? { paperBounds: action.paperBounds, showFullPhoto: false } : {}),

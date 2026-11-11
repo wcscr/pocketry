@@ -1,3 +1,4 @@
+import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { pointInRing } from "@shared/geometry/rings";
@@ -76,6 +77,7 @@ export interface TraceCanvasProps {
   /** Incremented by the persistent review notice to focus the estimated area. */
   estimatedEdgeFocusRequest?: number;
   onReprocess: (region?: Rect) => void;
+  onCorrection?: (hints: DetectionHint[]) => void;
   /** Rendered when no image is loaded. */
   emptyState?: React.ReactNode;
 }
@@ -110,9 +112,24 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   );
 }
 
-function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
+function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
+  const [correctionMode, setCorrectionMode] = useState<"tool" | "paper" | null>(null);
+  const correctionStroke = useRef<DetectionHint | null>(null);
+  const correctionPointer = useRef<number | null>(null);
+  const [strokePreview, setStrokePreview] = useState<DetectionHint | null>(null);
+  useEffect(() => { setCorrectionMode(null); correctionStroke.current = null; setStrokePreview(null); }, [store.sourceRevision, store.region, store.mode]);
+  useEffect(() => {
+    if (!correctionMode) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault(); event.stopPropagation();
+      setCorrectionMode(null); correctionStroke.current = null; setStrokePreview(null);
+    };
+    document.addEventListener("keydown", escape, true);
+    return () => document.removeEventListener("keydown", escape, true);
+  }, [correctionMode]);
   const isMobile = useIsMobile();
   const sceneId = useId();
   const {
@@ -501,6 +518,15 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
   const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (correctionMode && event.button === 0 && !viewport.isSpaceHeld) {
+      if (store.processing || correctionStroke.current || store.history.stack[store.history.index]?.hasManualEdits) return;
+      const p = toImage(event.clientX, event.clientY);
+      if (!p || !region || p.x < region.x || p.y < region.y || p.x > region.x + region.width || p.y > region.y + region.height) return;
+      const hint: DetectionHint = { kind: correctionMode, points: [p], radius: Math.max(.5, .3 / (measurementMmPerPx ?? .3)) };
+      correctionPointer.current = event.pointerId;
+      correctionStroke.current = hint; setStrokePreview(hint);
+      event.currentTarget.setPointerCapture(event.pointerId); return;
+    }
     if (pointSelection.down(event)) return;
     if (curveEditor.down(event)) return;
     if (mobileEditor.down(event)) return;
@@ -679,6 +705,15 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const hint = correctionStroke.current;
+    if (hint) {
+      if (event.pointerId !== correctionPointer.current) return;
+      const p = toImage(event.clientX, event.clientY), last = hint.points[hint.points.length - 1];
+      if (p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height && hint.points.length < 4096 && Math.hypot(p.x-last.x,p.y-last.y) >= hint.radius/2) {
+        const next = { ...hint, points: [...hint.points, p] }; correctionStroke.current = next; setStrokePreview(next);
+      }
+      return;
+    }
     if (pointSelection.move(event)) return;
     if (curveEditor.move(event)) return;
     if (mobileEditor.move(event)) return;
@@ -777,6 +812,14 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const hint = correctionStroke.current;
+    if (hint) {
+      if (event.pointerId !== correctionPointer.current) return;
+      correctionStroke.current = null; setStrokePreview(null);
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      if (event.type === "pointerup") onCorrection?.([...store.detectionHints, hint]);
+      return;
+    }
     if (pointSelection.end(event)) return;
     if (curveEditor.end(event)) return;
     if (mobileEditor.end(event)) return;
@@ -959,7 +1002,11 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
           selectedVertexIndex={focusedPoint && sameRingRef(focusedPoint.ref, selection) ? focusedPoint.index : null}
           compactHandles={isMobile}
           showVertices={!curveEditor.active && (mode === "edit" || mode === "remove")}
-          contourOverlay={<>{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}</>}
+          contourOverlay={<>{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
+            {[...store.detectionHints, ...(strokePreview ? [strokePreview] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
+              points={h.points.concat(h.points.length === 1 ? h.points : []).map(p => `${p.x},${p.y}`).join(" ")}
+              fill="none" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={.7} pointerEvents="none" />)}
+          </>}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
@@ -1007,7 +1054,18 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, ou
               <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
               <ModeButton mode="measure" icon={Ruler} label="Measure distance" disabled={measurementMmPerPx === null} />
             </>}
+            {onCorrection && region && <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant={correctionMode ? "secondary" : "ghost"} className="h-11 px-2" disabled={store.processing || !!store.history.stack[store.history.index]?.hasManualEdits} title="Correct detection with tool or paper strokes. Undo manual outline edits first.">Correct</Button></DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onSelect={() => setCorrectionMode("tool")}>Mark tool · include</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCorrectionMode("paper")}>Mark paper · exclude</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCorrectionMode(null)}>Finish marking</DropdownMenuItem>
+                <DropdownMenuItem disabled={!store.detectionHints.length} onSelect={() => onCorrection(store.detectionHints.slice(0,-1))}>Remove last mark</DropdownMenuItem>
+                <DropdownMenuItem disabled={!store.detectionHints.length} onSelect={() => onCorrection([])}>Clear marks and re-detect</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>}
           </CanvasToolbar>
+          {correctionMode && <div className="pointer-events-none absolute bottom-14 left-3 rounded bg-background/95 p-2 text-xs shadow" role="status">Draw on {correctionMode === "tool" ? "missing tool material" : "unwanted paper or shadow"}. {isMobile ? "Finish marking to move the view." : "Hold Space to move the view; Escape to stop."} Correct → Finish marking to stop.</div>}
 
           <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height} compact={isMobile}
             point={magnifiedPoint ? {

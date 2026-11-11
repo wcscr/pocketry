@@ -1444,3 +1444,40 @@ describe("touch-accessible trace tools", () => {
     }
   });
 });
+
+it.each(["mouse", "touch"])("submits and cancels local correction strokes with %s", async pointerType => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
+  vi.stubGlobal("ResizeObserver",NoopResizeObserver);
+  vi.stubGlobal("matchMedia",()=>({matches:pointerType==="touch",addEventListener(){},removeEventListener(){}}));
+  const restoreCoordinates=installIdentitySvgCoordinates(),host=document.createElement("div");document.body.append(host);
+  const root=createRoot(host),correct=vi.fn();let trace:TraceStore;
+  function Probe():null {trace=useTrace();return null;}
+  try {
+    await React.act(async()=>root.render(<TraceProvider><Probe/><TooltipProvider><TraceCanvas onReprocess={()=>{}} onCorrection={correct}/></TooltipProvider></TraceProvider>));
+    React.act(()=>{
+      trace!.dispatch({type:"SOURCE_LOADED",imageUrl:"data:image/png;base64,AA==",fileName:"tool"});
+      trace!.dispatch({type:"SOURCE_READY",imageSize:{width:100,height:100}});
+      trace!.dispatch({type:"SET_REGION",region:{x:0,y:0,width:100,height:100}});
+      trace!.dispatch({type:"DETECTED",imageUrl:"data:image/png;base64,AA==",outline:detected,rawOutline:detected,svg:"",region:null});
+    });
+    const button=[...host.querySelectorAll("button")].find(b=>b.textContent==="Correct")!;
+    await React.act(async()=>button.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true})));
+    await React.act(async()=>[...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(e=>e.textContent?.startsWith("Mark tool"))!.click());
+    const svg=host.querySelector("svg")!;
+    Object.defineProperty(svg,"setPointerCapture",{value:()=>{}});
+    const pointer=(type:string,x:number,y:number,id=1)=>React.act(()=>{
+      const event=new MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y});
+      Object.defineProperties(event,{pointerType:{value:pointerType},pointerId:{value:id}});svg.dispatchEvent(event);
+    });
+    pointer("pointerdown",20,20);pointer("pointermove",30,30,2);pointer("pointermove",25,25);
+    pointer("pointerup",25,25);
+    expect(correct).toHaveBeenCalledWith([{kind:"tool",points:[{x:20,y:20},{x:25,y:25}],radius:1}]);
+    pointer("pointerdown",20,20);pointer("pointermove",30,30);pointer("pointercancel",30,30);
+    expect(correct).toHaveBeenCalledTimes(1);
+    pointer("pointerdown",20,20);
+    React.act(()=>document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+    pointer("pointerup",20,20);
+    expect(correct).toHaveBeenCalledTimes(1);
+    expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(0);
+  } finally {React.act(()=>root.unmount());restoreCoordinates();}
+});

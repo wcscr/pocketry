@@ -970,13 +970,25 @@ describe("Trace detection workflow", () => {
     expect(processImageMock).toHaveBeenCalledOnce();
   });
 
+  it("stays busy during source sampling and discards a frame after the source changes", async () => {
+    let current!: ReturnType<typeof useTrace>, finish!: (value: unknown) => void;
+    function Probe(): null { current=useTrace();return null; }
+    await React.act(async()=>root.render(<PanelProvider><TraceProvider><WorkflowController/><Probe/><TracePage/></TraceProvider></PanelProvider>));
+    getToolDetectionFrameMock.mockReturnValue(new Promise(resolve=>{finish=resolve;}));
+    await React.act(async()=>host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
+    expect(current.processing).toBe(true);
+    React.act(()=>current.dispatch({type:"SOURCE_CLEARED"}));
+    await React.act(async()=>finish({imageData:getImageDataMock(),region:{x:80,y:90,width:200,height:100},toWorking:{x:1,y:1}}));
+    expect(processImageMock).not.toHaveBeenCalled();expect(current.processing).toBe(false);expect(current.outline).toEqual([]);
+  });
+
   it("uses original-photo crop pixels for the default tool-edge detection", async () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
     const imageData = { width: 400, height: 200, data: new Uint8ClampedArray(400 * 200 * 4).fill(255) };
     const region = { x: 80, y: 90, width: 200, height: 100 };
     getToolDetectionFrameMock.mockReturnValue({ imageData, region, toWorking: { x: .5, y: .5 } });
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="commit-new-region"]')!.click());
-    expect(getToolDetectionFrameMock).toHaveBeenCalledWith(region);
+    expect(getToolDetectionFrameMock).toHaveBeenCalledWith(region, expect.any(AbortSignal));
     expect(getImageDataMock).not.toHaveBeenCalled();
     expect(processImageMock).toHaveBeenCalledWith(imageData, expect.objectContaining({
       autoCleanup: true, smoothBoundary: true, editableCurves: false,

@@ -274,3 +274,15 @@ it("rotates estimated areas together with a quarter-turned photo and history", (
   expect(rotated.estimatedEdgeRegions).toEqual([rotated.outline[0].outer]);
   expect(rotated.history.stack[0].estimatedEdgeRegions).toEqual(rotated.estimatedEdgeRegions);
 });
+
+it("recovers correction marks and source mapping", () => {
+  const state=calibrated();
+  state.detectionHints=[{kind:"paper",points:[{x:30,y:40},{x:35,y:45}],radius:1}];
+  state.perspectiveCorrection={source:"template",paper:"letter",toOriginal:[.001,0,0,0,.001,0,0,0,1]};
+  const snapshot=traceDraftSnapshot(state)!;
+  const restored=traceReducer(initialTraceState,{type:"TRACE_DRAFT_RESTORED",draft:traceDraftSchema.parse(snapshot)});
+  expect(restored.detectionHints).toEqual(state.detectionHints);
+  expect(restored.perspectiveCorrection).toEqual(state.perspectiveCorrection);
+  const { detectionHints: _hints,...legacy }=snapshot.state;
+  expect(traceDraftSchema.parse({...snapshot,state:legacy}).state.detectionHints).toEqual([]);
+});

@@ -156,3 +156,13 @@ it("restores UMD configuration on initialization failure", async () => {
   const load = createWorkerOpenCVLoader(async () => { throw new Error("offline"); });
   await expect(load()).rejects.toThrow("offline");expect(root.Module).toBe(before);
 });
+
+it("cancels source reprojection and never initializes OpenCV for it", async () => {
+  const load=vi.fn(), handlers=createDetectionHandlers(load), payload={image:{...image,data:image.data.slice()},width:2,height:2,toSource:[1,0,0,0,1,0,0,0,1] as import("@shared/geometry/projective").Homography};
+  expect(await handlers.reproject(payload,{signal:new AbortController().signal,progress:()=>{}})).toEqual(image);
+  expect(load).not.toHaveBeenCalled();
+  const e=endpoint(),client=createDetectionClient(()=>e.port),controller=new AbortController();
+  const pending=client.reproject(payload,controller.signal);
+  const rejected=expect(pending).rejects.toMatchObject({name:"WorkerCancelledError"});
+  controller.abort();await rejected;expect(e.terminate).toHaveBeenCalledOnce();client.dispose();
+});

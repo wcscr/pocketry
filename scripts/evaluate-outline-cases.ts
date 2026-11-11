@@ -1,3 +1,6 @@
+import { validateDetectionHints } from "../client/src/lib/detect/hint-validation";
+import { outlineToInput, replayMatches, missingMaterialFailure } from "../shared/geometry/contour-replay";
+import { validDetectionGeometry } from "../client/src/lib/detect/boundary-validation";
 /**
  * Replays detection inputs captured from the running app and measures the result.
  *
@@ -14,9 +17,9 @@
  *
  * Usage:
  *   node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir>
- *     [--boundary teed|color] [--outer-smoothing on|off]
+ *     [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off] [--hints prompts.json]
  *
- * Without the flags a case is replayed exactly as captured and checked against
+ * Without the flags a case is replayed with its captured detection options and checked against
  * the app's own result. `--outer-smoothing on` applies the outward smoothing as
  * the Trace page does (one millimetre when the case has a scale), for cases
  * captured before it existed; `off` removes it.
@@ -58,7 +61,7 @@ interface Truth { outline: Outline; status: "draft" | "reviewed"; source?: strin
 
 const TOLERANCES_MM = [0.25, 0.5] as const;
 const SPACING_MM = 0.05;
-/** A replay "matches" the app when its boundary is within this many crop pixels almost everywhere. */
+/** A replay "matches" the app when its boundary is within this many crop pixels everywhere. */
 const REPLAY_TOLERANCE_PX = 0.05;
 /** A stretch farther than this from the reference edge is an excursion; a loopback is one at least this deep. */
 const EXCURSION_MM = 0.5;
@@ -71,17 +74,19 @@ const flag = (name: string): string | undefined => {
   const i = args.indexOf(name);
   return i >= 0 ? args.splice(i, 2)[1] : undefined;
 };
+const hintsFile = flag("--hints");
+const hintCases: Record<string, import("../shared/geometry/detection-hints").DetectionHint[]> = hintsFile ? JSON.parse(readFileSync(resolve(hintsFile), "utf8")) : {};
 const boundaryOverride = flag("--boundary") as DetectOptions["boundary"] | undefined;
 const smoothingOverride = flag("--outer-smoothing") as "on" | "off" | undefined;
 const inkOverride = flag("--sheet-ink") as "on" | "off" | undefined;
 const [casesArg, outputArg] = args;
 const switches = [smoothingOverride, inkOverride];
-if (!casesArg || !outputArg || switches.some((value) => value && value !== "on" && value !== "off")) {
-  console.error("Usage: node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off]");
+if (!casesArg || !outputArg || (boundaryOverride && !["teed", "color"].includes(boundaryOverride)) || switches.some((value) => value && value !== "on" && value !== "off")) {
+  console.error("Usage: node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off] [--hints prompts.json]");
   process.exit(2);
 }
 /** A replay is comparable with the app's own result only when nothing was overridden. */
-const asCaptured = !boundaryOverride && !smoothingOverride && !inkOverride;
+const asCaptured = !boundaryOverride && !smoothingOverride && !inkOverride && !hintsFile;
 
 /**
  * The sheet's printed areas in the crop's pixels, as the Trace page and
@@ -115,7 +120,8 @@ function mmPerCropPixel(c: CapturedCase): number | null {
   const { calibration, region } = c.app;
   if (!calibration || !region) return null;
   const pixels = Math.hypot(calibration.endX - calibration.startX, calibration.endY - calibration.startY);
-  return pixels > 0 ? calibration.lengthMm / pixels * (region.width / c.detect.width) : null;
+  const exactScale = c.detect.options.frameTransform?.scale;
+  return pixels > 0 ? calibration.lengthMm / pixels * (exactScale ? Math.max(exactScale.x, exactScale.y) : region.width / c.detect.width) : null;
 }
 
 function round(value: number | null | undefined, digits = 3): number | null {
@@ -156,10 +162,11 @@ function appCleanup(result: DetectResult, captured: CapturedCase, mmPerPx: numbe
     const unitsPerPixel = mmPerPx ?? 1;
     const recommended = Math.max(...dense.flatMap((shape) => [shape.outer, ...shape.holes])
       .map((ring) => recommendedReconstructionTolerance(ring, unitsPerPixel, mmPerPx ? "mm" : "px")));
-    const tolerance = Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel;
+    const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, (mmPerPx ? .1 / mmPerPx : .5) * .4);
     const native = !!captured.app.editableCurves && (captured.app.margin ?? 0) === 0;
     const fitted = reconstructDetectedForEditing(curvesFromOutline(detected), dense, tolerance, native);
     const outline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (mmPerPx ?? 0.1));
+    if (!validDetectionGeometry(silhouette(result.materialOutline ?? result.rawOutline), outline, mmPerPx ? .1 / mmPerPx : .5, mmPerPx ? 1 / mmPerPx : 4)) throw new Error("Cleanup would cut into the detected material.");
     return { outline: captured.app.includeInteriorHoles ? outline : outline.map((shape) => ({ ...shape, holes: [] })), applied: true };
   } catch (error) {
     // The app keeps the detected outline when cleanup cannot preserve it.
@@ -169,25 +176,12 @@ function appCleanup(result: DetectResult, captured: CapturedCase, mmPerPx: numbe
 /**
  * The app's final outline, mapped from working-photo pixels back into the crop the detector saw.
  *
- * The app keeps its dense outline in the same working frame, so the mapping is
- * read off the two dense outlines' bounds; the saved region is not exact to the
- * pixel the crop started on.
+ * Use recorded raster provenance. Legacy captures without that transform
+ * remain useful for detector scoring, but cannot prove exact app replay.
  */
-function appFinalInCrop(captured: CapturedCase, dense: Outline): Outline | null {
-  const { outline, rawOutline } = captured.app;
-  if (!outline?.length || !rawOutline?.length || !dense.length) return null;
-  const span = (shapes: Outline, axis: "x" | "y") => {
-    const values = shapes.flatMap((shape) => shape.outer.map((point) => point[axis]));
-    return { min: Math.min(...values), size: Math.max(...values) - Math.min(...values) };
-  };
-  const axis = (name: "x" | "y") => {
-    const working = span(rawOutline, name), crop = span(dense, name);
-    const scale = crop.size > 0 ? working.size / crop.size : 1;
-    return (value: number) => (value - working.min) / scale + crop.min;
-  };
-  const x = axis("x"), y = axis("y");
-  const map = (ring: { x: number; y: number }[]) => ring.map((point) => ({ x: x(point.x), y: y(point.y) }));
-  return outline.map((shape) => ({ outer: map(shape.outer), holes: shape.holes.map(map) }));
+function appFinalInCrop(captured: CapturedCase): Outline | null {
+  const transform = captured.detect.options.frameTransform;
+  return transform && captured.app.outline ? outlineToInput(captured.app.outline, transform) : null;
 }
 
 // Warm the runtime and the model on a small neutral frame so the first case is not charged for it.
@@ -201,7 +195,7 @@ function appFinalInCrop(captured: CapturedCase, dense: Outline): Outline | null 
 const names = readdirSync(casesDir)
   .filter((file) => file.endsWith(".json") && !file.endsWith(".truth.json"))
   .map((file) => file.slice(0, -5))
-  .filter((name) => existsSync(join(casesDir, name + ".rgba")))
+  .filter((name) => existsSync(join(casesDir, name + ".rgba")) && (!hintsFile || hintCases[name]))
   .sort();
 const rows: Record<string, unknown>[] = [];
 for (const name of names) {
@@ -212,6 +206,9 @@ for (const name of names) {
   const mmPerPx = mmPerCropPixel(captured);
   const options: DetectOptions = {
     ...captured.detect.options,
+    ...(hintCases[name] ? { hints: hintCases[name] } : {}),
+    inwardTolerancePx: captured.detect.options.inwardTolerancePx ?? (mmPerPx ? .1 / mmPerPx : .5),
+    outwardTolerancePx: captured.detect.options.outwardTolerancePx ?? (mmPerPx ? 1 / mmPerPx : 4),
     ...(boundaryOverride ? { boundary: boundaryOverride } : {}),
     // The same length `processImage` passes: a millimetre in the crop's pixels, or "auto" without a scale.
     ...(smoothingOverride === "on" ? { outerSmoothingPx: mmPerPx ? OUTER_SMOOTHING_MM / mmPerPx : "auto" as const } : {}),
@@ -231,13 +228,16 @@ for (const name of names) {
     const p95Px = appResult.outline.length && result.outline.length
       ? compareContours(result.outline, appResult.outline, { spacing: 0.25 }).distanceP95
       : appResult.outline.length === result.outline.length ? 0 : null;
-    replay = { matches: statusMatches && p95Px !== null && p95Px <= REPLAY_TOLERANCE_PX, p95Px: round(p95Px, 4), statusMatches };
+    replay = { matches: statusMatches && replayMatches(result.outline, appResult.outline, REPLAY_TOLERANCE_PX), p95Px: round(p95Px, 4), statusMatches };
   }
 
   const cleaned = appCleanup(result, captured, mmPerPx);
   const final = cleaned.outline;
+  let correctionFailure: string | null = null;
+  try { validateDetectionHints(final, options.hints ?? []); } catch (error) { correctionFailure = String(error); }
   const appFinal = !asCaptured ? null
-    : appFinalInCrop(captured, captured.app.includeInteriorHoles ? result.rawOutline : outsideSilhouettes(result.rawOutline));
+    : appFinalInCrop(captured);
+  const cleanupMatches = appFinal ? replayMatches(final, appFinal, REPLAY_TOLERANCE_PX) : null;
   const cleanupReplay = appFinal?.length && final.length
     ? round(compareContours(final, appFinal, { spacing: 0.25 }).distanceP95, 4) : null;
   const truthFile = join(casesDir, name + ".truth.json");
@@ -258,7 +258,9 @@ for (const name of names) {
     name, title: captured.title ?? name, subject: captured.subject ?? null, crop: `${width}x${height}`, mmPerPx: round(mmPerPx, 4),
     boundary: options.boundary ?? "color", status: result.refinement ? `${result.refinement.status}:${result.refinement.reason}` : "none",
     edgeThreshold: result.refinement?.edgeThreshold ?? null, edgeReconstruction: result.refinement?.edgeReconstruction ?? null,
-    shells: final.length, cleanup: cleaned.applied ? "applied" : `kept detected outline: ${cleaned.reason}`, cleanupReplayP95Px: cleanupReplay,
+    hints: options.hints ?? [], correctionFailure,
+    missingMaterialFailure: missingMaterialFailure(final, (measured?.final as ReturnType<typeof compact> | undefined)?.leftOutMax ?? null),
+    shells: final.length, cleanup: cleaned.applied ? "applied" : `kept detected outline: ${cleaned.reason}`, cleanupReplayP95Px: cleanupReplay, cleanupMatches, detectionFailed: !final.length,
     ms: Math.round(ms), timings: Object.fromEntries(Object.entries(result.timings).map(([k, v]) => [k, Math.round(v)])),
     outerSmoothingMs: result.timings.outerSmoothing === undefined ? null : round(result.timings.outerSmoothing, 2),
     densePoints: result.rawOutline.reduce((n, shape) => n + shape.outer.length + shape.holes.reduce((m, hole) => m + hole.length, 0), 0),
@@ -297,10 +299,12 @@ const summary = {
   peakWasmHeapMb: Math.max(...rows.map((row) => row.wasmHeapMb as number)), peakRssMb: Math.max(...rows.map((row) => row.rssMb as number)),
   replayMatchesApp: replayed.length ? `${replayed.filter((row) => (row.replay as { matches: boolean }).matches).length}/${replayed.length}` : "n/a",
   cleanupMatchesApp: cleanupReplayed.length
-    ? `${cleanupReplayed.filter((row) => (row.cleanupReplayP95Px as number) <= REPLAY_TOLERANCE_PX).length}/${cleanupReplayed.length}` : "n/a",
+    ? `${cleanupReplayed.filter((row) => row.cleanupMatches === true).length}/${cleanupReplayed.length}` : "n/a",
   withTruth: measuredRows.length,
   // The final outline against the reference, in the order that matters for a pocket.
-  leftOut1Mm: measuredRows.filter((m) => (m.leftOutMax ?? 0) >= 1).length,
+  leftOut1Mm: rows.filter(row => row.measured && row.missingMaterialFailure).length,
+  correctionFailures: rows.filter(row => row.correctionFailure).length,
+  detectionFailures: rows.filter(row => row.detectionFailed).length,
   extra1Mm: measuredRows.filter((m) => (m.excessMax ?? 0) >= 1).length,
   withLoopbacks: measuredRows.filter((m) => m.loopbacksIn + m.loopbacksOut > 0).length,
   jagged10Percent: roughRows.filter((r) => (r.jaggedShare ?? 0) >= 0.1).length,
@@ -314,7 +318,7 @@ const percent = (value: number | null | undefined) => value == null ? "–" : `$
 const lines = [
   `# Outline evaluation`, ``,
   `Node ${summary.node}, ${summary.platform}. Boundary: ${summary.boundary}. ${summary.cases} cases: ${summary.accepted} accepted, ${summary.fallback} fell back, ${summary.multiShell} with more than one shell.`,
-  `Detection time median ${summary.medianMs} ms, worst ${summary.maxMs} ms. Peak WASM heap ${summary.peakWasmHeapMb} MB, peak RSS ${summary.peakRssMb} MB. Detection replay matches the app on ${summary.replayMatchesApp}; cleanup replay on ${summary.cleanupMatchesApp}. Cases with a reference outline: ${summary.withTruth}.`,
+  `Detection time median ${summary.medianMs} ms, worst ${summary.maxMs} ms. Peak WASM heap ${summary.peakWasmHeapMb} MB, peak RSS ${summary.peakRssMb} MB. Detection replay matches the app on ${summary.replayMatchesApp}; cleanup replay on ${summary.cleanupMatchesApp}. Cases with a reference outline: ${summary.withTruth}. Empty detections: ${summary.detectionFailures}; rejected corrections: ${summary.correctionFailures}.`,
   ``,
   `Scored on the outline after the app's automatic cleanup. Distances are millimetres in the sheet plane. "Left out" is tool outside the outline (a lost part or a cut-in); "extra" is outline beyond the reference; a loopback is a spur or slit at least ${LOOPBACK_MM} mm deep and deeper than its mouth is wide; "jagged" is the share of the edge in stair-steps.`, ``,
   `Left out by 1 mm or more: ${summary.leftOut1Mm}. Extra by 1 mm or more: ${summary.extra1Mm}. With a loopback: ${summary.withLoopbacks}. Jagged on a tenth of the edge or more: ${summary.jagged10Percent} (median share ${percent(summary.medianJaggedShare)}). Median offset ${cell(summary.medianOffsetMm)} mm.`, ``,

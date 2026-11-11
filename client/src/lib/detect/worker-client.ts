@@ -1,3 +1,4 @@
+import type { ReprojectionRequest } from "./reproject";
 import { createWorkerClient, type WorkerClient } from "../worker/client";
 import { WorkerCancelledError, type MessageEndpoint } from "../worker/protocol";
 import type { ReconstructionRequest } from "./worker-handlers";
@@ -40,6 +41,9 @@ export function createDetectionClient(spawn: () => MessageEndpoint) {
     }
   }
   return {
+    reproject(payload: ReprojectionRequest, signal?: AbortSignal): Promise<ImageLike> {
+      return invoke("reproject", () => ({ payload, transfer: [payload.image.data.buffer] }), signal);
+    },
     detect(image: ImageLike, options: DetectOptions = {}): Promise<DetectResult> {
       const { signal, ...wireOptions } = options;
       return invoke("detect", () => {
@@ -70,3 +74,5 @@ export const detectInWorker = detector.detect;
 
 export const reconstructInWorker = detector.reconstruct;
 export const symmetryInWorker = detector.symmetry;
+
+export const reprojectInWorker = detector.reproject;

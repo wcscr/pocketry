@@ -1,3 +1,5 @@
+import { createSourcePhotoSampler } from "@/lib/source-photo";
+import type { Homography } from "@shared/geometry/projective";
 import { checkPhotoDimensions, normalizePhotoDataUrl } from "@/lib/photo-dimensions";
 import { tracePhotoError, TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -148,7 +150,7 @@ export interface UseImageSourceResult {
    * or `null` until the image is ready.
    */
   getDetectionFrame(detectMax?: ImageRasterLimit): DetectionFrame | null;
-  getToolDetectionFrame(region: Rect): (DetectionFrame & { region: Rect }) | null;
+  getToolDetectionFrame(region: Rect, signal?: AbortSignal): Promise<(DetectionFrame & { region: Rect }) | null>;
 }
 
 /** Fits `natural` inside `max` without changing its aspect ratio. */
@@ -219,6 +221,8 @@ export function useImageSource(
   max: ImageRasterLimit = IMAGE_CANVAS_MAX,
   rotation: ImageQuarterTurns = 0,
   alignment: ImageAlignment | null = null,
+  originalUrl: string | null = null,
+  toOriginal?: Homography,
 ): UseImageSourceResult {
   const [source, setSource] = useState<ImageSource>({ status: "empty" });
   // Created imperatively: it is a pixel buffer, not part of the view.
@@ -227,6 +231,7 @@ export function useImageSource(
   // the photo at a higher resolution than the working canvas.
   const imageRef = useRef<HTMLImageElement | null>(null);
   const transparentRef = useRef(true);
+  const sampleOriginal = useRef(createSourcePhotoSampler());
 
   useEffect(() => {
     // A render can briefly still expose the previous ready state before this
@@ -357,9 +362,18 @@ export function useImageSource(
     };
   }, [source, max, rotation, alignment]);
 
-  const getToolDetectionFrame = useCallback((region: Rect): (DetectionFrame & { region: Rect }) | null => {
+  const getToolDetectionFrame = useCallback(async (region: Rect, signal?: AbortSignal): Promise<(DetectionFrame & { region: Rect }) | null> => {
     const image = imageRef.current;
     if (!image || source.status !== "ready") return null;
+    if (originalUrl && toOriginal) {
+      try {
+        const crop = toolCropGeometry(source.size, 1, region).region;
+        return { ...await sampleOriginal.current(originalUrl, toOriginal, crop, signal), sourceImageUrl: source.url };
+      } catch {
+        if (signal?.aborted) return null;
+        // Legacy/invalid geometry keeps the bounded working-raster fallback.
+      }
+    }
     const natural = rotatedImageDimensions(source.naturalSize, rotation);
     const reference = alignment?.sourceSize ?? source.size;
     const geometry = toolCropGeometry(source.size, Math.min(natural.width / reference.width, natural.height / reference.height), region);
@@ -376,7 +390,7 @@ export function useImageSource(
     return { imageData: context.getImageData(0, 0, target.width, target.height),
       toWorking,
       region: { x, y, width, height }, sourceImageUrl: source.url };
-  }, [source, rotation, alignment]);
+  }, [source, rotation, alignment, originalUrl, toOriginal]);
 
   return { source, getImageData, getDetectionFrame, getToolDetectionFrame };
 }
