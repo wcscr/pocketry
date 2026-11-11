@@ -6,6 +6,7 @@ import type { OpenCV } from "./segment-opencv";
 import type { DetectOptions, ImageLike } from "./types";
 import { createTeedDetector } from "./teed";
 import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
+import { simplifyAcceptedOutline, type OutlineSimplificationRequest } from "@shared/geometry/outline-simplification";
 import type { CurveOutline } from "@shared/geometry/curves";
 import type { Outline } from "@shared/geometry/types";
 import { symmetrizeCurves, type CurveSymmetryRequest } from "../geometry/curve-symmetry";
@@ -37,6 +38,11 @@ export function createDetectionHandlers(loadCV: () => Promise<OpenCV>) {
         checkDetectionAbort(signal);
         return reconstructDetectedForEditing(payload.source, payload.dense, payload.tolerance, payload.editableCurves !== false);
       });
+      tail = result.catch(() => undefined);
+      return result;
+    },
+    simplify(payload: OutlineSimplificationRequest, { signal }: HandlerContext) {
+      const result = tail.then(() => { checkDetectionAbort(signal); return simplifyAcceptedOutline(payload); });
       tail = result.catch(() => undefined);
       return result;
     },

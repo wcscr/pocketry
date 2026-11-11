@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+
+import { ChevronDown, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,11 +19,14 @@ export interface DetectionSettings {
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
-export function TraceDetectionControls({ onReprocess, compact = false }: {
+export function TraceDetectionControls({ onReprocess, compact = false, children }: {
   onReprocess: (settings: DetectionSettings) => void;
   compact?: boolean;
+  children?: ReactNode;
 }) {
   const trace = useTrace();
+  const [manualOpen, setManualOpen] = useState(false);
+  const manualId = useId();
   const { dispatch, sensitivity, tolerancePx, includeInteriorHoles, processing } = trace;
   const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
   const [pendingDetection, setPendingDetection] = useState<DetectionSettings | null>(null);
@@ -92,7 +97,15 @@ export function TraceDetectionControls({ onReprocess, compact = false }: {
       <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
         onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
     </div>}
-    {compact ? tuning : <details><summary className="cursor-pointer py-2 text-xs font-medium">Manual detection settings</summary><div className="space-y-3 pt-2">{tuning}</div></details>}
+    {children}
+    {compact ? tuning : <>
+      <Button variant="outline" size="sm" className="w-full" aria-expanded={manualOpen} aria-controls={manualId}
+        onClick={() => setManualOpen(open => !open)}>
+        <Settings2 className="h-4 w-4" />Manual detection settings
+        <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
+      </Button>
+      <div id={manualId} hidden={!manualOpen} className="space-y-3 rounded-md border p-3">{tuning}</div>
+    </>}
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>Re-detect from the photo?</DialogTitle>

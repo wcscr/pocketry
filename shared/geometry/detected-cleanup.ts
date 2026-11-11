@@ -4,13 +4,15 @@ import { validateFittedContour } from "./curve-fit";
 import type { Outline } from "./types";
 
 /** Both editing styles reconstruct lines and curves. Point mode flattens the
- * fitted geometry, reserving a quarter of the allowance for that approximation;
+ * fitted geometry, reserving up to a quarter of the allowance for that approximation;
  * it must not revert to simplifying the jagged detected polygon alone. */
 export function reconstructDetectedForEditing(source: CurveOutline, dense: Outline, tolerance: number,
-  editableCurves = true): ReconstructionResult {
+  editableCurves = true, maxSampleTolerance = Infinity): ReconstructionResult {
   if (editableCurves) return reconstructDetectedOutline(source, dense, tolerance);
-  const result = reconstructDetectedOutline(source, dense, tolerance * .75);
-  const sampleTolerance = tolerance * .25;
+  const sampleTolerance = Math.min(tolerance * .25, maxSampleTolerance);
+  if (!(sampleTolerance > 0)) throw new Error("Enter a positive sampling tolerance.");
+  const fitTolerance = maxSampleTolerance >= tolerance * .25 ? tolerance * .75 : tolerance - sampleTolerance;
+  const result = reconstructDetectedOutline(source, dense, fitTolerance);
   const curves = curvesFromOutline(sampleCurves(result.curves, sampleTolerance));
   let work = 0;
   const budget = () => { if (++work > 5_000_000) throw new Error("This outline is too complex to simplify."); };

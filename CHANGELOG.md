@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Smooth detected outlines before simplification, with checks that preserve thin tips and gaps. Use the selected detail allowance consistently so automatic cleanup does not fall back to jagged raw contours. Apply pocket clearance separately.
-- Restore the manual simplification slider under Manual detection settings. Simplify outline now has visible detail choices, automatic previews, Original/Preview comparison and a separate Custom amount control. Move Editable curves below the main outline actions.
+- Auto simplify outline now smooths the current outline instead of restoring raw pixel noise. More detail, Balanced and Smoother provide progressively stronger smoothing with visual comparison and undoable Apply. Put sensitivity and the manual simplification slider behind a Manual detection settings button below Auto, and Editable curves below the main outline actions.
 - Default new tracing sessions to Tool edges; retain saved detection choices.
 - Find the dark parts of two-tone tools on a calibration sheet. Anything at most half as bright as the paper now counts as tool, so a black and yellow driver is no longer traced as its yellow parts only.
 - Remove the calibration sheet's own printing (title, instructions, marker labels and the 100 mm bar) before tracing, so it no longer sticks out of tool outlines. This applies while the photo is the corrected sheet and has not been rotated since; letters that touch a thin part of a tool can still attach.

@@ -4,7 +4,8 @@ import type { Outline, Point, Ring } from "./types";
 /**
  * Boundary-level comparison of a detected outline against a reference outline.
  *
- * These are evaluation metrics, not runtime checks. They answer the questions a
+ * Distance comparisons are evaluation metrics. The roughness measure also
+ * guards optional outline smoothing against added bumps. They answer the questions a
  * tool pocket cares about, separately, because one number hides the difference:
  *
  * - **Offset**: does the candidate boundary sit outside or inside the reference,

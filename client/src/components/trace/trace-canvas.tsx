@@ -307,7 +307,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const cleanup = useCurveFitting({ source: cleanupSource, ringRef: { shapeIndex: 0, ringIndex: -1 },
     editableCurves: store.editableCurves,
     enabled: cleanupAvailable && (mode === "pan" || mode === "navigate"), contextKey: String(store.sourceRevision),
-    reconstructionSource: cleanupAvailable ? store.rawOutline : undefined,
+    allowOutlineSimplification: cleanupAvailable,
     scale: viewport.transform.scale, toCanvas: p => p,
     unitsPerUnit: mmPerPixel(calibration) ?? 1, unit: mmPerPixel(calibration) ? "mm" : "px",
     onCommit: (curves, label) => store.editableCurves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
@@ -1119,7 +1119,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             </div>}
           </div>}
           {cleanup.open && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto" data-testid="outline-cleanup-panel">
-            <div className="max-h-[60vh] w-full overflow-y-auto rounded-xl border bg-background p-4 shadow-lg md:w-[23rem]" role="region" aria-label="Simplify outline preview">{cleanup.controls}</div>
+            <div className="max-h-[60vh] w-full overflow-y-auto rounded-xl border bg-background p-4 shadow-lg md:w-[23rem]" role="region" aria-label="Auto simplify outline preview">{cleanup.controls}</div>
           </div>}
 
           <CanvasToolbar position="bottom-right">

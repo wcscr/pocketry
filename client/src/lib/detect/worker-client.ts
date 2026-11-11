@@ -3,6 +3,7 @@ import { createWorkerClient, type WorkerClient } from "../worker/client";
 import { WorkerCancelledError, type MessageEndpoint } from "../worker/protocol";
 import type { ReconstructionRequest } from "./worker-handlers";
 import type { ReconstructionResult } from "@shared/geometry/contour-reconstruction";
+import type { OutlineSimplificationRequest } from "@shared/geometry/outline-simplification";
 import type { DetectOptions, DetectResult, ImageLike } from "./types";
 import type { CurveSymmetryRequest, CurveSymmetryResult } from "../geometry/curve-symmetry";
 
@@ -55,6 +56,9 @@ export function createDetectionClient(spawn: () => MessageEndpoint) {
     reconstruct(payload: ReconstructionRequest, signal?: AbortSignal): Promise<ReconstructionResult> {
       return invoke("reconstruct", () => ({ payload }), signal);
     },
+    simplify(payload: OutlineSimplificationRequest, signal?: AbortSignal): Promise<ReconstructionResult> {
+      return invoke("simplify", () => ({ payload }), signal);
+    },
     symmetry(payload: CurveSymmetryRequest, signal?: AbortSignal): Promise<CurveSymmetryResult> {
       return invoke("symmetry", () => ({ payload }), signal);
     },
@@ -73,6 +77,7 @@ const detector = createDetectionClient(() =>
 export const detectInWorker = detector.detect;
 
 export const reconstructInWorker = detector.reconstruct;
+export const simplifyInWorker = detector.simplify;
 export const symmetryInWorker = detector.symmetry;
 
 export const reprojectInWorker = detector.reproject;

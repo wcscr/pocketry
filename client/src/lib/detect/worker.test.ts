@@ -23,6 +23,18 @@ function endpoint() {
 afterEach(() => vi.useRealTimers());
 
 describe("photo worker lifecycle", () => {
+  it("simplifies the accepted outline without raw detection or OpenCV, and cancels its worker", async () => {
+    const source = curvesFromOutline([{ outer: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 30 }, { x: 0, y: 30 }], holes: [] }]);
+    const payload = { source, tolerance: .2, sampleTolerance: .025, editableCurves: false }, before = structuredClone(payload);
+    const load = vi.fn();
+    const result = await createDetectionHandlers(load).simplify(payload, { signal: new AbortController().signal, progress: () => {} });
+    expect(result.curves).toEqual(source); expect(load).not.toHaveBeenCalled(); expect(payload).toEqual(before);
+    const e = endpoint(), client = createDetectionClient(() => e.port), controller = new AbortController();
+    const pending = client.simplify(payload, controller.signal);
+    expect(e.sent[0]).toMatchObject({ kind: "call", method: "simplify", payload });
+    const rejected = expect(pending).rejects.toMatchObject({ name: "WorkerCancelledError" });
+    controller.abort(); await rejected; expect(e.terminate).toHaveBeenCalledOnce(); client.dispose();
+  });
   it("runs symmetry and point-only cleanup without loading OpenCV", async () => {
     const dense = [{ outer: [{ x: -10, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 20 }, { x: -10, y: 20 }], holes: [] }];
     const source = curvesFromOutline(dense), load = vi.fn(), handlers = createDetectionHandlers(load), context = { signal: new AbortController().signal, progress: () => {} };

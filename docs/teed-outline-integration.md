@@ -54,10 +54,12 @@ were tested separately.
 
 Detection finds a boundary and automatically reconstructs supported lines and
 rounded sections. Point mode samples the fitted curves; Editable curves is off
-by default and retains native handles when enabled. **Simplify outline**
+by default and retains native handles when enabled. **Auto simplify outline**
 offers More detail, Balanced and Smoother with automatic previews and an
-Original/Preview comparison. Custom amount exposes the exact allowance from
-the retained dense boundary. Enabling
+Original/Preview comparison. These levels smooth the current accepted outline,
+with progressively wider filtering and a fine curve approximation. The Manual
+detection settings button beneath Auto exposes sensitivity and point simplification.
+Enabling
 Editable curves on an existing detection asks whether to keep the current outline or re-detect and replace edits; Undo can
 restore the previous source. Detection and cleanup commit together as one Undo
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
@@ -67,7 +69,7 @@ right-click a point to delete it. Shift-click or box-select multiple points;
 **Select points** also works without a keyboard. **Repair section** replaces a
 selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
 
-The simplification allowance measures movement from the dense detected outline,
+The auto simplification allowance measures movement from the current accepted outline,
 not from the physical tool and not pocket clearance. Review tool tips, recesses,
 shadows and amber estimated edges. Interior-hole detection requires Color contrast;
 Automatic selects that method when holes are enabled. Multiple tools and transparent

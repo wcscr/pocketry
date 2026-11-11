@@ -5,6 +5,7 @@ import { useCurveEditor } from "./use-curve-editor";
 import { curveControls, evaluateCurve, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import type { Outline } from "@shared/geometry/types";
 import * as photoWorker from "@/lib/detect/worker-client";
+import { compareContours } from "@shared/geometry/contour-metrics";
 
 const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
 let root: Root, host: HTMLDivElement, saved: CurveOutline | undefined;
@@ -14,7 +15,7 @@ function Harness({ placed = false, input = outline, units = 1, unit = "mm", cont
   const [curves, setCurves] = React.useState<CurveOutline>();
   saved = curves;
   const editor = useCurveEditor({ outline: input, curves, enabled: true, contextKey, scale: 1, tolerance: 0.025,
-    reconstructionSource: dense,
+    allowOutlineSimplification: !!dense,
     fitUnitsPerUnit: units, fitUnit: unit,
     viewport: navigation,
     fromClient: (x, y) => placed ? { x: (200 - x) / 2, y: 300 - y } : { x, y },
@@ -28,36 +29,43 @@ beforeEach(() => {
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 
-it("reconstructs from dense evidence in an explicit preview and applies one edit", async () => {
-  const dense = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 128), y: 50 + 40 * Math.sin(i * Math.PI / 128) })), holes: [] }];
+it("simplifies the accepted outline in an explicit preview and applies one edit", async () => {
+  const dense = [{ outer: Array.from({ length: 256 }, (_, i) => ({ x: 50 + 42 * Math.cos(i * Math.PI / 128), y: 50 + 42 * Math.sin(i * Math.PI / 128) })), holes: [] }];
   React.act(() => root.render(<Harness input={rounded} dense={dense} />));
   React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Simplify outline").click());
+  await React.act(async () => button("Auto simplify outline").click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).toBeNull();
   React.act(() => button("Original").click());
   expect(host.querySelector('[data-testid="reconstruction-source"]')).not.toBeNull();
   expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
   React.act(() => button("Preview").click());
   // Compare with the visible outline, not hidden 256-point detection evidence.
-  expect(host.textContent).toContain("48 →");
+  expect(host.textContent).toContain("Preview ready.");
   expect(onCommit).not.toHaveBeenCalled();
   expect(host.querySelector('[data-testid="curve-fit-preview"]')!.getAttribute("d")).toContain("C");
   React.act(() => button("Apply").click());
   expect(onCommit).toHaveBeenCalledTimes(1);
-  expect(onCommit.mock.calls[0][1]).toBe("Simplify outline");
-  expect(saved![0].outer.length).toBeLessThan(rounded[0].outer.length);
+  expect(onCommit.mock.calls[0][1]).toBe("Auto simplify outline");
+  // Smoothing may need additional samples; geometry quality, not a lower
+  // point count, establishes whether the preview is useful.
+  // The raw evidence differs from the accepted shape by 2 mm.
+  // The preview's 0.1 mm bound must be relative to what the user actually saw.
+  const distance = compareContours(sampleCurves(saved!, .001), rounded, { spacing: .05 });
+  expect(Math.max(distance.missingMax!, distance.excessMax!, distance.cutInMax!)).toBeLessThanOrEqual(.1);
 });
 
 it("cancels a pending reconstruction and ignores its late worker result", async () => {
   vi.stubGlobal("Worker", class {});
   let finish!: (value: never) => void, signal: AbortSignal | undefined;
-  const invoke = vi.spyOn(photoWorker, "reconstructInWorker").mockImplementation((_payload, inputSignal) => {
+  const invoke = vi.spyOn(photoWorker, "simplifyInWorker").mockImplementation((_payload, inputSignal) => {
     signal = inputSignal; return new Promise(resolve => { finish = resolve; });
   });
   try {
     React.act(() => root.render(<Harness input={rounded} dense={rounded} />));
     React.act(() => button("Bend edges").click());
-    await React.act(async () => button("Simplify outline").click());
+    await React.act(async () => button("Auto simplify outline").click());
+    expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ source: expect.any(Array), tolerance: .1,
+      sampleTolerance: .025 }), expect.any(AbortSignal));
     expect(host.textContent).toContain("Updating preview");
     expect(button("Apply").disabled).toBe(true);
     React.act(() => button("Cancel").click());
@@ -70,13 +78,10 @@ it("cancels a pending reconstruction and ignores its late worker result", async 
 
 it("previews visible detail choices without saving and compares the original", async () => {
   React.act(() => root.render(<Harness input={rounded} dense={rounded} />)); React.act(() => button("Bend edges").click());
-  await React.act(async () => button("Simplify outline").click());
-  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Allowed edge movement (mm)"]')!;
-  const balanced = Number(field().value);
-  expect(field().closest("details")!.open).toBe(false);
+  await React.act(async () => button("Auto simplify outline").click());
+  expect(host.querySelector('input[type="number"]')).toBeNull();
   expect(button("Balanced").getAttribute("aria-pressed")).toBe("true");
   await React.act(async () => button("Smoother").click());
-  expect(Number(field().value)).toBeGreaterThan(balanced);
   expect(button("Smoother").getAttribute("aria-pressed")).toBe("true");
   expect(onCommit).not.toHaveBeenCalled();
   expect(host.textContent).not.toContain("Update preview");
@@ -84,29 +89,6 @@ it("previews visible detail choices without saving and compares the original", a
   React.act(() => button("Cancel").click()); expect(onCommit).not.toHaveBeenCalled(); expect(saved).toBeUndefined();
 });
 
-it("updates a custom amount automatically, blocks stale Apply, and cancels queued previews", async () => {
-  vi.useFakeTimers();
-  try {
-    React.act(() => root.render(<Harness input={rounded} dense={rounded} />)); React.act(() => button("Bend edges").click());
-    await React.act(async () => button("Simplify outline").click());
-    const field = '[aria-label="Allowed edge movement (mm)"]';
-    inputValue(field, "2");
-    expect(button("Apply").disabled).toBe(true);
-    expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
-    await React.act(async () => vi.advanceTimersByTimeAsync(250));
-    expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
-    expect(button("Apply").disabled).toBe(false);
-    expect(onCommit).not.toHaveBeenCalled();
-    inputValue(field, "");
-    expect(button("Apply").disabled).toBe(true);
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("greater than zero");
-    inputValue(field, "3");
-    React.act(() => button("Cancel").click());
-    await React.act(async () => vi.advanceTimersByTimeAsync(250));
-    expect(host.querySelector('[data-testid="curve-fit-preview"]')).toBeNull();
-    expect(onCommit).not.toHaveBeenCalled();
-  } finally { vi.useRealTimers(); }
-});
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 const button = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!;
 function render(placed = false) {

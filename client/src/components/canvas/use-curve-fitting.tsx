@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { curvePath, curveRing, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
+import { curvePath, curveRing, CURVE_TOLERANCE_MM, type CurveOutline } from "@shared/geometry/curves";
 import { curveFitRange, fitContour, type CurveFitResult } from "@shared/geometry/curve-fit";
-import { recommendedReconstructionTolerance, type ReconstructionResult } from "@shared/geometry/contour-reconstruction";
-import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
-import { reconstructInWorker } from "@/lib/detect/worker-client";
+import type { ReconstructionResult } from "@shared/geometry/contour-reconstruction";
+import { simplifyAcceptedOutline } from "@shared/geometry/outline-simplification";
+import { simplifyInWorker } from "@/lib/detect/worker-client";
 import { simplifyContour } from "@shared/geometry/contour-simplification";
-import type { Outline, Point, RingRef } from "@shared/geometry/types";
+import type { Point, RingRef } from "@shared/geometry/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -22,7 +22,7 @@ interface Options {
   unit: "mm" | "px";
   scale: number;
   toCanvas: (point: Point) => Point;
-  reconstructionSource?: Outline;
+  allowOutlineSimplification?: boolean;
   editableCurves?: boolean;
   onCommit: (curves: CurveOutline, label: string) => void;
 }
@@ -42,14 +42,11 @@ interface Session {
 }
 
 /** Preview never writes to Trace/Bin. Only Apply invokes the single-commit path. */
-export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, reconstructionSource, editableCurves = true }: Options) {
+export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, editableCurves = true }: Options) {
   const task = useRef<AbortController | null>(null);
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revision = useRef(0);
   const stop = () => {
     revision.current++; task.current?.abort(); task.current = null;
-    if (previewTimer.current !== null) clearTimeout(previewTimer.current);
-    previewTimer.current = null;
   };
   const dismiss = () => { stop(); setSession(null); };
   const [session, setSession] = useState<Session | null>(null);
@@ -57,7 +54,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const current = enabled && session?.source === source && session.contextKey === contextKey
     && session.unitsPerUnit === unitsPerUnit && session.unit === unit && session.ref.shapeIndex === ringRef.shapeIndex
     && session.ref.ringIndex === ringRef.ringIndex ? session : null;
-  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, reconstructionSource, editableCurves]);
+  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, allowOutlineSimplification, editableCurves]);
   useEffect(() => {
     if (!current) return;
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } };
@@ -81,15 +78,10 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     setSession({ ...next, result: undefined, error: undefined, pending: true });
     void (async () => {
       try {
-        if (!reconstructionSource) throw new Error("The original detected boundary is no longer available.");
-        const dense = reconstructionSource;
-        const tolerance = Number(next.deviation) / unitsPerUnit;
-        // A fresh automatic fit can be adjusted from its retained dense source.
-        // Authored/manual curves never receive reconstructionSource.
-        const fittingSource = source.some(s => [s.outer, ...s.holes].some(r => r.some(a => a.in || a.out)))
-          ? curvesFromOutline(sampleCurves(source, tolerance / 8)) : source;
-        const result = typeof Worker === "undefined" ? reconstructDetectedForEditing(fittingSource, dense, tolerance, editableCurves)
-          : await reconstructInWorker({ source: fittingSource, dense, tolerance, editableCurves }, controller.signal);
+        const payload = { source, tolerance: Number(next.deviation) / unitsPerUnit,
+          sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves };
+        const result = typeof Worker === "undefined" ? simplifyAcceptedOutline(payload)
+          : await simplifyInWorker(payload, controller.signal);
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, result, pending: false });
       } catch (error) {
         if (!controller.signal.aborted && request === revision.current) setSession({ ...next, pending: false,
@@ -101,24 +93,9 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const start = (mode: Session["mode"], range?: { start: number; end: number }) => {
     const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: unit === "mm" ? "0.1" : "1" };
     if (range) { next.start = range.start; next.end = range.end; }
-    if (mode === "reconstruct" && reconstructionSource) {
-      const rings = reconstructionSource.flatMap(s => [s.outer, ...s.holes]);
-      next.deviation = String(roundAllowance(Math.max(...rings.map(r => recommendedReconstructionTolerance(r, unitsPerUnit, unit))) * unitsPerUnit));
-    }
     if (mode === "range" && !range) { stop(); setSession(next); } else performPreview(next);
   };
   const change = (patch: Partial<Session>) => { if (current) { stop(); setSession({ ...current, ...patch, result: undefined, pending: false, error: undefined }); } };
-  const changeAmount = (deviation: string) => {
-    if (!current) return;
-    stop(); setShowOriginal(false);
-    const valid = Number.isFinite(Number(deviation)) && Number(deviation) > 0;
-    const next = { ...current, deviation, result: undefined, pending: valid,
-      error: valid ? undefined : "Enter an amount greater than zero." };
-    setSession(next);
-    // Invalidate Apply immediately, then avoid running geometry for every
-    // keystroke. Closing, changing source or choosing a preset cancels this.
-    if (valid) previewTimer.current = setTimeout(() => performPreview(next), 250);
-  };
   const pick = (ref: RingRef, index: number) => {
     if (!current || current.mode !== "range" || ref.shapeIndex !== ringRef.shapeIndex || ref.ringIndex !== ringRef.ringIndex) return;
     if (current.start === null || current.end !== null) change({ start: index, end: null });
@@ -128,7 +105,9 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const indices = current && ring && current.start !== null && current.end !== null
     ? curveFitRange(ring.length, current.start, current.end) : [];
   const previewRing = current?.result && curveRing(current.result.curves, ringRef);
-  const recommended = reconstructionSource?.length ? Math.max(...reconstructionSource.flatMap(s => [s.outer, ...s.holes]).map(r => recommendedReconstructionTolerance(r, unitsPerUnit, unit))) * unitsPerUnit : 1;
+  // Manual allowances describe movement from the current shape, independent
+  // of detector resolution or the spacing of its already simplified points.
+  const recommended = unit === "mm" ? .1 : 1;
   const presets = [{ value: "fine", label: "More detail", allowance: recommended / 2 },
     { value: "balanced", label: "Balanced", allowance: recommended }, { value: "smooth", label: "Smoother", allowance: recommended * 2 }];
   const preset = current && presets.find(p => Math.abs(Number(current.deviation) - roundAllowance(p.allowance)) < 1e-9)?.value;
@@ -147,23 +126,23 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     {current.mode !== "reconstruct" && previewRing && <path d={curvePath(previewRing, toCanvas)} fill="none" className="stroke-emerald-500" strokeWidth={3} vectorEffect="non-scaling-stroke" data-testid="curve-fit-preview" />}
   </g>;
   const actions = !current && <>
-    {!!reconstructionSource?.length &&
-      <Button size="sm" variant="outline" title="Remove small bumps and review the result before applying." onClick={() => start("reconstruct")}>Simplify outline</Button>}
+    {allowOutlineSimplification &&
+      <Button size="sm" variant="outline" title="Remove small bumps and review the result before applying." onClick={() => start("reconstruct")}>Auto simplify outline</Button>}
     <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>
     <Button size="sm" variant="outline" onClick={() => start("auto")}>Auto-fit contour</Button>
   </>;
   const apply = () => {
     if (!current?.result?.changed || current.pending) return;
-    onCommit(current.result.curves, current.mode === "reconstruct" ? "Simplify outline" : current.mode === "auto" ? "Auto-fit contour" : "Fit selected points");
+    onCommit(current.result.curves, current.mode === "reconstruct" ? "Auto simplify outline" : current.mode === "auto" ? "Auto-fit contour" : "Fit selected points");
     dismiss();
   };
   const controls = current && ring && (current.mode === "reconstruct" ? <OutlineSimplificationPanel
-    presets={presets} preset={preset ?? undefined} deviation={current.deviation} unit={unit} unitsPerUnit={unitsPerUnit}
+    presets={presets} preset={preset ?? undefined}
     result={current.result && { ...current.result, before: source.reduce((n, s) => n + s.outer.length + s.holes.reduce((m, r) => m + r.length, 0), 0) }}
     pending={current.pending} error={current.error} showOriginal={showOriginal}
     onPreset={value => { const selected = presets.find(p => p.value === value);
       if (selected) performPreview({ ...current, deviation: String(roundAllowance(selected.allowance)) }); }}
-    onDeviation={changeAmount} onCompare={setShowOriginal} onApply={apply} onCancel={dismiss}
+    onCompare={setShowOriginal} onApply={apply} onCancel={dismiss}
   /> : <>
     <span className="text-sm font-medium">{current.mode === "auto" ? "Auto-fit contour" : "Simplify selected section · preview"}</span>
     <p className="w-full text-xs text-muted-foreground">{current.mode === "auto"

@@ -1,5 +1,7 @@
 # Outline controls follow-up — November 11, 2026
 
+**Historical UI validation at `ab621029`.** The later [smoothing fix](outline-simplification-fix-2026-11-11.md) replaces the raw-evidence preview and Custom amount control described here.
+
 Local work on `codex/outline-combined`, following the Craftsman fixes at
 `f595eea`. This addresses the confusing simplification preview and control order.
 

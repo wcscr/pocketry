@@ -11,7 +11,7 @@ There is no printing-uncertainty mask or experimental source-edge fitting stage.
 New sessions default to **Tool edges · white sheet**. Automatic background
 selection and Color contrast remain available; saved drafts retain their method.
 Sensitivity and the point simplification slider are under **Manual detection
-settings**. **Editable curves** sits below the main outline actions.
+settings**, a button immediately below **Auto simplify outline**. **Editable curves** sits below the main outline actions.
 
 The automatic detector still receives Claude's copy with inferred sheet ink
 removed. It preserves the original input separately. **Correct → Mark tool** or

@@ -4,7 +4,9 @@ import { gunzipSync } from "node:zlib";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
-import { compareContours } from "@shared/geometry/contour-metrics";
+import { compareContours, outlineRoughness } from "@shared/geometry/contour-metrics";
+import { curvesFromOutline, sampleCurves } from "@shared/geometry/curves";
+import { simplifyAcceptedOutline } from "@shared/geometry/outline-simplification";
 import { templateInkRegionsInPixels } from "./calibrate/template";
 import { detectOutline } from "./detect/pipeline";
 import { createTeedDetector } from "./detect/teed";
@@ -48,6 +50,19 @@ it.each(["color", "teed"] as const)("cleans the Craftsman on-sheet photo with %s
   const distance = compareContours(result.outline, result.rawOutline, { spacing: .1 });
   expect(Math.max(distance.missingMax!, distance.cutInMax!)).toBeLessThan(1.2);
   expect(distance.excessMax).toBeLessThan(4);
+  // All manual presets must keep the accepted smooth silhouette, rather than
+  // rebuilding the noisy pixel boundary. Exercise the real photo, not only
+  // point counts or synthetic circles.
+  for (const amountMm of [.05, .1, .2]) {
+    const request = { source: curvesFromOutline(result.outline), tolerance: amountMm / metadata.mmPerPx,
+      sampleTolerance: .025 / metadata.mmPerPx, editableCurves: false };
+    const preview = simplifyAcceptedOutline(request);
+    const simplified = sampleCurves(preview.curves);
+    const movement = compareContours(simplified, result.outline, { spacing: .1 });
+    expect(Math.max(movement.missingMax!, movement.excessMax!, movement.cutInMax!)).toBeLessThanOrEqual(amountMm / metadata.mmPerPx);
+    const roughness = (outline: typeof simplified) => outlineRoughness(outline, { spacing: .2, scale: 2, minAmplitude: .2 });
+    expect(roughness(simplified).reversals).toBeLessThanOrEqual(roughness(result.outline).reversals);
+  }
   const source = result.refinementBase ?? result.rawOutline;
   const fine = await reprocessOutline(source, { calibration, detect: { tolerancePx: .1, smoothing: 0 } });
   const coarse = await reprocessOutline(source, { calibration, detect: { tolerancePx: 3, smoothing: 0 } });

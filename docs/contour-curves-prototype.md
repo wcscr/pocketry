@@ -11,18 +11,23 @@ and replace edits. Undo restores the previous outline. The switch enables native
 curves for re-detection or the next adjustment; it does not discard current edits
 without that choice. Detection and cleanup form one Undo step.
 
-Use **Simplify outline** after detection. The visible **More detail**, **Balanced**
-and **Smoother** choices update the preview immediately. **Custom amount** exposes
-the allowed movement from the dense detected polygon in mm after calibration,
-or px otherwise; typing updates the preview automatically. It is not distance
-from the physical tool or pocket clearance. **Original** shows the outline that
-was on screen before opening the panel; **Preview** shows the proposed result.
-Point counts compare those same two outlines, rather than hidden detection
-samples. A finer setting can add points to an already simplified outline.
-Apply saves the preview; Cancel or Escape keeps the current outline.
-Apply makes one Undo step. Manual edits must be undone before reconstructing again.
-See the [November 11 controls validation](outline-controls-2026-11-11.md) for
-local browser and automated checks of this flow.
+Use **Auto simplify outline** after detection. **More detail**, **Balanced** and
+**Smoother** update one preview; **Original / Preview** compares it with the
+current outline. Apply saves one Undo step; Cancel or Escape keeps the outline.
+Sensitivity and the point simplification slider are under the **Manual detection
+settings** button directly below Auto simplify. Auto has no numeric controls.
+
+Auto smoothing uses the accepted outline, never the raw segmentation boundary.
+The levels permit at most 0.05 / 0.1 / 0.2 mm of movement (0.5 / 1 / 2 px without
+calibration), with progressively wider smoothing along the boundary. Sharp
+corners stop the filter. A bounded curve fit retains fine sampling independently
+of the level. Stronger choices retain a weaker safe result if a new fit would
+cross an edge or increase measured alternating bumps. Already smooth or constrained
+features can therefore plateau. Point counts can increase to describe a smoother
+edge; a lower count is not the quality criterion. This allowance measures movement
+from the current outline, not accuracy against the physical tool or pocket clearance.
+Manual edits must be undone before running Auto again.
+See the [November 11 smoothing validation](outline-simplification-fix-2026-11-11.md).
 
 Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
 upright Bin pocket. Tilted/profile pockets retain their editing restriction.

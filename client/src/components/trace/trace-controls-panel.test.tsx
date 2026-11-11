@@ -257,7 +257,16 @@ it("offers auto-simplify directly after detection without entering manual editin
   const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
   React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
   const action = () => host.querySelector<HTMLButtonElement>('[data-testid="button-smooth-outline"]')!;
-  expect(action().textContent).toContain("Simplify outline"); expect(action().disabled).toBe(false);
+  expect(action().textContent).toContain("Auto simplify outline"); expect(action().disabled).toBe(false);
+  const manual = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Manual detection settings")!;
+  expect(manual).toBeDefined();
+  expect(action().compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.getAttribute("aria-expanded")).toBe("false");
+  const tuning = document.getElementById(manual.getAttribute("aria-controls")!)!;
+  expect(tuning.hidden).toBe(true);
+  React.act(() => manual.click());
+  expect(manual.getAttribute("aria-expanded")).toBe("true");
+  expect(tuning.hidden).toBe(false);
   const history = trace.history;
   await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
   React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
