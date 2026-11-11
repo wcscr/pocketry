@@ -1,21 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.9.0 — 2026-11-11
 
-- Smooth detected outlines before simplification, with checks that preserve thin tips and gaps. Use the selected detail allowance consistently so automatic cleanup does not fall back to jagged raw contours. Apply pocket clearance separately.
-- Auto simplify outline now smooths the current outline instead of restoring raw pixel noise. More detail, Balanced and Smoother provide progressively stronger smoothing with visual comparison and undoable Apply. Put sensitivity and the manual simplification slider behind a Manual detection settings button below Auto, and Editable curves below the main outline actions.
-- Default new tracing sessions to Tool edges; retain saved detection choices.
-- Find the dark parts of two-tone tools on a calibration sheet. Anything at most half as bright as the paper now counts as tool, so a black and yellow driver is no longer traced as its yellow parts only.
-- Remove the calibration sheet's own printing (title, instructions, marker labels and the 100 mm bar) before tracing, so it no longer sticks out of tool outlines. This applies while the photo is the corrected sheet and has not been rotated since; letters that touch a thin part of a tool can still attach.
-- Correct detection with tool/paper strokes, retained in draft recovery. Newly perspective-corrected photos retain their original-photo mapping so tool detection can sample a bounded region from the original pixels.
-
-## 1.9.0 — 2026-11-06
-
-- Automatically choose learned outer outlines for light calibration-sheet backgrounds or Color contrast for other backgrounds and interior holes. Automatically recover weak outer boundaries and some outlines attached to sheet printing without manual sensitivity tuning, using one tiny on-device model inference and bounded reconstruction. Protect supported features and handle reference strips locally, with short hidden edges estimated and highlighted for review.
-- Repair evidence-supported narrow slits and parallel shadow foldbacks before simplification, preserving thin features, paper gaps and separate tools. Retain ambiguous attached shadows for manual review.
-- Automatically reconstruct detected outlines with lines and smooth curves, producing editable points by default. Opt into native Editable curves; adjust the allowance with detail presets and original/preview comparison. Ask before re-detecting and replacing edits when enabling curves. Preserve curves through symmetry, straightening, calibration and Undo. Keep click-to-add/right-click-to-delete in curve editing, with visible point selection and group movement/deletion.
-- Repair selected outline sections with a previewed line or smooth curve, or edit Bézier contours in Trace and Bin. Preserve curve sources through undo, recovery, project saving and Trace → Bin transfer; export native curves in Trace SVG and adaptive samples for mesh/DXF output.
-- Keep Add contour and shared holes working alongside curves, recover interrupted touch edits, and restore each saved Undo frame at its own calibration. Protect small independent tools when automatic sensitivity recovers a larger neighbor.
+- Default new traces to Tool edges on light sheets, with Color contrast and Automatic available. Recover more dark tool parts and suppress calibration-sheet printing while protecting thin features and gaps; retain uncertain shadows for review.
+- Automatically clean detected outlines into lines and rounded sections. Auto simplify works from the current cleaned outline, with progressively stronger detail presets, visual comparison and undoable Apply. Put sensitivity and point simplification under Manual detection settings.
+- Correct detection with tool/paper strokes and sample original-photo detail after perspective correction. Preserve correction strokes in draft recovery.
+- Add optional editable curves, section repair, symmetry and straightening in Trace and Bin. Preserve curves, calibration and outline edits through Undo, recovery and transfer to Bin; export native SVG curves and sampled DXF/mesh outlines.
+- Keep detection and cleanup as one undoable operation, restore the manual simplification slider, and protect separate tools and interior holes through editing.
 
 ## 1.8.3 — 2026-11-05
 
