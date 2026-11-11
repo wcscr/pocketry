@@ -50,6 +50,7 @@ import {
 } from "@/lib/calibrate/perspective";
 import { SKEW_WARN_FRACTION } from "@/lib/calibrate/solve";
 import {
+  rectifiedSheetInkRegions,
   templateDisplayName,
   templatePaper,
   type TemplateVariant,
@@ -259,9 +260,13 @@ function TraceWorkspace(): JSX.Element {
       const toolFrame = boundary === "teed" ? candidateFrame : null;
       const imageData = toolFrame?.imageData ?? (candidateFrame ? getImageData(region) : initialPixels);
       if (!imageData) return;
+      // The sheet's printing is known only while the photo is the rectified sheet, page upright:
+      // a template correction with nothing rotated or straightened since.
+      const sheetInk = rectifiedSheetInkRegions(store.perspectiveCorrection, store.imageRotation === 0 && !store.imageAlignment);
       const result = await processImage(imageData, {
         autoCleanup: true,
         smoothBoundary: true,
+        sheetInk,
         editableCurves: settings?.editableCurves ?? store.editableCurves,
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region

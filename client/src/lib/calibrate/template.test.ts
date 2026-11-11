@@ -3,14 +3,19 @@ import { describe, expect, it } from "vitest";
 import { POCKETRY_ARUCO_BITS, markerBits } from "./aruco-4x4";
 import {
   calibrationTemplateSvg,
+  estimatedTemplateTextWidth,
   EXPERIMENTAL_TEMPLATE_MARKER_SIZE_MM,
   EXPERIMENTAL_TEMPLATE_OUTER_MARGIN_MM,
   paperFromTemplateMarkerIds,
+  rectifiedSheetInkRegions,
   TEMPLATE_MARKER_IDS,
   TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
   TEMPLATE_SPACING_MM,
+  TEMPLATE_VARIANTS,
   templateFromTemplateMarkerIds,
+  templateInkRegionsInPixels,
+  templateInkRegionsMm,
   templateMarkerCornersMm,
   templateMarkerCentersMm,
   templateMarkerSizeMm,
@@ -205,5 +210,70 @@ describe("calibration template", () => {
 
   it("is deterministic", () => {
     expect(calibrationTemplateSvg("a4")).toBe(calibrationTemplateSvg("a4"));
+  });
+});
+
+describe("the sheet's printed areas", () => {
+  const attribute = (tag: string, name: string) => Number(new RegExp(` ${name}="([^"]+)"`).exec(tag)![1]);
+
+  it.each(TEMPLATE_VARIANTS)("cover everything the %s sheet draws", (template) => {
+    const svg = calibrationTemplateSvg(template), regions = templateInkRegionsMm(template);
+    const covered = (kinds: string[], x0: number, y0: number, x1: number, y1: number) => regions.some((r) =>
+      kinds.includes(r.kind) && x0 >= r.x && y0 >= r.y && x1 <= r.x + r.width && y1 <= r.y + r.height);
+
+    // Every line of text, at the Helvetica width the PDF prints and with room for ascenders and descenders.
+    const texts = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)];
+    expect(texts).toHaveLength(7);
+    for (const [tag, content] of texts) {
+      const x = attribute(tag, "x"), baseline = attribute(tag, "y"), size = attribute(tag, "font-size");
+      const half = estimatedTemplateTextWidth(content, size) / 2;
+      expect(covered(["strokes"], x - half, baseline - size * 0.8, x + half, baseline + size * 0.25)).toBe(true);
+    }
+    // The bar and all eleven ticks, with their stroke width.
+    const lines = [...svg.matchAll(/<line[^>]*>/g)];
+    expect(lines).toHaveLength(12);
+    for (const [tag] of lines) {
+      const xs = [attribute(tag, "x1"), attribute(tag, "x2")], ys = [attribute(tag, "y1"), attribute(tag, "y2")];
+      expect(covered(["rule"], Math.min(...xs) - 0.25, Math.min(...ys) - 0.25, Math.max(...xs) + 0.25, Math.max(...ys) + 0.25)).toBe(true);
+    }
+    // Each marker's black square.
+    const markers = [...svg.matchAll(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" fill="#000"\/>/g)];
+    expect(markers).toHaveLength(4);
+    for (const [, x, y, width, height] of markers.map((m) => m.map(Number))) {
+      expect(covered(["solid"], x, y, x + width, y + height)).toBe(true);
+    }
+    // And nothing reaches off the page.
+    const page = TEMPLATE_PAPER_MM[template.startsWith("a4") ? "a4" : "letter"];
+    for (const r of regions) {
+      expect(r.x).toBeGreaterThanOrEqual(0);
+      expect(r.y).toBeGreaterThanOrEqual(0);
+      expect(r.x + r.width).toBeLessThanOrEqual(page.width);
+      expect(r.y + r.height).toBeLessThanOrEqual(page.height);
+    }
+  });
+
+  it("maps into a rectified photo by the page's scale and offset", () => {
+    const page = TEMPLATE_PAPER_MM.letter, bounds = { x: 30, y: 20, width: page.width * 4, height: page.height * 4 };
+    const mm = templateInkRegionsMm("letter-experimental"), px = templateInkRegionsInPixels("letter-experimental", bounds);
+    expect(px).toHaveLength(mm.length);
+    px.forEach((region, i) => {
+      expect(region.kind).toBe(mm[i].kind);
+      expect(region.x).toBeCloseTo(30 + mm[i].x * 4, 9);
+      expect(region.y).toBeCloseTo(20 + mm[i].y * 4, 9);
+      expect(region.width).toBeCloseTo(mm[i].width * 4, 9);
+      expect(region.height).toBeCloseTo(mm[i].height * 4, 9);
+    });
+  });
+
+  it("is offered only for an upright, template-rectified photo", () => {
+    const paperBounds = { x: 0, y: 0, width: 864, height: 1118 };
+    const template = { source: "template", template: "letter-experimental" as const, paperBounds };
+    expect(rectifiedSheetInkRegions(template, true)).toHaveLength(12);
+    // Rotated or straightened since: the layout no longer lines up.
+    expect(rectifiedSheetInkRegions(template, false)).toBeUndefined();
+    // A manual four-point correction knows no layout, and neither does an uncorrected photo.
+    expect(rectifiedSheetInkRegions({ source: "manual", paperBounds }, true)).toBeUndefined();
+    expect(rectifiedSheetInkRegions({ source: "template", template: "a4" }, true)).toBeUndefined();
+    expect(rectifiedSheetInkRegions(null, true)).toBeUndefined();
   });
 });

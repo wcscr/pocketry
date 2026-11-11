@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Smooth detected outlines before simplification, so stair-stepped edges come out clean. The smoothing only moves an outline away from the tool, by about 0.1 mm on average and up to about 0.7 mm beside a sharp corner or thin tip, and it leaves narrow gaps as traced.
+- Find the dark parts of two-tone tools on a calibration sheet. Anything at most half as bright as the paper now counts as tool, so a black and yellow driver is no longer traced as its yellow parts only.
+- Remove the calibration sheet's own printing (title, instructions, marker labels and the 100 mm bar) before tracing, so it no longer sticks out of tool outlines. This applies while the photo is the corrected sheet and has not been rotated since; letters that touch a thin part of a tool can still attach.
 
 ## 1.9.0 — 2026-11-06
 

@@ -208,6 +208,60 @@ passes the same length the Trace page does (1 mm):
   100 mm before and 2.7 after.
 - **Not checked:** the step in a browser, and phone time.
 
+### Dark parts on paper, and the sheet's own printing (implemented)
+
+Two more changes, measured the same way (`--outer-smoothing on --sheet-ink on`;
+the paper rule is on whenever the learned boundary is requested):
+
+- **Darkness judged against the paper** (`PAPER_DARK_FRACTION` in
+  `client/src/lib/detect/background.ts`). The colour evidence half-weights
+  lightness to ignore shadows and splits its score in two. On the DeWalt the
+  black and grey parts score about 25, the yellow 55–75 and the split lands at
+  36, so only the yellow counted as tool, and the learned outline was then cut
+  down to match. On a recognised sheet anything at most half as light as the
+  paper now counts as tool. It changed 4 of the 36 outlines.
+- **The sheet's printing painted out before detection**
+  (`client/src/lib/detect/sheet-ink.ts`, areas from `templateInkRegionsMm`).
+  Inside the known printed areas a dark structure no taller than the area is
+  printing. A structure that runs through an area or out of it is kept whole.
+  Ten of the 36 crops contain printing.
+
+| On the outline after cleanup | Today | Smoothing only | All three |
+| --- | --- | --- | --- |
+| Left out by 1 mm or more | 9 | 9 | 7 |
+| With a loopback | 12 | 7 | 5 |
+| Stair-stepped | 13 | 0 | 0 |
+| Extra of 1 mm or more | 15 | 18 | 18 |
+| None of the four | 14 | 15 | 15 |
+| Learned outline accepted | 33 | 33 | 34 |
+| Median offset | +0.36 mm | +0.42 mm | +0.46 mm |
+
+Tool by tool, against smoothing only:
+
+- DeWalt: left out 38.4 → 1.6 mm; the 16 mm bar spur that appeared once the
+  whole tool was found is gone (extra 2.3 mm).
+- Ryobi cutter: attached marker label 6.2 → 1.5 mm.
+- Stapler: left out 1.0 → 0 mm; extra 1.1 → 3.1 mm.
+- Wiha 150 mm 4 of 5: left out 2.1 → 0 mm (the half-shaft and pinch are
+  gone), extra 3.8 → 2.3 mm. 5 of 5: extra 4.0 → 1.5 mm.
+- Wiha 150 mm 3 of 5: left out 0.7 → 0 mm, but the tip now carries 6 mm of
+  title text. 1 of 5: attached text 5.2 → 0.6 mm, but the learned outline is
+  now rejected as fragments and the tip is 3.0 mm short (2.4 before).
+
+Limits found:
+
+- **Letters that touch a thin part of a tool stay attached**, because a low
+  structure connected to something outside the printed area is kept whole.
+  Removing them needs the letters' exact shapes, which means rendering or
+  shipping the font.
+- **The outlines of the long tools are about 0.9 mm outside the edge.** Before,
+  printing made four of them fail a "selection too tight" check, and the
+  recovery that followed happened to strip the edge band. Without the printing
+  they take the normal path, with its normal offset at 1024 px.
+- A dark tool part lying wholly inside a printed area, top to bottom and side
+  to side, is erased.
+- Time: the paint-out takes 3 ms typically and 18 ms at worst on this desktop.
+
 ### Prototype: gap-tolerant region
 
 The plan's region prototype, untuned and without the sheet model or the

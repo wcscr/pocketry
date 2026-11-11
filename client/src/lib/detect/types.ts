@@ -1,6 +1,7 @@
 import type { Outline, Rect, Ring } from "@shared/geometry/types";
 import type { EdgeCleanupReport } from "./edge-cleanup";
 import type { BoundaryRecoveryReport } from "./boundary-recovery";
+import type { SheetInk } from "./sheet-ink";
 
 /**
  * The pixel input the pipeline accepts.
@@ -20,8 +21,21 @@ export type DetectEngine = "opencv" | "js";
 export interface DetectOptions {
   /** Optional learned outer silhouettes for tools on white calibration sheets. */
   boundary?: "color" | "teed";
+  /**
+   * The background is known to be white paper (a recognised calibration
+   * sheet), so anything at most half as light as it counts as the object
+   * whatever the automatic threshold says. Defaults to true exactly when the
+   * learned boundary is requested, and is kept through its colour fallback.
+   */
+  paperBackground?: boolean;
   /** Validated calibration carriers, in input-image pixels. Their contents are unknown. */
   occlusions?: readonly Ring[];
+  /**
+   * Where the calibration sheet prints, in input-image pixels. Thin dark
+   * strokes there are painted out before detection unless they continue
+   * beyond the printing (see `sheet-ink.ts`). Off when omitted.
+   */
+  sheetInk?: SheetInk;
   /** Restrict detection to this region of the image. */
   roi?: Rect | null;
   /**

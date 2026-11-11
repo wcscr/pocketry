@@ -130,6 +130,25 @@ describe("processImage", () => {
     expect(Math.hypot(d.x - c.x, d.y - c.y)).toBeCloseTo(1, 1); // four segmentation pixels, sampled every one
   });
 
+  it("maps the sheet's printed areas from the working photo into the detection crop", async () => {
+    // A block with a thin ruled line through it. The crop starts at (40, 20) in the working photo
+    // and has two detection pixels per working pixel.
+    const image = photo(240, 160, (x, y) => box(90, 30, 150, 130)(x, y) || (x >= 20 && x < 220 && y >= 100 && y < 102));
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
+    const region = { isCropped: true as const, originalRegion: { x: 40, y: 20, width: 120, height: 80 }, toWorking: { x: 0.5, y: 0.5 } };
+    const width = (result: Awaited<ReturnType<typeof processImage>>) => outlineBounds(result.outline)!.maxX - outlineBounds(result.outline)!.minX;
+    const plain = await processImage(image, { detect: JS, calibration, region });
+    expect(width(plain)).toBeGreaterThan(75);
+    // The printed area in working pixels: detection (10..230, 88..112) halved and offset by the crop origin.
+    const sheetInk = [{ x: 45, y: 64, width: 110, height: 12, kind: "rule" as const }];
+    const clean = await processImage(image, { detect: JS, calibration, region, sheetInk });
+    expect(clean.timings.sheetInk).toBeGreaterThanOrEqual(0);
+    expect(width(clean)).toBeLessThan(34);
+    // Without a scale a stroke cannot be sized, so the step is skipped.
+    const unscaled = await processImage(image, { detect: JS, region, sheetInk });
+    expect(unscaled.timings.sheetInk).toBeUndefined();
+  });
+
   it("keeps detection intact if automatic reconstruction exceeds its complexity budget", async () => {
     const image = photo(400, 400, (x, y) => {
       const cx = 20 + Math.round((x - 20) / 28) * 28, cy = 20 + Math.round((y - 20) / 28) * 28;

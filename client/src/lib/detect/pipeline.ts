@@ -11,6 +11,7 @@ import { traceIsoRings } from "../geometry/trace";
 import { loadOpenCV } from "../opencv";
 import { buildScoreFieldJS, maskFromScore } from "./segment-js";
 import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
+import { eraseSheetInk } from "./sheet-ink";
 import { checkDetectionAbort, detectionCheckpoint, refineWithGrabCut } from "./grabcut";
 import { restoreOccludedScore } from "./occlusions";
 import { repairOccludedOutline } from "./occlusion-repair";
@@ -45,6 +46,14 @@ export async function detectOutline(
   checkDetectionAbort(options.signal);
   const timings: Record<string, number> = {};
 
+  // The sheet's own printing goes first, once: every later stage, and the
+  // colour re-entry below, then sees paper where the printing was.
+  if (options.sheetInk) {
+    const ink = options.sheetInk;
+    image = time(timings, "sheetInk", () => eraseSheetInk(image, ink));
+    options = { ...options, sheetInk: undefined };
+  }
+
   let { field, engine, refinement, baseline } = await segment(image, options, timings, runtime.loadCV, runtime.teed);
   throwIfAborted(options.signal);
   // A rejected optional model must preserve the normal color pipeline,
@@ -52,7 +61,8 @@ export async function detectOutline(
   // model disabled; never leave users with an unrefined intermediate mask.
   const colorFallback = async (report: RefinementReport): Promise<DetectResult> => {
     const started = now();
-    const fallback = await detectOutline(image, { ...options, boundary: "color", engine }, runtime);
+    // The sheet is still white paper when the learned outline is rejected.
+    const fallback = await detectOutline(image, { ...options, boundary: "color", paperBackground: options.paperBackground ?? true, engine }, runtime);
     return { ...fallback, refinement: report, timings: { ...timings, colorFallback: now() - started } };
   };
   if (options.boundary === "teed" && refinement?.status === "fallback") return colorFallback(refinement);

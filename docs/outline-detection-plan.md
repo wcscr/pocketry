@@ -195,6 +195,18 @@ TypeScript with injected inputs, and any new Mats are tracked and disposed.
 
 ### A. Frame the problem
 
+> **A1, first form, implemented 2026-11-10.** The sheet's printed areas are
+> known from the template (`templateInkRegionsMm`) and, while the photo is the
+> rectified sheet with the page upright, printing inside them is painted out
+> before detection (`sheet-ink.ts`): anything no taller than its printed area
+> and not connected to something outside it. This is an eraser, not the
+> "unknown evidence" form described below, and it leaves letters that touch a
+> thin tool part attached. Results are in the evaluation notes. The form below
+> remains the target for the region stage. Also implemented alongside it: on a
+> recognised sheet, anything at most half as light as the paper counts as tool,
+> which is the narrow fix for "colour is asked the wrong question" on two-tone
+> tools.
+
 **A1 — Known sheet.** Carry the template variant and marker correspondences
 from calibration into detection as a new option (not `occlusions`, which
 triggers aid-strip repair and its notice). Compute template-mm → frame

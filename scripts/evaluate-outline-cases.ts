@@ -27,7 +27,9 @@ import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { templateInkRegionsInPixels, type TemplateVariant } from "../client/src/lib/calibrate/template";
 import { detectOutline } from "../client/src/lib/detect/pipeline";
+import { SHEET_STROKE_MM, type SheetInk } from "../client/src/lib/detect/sheet-ink";
 import { OUTER_SMOOTHING_MM } from "../client/src/lib/geometry/outer-smoothing";
 import { outsideSilhouettes } from "../client/src/lib/geometry/outline";
 import { createTeedDetector } from "../client/src/lib/detect/teed";
@@ -48,6 +50,8 @@ interface CapturedCase {
   app: {
     calibration: Calibration | null; region: Rect | null; outline?: Outline; rawOutline?: Outline;
     includeInteriorHoles?: boolean; editableCurves?: boolean; margin?: number | null;
+    perspectiveCorrection?: { source: string; template?: TemplateVariant; paperBounds?: Rect } | null;
+    imageRotation?: number; imageAlignment?: unknown;
   };
 }
 interface Truth { outline: Outline; status: "draft" | "reviewed"; source?: string }
@@ -69,13 +73,32 @@ const flag = (name: string): string | undefined => {
 };
 const boundaryOverride = flag("--boundary") as DetectOptions["boundary"] | undefined;
 const smoothingOverride = flag("--outer-smoothing") as "on" | "off" | undefined;
+const inkOverride = flag("--sheet-ink") as "on" | "off" | undefined;
 const [casesArg, outputArg] = args;
-if (!casesArg || !outputArg || (smoothingOverride && smoothingOverride !== "on" && smoothingOverride !== "off")) {
-  console.error("Usage: node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off]");
+const switches = [smoothingOverride, inkOverride];
+if (!casesArg || !outputArg || switches.some((value) => value && value !== "on" && value !== "off")) {
+  console.error("Usage: node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off]");
   process.exit(2);
 }
 /** A replay is comparable with the app's own result only when nothing was overridden. */
-const asCaptured = !boundaryOverride && !smoothingOverride;
+const asCaptured = !boundaryOverride && !smoothingOverride && !inkOverride;
+
+/**
+ * The sheet's printed areas in the crop's pixels, as the Trace page and
+ * `processImage` derive them: only for a template-rectified, unrotated photo.
+ */
+function sheetInkFor(captured: CapturedCase, mmPerPx: number | null): SheetInk | undefined {
+  const { perspectiveCorrection: correction, region, imageRotation, imageAlignment } = captured.app;
+  if (correction?.source !== "template" || !correction.template || !correction.paperBounds || !region || !mmPerPx) return undefined;
+  if (imageRotation || imageAlignment) return undefined;
+  const sx = region.width / captured.detect.width, sy = region.height / captured.detect.height;
+  return {
+    regions: templateInkRegionsInPixels(correction.template, correction.paperBounds).map((area) => ({
+      x: (area.x - region.x) / sx, y: (area.y - region.y) / sy, width: area.width / sx, height: area.height / sy, kind: area.kind,
+    })),
+    strokePx: SHEET_STROKE_MM / mmPerPx,
+  };
+}
 const casesDir = resolve(casesArg);
 const outputDir = resolve(outputArg);
 mkdirSync(outputDir, { recursive: true });
@@ -193,6 +216,8 @@ for (const name of names) {
     // The same length `processImage` passes: a millimetre in the crop's pixels, or "auto" without a scale.
     ...(smoothingOverride === "on" ? { outerSmoothingPx: mmPerPx ? OUTER_SMOOTHING_MM / mmPerPx : "auto" as const } : {}),
     ...(smoothingOverride === "off" ? { outerSmoothingPx: undefined } : {}),
+    ...(inkOverride === "on" ? { sheetInk: sheetInkFor(captured, mmPerPx) } : {}),
+    ...(inkOverride === "off" ? { sheetInk: undefined } : {}),
   };
 
   const started = performance.now();
@@ -261,7 +286,7 @@ const roughRows = rows.filter((row) => row.roughness).map((row) => (row.roughnes
 const cleanupReplayed = rows.filter((row) => row.cleanupReplayP95Px != null);
 const summary = {
   node: process.version, platform: `${process.platform}/${process.arch}`, initializeMs: Math.round(initializeMs),
-  boundary: boundaryOverride ?? "as captured", outerSmoothing: smoothingOverride ?? "as captured", cases: rows.length,
+  boundary: boundaryOverride ?? "as captured", outerSmoothing: smoothingOverride ?? "as captured", sheetInk: inkOverride ?? "as captured", cases: rows.length,
   medianOuterSmoothingMs: round(median(rows.map((row) => (row.outerSmoothingMs as number | null) ?? 0)), 2),
   maxOuterSmoothingMs: round(Math.max(...rows.map((row) => (row.outerSmoothingMs as number | null) ?? 0)), 2),
   accepted: rows.filter((row) => String(row.status).startsWith("accepted")).length,

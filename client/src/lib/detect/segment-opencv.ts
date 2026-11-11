@@ -5,11 +5,12 @@ import {
   DEFAULT_SCORE_WEIGHTS,
   fitIlluminationPlane,
   hasUsefulAlpha,
+  isDarkOnPaper,
   medianOf,
   removeIlluminationPlane,
 } from "./background";
 import { applySensitivity, otsuThreshold } from "./otsu";
-import { clampRoi, morphKernelSize } from "./segment-js";
+import { clampRoi, liftDarkOnPaper, morphKernelSize } from "./segment-js";
 import { restoreThinFeatures } from "./thin-features";
 import { DETECT_DEFAULTS, type DetectOptions, type ImageLike, type ScoreField } from "./types";
 
@@ -119,12 +120,17 @@ export function buildScoreFieldOpenCV(
       (useAlpha === "auto" &&
         hasUsefulAlpha(imageDataOf(cv, working, scope), width, height));
 
+    const paper = !alphaWanted && (options.paperBackground ?? options.boundary === "teed");
+    const dark = paper ? new Uint8Array(width * height) : undefined;
     const score = alphaWanted
       ? alphaScore(cv, working, scope, width, height)
-      : colorScore(cv, working, scope, width, height);
+      : colorScore(cv, working, scope, width, height, dark);
 
     const otsu = alphaWanted ? 128 : otsuThreshold(score);
     const iso = alphaWanted ? 128 : applySensitivity(otsu, sensitivity);
+    // As in the JS backend: darkness on paper is an object by rule, applied
+    // after the split is found and before the evidence copy is taken.
+    if (dark) liftDarkOnPaper(score, dark, iso);
 
     const evidence = !alphaWanted && (options.boundary === "teed" || (options.refine ?? DETECT_DEFAULTS.refine) === "grabcut")
       ? score.slice() : undefined;
@@ -189,6 +195,7 @@ function colorScore(
   scope: MatScope,
   width: number,
   height: number,
+  dark?: Uint8Array,
 ): Uint8Array {
   const rgb = scope.track(new cv.Mat());
   cv.cvtColor(mat, rgb, mat.type() === cv.CV_8UC4 ? cv.COLOR_RGBA2RGB : cv.COLOR_RGB2RGB);
@@ -230,6 +237,7 @@ function colorScore(
       Math.abs(aData[i] - reference.a) * weights.a +
       Math.abs(bData[i] - reference.b) * weights.b;
     score[i] = distance > 255 ? 255 : distance;
+    if (dark && isDarkOnPaper(lData[i], reference.L)) dark[i] = 1;
   }
   return score;
 }

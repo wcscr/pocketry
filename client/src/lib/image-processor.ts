@@ -7,6 +7,7 @@ import { recommendedReconstructionTolerance } from "@shared/geometry/contour-rec
 import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
 import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { checkDetectionAbort } from "./detect/grabcut";
+import { SHEET_STROKE_MM, type SheetInkRegion } from "./detect/sheet-ink";
 import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
 import { OUTER_SMOOTHING_MM } from "./geometry/outer-smoothing";
 import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
@@ -117,6 +118,11 @@ export interface ProcessOptions {
    * afterwards does not re-run it.
    */
   smoothBoundary?: boolean;
+  /**
+   * Where a recognised calibration sheet prints, in working-photo pixels. Its
+   * text, bar and markers are painted out before detection. Needs a scale.
+   */
+  sheetInk?: readonly SheetInkRegion[];
   /** Tool pockets normally need only the outside silhouette. */
   includeInteriorHoles?: boolean;
   /** Region of interest, or a region already cropped from the source. */
@@ -179,6 +185,15 @@ export async function processImage(
     tolerancePx: detect.tolerancePx === undefined ? undefined : detect.tolerancePx / workingPerDetectPixel,
     outerSmoothingPx: !options.smoothBoundary ? detect.outerSmoothingPx
       : workingMmPerPixel ? OUTER_SMOOTHING_MM / (workingMmPerPixel * workingPerDetectPixel) : "auto",
+    // Printed areas arrive in working pixels and need the scale to size a stroke.
+    sheetInk: options.sheetInk?.length && workingMmPerPixel ? {
+      regions: options.sheetInk.map((area) => ({
+        x: (area.x - (cropped ? region.originalRegion.x : 0)) / toWorking.x,
+        y: (area.y - (cropped ? region.originalRegion.y : 0)) / toWorking.y,
+        width: area.width / toWorking.x, height: area.height / toWorking.y, kind: area.kind,
+      })),
+      strokePx: SHEET_STROKE_MM / (workingMmPerPixel * workingPerDetectPixel),
+    } : detect.sheetInk,
     occlusions: detect.occlusions?.map(ring => ring.map(p => ({ x: p.x / toWorking.x, y: p.y / toWorking.y }))),
   };
 

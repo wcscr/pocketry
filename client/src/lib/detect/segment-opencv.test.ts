@@ -7,11 +7,11 @@ import { describe, expect, it, beforeAll } from "vitest";
 import { outlineArea, outlineBounds, pointInOutline } from "../geometry/outline";
 import { buildOutline, normalizeOutline } from "../geometry/outline";
 import { traceIsoRings } from "../geometry/trace";
-import { labDistanceScore, rgbToLab } from "./background";
+import { isDarkOnPaper, labDistanceScore, rgbToLab } from "./background";
 import { refineOutline } from "./pipeline";
-import { buildScoreFieldJS } from "./segment-js";
+import { buildScoreFieldJS, liftDarkOnPaper } from "./segment-js";
 import { buildScoreFieldOpenCV, type OpenCV } from "./segment-opencv";
-import type { ImageLike, ScoreField } from "./types";
+import type { DetectOptions, ImageLike, ScoreField } from "./types";
 
 /**
  * Coverage for the OpenCV segmentation backend.
@@ -364,5 +364,67 @@ describe("OpenCV and JS backends agree", () => {
     const outline = outlineOf(buildScoreFieldOpenCV(cv, photo(200, 180, toolShape)));
     expect(outline).toHaveLength(1);
     expect(outline[0].holes).toHaveLength(1);
+  });
+});
+
+describe("darkness on a known white sheet", () => {
+  /**
+   * A black and yellow tool on dim paper, as on an underexposed sheet photo:
+   * three populations, where the yellow scores far above both others.
+   */
+  function twoTone(shadowStrength = 0): ImageLike {
+    const width = 200, height = 180, data = new Uint8ClampedArray(width * height * 4);
+    const yellow = box(40, 30, 120, 90), dark = box(40, 90, 120, 150), shadow = box(120, 40, 160, 150);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const shade = shadow(x, y) ? 1 - shadowStrength : 1;
+      const rgb = yellow(x, y) ? [175, 125, 40] : dark(x, y) ? [45, 48, 50] : [155 * shade, 158 * shade, 172 * shade];
+      data.set([...rgb, 255], (y * width + x) * 4);
+    }
+    return { width, height, data };
+  }
+  const backends: [string, (image: ImageLike, options?: DetectOptions) => ScoreField][] = [
+    ["JS", (image, options) => buildScoreFieldJS(image, options)],
+    ["OpenCV", (image, options) => buildScoreFieldOpenCV(cv, image, options)],
+  ];
+
+  it.each(backends)("reads the dark half as paper when the split falls between dark and coloured (%s)", (_name, build) => {
+    const field = build(twoTone());
+    // The failure this rule exists for: only the yellow half is found.
+    expect(outlineBounds(outlineOf(field))!.maxY).toBeLessThan(95);
+  });
+
+  it.each(backends)("keeps the dark half once the background is known to be paper (%s)", (_name, build) => {
+    for (const options of [{ paperBackground: true }, { boundary: "teed" as const }]) {
+      const field = build(twoTone(), options), outline = outlineOf(field);
+      expect(outline).toHaveLength(1);
+      expect(outlineBounds(outline)!.maxY).toBeGreaterThan(147);
+      expect(pointInOutline(outline, { x: 80, y: 120 })).toBe(true);
+      expect(pointInOutline(outline, { x: 80, y: 60 })).toBe(true);
+      // The split itself is still found on colour, and is reported unchanged.
+      expect(field.iso).toBe(build(twoTone()).iso);
+    }
+  });
+
+  it.each(backends)("still leaves a cast shadow out (%s)", (_name, build) => {
+    // A shadow at 70% of the paper's lightness beside the tool.
+    const outline = outlineOf(build(twoTone(0.3), { paperBackground: true }));
+    expect(outlineBounds(outline)!.maxX).toBeLessThan(125);
+    expect(pointInOutline(outline, { x: 140, y: 100 })).toBe(false);
+  });
+
+  it.each(backends)("can be turned off for the learned boundary (%s)", (_name, build) => {
+    const field = build(twoTone(), { boundary: "teed", paperBackground: false });
+    expect(outlineBounds(outlineOf(field))!.maxY).toBeLessThan(95);
+  });
+
+  it("judges darkness against the paper, not against a fixed level", () => {
+    expect(isDarkOnPaper(30, 65)).toBe(true);
+    expect(isDarkOnPaper(32.5, 65)).toBe(true);
+    expect(isDarkOnPaper(40, 65)).toBe(false);
+    expect(isDarkOnPaper(40, 90)).toBe(true);
+    expect(isDarkOnPaper(0, 0)).toBe(false);
+    const score = Uint8Array.from([0, 10, 50, 5]);
+    liftDarkOnPaper(score, Uint8Array.from([0, 1, 1, 0]), 36);
+    expect([...score]).toEqual([0, 36, 50, 5]);
   });
 });

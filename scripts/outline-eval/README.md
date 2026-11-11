@@ -36,12 +36,13 @@ Each case is `<name>.rgba` (the exact pixels sent to the detection worker),
 ## Evaluate
 
 ```
-node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off]
+node --import tsx scripts/evaluate-outline-cases.ts <cases-dir> <output-dir> [--boundary teed|color] [--outer-smoothing on|off] [--sheet-ink on|off]
 ```
 
-`--outer-smoothing on` applies the outward smoothing step to cases captured
-before it existed, with the length the Trace page uses; a run with either flag
-is not compared with the app's own result.
+`--outer-smoothing on` and `--sheet-ink on` apply the outward smoothing and the
+removal of the sheet's printing to cases captured before they existed, as the
+Trace page would; a run with any flag is not compared with the app's own
+result.
 
 The evaluator replays every case through `detectOutline`, checks that the
 replay matches what the app produced, and, where `<name>.truth.json` exists,

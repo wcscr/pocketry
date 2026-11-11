@@ -337,6 +337,24 @@ describe("detectOutline: options", () => {
     expect((await detectOutline(two, { ...JS, outerSmoothingPx: 4 })).rawOutline).toHaveLength(2);
   });
 
+  it("removes the sheet's known printing before it can attach to the tool", async () => {
+    // A block with a thin ruled line running out of both its sides, like a handle lying on the bar.
+    const image = paint(240, 160, (x, y) => rect(90, 30, 150, 130)(x, y) || (x >= 20 && x < 220 && y >= 100 && y < 102));
+    const plain = await detectOutline(image, JS);
+    expect(plain.timings.sheetInk).toBeUndefined();
+    expect(outlineBounds(plain.outline)!.maxX - outlineBounds(plain.outline)!.minX).toBeGreaterThan(150);
+
+    const sheetInk = { regions: [{ x: 10, y: 88, width: 220, height: 24, kind: "rule" as const }], strokePx: 5 };
+    const clean = await detectOutline(image, { ...JS, sheetInk });
+    expect(clean.timings.sheetInk).toBeGreaterThanOrEqual(0);
+    expect(clean.outline).toHaveLength(1);
+    const bounds = outlineBounds(clean.outline)!;
+    expect(bounds.minX).toBeGreaterThan(86);
+    expect(bounds.maxX).toBeLessThan(154);
+    expect(bounds.minY).toBeLessThan(33);
+    expect(bounds.maxY).toBeGreaterThan(127);
+  });
+
   it("honours an abort signal", async () => {
     const image = paint(160, 160, rect(40, 40, 120, 120));
     await expect(

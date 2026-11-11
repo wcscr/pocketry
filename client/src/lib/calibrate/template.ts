@@ -232,47 +232,169 @@ function markerSvg(
   return parts.join("");
 }
 
+/** Height of the major ticks on the verification bar, and of the label text beside markers and bar. */
+const BAR_TICK_MM = 4;
+const LABEL_FONT_MM = 3.5;
+
+/** Baseline of the "id N" label printed beside the marker at `index` (marker-id order). */
+function markerLabelBaselineMm(template: TemplateVariant, index: number, centerY: number): number {
+  const top = centerY - templateMarkerSizeMm(template) / 2;
+  return isExperimentalTemplate(template) && index >= 2
+    ? top - 3
+    : top + templateMarkerSizeMm(template) + 5;
+}
+
+/** The sheet's centred text lines: content, font size and baseline, in page millimetres. */
+function templateTextLines(template: TemplateVariant): { title: TextLine; instructions: TextLine; check: TextLine } {
+  const paper = templatePaper(template);
+  const experimental = isExperimentalTemplate(template);
+  const header = templateHeaderBaselinesMm(template);
+  const spacing = templateMarkerSpacingMm(template);
+  return {
+    title: {
+      text: experimental
+        ? `Pocketry v${TEMPLATE_SIGNATURE_VERSION} experimental — ${paper === "a4" ? "A4" : "US Letter"} — print at 100% scale`
+        : `Pocketry v${TEMPLATE_SIGNATURE_VERSION} calibration sheet — print at 100% scale (no “fit to page”)`,
+      size: experimental ? 4 : 5, baseline: header.title,
+    },
+    instructions: {
+      text: experimental
+        ? "Keep all four markers visible · camera 1× · shoot straight down"
+        : "Place the tool between the markers, keep all four visible, shoot from directly above.",
+      size: experimental ? 3 : 3.5, baseline: header.instructions,
+    },
+    check: {
+      text: experimental
+        ? `check: this bar is exactly 100 mm — marker centres ${formatTemplateMm(spacing.width)} × ${formatTemplateMm(spacing.height)} mm`
+        : "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm",
+      size: LABEL_FONT_MM, baseline: templateVerificationBarMm(template).labelY,
+    },
+  };
+}
+interface TextLine { text: string; size: number; baseline: number }
+
+/**
+ * Width of a line of sheet text, in the units of `fontSize`. An over-estimate
+ * of Helvetica, which the PDF prints; the SVG's generic sans-serif is close.
+ */
+export function estimatedTemplateTextWidth(text: string, fontSize: number): number {
+  let units = 0;
+  for (const character of text) {
+    if ("ilI1.,:;!'".includes(character)) units += 0.28;
+    else if ("mwMW@".includes(character)) units += 0.86;
+    else if (character === " ") units += 0.28;
+    else units += 0.54;
+  }
+  return units * fontSize;
+}
+
+/** One printed element of the sheet, as a box in page millimetres. */
+export interface TemplateInkRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Text ("strokes"), the ruled bar and its ticks ("rule"), or a filled block: a marker ("solid"). */
+  kind: "strokes" | "rule" | "solid";
+}
+
+/** Slack around each printed element, for print and rectification error. */
+const INK_MARGIN_MM = 1;
+
+/**
+ * Everything the sheet prints, as boxes in page millimetres.
+ *
+ * Detection uses these to tell the sheet's own printing from the tool lying on
+ * it. They are derived from the same numbers as the SVG and the PDF, and a
+ * test checks every drawn element falls inside one, so the three cannot drift.
+ */
+export function templateInkRegionsMm(template: TemplateVariant): TemplateInkRegion[] {
+  const page = TEMPLATE_PAPER_MM[templatePaper(template)];
+  const cx = page.width / 2;
+  const text = (line: TextLine, centerX = cx): TemplateInkRegion => {
+    // 15% over the Helvetica estimate covers a wider substituted sans-serif.
+    const width = estimatedTemplateTextWidth(line.text, line.size) * 1.15 + 2 * INK_MARGIN_MM;
+    return {
+      x: centerX - width / 2, width,
+      y: line.baseline - line.size * 0.85 - INK_MARGIN_MM, height: line.size * 1.15 + 2 * INK_MARGIN_MM,
+      kind: "strokes",
+    };
+  };
+  const lines = templateTextLines(template);
+  const bar = templateVerificationBarMm(template);
+  const size = templateMarkerSizeMm(template);
+  const regions: TemplateInkRegion[] = [
+    text(lines.title), text(lines.instructions), text(lines.check),
+    {
+      x: bar.startX - INK_MARGIN_MM, width: bar.endX - bar.startX + 2 * INK_MARGIN_MM,
+      y: bar.y - BAR_TICK_MM - INK_MARGIN_MM, height: BAR_TICK_MM + 2 * INK_MARGIN_MM,
+      kind: "rule",
+    },
+  ];
+  templateMarkerCentersMm(template).forEach(({ id, x, y }, index) => {
+    regions.push({
+      x: x - size / 2 - INK_MARGIN_MM, y: y - size / 2 - INK_MARGIN_MM,
+      width: size + 2 * INK_MARGIN_MM, height: size + 2 * INK_MARGIN_MM, kind: "solid",
+    });
+    regions.push(text({ text: `id ${id}`, size: LABEL_FONT_MM, baseline: markerLabelBaselineMm(template, index, y) }, x));
+  });
+  return regions;
+}
+
+/**
+ * The printed areas in the pixels of a photo rectified to this template, where
+ * the page stands upright in `paperBounds`. A photo rotated or straightened
+ * after rectification no longer fits this mapping; callers skip it then.
+ */
+export function templateInkRegionsInPixels(
+  template: TemplateVariant,
+  paperBounds: { x: number; y: number; width: number; height: number },
+): TemplateInkRegion[] {
+  const page = TEMPLATE_PAPER_MM[templatePaper(template)];
+  const sx = paperBounds.width / page.width, sy = paperBounds.height / page.height;
+  return templateInkRegionsMm(template).map((region) => ({
+    x: paperBounds.x + region.x * sx, y: paperBounds.y + region.y * sy,
+    width: region.width * sx, height: region.height * sy, kind: region.kind,
+  }));
+}
+
+/**
+ * The printed areas for a working photo, or `undefined` when they cannot be
+ * placed: no template-based rectification (a manual four-point correction
+ * knows no layout), or the photo was rotated or straightened afterwards.
+ */
+export function rectifiedSheetInkRegions(
+  correction: { source: string; template?: TemplateVariant; paperBounds?: { x: number; y: number; width: number; height: number } } | null | undefined,
+  upright: boolean,
+): TemplateInkRegion[] | undefined {
+  if (!upright || correction?.source !== "template" || !correction.template || !correction.paperBounds) return undefined;
+  return templateInkRegionsInPixels(correction.template, correction.paperBounds);
+}
+
 /** The complete printable sheet. */
 export function calibrationTemplateSvg(template: TemplateVariant): string {
   const paper = templatePaper(template);
   const page = TEMPLATE_PAPER_MM[paper];
   const centers = templateMarkerCentersMm(template);
-  const header = templateHeaderBaselinesMm(template);
   const markerSize = templateMarkerSizeMm(template);
-  const experimental = isExperimentalTemplate(template);
   const cx = page.width / 2;
 
   const markers = centers
-    .map(({ id, x, y }, index) => {
-      const originY = y - markerSize / 2;
-      const labelY =
-        experimental && index >= 2
-          ? originY - 3
-          : originY + markerSize + 5;
-      return markerSvg(id, x, y, markerSize, labelY);
-    })
+    .map(({ id, x, y }, index) =>
+      markerSvg(id, x, y, markerSize, markerLabelBaselineMm(template, index, y)))
     .join("\n  ");
 
   const ruler = templateVerificationBarMm(template);
   const ticks = Array.from({ length: 11 }, (_, i) => {
     const x = ruler.startX + i * 10;
-    return `<line x1="${x}" y1="${ruler.y}" x2="${x}" y2="${ruler.y - (i % 5 === 0 ? 4 : 2.5)}" stroke="#000" stroke-width="0.3"/>`;
+    return `<line x1="${x}" y1="${ruler.y}" x2="${x}" y2="${ruler.y - (i % 5 === 0 ? BAR_TICK_MM : 2.5)}" stroke="#000" stroke-width="0.3"/>`;
   }).join("");
-  const title = experimental
-    ? `Pocketry v${TEMPLATE_SIGNATURE_VERSION} experimental — ${paper === "a4" ? "A4" : "US Letter"} — print at 100% scale`
-    : `Pocketry v${TEMPLATE_SIGNATURE_VERSION} calibration sheet — print at 100% scale (no “fit to page”)`;
-  const instructions = experimental
-    ? "Keep all four markers visible · camera 1× · shoot straight down"
-    : "Place the tool between the markers, keep all four visible, shoot from directly above.";
-  const spacing = templateMarkerSpacingMm(template);
-  const check = experimental
-    ? `check: this bar is exactly 100 mm — marker centres ${formatTemplateMm(spacing.width)} × ${formatTemplateMm(spacing.height)} mm`
-    : "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm";
+  const { title, instructions, check } = templateTextLines(template);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${page.width}mm" height="${page.height}mm" viewBox="0 0 ${page.width} ${page.height}">
   <rect width="${page.width}" height="${page.height}" fill="#fff"/>
-  <text x="${cx}" y="${header.title}" text-anchor="middle" font-size="${experimental ? 4 : 5}" font-family="sans-serif" fill="#000">${title}</text>
-  <text x="${cx}" y="${header.instructions}" text-anchor="middle" font-size="${experimental ? 3 : 3.5}" font-family="sans-serif" fill="#333">${instructions}</text>
+  <text x="${cx}" y="${title.baseline}" text-anchor="middle" font-size="${title.size}" font-family="sans-serif" fill="#000">${title.text}</text>
+  <text x="${cx}" y="${instructions.baseline}" text-anchor="middle" font-size="${instructions.size}" font-family="sans-serif" fill="#333">${instructions.text}</text>
   ${markers}
   <g>
     <line x1="${ruler.startX}" y1="${ruler.y}" x2="${ruler.endX}" y2="${ruler.y}" stroke="#000" stroke-width="0.5"/>
