@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Smooth detected outlines before simplification, so stair-stepped edges come out clean. The smoothing only moves an outline away from the tool, by about 0.1 mm on average and up to about 0.7 mm beside a sharp corner or thin tip, and it leaves narrow gaps as traced.
+
 ## 1.9.0 — 2026-11-06
 
 - Automatically choose learned outer outlines for light calibration-sheet backgrounds or Color contrast for other backgrounds and interior holes. Automatically recover weak outer boundaries and some outlines attached to sheet printing without manual sensitivity tuning, using one tiny on-device model inference and bounded reconstruction. Protect supported features and handle reference strips locally, with short hidden edges estimated and highlighted for review.

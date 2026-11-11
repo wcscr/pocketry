@@ -1,5 +1,6 @@
 import type { Outline, Point, Ring } from "@shared/geometry/types";
 
+import { AUTO_OUTER_SMOOTHING_SEG_PIXELS, smoothOuterBoundary } from "../geometry/outer-smoothing";
 import { buildOutline, normalizeOutline, outsideSilhouettes } from "../geometry/outline";
 import {
   resampleOutline,
@@ -78,6 +79,16 @@ export async function detectOutline(
     }
   }
   throwIfAborted(options.signal);
+
+  // Every path that reaches the user passes here exactly once: the learned
+  // fallbacks above return the colour re-entry's result, which already ran it.
+  if (options.outerSmoothingPx) {
+    const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
+    const lengthPx = options.outerSmoothingPx === "auto"
+      ? AUTO_OUTER_SMOOTHING_SEG_PIXELS * sourcePerSegPixel
+      : options.outerSmoothingPx;
+    rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx));
+  }
 
   const outline = time(timings, "refine", () => refineOutline(rawOutline, options, field));
 

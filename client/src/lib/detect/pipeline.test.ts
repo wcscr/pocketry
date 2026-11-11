@@ -1,3 +1,4 @@
+import { compareContours, outlineRoughness } from "@shared/geometry/contour-metrics";
 import { ringArea, signedArea } from "@shared/geometry/rings";
 import { describe, expect, it } from "vitest";
 
@@ -297,6 +298,43 @@ describe("detectOutline: options", () => {
     expect(Object.keys(result.timings)).toEqual(
       expect.arrayContaining(["segment", "trace", "refine"]),
     );
+  });
+
+  it("leaves the dense trace alone unless outward smoothing is asked for", async () => {
+    const image = paint(200, 200, (x, y) => Math.abs(x - 100) + Math.abs(y - 100) < 70);
+    const plain = await detectOutline(image, JS);
+    expect(plain.timings.outerSmoothing).toBeUndefined();
+    expect((await detectOutline(image, { ...JS, outerSmoothingPx: 0 })).rawOutline).toEqual(plain.rawOutline);
+  });
+
+  it.each([4, "auto"] as const)("smooths the dense trace outward when asked (%s)", async (outerSmoothingPx) => {
+    // A block whose top edge steps up and down by two pixels every four.
+    const image = paint(200, 200, (x, y) => x > 30 && x < 170 && y > 60 + (Math.floor(x / 4) % 2) * 2 && y < 150);
+    const plain = await detectOutline(image, JS);
+    const smooth = await detectOutline(image, { ...JS, outerSmoothingPx });
+    expect(smooth.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
+    expect(smooth.rawOutline).toHaveLength(1);
+    expect(signedArea(smooth.rawOutline[0].outer)).toBeGreaterThan(0);
+
+    const settings = { spacing: 0.2, scale: 2, minAmplitude: 0.2 };
+    expect(outlineRoughness(plain.rawOutline, settings).reversals).toBeGreaterThan(20);
+    expect(outlineRoughness(smooth.rawOutline, settings).reversals).toBe(0);
+    // The trace does not reach outside the smoothed ring, and the ring grew by well under a pixel on average.
+    expect(compareContours(plain.rawOutline, smooth.rawOutline, { spacing: 0.2 }).excessMax).toBeLessThan(0.25);
+    const grown = compareContours(smooth.rawOutline, plain.rawOutline, { spacing: 0.2 });
+    expect(grown.signedOffsetMean).toBeGreaterThan(0);
+    expect(grown.signedOffsetMean).toBeLessThan(0.5);
+    // The simplified outline is derived from the smoothed trace.
+    expect(outlineArea(smooth.outline)).toBeGreaterThan(outlineArea(plain.outline) * 0.99);
+  });
+
+  it("keeps holes and separate objects through outward smoothing", async () => {
+    const holed = await detectOutline(paint(200, 200, blockWithHole), { ...JS, outerSmoothingPx: 4 });
+    const plain = await detectOutline(paint(200, 200, blockWithHole), JS);
+    expect(holed.rawOutline.map((shape) => shape.holes.length)).toEqual(plain.rawOutline.map((shape) => shape.holes.length));
+    for (const shape of holed.rawOutline) for (const hole of shape.holes) expect(signedArea(hole)).toBeLessThan(0);
+    const two = paint(240, 120, (x, y) => rect(20, 30, 100, 90)(x, y) || rect(140, 30, 220, 90)(x, y));
+    expect((await detectOutline(two, { ...JS, outerSmoothingPx: 4 })).rawOutline).toHaveLength(2);
   });
 
   it("honours an abort signal", async () => {

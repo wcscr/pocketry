@@ -8,6 +8,7 @@ import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup
 import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { checkDetectionAbort } from "./detect/grabcut";
 import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
+import { OUTER_SMOOTHING_MM } from "./geometry/outer-smoothing";
 import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
 import {
   flattenOutline,
@@ -110,6 +111,12 @@ export interface ProcessOptions {
   /** Reconstruct the detected boundary before exposing it for editing. */
   autoCleanup?: boolean;
   editableCurves?: boolean;
+  /**
+   * Smooth the dense trace outward before simplification and cleanup, about one
+   * millimetre when a scale is known. Baked in at detection: recalibrating
+   * afterwards does not re-run it.
+   */
+  smoothBoundary?: boolean;
   /** Tool pockets normally need only the outside silhouette. */
   includeInteriorHoles?: boolean;
   /** Region of interest, or a region already cropped from the source. */
@@ -165,8 +172,13 @@ export async function processImage(
   const cropped = isCroppedRegionInfo(region);
   const roi = cropped ? null : (region ?? null);
   const toWorking = cropped ? region.toWorking ?? { x: 1, y: 1 } : { x: 1, y: 1 };
+  // The detector works in the crop's own pixels; lengths given in working pixels shrink with it.
+  const workingPerDetectPixel = Math.max(toWorking.x, toWorking.y);
+  const workingMmPerPixel = mmPerPixel(calibration);
   const detectionOptions: DetectOptions = { ...detect, roi,
-    tolerancePx: detect.tolerancePx === undefined ? undefined : detect.tolerancePx / Math.max(toWorking.x, toWorking.y),
+    tolerancePx: detect.tolerancePx === undefined ? undefined : detect.tolerancePx / workingPerDetectPixel,
+    outerSmoothingPx: !options.smoothBoundary ? detect.outerSmoothingPx
+      : workingMmPerPixel ? OUTER_SMOOTHING_MM / (workingMmPerPixel * workingPerDetectPixel) : "auto",
     occlusions: detect.occlusions?.map(ring => ring.map(p => ({ x: p.x / toWorking.x, y: p.y / toWorking.y }))),
   };
 

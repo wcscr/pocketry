@@ -979,7 +979,7 @@ describe("Trace detection workflow", () => {
     expect(getToolDetectionFrameMock).toHaveBeenCalledWith(region);
     expect(getImageDataMock).not.toHaveBeenCalled();
     expect(processImageMock).toHaveBeenCalledWith(imageData, expect.objectContaining({
-      autoCleanup: true, editableCurves: false,
+      autoCleanup: true, smoothBoundary: true, editableCurves: false,
       region: { originalRegion: region, isCropped: true, toWorking: { x: .5, y: .5 } },
       detect: expect.objectContaining({ boundary: "teed", sensitivity: 128 }),
     }));

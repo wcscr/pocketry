@@ -34,6 +34,14 @@ export interface DetectOptions {
   /** Taubin smoothing passes; 0 disables smoothing. */
   smoothing?: number;
   /**
+   * Smooths the dense trace before simplification, moving it only away from
+   * the tool, so stair-steps go and nothing is cut off (see
+   * `geometry/outer-smoothing`). The value is the smoothing length in source
+   * pixels, about one millimetre when a scale is known; "auto" uses a few
+   * segmentation pixels. Off when omitted, so existing callers are unchanged.
+   */
+  outerSmoothingPx?: number | "auto";
+  /**
    * Segmentation pixel budget. Larger inputs are area-averaged down to this
    * many pixels and the result is scaled back up, so a 48MP phone photo costs
    * the same as a 6MP one.

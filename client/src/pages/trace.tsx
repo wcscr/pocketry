@@ -261,6 +261,7 @@ function TraceWorkspace(): JSX.Element {
       if (!imageData) return;
       const result = await processImage(imageData, {
         autoCleanup: true,
+        smoothBoundary: true,
         editableCurves: settings?.editableCurves ?? store.editableCurves,
         includeInteriorHoles: settings?.includeInteriorHoles ?? store.includeInteriorHoles,
         region: region

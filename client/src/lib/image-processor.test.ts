@@ -97,6 +97,39 @@ describe("processImage", () => {
     expect(outlineArea(offset.outline)).toBeGreaterThan(outlineArea(original.outline));
   });
 
+  it("smooths the boundary outward by a millimetre at the calibrated scale, before cleanup", async () => {
+    // A diamond at 0.25 mm per pixel.
+    const image = photo(200, 200, (x, y) => Math.abs(x - 100) + Math.abs(y - 100) < 70);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const plain = await processImage(image, { detect: JS, autoCleanup: true, calibration });
+    const smooth = await processImage(image, { detect: JS, autoCleanup: true, calibration, smoothBoundary: true });
+    expect(plain.timings.outerSmoothing).toBeUndefined();
+    expect(smooth.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
+    expect(smooth.cleanup?.applied).toBe(true);
+    // The dense trace is resampled every quarter of the length: 1 mm is 4 px here, so 1 px.
+    const [first, second] = smooth.rawOutline[0].outer;
+    expect(Math.hypot(second.x - first.x, second.y - first.y)).toBeCloseTo(1, 1);
+    // It only grew, and the cleaned outline still covers the shape.
+    expect(outlineArea(smooth.rawOutline)).toBeGreaterThan(outlineArea(plain.rawOutline));
+    expect(outlineArea(smooth.rawOutline)).toBeLessThan(outlineArea(plain.rawOutline) * 1.03);
+    for (const [x, y] of [[100, 35], [165, 100], [100, 165], [35, 100], [100, 100]]) expect(pointInOutline(smooth.outline, { x, y })).toBe(true);
+  });
+
+  it("scales the smoothing length with a cropped region, and falls back to segmentation pixels without a scale", async () => {
+    const image = photo(200, 200, (x, y) => Math.abs(x - 100) + Math.abs(y - 100) < 70);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    // The detector's pixels are half a working pixel, so a millimetre is 8 of them and samples are 2 apart.
+    const cropped = await processImage(image, { detect: JS, calibration, smoothBoundary: true, region: {
+      isCropped: true, originalRegion: { x: 0, y: 0, width: 100, height: 100 }, toWorking: { x: 0.5, y: 0.5 },
+    } });
+    const [a, b] = cropped.rawOutline[0].outer;
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(1, 1); // 2 detector pixels, mapped to working pixels
+    const unscaled = await processImage(image, { detect: JS, smoothBoundary: true });
+    expect(unscaled.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
+    const [c, d] = unscaled.rawOutline[0].outer;
+    expect(Math.hypot(d.x - c.x, d.y - c.y)).toBeCloseTo(1, 1); // four segmentation pixels, sampled every one
+  });
+
   it("keeps detection intact if automatic reconstruction exceeds its complexity budget", async () => {
     const image = photo(400, 400, (x, y) => {
       const cx = 20 + Math.round((x - 20) / 28) * 28, cy = 20 + Math.round((y - 20) / 28) * 28;
