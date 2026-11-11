@@ -4,7 +4,7 @@ Trace can calibrate from a reference resting on a thick object, reducing the
 apparent enlargement caused by measuring a raised edge against paper below it.
 **Download optional calibration aids** opens a shared dialog from the upload screen, **Scale**,
 or Help. The **Calibration aids** dialog has separate **Paper printable aids**
-and **3D printable aids** sections. Paper downloads include experimental A4 /
+and **3D printable aids** sections. Paper downloads include v3 A4 /
 US Letter corner-marker sheets and one sheet containing all three
 **50, 100 and 200 mm** measurement aids in either paper size. The 3D section
 offers the same lengths as two-colour
@@ -15,6 +15,13 @@ detection happen locally in the browser.
 
 ## Print and photograph
 
+- Calibration-sheet **v3** updates the photography hints only; it keeps the
+  v2 markers, positions and dimensions, so previously printed sheets still work.
+  Photograph straight down with all four markers visible. For tall objects,
+  move farther away to reduce perspective distortion, then zoom in as needed
+  while keeping the markers sharp. Distance reduces height-related scale error;
+  it does not eliminate it. Avoid overlapping the printed text, and use additional
+  plain white sheets of paper for wide objects.
 - The 3D aids are exactly **50 / 100 / 200 × 15 × 2 mm** end to end. Each has its
   length engraved/inlaid, 1 mm graduations on both long edges, and longer ticks
   at 5 and 10 mm. Measure from the left end face; interior numbers identify the

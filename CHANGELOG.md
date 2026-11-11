@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Calibration-sheet v3 recommends photographing tall objects from farther away and allows zoom, with unchanged markers and dimensions.
+
 ## 1.8.3 — 2026-11-05
 
 - Describe wall conflicts correctly for raised or lowered pockets without tilt, and show one authoritative wall error instead of a duplicate layout warning. Invalid wall cuts still block export.

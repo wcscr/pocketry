@@ -145,7 +145,7 @@ describe("calibration template", () => {
     expect(letter).toContain('viewBox="0 0 215.9 279.4"');
 
     const experimental = calibrationTemplateSvg("a4-experimental");
-    expect(experimental).toContain("experimental");
+    expect(experimental).toContain("Cal Sheet");
     expect(experimental).toContain('width="24" height="24"');
   });
 
@@ -169,8 +169,8 @@ describe("calibration template", () => {
     const bar = svg.match(/<line x1="([\d.]+)" y1="[\d.]+" x2="([\d.]+)"/);
     expect(bar).not.toBeNull();
     expect(Number(bar![2]) - Number(bar![1])).toBeCloseTo(100, 9);
-    expect(svg).toContain("print at 100% scale");
-    expect(svg).toContain("Pocketry v2 calibration sheet");
+    expect(svg).toContain("Print at 100% scale");
+    expect(svg).toContain("Pocketry v3 Cal Sheet");
     expect(svg).toContain("id 0");
     expect(svg).toContain("id 3");
     const letter = calibrationTemplateSvg("letter");

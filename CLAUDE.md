@@ -269,6 +269,8 @@ No linter is configured yet (prefer ESLint when one lands).
 
 ## Code Conventions
 
+- Use American English spelling in user-facing text, documentation, and comments
+  (for example, "center", "color", and "millimeter").
 - TypeScript strict mode; no `any` unless annotated with a reason.
 - Path aliases per `tsconfig.json` (`@/...` for client src, `@shared/...` for shared).
 - Shared project and geometry validation lives under `shared/`; never duplicate validation logic client- or server-side.

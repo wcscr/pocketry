@@ -20,8 +20,19 @@ export const TEMPLATE_VARIANTS: readonly TemplateVariant[] = [
   "letter-experimental",
 ];
 
-/** Printed and machine-readable template generation. */
+/** Machine-readable marker generation; v3 sheets retain the v2 signature. */
 export const TEMPLATE_SIGNATURE_VERSION = 2;
+
+/** Printed sheet revision, independent of the unchanged marker signature. */
+export const TEMPLATE_SHEET_VERSION = 3;
+
+/** Shared photography hints for both printable formats. */
+export const TEMPLATE_PHOTO_INSTRUCTIONS = [
+  "Print at 100% scale (no fit to page).",
+  "Keep markers visible. Avoid overlapping text. Shoot straight down.",
+  "Wide objects: add plain white paper.",
+  "Tall objects: shoot farther away; zoom as needed.",
+] as const;
 
 /** Existing sheets use a 150-200-250 centre rectangle. */
 export const TEMPLATE_SPACING_MM = { width: 150, height: 200 } as const;
@@ -157,7 +168,7 @@ export function templateMarkerCornersMm(
   }));
 }
 
-/** Identifies one Pocketry v2 sheet only from its complete marker signature. */
+/** Identifies a Pocketry sheet only from its complete v2 marker signature. */
 export function templateFromTemplateMarkerIds(
   ids: readonly number[],
 ): TemplateVariant | null {
@@ -258,26 +269,20 @@ export function calibrationTemplateSvg(template: TemplateVariant): string {
     const x = ruler.startX + i * 10;
     return `<line x1="${x}" y1="${ruler.y}" x2="${x}" y2="${ruler.y - (i % 5 === 0 ? 4 : 2.5)}" stroke="#000" stroke-width="0.3"/>`;
   }).join("");
-  const title = experimental
-    ? `Pocketry v${TEMPLATE_SIGNATURE_VERSION} experimental — ${paper === "a4" ? "A4" : "US Letter"} — print at 100% scale`
-    : `Pocketry v${TEMPLATE_SIGNATURE_VERSION} calibration sheet — print at 100% scale (no “fit to page”)`;
-  const instructions = experimental
-    ? "Keep all four markers visible · camera 1× · shoot straight down"
-    : "Place the tool between the markers, keep all four visible, shoot from directly above.";
-  const spacing = templateMarkerSpacingMm(template);
-  const check = experimental
-    ? `check: this bar is exactly 100 mm — marker centres ${formatTemplateMm(spacing.width)} × ${formatTemplateMm(spacing.height)} mm`
-    : "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm";
+  const title = `Pocketry v${TEMPLATE_SHEET_VERSION} Cal Sheet — ${paper === "a4" ? "A4" : "US Letter"}`;
+  const instructions = TEMPLATE_PHOTO_INSTRUCTIONS.map((line, index) =>
+    `<text x="${cx}" y="${header.instructions + index * 5}" text-anchor="middle" font-size="3" font-family="sans-serif" fill="#333">${line}</text>`,
+  ).join("\n  ");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${page.width}mm" height="${page.height}mm" viewBox="0 0 ${page.width} ${page.height}">
   <rect width="${page.width}" height="${page.height}" fill="#fff"/>
   <text x="${cx}" y="${header.title}" text-anchor="middle" font-size="${experimental ? 4 : 5}" font-family="sans-serif" fill="#000">${title}</text>
-  <text x="${cx}" y="${header.instructions}" text-anchor="middle" font-size="${experimental ? 3 : 3.5}" font-family="sans-serif" fill="#333">${instructions}</text>
+  ${instructions}
   ${markers}
   <g>
     <line x1="${ruler.startX}" y1="${ruler.y}" x2="${ruler.endX}" y2="${ruler.y}" stroke="#000" stroke-width="0.5"/>
     ${ticks}
-    <text x="${cx}" y="${ruler.labelY}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">${check}</text>
+    <text x="${cx}" y="${ruler.labelY}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">Scale check: 100 mm</text>
   </g>
 </svg>
 `;
