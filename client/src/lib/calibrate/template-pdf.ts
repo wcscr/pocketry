@@ -1,13 +1,12 @@
 import { ARUCO_4X4_MODULES, markerBits } from "./aruco-4x4";
 import {
   TEMPLATE_PAPER_MM,
-  TEMPLATE_SIGNATURE_VERSION,
-  formatTemplateMm,
+  TEMPLATE_SHEET_VERSION,
+  TEMPLATE_PHOTO_INSTRUCTIONS,
   isExperimentalTemplate,
   templateHeaderBaselinesMm,
   templateMarkerCentersMm,
   templateMarkerSizeMm,
-  templateMarkerSpacingMm,
   templatePaper,
   templateVerificationBarMm,
   type TemplateVariant,
@@ -128,23 +127,15 @@ export function calibrationTemplatePdf(template: TemplateVariant): Uint8Array {
   const centerX = page.width / 2;
   const experimental = isExperimentalTemplate(template);
   drawCenteredText(
-    experimental
-      ? `Pocketry v${TEMPLATE_SIGNATURE_VERSION} experimental - ${paper === "a4" ? "A4" : "US Letter"} - print at 100% scale`
-      : `Pocketry v${TEMPLATE_SIGNATURE_VERSION} ${paper === "a4" ? "A4" : "US Letter"} calibration sheet - print at 100% scale (no fit to page)`,
+    `Pocketry v${TEMPLATE_SHEET_VERSION} Cal Sheet - ${paper === "a4" ? "A4" : "US Letter"}`,
     centerX,
     header.title,
     experimental ? 4 : 5,
     0,
   );
-  drawCenteredText(
-    experimental
-      ? "Keep all four markers visible - camera 1x - shoot straight down."
-      : "Place the tool between the markers, keep all four visible, shoot from directly above.",
-    centerX,
-    header.instructions,
-    experimental ? 3 : 3.5,
-    0.2,
-  );
+  for (const [index, line] of TEMPLATE_PHOTO_INSTRUCTIONS.entries()) {
+    drawCenteredText(line, centerX, header.instructions + index * 5, 3, 0.2);
+  }
 
   const ruler = templateVerificationBarMm(template);
   commands.push(
@@ -164,11 +155,8 @@ export function calibrationTemplatePdf(template: TemplateVariant): Uint8Array {
       )} ${number(pdfY(ruler.y - tick))} l S`,
     );
   }
-  const spacing = templateMarkerSpacingMm(template);
   drawCenteredText(
-    experimental
-      ? `check: this bar is exactly 100 mm - marker centres ${formatTemplateMm(spacing.width)} x ${formatTemplateMm(spacing.height)} mm`
-      : "check: this bar is exactly 100 mm - marker centres 150 x 200 mm, diagonals 250 mm",
+    "Scale check: 100 mm",
     centerX,
     ruler.labelY,
     3.5,

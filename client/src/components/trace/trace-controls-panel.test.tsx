@@ -650,7 +650,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await React.act(async () => {
       document.querySelector<HTMLButtonElement>('[data-testid="button-template-letter-experimental"]')!.click();
     });
-    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-calibration-v2-letter-experimental.pdf");
+    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-calibration-v3-letter-experimental.pdf");
     await React.act(async () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
