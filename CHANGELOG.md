@@ -3,7 +3,7 @@
 ## 1.9.0 — 2026-11-11
 
 - Default new traces to Tool edges on light sheets, with Color contrast and Automatic available. Recover more dark tool parts, retry incomplete edge detection when photo downsampling loses boundaries, and suppress calibration-sheet printing while protecting thin features and gaps; retain uncertain shadows for review.
-- Automatically reconstruct and smooth detected outlines, keeping the earlier boundary when extra smoothing would add ripples or lose detail. Keep optional smoothing, sensitivity and point simplification under Manual detection settings, with visual comparison, undoable Apply and compact applied/unchanged indicators.
+- Automatically reconstruct and smooth detected outlines, keeping the earlier boundary when extra smoothing would add ripples or lose detail. Keep optional smoothing, sensitivity and point simplification under Manual detection settings, with visual comparison, undoable Apply and compact applied/unchanged indicators. Preview and restore the earlier detected contour without restarting the photo workflow.
 - Correct detection with tool/paper strokes and sample original-photo detail after perspective correction. Preserve correction strokes in draft recovery.
 - Add optional editable curves, section repair, symmetry and straightening in Trace and Bin. Preserve curves, calibration and outline edits through Undo, recovery and transfer to Bin; export native SVG curves and sampled DXF/mesh outlines.
 - Restart outline detection or switch methods while keeping the photo, calibration and selected region. Warn before discarding adjustments; switch untouched detections directly. Restore matching outlines and detection settings together with Undo.

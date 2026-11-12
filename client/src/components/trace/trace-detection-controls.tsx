@@ -1,3 +1,4 @@
+import { DetectedOutlineControls } from "./detected-outline-controls";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { ChevronDown, RotateCcw, Settings2 } from "lucide-react";
@@ -89,6 +90,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
     </div>
     {children}
+    <DetectedOutlineControls />
     {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
@@ -118,7 +120,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     </div>}
     {compact ? tuning : <>
       <Button variant="outline" size="sm" className="w-full" aria-expanded={manualOpen} aria-controls={manualId}
-        onClick={() => setManualOpen(open => !open)}>
+        onClick={() => { if (manualOpen) trace.detectedOutlineReview.close(); setManualOpen(open => !open); }}>
         <Settings2 className="h-4 w-4" />Manual detection settings
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
       </Button>

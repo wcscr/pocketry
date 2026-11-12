@@ -34,6 +34,14 @@ by detection or a previous Apply shows a checkmark and disables Apply; a dash
 marks a result that would make no change. Hover or keyboard focus explains either
 indicator. See the [default-smoothing UI comparison](outline-default-smoothing-validation-2026-11-11.md).
 
+**Detected outline**, in Manual detection settings (or the compact Adjust tray),
+compares the earlier contour before geometric smoothing and fitting. The green
+preview leaves your outline untouched. **Use detected outline** replaces it with
+detected points, retains the current margin and creates one Undo step. Undo also
+restores any native curve handles. An already-used contour shows a checkmark and
+disables replacement. Hover/focus hints explain the controls without extra copy.
+Escape dismisses the preview. It cannot restore material segmentation missed.
+
 Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
 upright Bin pocket. Tilted/profile pockets retain their editing restriction.
 

@@ -1303,3 +1303,20 @@ it("synchronizes a shared hole moved by point selection without a selected ring"
   expect(after.outline[1].holes[0]).toEqual(moved);
   expect(traceObjects(after.outline).filter(s => s.role === "hole")).toHaveLength(1);
 });
+
+it.each(["outline", "raw", "margin", "region", "calibration", "source", "processing"])("rejects a detected-outline replacement after %s changes", change => {
+  const before = run(initialTraceState, { ...detected(ringB), rawOutline: ringA });
+  const action: TraceAction = { type: "USE_DETECTED_OUTLINE", outline: ringA,
+    expected: { outline: before.outline, rawOutline: before.rawOutline, margin: before.margin,
+      calibration: before.calibration, region: before.region, sourceRevision: before.sourceRevision } };
+  const next = { ...before,
+    ...(change === "outline" ? { outline: ringC } : {}),
+    ...(change === "raw" ? { rawOutline: ringC } : {}),
+    ...(change === "margin" ? { margin: 1 } : {}),
+    ...(change === "region" ? { region: { x: 1, y: 1, width: 10, height: 10 } } : {}),
+    ...(change === "calibration" ? { calibration: { startX: 0, startY: 0, endX: 10, endY: 0, lengthMm: 5 } } : {}),
+    ...(change === "source" ? { sourceRevision: before.sourceRevision + 1 } : {}),
+    ...(change === "processing" ? { processing: true } : {}),
+  };
+  expect(traceReducer(next, action)).toBe(next);
+});

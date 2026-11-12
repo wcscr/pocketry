@@ -1,3 +1,4 @@
+import { useDetectedOutlineReview, type DetectedOutlineReview } from "./use-detected-outline-review";
 import type { AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
 import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { transformPhotoProjection, type Homography } from "@shared/geometry/projective";
@@ -302,6 +303,8 @@ export type TraceAction =
       settings: TraceRefinementSettings }
   | { type: "SET_INCLUDE_INTERIOR_HOLES"; include: boolean }
   /** A committed edit: pushes onto the undo stack. */
+  | { type: "USE_DETECTED_OUTLINE"; outline: Outline;
+      expected: Pick<TraceState, "outline" | "rawOutline" | "calibration" | "margin" | "region" | "sourceRevision"> }
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string; autoSimplification?: AppliedOutlineSimplification }
   /** Start a manually traced outer contour with four editable corners. */
   | { type: "ADD_CONTOUR" }
@@ -839,6 +842,20 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       return { ...committed, mode: "edit", selection: { shapeIndex: state.outline.length, ringIndex: OUTER_RING } };
     }
 
+    case "USE_DETECTED_OUTLINE": {
+      const { expected } = action;
+      if (state.processing || !state.rawOutline.length || !action.outline.length ||
+          expected.outline !== state.outline || expected.rawOutline !== state.rawOutline ||
+          expected.calibration !== state.calibration || expected.margin !== state.margin || expected.region !== state.region ||
+          expected.sourceRevision !== state.sourceRevision ||
+          JSON.stringify(action.outline) === JSON.stringify(state.outline)) return state;
+      return { ...state, outline: action.outline, curves: undefined, selection: null, svg: null, mode: "pan",
+        history: pushHistory(state.history, action.outline, "Use detected outline", state.margin,
+          { refinementBase: action.outline, baselineMarginPx: marginToPixels(state.margin, state.calibration), hasManualEdits: true,
+            ...historyPhotoFrame(state), estimatedEdgeRegions: state.estimatedEdgeRegions,
+            tolerancePx: state.tolerancePx, smoothing: state.smoothing }) };
+    }
+
     case "OUTLINE_COMMITTED": {
       const outline = syncHoleEdit(state.outline, action.outline, state.selection);
       const current = state.history.stack[state.history.index];
@@ -1283,6 +1300,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
 }
 
 export interface TraceStore extends TraceState {
+  detectedOutlineReview: DetectedOutlineReview;
   draftSaveStatus: TraceDraftSaveStatus;
   dispatch: Dispatch<TraceAction>;
   canUndo: boolean;
@@ -1307,17 +1325,20 @@ export function TraceProvider({ children, persist = false }: { children: ReactNo
   const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
   const redo = useCallback(() => dispatch({ type: "REDO" }), []);
 
+  const detectedOutlineReview = useDetectedOutlineReview(state, dispatch);
+
   const value = useMemo<TraceStore>(
     () => ({
       ...state,
       draftSaveStatus,
+      detectedOutlineReview,
       dispatch,
       canUndo: state.history.index > 0,
       canRedo: state.history.index < state.history.stack.length - 1,
       undo,
       redo,
     }),
-    [state, draftSaveStatus, dispatch, undo, redo],
+    [state, draftSaveStatus, detectedOutlineReview, dispatch, undo, redo],
   );
 
   return <TraceContext.Provider value={value}>{children}</TraceContext.Provider>;

@@ -131,3 +131,38 @@ the sandbox denied loopback listeners; rerunning those files outside the sandbox
 passed all 67 assertions. All 627 workflow tests passed. Hosted CI remains disabled.
 CAD/export qualification was not rerun: no mesh, export or pocket-construction code changed.
 Dependencies, models, third-party code and assets: **None added or changed**.
+
+## Detected-outline control follow-up
+
+The subsequent UI change adds a presentation-only **Detected outline** switch
+under Manual detection settings and in the compact Adjust tray. **Use detected
+outline** appears only during comparison, retains margin, and creates one Undo
+step. Hints appear on hover/focus, with compact pending/error/already-used icons.
+The detection and smoothing algorithms are unchanged; the 36-case comparison
+above was not rerun for this UI-only follow-up.
+
+Two fresh original-photo workflows tested the controls: Craftsman at defaults,
+and Rub ’n Buff at defaults followed by sensitivity +56. Each began with the
+original calibration-sheet JPEG, auto-calibration/perspective correction and a
+region drawn in the UI. The isolated test trace was reset through Start Over
+before each import to avoid inherited settings. No state or prepared pixels were
+injected. Original hashes, actual region rectangles, ordered actions, settings,
+SVG paths and screenshots are saved locally in
+`exports/original-photo-ui/detected-outline-review/`.
+
+- Craftsman: toggling comparison preserves the accepted path; Use/Undo/Redo
+  restores the expected paths exactly. Reopening the already-used contour
+  disables replacement. The same flow preserves an explicitly selected 0.5 mm
+  margin, and Undo restores the preceding offset outline exactly.
+- Rub ’n Buff: Use after +56 sensitivity and Undo restores the adjusted outline
+  exactly. Desktop and 390 × 844 compact layouts were inspected. Escape closes
+  comparison while the switch has keyboard focus.
+- Synthetic coverage checks preserved holes/separate contours, native curves and
+  smoothing metadata through Undo/Redo and draft recovery; no preview geometry
+  enters the saved draft. It also checks stale async margin results, settings and
+  source changes, failure hints, and explicit replacement guards.
+
+Final local checks: `npm run check`; `npm test` (4,006 passed, one existing expected
+failure, nine quarantined cropped-photo checks excluded); all 627 workflow tests;
+`npm run build`; `git diff --check`. Hosted CI stayed disabled. No dependencies,
+models, third-party code or assets were added or changed.

@@ -219,6 +219,8 @@ describe("/ultim8 entry", () => {
     vi.mocked(Persistence.loadProjectDoc).mockImplementation(async () => saved);
     vi.mocked(Persistence.saveProjectDoc).mockImplementation(async doc => { saved = doc; return true; });
     const trace = vi.spyOn(TraceStore, "useTrace").mockReturnValue({ ...TraceStore.initialTraceState,
+      detectedOutlineReview: { showing: false, preview: null, pending: false, error: undefined, unavailable: undefined,
+        unchanged: false, hint: "", close: vi.fn(), setShowing: vi.fn(), useOutline: vi.fn() },
       dispatch: vi.fn(), canUndo: false, canRedo: false, undo: vi.fn(), redo: vi.fn(), draftSaveStatus: "saved",
       fileName: "Test object", imageSize: { width: 100, height: 100 },
       calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },

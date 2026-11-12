@@ -1,3 +1,4 @@
+import { outlineToPathData } from "@/lib/export/svg";
 import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
@@ -115,6 +116,8 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
 function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
+  const detectedReview = store.detectedOutlineReview;
+  const detectedPreview = detectedReview.preview;
   const [correctionMode, setCorrectionMode] = useState<"tool" | "paper" | null>(null);
   const correctionStroke = useRef<DetectionHint | null>(null);
   const correctionPointer = useRef<number | null>(null);
@@ -130,6 +133,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     document.addEventListener("keydown", escape, true);
     return () => document.removeEventListener("keydown", escape, true);
   }, [correctionMode]);
+  useEffect(() => { if (detectedReview.showing) { setCorrectionMode(null); correctionStroke.current = null; setStrokePreview(null); } }, [detectedReview.showing]);
   const isMobile = useIsMobile();
   const sceneId = useId();
   const {
@@ -303,7 +307,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
 
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
   const cleanupSource = useMemo(() => store.curves ?? curvesFromOutline(outline), [store.curves, outline]);
-  const cleanupAvailable = !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
+  const cleanupAvailable = !detectedReview.showing && !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
   // Existing native curves remain authoritative after Undo or draft recovery,
   // even when the preference for future detections is point mode.
   const cleanupUsesCurves = store.editableCurves || !!store.curves;
@@ -526,6 +530,10 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (detectedReview.showing) {
+      viewport.handlers.onPointerDown(event, { pan: true });
+      return;
+    }
     if (correctionMode && event.button === 0 && !viewport.isSpaceHeld) {
       if (store.processing || correctionStroke.current || store.history.stack[store.history.index]?.hasManualEdits) return;
       const p = toImage(event.clientX, event.clientY);
@@ -882,6 +890,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (detectedReview.showing) { event.preventDefault(); return; }
     if (usesNativeEditingMenu(event.target)) return;
     if (curveEditor.contextMenu(event)) return;
     if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
@@ -967,9 +976,9 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
           imageAlignment={store.imageAlignment}
           imageCrop={imageCrop}
           transform={viewport.transform}
-          outline={cleanup.open ? [] : outline}
+          outline={cleanup.open || detectedPreview ? [] : outline}
           estimatedEdgeRegions={store.estimatedEdgeRegions}
-          selection={selection}
+          selection={detectedReview.showing ? null : selection}
           region={region}
           regionActive={mode === "region"}
           calibration={
@@ -1010,7 +1019,10 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
           selectedVertexIndex={focusedPoint && sameRingRef(focusedPoint.ref, selection) ? focusedPoint.index : null}
           compactHandles={isMobile}
           showVertices={!curveEditor.active && (mode === "edit" || mode === "remove")}
-          contourOverlay={<>{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
+          contourOverlay={<>{detectedPreview && <g data-testid="detected-outline-preview" pointerEvents="none">
+              <path d={outlineToPathData(detectedPreview)} fill="none" stroke="white" strokeWidth={5} vectorEffect="non-scaling-stroke" />
+              <path d={outlineToPathData(detectedPreview)} fill="none" stroke="#10b981" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+            </g>}{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
             {[...store.detectionHints, ...(strokePreview ? [strokePreview] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
               points={h.points.concat(h.points.length === 1 ? h.points : []).map(p => `${p.x},${p.y}`).join(" ")}
               fill="none" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={.7} pointerEvents="none" />)}
@@ -1065,8 +1077,8 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             {onCorrection && region && <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant={correctionMode ? "secondary" : "ghost"} className="h-11 px-2" disabled={store.processing || !!store.history.stack[store.history.index]?.hasManualEdits} title="Correct detection with tool or paper strokes. Undo manual outline edits first.">Correct</Button></DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onSelect={() => setCorrectionMode("tool")}>Mark tool · include</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setCorrectionMode("paper")}>Mark paper · exclude</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { detectedReview.close(); setCorrectionMode("tool"); }}>Mark tool · include</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { detectedReview.close(); setCorrectionMode("paper"); }}>Mark paper · exclude</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setCorrectionMode(null)}>Finish marking</DropdownMenuItem>
                 <DropdownMenuItem disabled={!store.detectionHints.length} onSelect={() => onCorrection(store.detectionHints.slice(0,-1))}>Remove last mark</DropdownMenuItem>
                 <DropdownMenuItem disabled={!store.detectionHints.length} onSelect={() => onCorrection([])}>Clear marks and re-detect</DropdownMenuItem>

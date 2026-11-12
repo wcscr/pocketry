@@ -98,7 +98,15 @@ coordinates, sourced from the pipeline's `materialOutline` before geometric
 smoothing, simplification and fitting. It includes segmentation/refinement,
 correction strokes and accepted occlusion repair. It can expose detail removed by
 fitting, but cannot recover material segmentation never detected. It may contain
-pixel noise, shadows or slits. There is no raw-contour UI control yet.
+pixel noise, shadows or slits. **Detected outline** under Manual detection settings
+previews this contour in green without changing saved/exported geometry. The
+conditional **Use detected outline** action replaces the current outline and edits
+in one Undo step, retaining the photo, calibration, region and margin. Native
+handles are replaced by detected points; Undo restores them with the prior
+smoothing state. An already-used contour disables the action with a checkmark.
+Explanations and unavailable-state reasons use hover/focus hints. Preview state is
+not saved; source/geometry/settings changes, editing tools or Escape dismiss it.
+The compact Adjust tray includes the same controls.
 
 Fresh detection publishes geometry, its evidence and its settings together.
 Failure keeps the previous outline and settings. Undo/Redo and saved-draft recovery

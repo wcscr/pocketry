@@ -915,7 +915,7 @@ export function TraceControlsPanel({
           </>}>
           {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
             <div className="flex items-center gap-1"><Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
-              data-testid="button-smooth-outline" onClick={() => { onSmoothOutline(); onCanvasInteraction(); }}>
+              data-testid="button-smooth-outline" onClick={() => { store.detectedOutlineReview.close(); onSmoothOutline(); onCanvasInteraction(); }}>
               <Spline className="h-4 w-4" />Smooth outline
             </Button><HelpHint label="outline smoothing">Detection already smooths the outline. After edits, compare a smoothing preview with the current outline. Apply saves one undoable change; Cancel keeps your outline.</HelpHint></div>
             {outlineCleanupUnavailable(store) && <p className="text-xs text-muted-foreground">{outlineCleanupUnavailable(store)}</p>}
