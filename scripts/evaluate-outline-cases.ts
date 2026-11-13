@@ -1,6 +1,7 @@
 import { validateDetectionHints } from "../client/src/lib/detect/hint-validation";
 import { outlineToInput, replayMatches, missingMaterialFailure } from "../shared/geometry/contour-replay";
 import { validDetectionGeometry } from "../client/src/lib/detect/boundary-validation";
+import { AUTO_SMOOTHING_ALLOWANCE, simplifyAcceptedOutline } from "../shared/geometry/outline-simplification";
 /**
  * Replays detection inputs captured from the running app and measures the result.
  *
@@ -174,6 +175,31 @@ function appCleanup(result: DetectResult, captured: CapturedCase, mmPerPx: numbe
   }
 }
 /**
+ * The smoothing `processImage` applies after a successful cleanup, with its
+ * material and ripple checks, so the scored outline is the one the app shows.
+ * Run here in crop pixels; the app runs it in working-photo pixels.
+ */
+function appSmoothing(result: DetectResult, captured: CapturedCase, mmPerPx: number | null, outline: Outline, inward: number, outward: number): { outline: Outline; applied: boolean; reason?: string; ms: number } {
+  const began = performance.now();
+  const silhouette = (shapes: Outline) => captured.app.includeInteriorHoles ? shapes : outsideSilhouettes(shapes);
+  const material = silhouette(result.materialOutline ?? result.rawOutline);
+  try {
+    const unitsPerUnit = mmPerPx ?? 1, unit = mmPerPx ? "mm" : "px";
+    const request = { source: curvesFromOutline(outline), tolerance: AUTO_SMOOTHING_ALLOWANCE[unit] / unitsPerUnit,
+      sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves: false };
+    const candidate = sampleCurves(simplifyAcceptedOutline(request).curves, request.sampleTolerance);
+    if (!validDetectionGeometry(material, candidate, inward, outward)) throw new Error("Smoothing would exceed the detection detail allowance.");
+    const spacing = (unit === "mm" ? .1 : 1) / unitsPerUnit;
+    const roughnessOptions = { spacing, scale: spacing * 10, minAmplitude: spacing };
+    const before = outlineRoughness(outline, roughnessOptions), after = outlineRoughness(candidate, roughnessOptions);
+    if (after.reversals > before.reversals || after.jaggedLength > before.jaggedLength + spacing) throw new Error("Smoothing would add boundary ripples.");
+    return { outline: candidate, applied: true, ms: performance.now() - began };
+  } catch (error) {
+    // The app keeps the cleaned outline when smoothing cannot be shown to be safe.
+    return { outline, applied: false, reason: error instanceof Error ? error.message : String(error), ms: performance.now() - began };
+  }
+}
+/**
  * The app's final outline, mapped from working-photo pixels back into the crop the detector saw.
  *
  * Use recorded raster provenance. Legacy captures without that transform
@@ -232,7 +258,8 @@ for (const name of names) {
   }
 
   const cleaned = appCleanup(result, captured, mmPerPx, options.inwardTolerancePx!, options.outwardTolerancePx!);
-  const final = cleaned.outline;
+  const smoothed = cleaned.applied ? appSmoothing(result, captured, mmPerPx, cleaned.outline, options.inwardTolerancePx!, options.outwardTolerancePx!) : null;
+  const final = smoothed?.outline ?? cleaned.outline;
   let correctionFailure: string | null = null;
   try { validateDetectionHints(final, options.hints ?? []); } catch (error) { correctionFailure = String(error); }
   const appFinal = !asCaptured ? null
@@ -266,9 +293,11 @@ for (const name of names) {
     densePoints: result.rawOutline.reduce((n, shape) => n + shape.outer.length + shape.holes.reduce((m, hole) => m + hole.length, 0), 0),
     wasmHeapMb: round(cv.HEAPU8.buffer.byteLength / 2 ** 20, 1), rssMb: round(process.memoryUsage().rss / 2 ** 20, 1),
     replay, measured, roughness: rough,
+    defaultSmoothing: smoothed ? { applied: smoothed.applied, reason: smoothed.reason ?? null, ms: Math.round(smoothed.ms) } : null,
+    sampling: result.refinement?.inputSampling ?? (result.refinement?.samplingRetry ? "retried, kept the first result" : null),
   };
   rows.push(row);
-  writeFileSync(join(outputDir, name + ".json"), JSON.stringify({ ...row, final, outline: result.outline, rawOutline: result.rawOutline }));
+  writeFileSync(join(outputDir, name + ".json"), JSON.stringify({ ...row, final, cleaned: cleaned.outline, material: result.materialOutline ?? null, outline: result.outline, rawOutline: result.rawOutline }));
   console.log(name.padEnd(34), row.status.padEnd(40), `${row.shells} shell(s)`, `${row.ms} ms`, cleaned.applied ? "" : `cleanup not applied (${cleaned.reason})`,
     replay ? (replay.matches ? "replay = app" : `replay differs (p95 ${replay.p95Px} px, status ${replay.statusMatches ? "same" : "differs"})`) : "");
 }

@@ -56,8 +56,9 @@ describe("guarded GrabCut in the shipped CPU/WASM bundle", () => {
     expect(pointInOutline(result.outline, { x: 52, y: 55 })).toBe(false);
   });
 
-  // Historical crop diagnostics: do not count as photo workflow verification.
-  it.skip("cleans the Gerber sides without filling either end recess or following dark inserts", async () => {
+  // Crop diagnostics, here and below: they catch regressions on real pixels, and do not count as
+  // photo workflow verification, which starts from the original photo in the app (see CLAUDE.md).
+  it("cleans the Gerber sides without filling either end recess or following dark inserts", async () => {
     const image = fixture("gerber", 384, 600);
     const before = await run(image, { refine: "none" });
     const after = await run(image);
@@ -75,7 +76,7 @@ describe("guarded GrabCut in the shipped CPU/WASM bundle", () => {
     expect(after.outline[0].holes).toHaveLength(0);
   });
 
-  it.skip.each([
+  it.each([
     ["wiha-50mm", 128, 88.5, 340.5, 370],
     ["wiha-40mm", 100, 82.5, 310.5, 325],
   ] as const)("preserves the reflective %s shaft at its regression sensitivity", async (name, sensitivity, x, y, tip) => {

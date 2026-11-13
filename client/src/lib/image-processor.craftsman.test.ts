@@ -1,5 +1,6 @@
-// Historical cropped-photo diagnostics, excluded from verification.
-// Replaced by original-photo calibration/region/UI runs; see CLAUDE.md.
+// A cropped-photo diagnostic: it catches the Craftsman cleanup regression on real pixels.
+// It does not count as photo workflow verification, which starts from the original photo
+// in the app; see CLAUDE.md.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { gunzipSync } from "node:zlib";
@@ -13,13 +14,13 @@ import { templateInkRegionsInPixels } from "./calibrate/template";
 import { detectOutline } from "./detect/pipeline";
 import { createTeedDetector } from "./detect/teed";
 import { SHEET_STROKE_MM } from "./detect/sheet-ink";
-import { detectInWorker, reconstructInWorker } from "./detect/worker-client";
+import { detectInWorker, reconstructInWorker, simplifyInWorker } from "./detect/worker-client";
 import metadata from "./detect/fixtures/craftsman-sheet.json";
 import { processImage, reprocessOutline } from "./image-processor";
 
 // Replace transport only: the detector, OpenCV, TEED, smoothing and app cleanup
 // all run their real implementations, with the same input pixels in every run.
-vi.mock("./detect/worker-client", () => ({ detectInWorker: vi.fn(), reconstructInWorker: vi.fn() }));
+vi.mock("./detect/worker-client", () => ({ detectInWorker: vi.fn(), reconstructInWorker: vi.fn(), simplifyInWorker: vi.fn() }));
 const detector = createTeedDetector(async () => new Uint8Array(readFileSync(
   new URL("../../public/models/teed/teed-512-f1a4f305.onnx", import.meta.url))));
 const image = { width: metadata.width, height: metadata.height, data: new Uint8ClampedArray(gunzipSync(
@@ -32,10 +33,11 @@ beforeAll(async () => {
   vi.mocked(detectInWorker).mockImplementation((pixels, options) => detectOutline(pixels, options, { loadCV: async () => cv, teed: detector }));
   vi.mocked(reconstructInWorker).mockImplementation(async request =>
     reconstructDetectedForEditing(request.source, request.dense, request.tolerance, request.editableCurves));
+  vi.mocked(simplifyInWorker).mockImplementation(async request => simplifyAcceptedOutline(request));
 });
 afterAll(() => { detector.dispose(); vi.unstubAllGlobals(); });
 
-it.skip.each(["color", "teed"] as const)("cleans the Craftsman on-sheet photo with %s detection at +56", async boundary => {
+it.each(["color", "teed"] as const)("cleans the Craftsman on-sheet photo with %s detection at +56", async boundary => {
   const result = await processImage(image, {
     calibration, smoothBoundary: true, autoCleanup: true,
     detect: { boundary, sensitivity: 72, tolerancePx: 1.2, smoothing: 1,
@@ -44,6 +46,7 @@ it.skip.each(["color", "teed"] as const)("cleans the Craftsman on-sheet photo wi
           .map(area => ({ ...area, x: area.x - metadata.region.x, y: area.y - metadata.region.y })) } },
   });
   expect(result.cleanup?.applied).toBe(true);
+  expect(result.smoothing?.applied).toBe(true);
   expect(result.rawOutline[0].outer.length).toBeGreaterThan(1000);
   expect(result.outline).toHaveLength(1);
   expect(result.outline[0].outer.length).toBeLessThan(400);
