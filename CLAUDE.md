@@ -148,6 +148,23 @@ disagreed about Y, which shipped mirrored STLs.
   known restrictions or provenance uncertainty. Routine autocomplete/formatting
   needs no separate log; do not include confidential prompts or credentials.
 
+### Reviewing contributor PRs
+
+- Judge a contribution against its stated purpose, supported inputs, and existing
+  behavior. Favor useful incremental improvements; do not expand acceptance into
+  exhaustive format support, unrelated cleanup, or a redesign.
+- Maintainers own exploratory and adversarial stress testing and the resulting
+  hardening work. Do not expect contributors, especially first-time contributors,
+  to anticipate contrived tests or make every new finding their assignment.
+- Base merge blockers on concrete impact and credible risk. Distinguish failures
+  on representative inputs from constructed edge cases, and explain what a user
+  would experience. A synthetic failure alone does not establish a blocker;
+  serious security or data-integrity risks can still justify one even if uncommon.
+- Separate required fixes from optional follow-ups. Keep feedback friendly,
+  focused, and actionable; offer maintainer help with integration and project
+  housekeeping. Follow the review guidance in `docs/contribution-maintenance.md`.
+  Required verification, licensing, and human merge oversight still apply.
+
 ## Versions & Changelog
 
 - About reads `package.json`; keep `package-lock.json` in sync when bumping it.
