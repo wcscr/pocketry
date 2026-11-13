@@ -1544,9 +1544,11 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
       trace!.dispatch({type:"SET_REGION",region:{x:0,y:0,width:100,height:100}});
       trace!.dispatch({type:"DETECTED",imageUrl:"data:image/png;base64,AA==",outline:detected,rawOutline:detected,svg:"",region:null});
     });
-    const button=[...host.querySelectorAll("button")].find(b=>b.textContent==="Correct")!;
-    await React.act(async()=>button.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true})));
-    await React.act(async()=>[...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(e=>e.textContent?.startsWith("Mark tool"))!.click());
+    const button=host.querySelector<HTMLButtonElement>('[aria-label="Correct"]')!;
+    await React.act(async()=>button.click());
+    const control=(label:string)=>host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelector('button[aria-label="Select"]')).toBeNull();
     const svg=host.querySelector("svg")!;
     Object.defineProperty(svg,"setPointerCapture",{value:()=>{}});
     const pointer=(type:string,x:number,y:number,id=1)=>React.act(()=>{
@@ -1554,6 +1556,7 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
       Object.defineProperties(event,{pointerType:{value:pointerType},pointerId:{value:id}});svg.dispatchEvent(event);
     });
     pointer("pointerdown",20,20);pointer("pointermove",30,30,2);pointer("pointermove",25,25);
+    expect(host.querySelector('[data-testid="correction-brush"]')).not.toBeNull();
     pointer("pointerup",25,25);
     expect(correct).toHaveBeenCalledWith([{kind:"tool",points:[{x:20,y:20},{x:25,y:25}],radius:1}]);
     pointer("pointerdown",20,20);pointer("pointermove",30,30);pointer("pointercancel",30,30);
@@ -1563,5 +1566,58 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(1);
     expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(0);
+    // Reopen with a committed correction; Done hides evidence without deleting it.
+    const hints=correct.mock.calls[0][0];
+    React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:detected,rawOutline:detected,svg:"",region:null,detectionHints:hints,label:"Correct outline"}));
+    React.act(()=>control("Correct").click());
+    expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(1);
+    React.act(()=>control("Done correcting").click());
+    expect(trace!.detectionHints).toEqual(hints);
+    expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(0);
+    expect(host.querySelector('[aria-label="Corrections applied"]')).not.toBeNull();
+    React.act(()=>control("Correct").click());
+    React.act(()=>control("Remove").click());
+    expect(control("Remove").getAttribute("aria-pressed")).toBe("true");
+    pointer("pointerdown",40,40);pointer("pointerup",40,40);
+    expect(correct).toHaveBeenLastCalledWith([...hints,{kind:"paper",points:[{x:40,y:40}],radius:1}]);
+    const calls=correct.mock.calls.length;
+    React.act(()=>control("Pan while correcting").click());
+    pointer("pointerdown",40,40);pointer("pointermove",50,50);pointer("pointerup",50,50);
+    expect(correct).toHaveBeenCalledTimes(calls);
+    React.act(()=>control("Add").click());
+    pointer("pointerdown",-10,-10);pointer("pointerup",-10,-10);
+    pointer("pointerdown",20,20);pointer("lostpointercapture",20,20);pointer("pointerup",20,20);
+    expect(correct).toHaveBeenCalledTimes(calls);
+    // Clearing uses the existing detection callback and restores with global Undo.
+    React.act(()=>control("Clear correction marks").click());
+    expect(correct).toHaveBeenLastCalledWith([]);
+    React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:detected,rawOutline:detected,svg:"",region:null,detectionHints:[],label:"Clear corrections"}));
+    expect(control("Clear correction marks").disabled).toBe(true);
+    React.act(()=>trace!.undo());
+    expect(trace!.detectionHints).toEqual(hints);
+    expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(1);
+    React.act(()=>trace!.redo());
+    expect(trace!.detectionHints).toEqual([]);
+    // Processing and region changes cannot submit a half-finished stroke.
+    pointer("pointerdown",20,20);
+    React.act(()=>trace!.dispatch({type:"SET_PROCESSING",processing:true}));
+    expect(control("Add").disabled).toBe(true);
+    expect(control("Done correcting").disabled).toBe(false);
+    pointer("pointerup",20,20);
+    expect(correct).toHaveBeenCalledTimes(calls+1);
+    React.act(()=>trace!.dispatch({type:"SET_PROCESSING",processing:false}));
+    pointer("pointerdown",20,20);
+    React.act(()=>trace!.dispatch({type:"SET_REGION",region:{x:10,y:10,width:50,height:50}}));
+    pointer("pointerup",20,20);
+    expect(correct).toHaveBeenCalledTimes(calls+1);
+    expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
+    // Starting from Edit enters correction without exposing editing handles.
+    React.act(()=>trace!.dispatch({type:"SET_MODE",mode:"edit"}));
+    React.act(()=>control("Correct").click());
+    expect(trace!.mode).toBe("pan");
+    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    React.act(()=>trace!.dispatch({type:"OUTLINE_COMMITTED",outline:edited}));
+    expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
+    expect(control("Correct").disabled).toBe(true);
   } finally {React.act(()=>root.unmount());restoreCoordinates();}
 });

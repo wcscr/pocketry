@@ -309,7 +309,8 @@ function TraceWorkspace(): JSX.Element {
         estimatedEdgeRegions: result.estimatedEdgeRegions,
         detectionHints: hints,
         settings: detectionSettings,
-        label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection" : undefined,
+        label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
+          : settings?.hints ? settings.hints.length ? "Correct outline" : "Clear corrections" : undefined,
         svg: result.svg,
         region,
       });
