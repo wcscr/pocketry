@@ -36,7 +36,9 @@ and internal refactors usually need no changelog entry.
   [How outlines are evaluated](outline-evaluation.md); the
   [detection plan](outline-detection-plan.md) is a proposal, not implemented behavior.
   [Combined detector](outline-combined-detector.md) describes source sampling,
-  explicit corrections, and the geometry preservation checks in this worktree.
+  explicit corrections, reconstruction, and the geometry preservation checks.
+  The [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md)
+  records the latest results from original photos.
 - [Contour symmetry](contour-symmetry-prototype.md) and
   [calibration aids](calibration/object-reference-strip.md).
 - [DXF compatibility](dxf-compatibility.md) and [import limits](import-limits.md).

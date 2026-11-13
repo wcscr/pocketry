@@ -1,7 +1,10 @@
 # Outline detection: plan for the pathological cases
 
 Status: **proposal; phase 0 (measurement) under way and phase 1 (smooth outer
-boundary) implemented**, see [outline evaluation](outline-evaluation.md). Written 2026-11-10 against PR #226
+boundary) implemented**, see [outline evaluation](outline-evaluation.md). Since
+then the known sheet layout (item 3) and a first, fixed-width form of the
+gap-tolerant exterior (item 1) are implemented as well; the
+[combined detector](outline-combined-detector.md) describes what exists. Written 2026-11-10 against PR #226
 (`codex/teed-outline-curves` at `956b62ef`). It covers the learned white-sheet
 path only; the colour path and curve editing are out of scope.
 
