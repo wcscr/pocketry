@@ -78,9 +78,11 @@ export function simplifyAcceptedOutline(request: OutlineSimplificationRequest): 
   // usual case, and most of this function's time.
   const full = attempt(tolerance);
   if (full && full.roughness.reversals === 0 && full.roughness.jaggedLength === 0) return full.candidate;
+  // When every level fails, the full amount's reason is the one to report, as it was when it ran last.
+  const fullFailure = failure;
   for (const amount of amounts.slice(0, -1)) consider(attempt(amount));
   consider(full);
-  if (!completed) throw failure;
+  if (!completed) throw fullFailure ?? failure;
   return best;
 }
 

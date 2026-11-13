@@ -349,9 +349,11 @@ export async function processImage(
     }
     cleanup = { applied: false, reason: "Simplification would cross a correction mark." };
   }
-  // `rawOutline` stays the outward-smoothed trace: the detail controls and the detected-outline
-  // comparison start from it, so neither brings the stair-steps back. The unsmoothed `material`
-  // is only what the checks above measure against.
+  // The outward smoothing knows nothing of marks either. The detail controls and the detected-outline
+  // comparison start from `rawOutline`, so it must not carry the boundary back across one.
+  if (hints.length && !honoursMarks(rawOutline)) rawOutline = material;
+  // Otherwise `rawOutline` stays the outward-smoothed trace, so neither of those brings the
+  // stair-steps back. The unsmoothed `material` is only what the checks above measure against.
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Keep independently detected tools separate as their margins grow.

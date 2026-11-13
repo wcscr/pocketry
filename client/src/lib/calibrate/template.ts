@@ -259,8 +259,11 @@ function markerLabelBaselineMm(template: TemplateVariant, index: number, centerY
 const INSTRUCTION_LINE_PITCH_MM = 5;
 const INSTRUCTION_FONT_MM = 3;
 
-/** One centred line of sheet text: content, font size and baseline, in page millimetres. */
-interface TextLine { text: string; size: number; baseline: number }
+/**
+ * One centred line of sheet text: content, font size and baseline, in page
+ * millimetres. `alternate` is the same line as another output wrote it.
+ */
+interface TextLine { text: string; size: number; baseline: number; alternate?: string }
 
 /** The current sheet's centred text lines, shared by the SVG and the printed-area list. */
 function templateTextLines(template: TemplateVariant): { title: TextLine; instructions: TextLine[]; check: TextLine } {
@@ -281,31 +284,44 @@ function templateTextLines(template: TemplateVariant): { title: TextLine; instru
  * The text of the v2 sheets, at the same baselines as today's.
  *
  * v2 sheets are no longer generated, but printed copies stay in use and carry
- * the same markers as a v3 sheet, so a photo cannot say which one it shows.
- * Their longer title, single instruction line and longer caption therefore
- * remain part of the printed-area list. Never change these strings.
+ * the same markers as a v3 sheet. Their longer title, single instruction line
+ * and longer caption therefore remain part of the printed-area list. The PDF,
+ * which is what most people printed, worded the lines slightly differently
+ * from the SVG; both wordings are kept, and an area covers the wider one.
+ * Never change these strings.
  */
 function legacyV2TextLines(template: TemplateVariant): TextLine[] {
   const experimental = isExperimentalTemplate(template);
+  const paper = templatePaper(template) === "a4" ? "A4" : "US Letter";
   const header = templateHeaderBaselinesMm(template);
   const spacing = templateMarkerSpacingMm(template);
+  const width = formatTemplateMm(spacing.width), height = formatTemplateMm(spacing.height);
   return [
     {
       text: experimental
-        ? `Pocketry v2 experimental — ${templatePaper(template) === "a4" ? "A4" : "US Letter"} — print at 100% scale`
+        ? `Pocketry v2 experimental — ${paper} — print at 100% scale`
         : "Pocketry v2 calibration sheet — print at 100% scale (no “fit to page”)",
+      alternate: experimental
+        ? `Pocketry v2 experimental - ${paper} - print at 100% scale`
+        : `Pocketry v2 ${paper} calibration sheet - print at 100% scale (no fit to page)`,
       size: experimental ? 4 : 5, baseline: header.title,
     },
     {
       text: experimental
         ? "Keep all four markers visible · camera 1× · shoot straight down"
         : "Place the tool between the markers, keep all four visible, shoot from directly above.",
+      alternate: experimental
+        ? "Keep all four markers visible - camera 1x - shoot straight down."
+        : "Place the tool between the markers, keep all four visible, shoot from directly above.",
       size: experimental ? 3 : 3.5, baseline: header.instructions,
     },
     {
       text: experimental
-        ? `check: this bar is exactly 100 mm — marker centres ${formatTemplateMm(spacing.width)} × ${formatTemplateMm(spacing.height)} mm`
+        ? `check: this bar is exactly 100 mm — marker centres ${width} × ${height} mm`
         : "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm",
+      alternate: experimental
+        ? `check: this bar is exactly 100 mm - marker centres ${width} x ${height} mm`
+        : "check: this bar is exactly 100 mm - marker centres 150 x 200 mm, diagonals 250 mm",
       size: LABEL_FONT_MM, baseline: templateVerificationBarMm(template).labelY,
     },
   ];
@@ -326,6 +342,9 @@ export function estimatedTemplateTextWidth(text: string, fontSize: number): numb
   return units * fontSize;
 }
 
+/** The two printed layouts a sheet with these markers can have. */
+export type SheetLayout = "v2" | "v3";
+
 /** One printed element of the sheet, as a box in page millimetres. */
 export interface TemplateInkRegion {
   x: number;
@@ -334,6 +353,8 @@ export interface TemplateInkRegion {
   height: number;
   /** Text ("strokes"), the ruled bar and its ticks ("rule"), or a filled block: a marker ("solid"). */
   kind: "strokes" | "rule" | "solid";
+  /** Set when only one layout prints this; markers, their labels and the bar are on both. */
+  layout?: SheetLayout;
 }
 
 /** Slack around each printed element, for print and rectification error. */
@@ -346,28 +367,31 @@ const INK_MARGIN_MM = 1;
  * it. They are derived from the same numbers as the SVG and the PDF, and a
  * test checks every drawn element falls inside one, so the three cannot drift.
  * The list covers the current sheet and the v2 sheet together, because both
- * carry the same markers; an area the photographed sheet left blank costs
- * nothing, since only thin dark strokes that end inside a printed area are
- * removed.
+ * carry the same markers. Each text area says which layout prints it, so a
+ * caller that can see the whole sheet can drop the other layout's areas (see
+ * `detectSheetLayout`): inside an area a thin dark object lying wholly within
+ * it is taken for printing, so an area the sheet left blank is not free.
  */
 export function templateInkRegionsMm(template: TemplateVariant): TemplateInkRegion[] {
   const page = TEMPLATE_PAPER_MM[templatePaper(template)];
   const cx = page.width / 2;
-  const text = (line: TextLine, centerX = cx): TemplateInkRegion => {
+  const text = (line: TextLine, centerX = cx, layout?: SheetLayout): TemplateInkRegion => {
     // 15% over the Helvetica estimate covers a wider substituted sans-serif.
-    const width = estimatedTemplateTextWidth(line.text, line.size) * 1.15 + 2 * INK_MARGIN_MM;
+    const widest = Math.max(estimatedTemplateTextWidth(line.text, line.size),
+      line.alternate ? estimatedTemplateTextWidth(line.alternate, line.size) : 0);
+    const width = widest * 1.15 + 2 * INK_MARGIN_MM;
     return {
       x: centerX - width / 2, width,
       y: line.baseline - line.size * 0.85 - INK_MARGIN_MM, height: line.size * 1.15 + 2 * INK_MARGIN_MM,
-      kind: "strokes",
+      kind: "strokes", ...(layout ? { layout } : {}),
     };
   };
   const lines = templateTextLines(template);
   const bar = templateVerificationBarMm(template);
   const size = templateMarkerSizeMm(template);
   const regions: TemplateInkRegion[] = [
-    text(lines.title), ...lines.instructions.map((line) => text(line)), text(lines.check),
-    ...legacyV2TextLines(template).map((line) => text(line)),
+    text(lines.title, cx, "v3"), ...lines.instructions.map((line) => text(line, cx, "v3")), text(lines.check, cx, "v3"),
+    ...legacyV2TextLines(template).map((line) => text(line, cx, "v2")),
     {
       x: bar.startX - INK_MARGIN_MM, width: bar.endX - bar.startX + 2 * INK_MARGIN_MM,
       y: bar.y - BAR_TICK_MM - INK_MARGIN_MM, height: BAR_TICK_MM + 2 * INK_MARGIN_MM,
@@ -398,20 +422,97 @@ export function templateInkRegionsInPixels(
   return templateInkRegionsMm(template).map((region) => ({
     x: paperBounds.x + region.x * sx, y: paperBounds.y + region.y * sy,
     width: region.width * sx, height: region.height * sy, kind: region.kind,
+    ...(region.layout ? { layout: region.layout } : {}),
   }));
+}
+
+/** Pixels this much darker than the paper beside them count as ink. */
+const LAYOUT_INK_DARKNESS = 0.85;
+/** A line of text crosses from paper to ink and back this often per line height; a tool lying across it does not. */
+const LAYOUT_TEXT_CROSSINGS = 2;
+/** Stretches of a text area this narrow, in line heights, are too short to judge. */
+const LAYOUT_MIN_STRETCH = 2;
+
+/**
+ * Which layout a rectified photo of the sheet shows, or `null` when the photo
+ * does not say.
+ *
+ * v2 and v3 sheets carry the same markers and differ only in their text. Each
+ * layout has stretches where it prints and the other is blank: the ends of the
+ * v2 title, instruction line and caption, and the second to fourth instruction
+ * lines of v3. A printed stretch alternates between paper and ink many times
+ * along its length, which blank paper and a tool lying across it do not. A
+ * layout is named when at least two of its stretches read as text and none of
+ * the other's do. `regions` are the printed areas in the pixels of `image`.
+ */
+export function detectSheetLayout(
+  image: { width: number; height: number; data: ArrayLike<number> },
+  regions: readonly TemplateInkRegion[],
+): SheetLayout | null {
+  const text = regions.filter((region) => region.layout && region.kind === "strokes");
+  const votes: Record<SheetLayout, number> = { v2: 0, v3: 0 };
+  const luminance = (x: number, y: number) => {
+    const at = (y * image.width + x) * 4;
+    return (image.data[at] * 77 + image.data[at + 1] * 150 + image.data[at + 2] * 29) >> 8;
+  };
+  for (const region of text) {
+    const others = text.filter((other) => other.layout !== region.layout);
+    let reads = false;
+    // Rows through the body of the letters.
+    for (const fraction of [0.4, 0.5, 0.6, 0.7]) {
+      const y = Math.round(region.y + region.height * fraction);
+      if (y < 0 || y >= image.height) continue;
+      // The parts of this row no other layout prints on.
+      let stretches: [number, number][] = [[Math.max(0, Math.ceil(region.x)), Math.min(image.width, Math.floor(region.x + region.width))]];
+      for (const other of others) {
+        if (y < other.y || y >= other.y + other.height) continue;
+        const from = Math.floor(other.x), to = Math.ceil(other.x + other.width);
+        stretches = stretches.flatMap(([a, b]): [number, number][] => [[a, Math.min(b, from)], [Math.max(a, to), b]]);
+      }
+      stretches = stretches.filter(([a, b]) => b - a >= region.height * LAYOUT_MIN_STRETCH);
+      const width = stretches.reduce((sum, [a, b]) => sum + b - a, 0);
+      if (width <= 0) continue;
+      const values: number[] = [];
+      for (const [a, b] of stretches) for (let x = a; x < b; x++) values.push(luminance(x, y));
+      const paper = [...values].sort((p, q) => p - q)[Math.floor(values.length * 0.9)];
+      let crossings = 0;
+      for (const [a, b] of stretches) {
+        let ink = false;
+        for (let x = a; x < b; x++) {
+          const dark = luminance(x, y) < paper * LAYOUT_INK_DARKNESS;
+          if (dark !== ink) { crossings++; ink = dark; }
+        }
+      }
+      if (crossings >= LAYOUT_TEXT_CROSSINGS * width / region.height) { reads = true; break; }
+    }
+    if (reads) votes[region.layout!]++;
+  }
+  if (votes.v2 >= 2 && votes.v3 === 0) return "v2";
+  if (votes.v3 >= 2 && votes.v2 === 0) return "v3";
+  return null;
 }
 
 /**
  * The printed areas for a working photo, or `undefined` when they cannot be
  * placed: no template-based rectification (a manual four-point correction
  * knows no layout), or the photo was rotated or straightened afterwards.
+ *
+ * Given the whole photo (`sheet`, with the scale from its pixels to working
+ * pixels), the text areas of the layout it does not show are left out. When
+ * the photo does not say which layout it is, both stay.
  */
 export function rectifiedSheetInkRegions(
   correction: { source: string; template?: TemplateVariant; paperBounds?: { x: number; y: number; width: number; height: number } } | null | undefined,
   upright: boolean,
+  sheet?: { image: { width: number; height: number; data: ArrayLike<number> }; toWorking: { x: number; y: number } } | null,
 ): TemplateInkRegion[] | undefined {
   if (!upright || correction?.source !== "template" || !correction.template || !correction.paperBounds) return undefined;
-  return templateInkRegionsInPixels(correction.template, correction.paperBounds);
+  const regions = templateInkRegionsInPixels(correction.template, correction.paperBounds);
+  if (!sheet || !(sheet.toWorking.x > 0) || !(sheet.toWorking.y > 0)) return regions;
+  const layout = detectSheetLayout(sheet.image, regions.map((region) => ({ ...region,
+    x: region.x / sheet.toWorking.x, y: region.y / sheet.toWorking.y,
+    width: region.width / sheet.toWorking.x, height: region.height / sheet.toWorking.y })));
+  return layout ? regions.filter((region) => !region.layout || region.layout === layout) : regions;
 }
 
 /** The complete printable sheet. */

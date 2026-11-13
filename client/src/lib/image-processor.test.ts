@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as cleanupModule from "@shared/geometry/detected-cleanup";
 import * as smoothing from "@shared/geometry/outline-simplification";
 import { curvesFromOutline, mapCurves, sampleCurves } from "@shared/geometry/curves";
-import { sampleRing } from "@shared/geometry/contour-metrics";
+import { distanceToOutlineBoundary, sampleRing } from "@shared/geometry/contour-metrics";
 
 import type { ImageLike } from "./detect/types";
 import { convexHullForTest, polygonArea } from "./geometry/fixtures";
@@ -107,6 +107,42 @@ describe("processImage with correction marks", () => {
       expect(pointInOutline(result.outline, { x: 28, y: 80 })).toBe(false);
       expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
     } finally { grow.mockRestore(); }
+  });
+
+  it("steps back to the trace when simplification crosses a mark, and resets what depended on it", async () => {
+    // A block with a shallow notch in its top edge, and paper marked inside the notch.
+    const image = photo(160, 160, (x, y) => box(30, 30, 130, 130)(x, y) && !box(70, 30, 90, 33)(x, y));
+    const hints = [{ kind: "paper" as const, points: [{ x: 80, y: 31.5 }], radius: 0.5 }];
+    // A coarse simplification flattens the notch, within what the checks allow, and so covers the mark.
+    const coarse = await processImage(image, { detect: { ...JS, tolerancePx: 6 } });
+    expect(pointInOutline(coarse.outline, { x: 80, y: 31.5 })).toBe(true);
+    const notices: string[] = [];
+    const result = await processImage(image, { detect: { ...JS, tolerancePx: 6, hints }, onNotice: (title) => notices.push(title) });
+    expect(pointInOutline(result.outline, { x: 80, y: 31.5 })).toBe(false);
+    expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
+    expect(notices).toEqual(["Kept the detected outline"]);
+    expect(result.cleanup).toEqual({ applied: false, reason: "Simplification would cross a correction mark." });
+    expect(result.refinementBase).toBeUndefined();
+    expect(result.curves).toBeUndefined();
+    expect(result.autoSimplification).toBeUndefined();
+    // What the detail controls and the detected-outline comparison start from keeps the mark too.
+    expect(pointInOutline(result.rawOutline, { x: 80, y: 31.5 })).toBe(false);
+  });
+
+  it("does not hand the detail controls a smoothed trace that crosses a mark", async () => {
+    const image = photo(160, 160, box(30, 30, 130, 130));
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const traced = await processImage(image, { detect: JS, calibration });
+    const plain = await processImage(image, { detect: JS, calibration, smoothBoundary: true });
+    // Somewhere beside a corner the smoothed trace has grown a pixel beyond the block: mark that spot as paper.
+    const spots = Array.from({ length: 60 * 24 }, (_, i) => ({ x: 26 + (i % 60) * 0.25, y: 26 + Math.floor(i / 60) * 0.25 }));
+    const spot = spots.find((p) => pointInOutline(plain.rawOutline, p) && !pointInOutline(traced.rawOutline, p) &&
+      distanceToOutlineBoundary(traced.rawOutline, p) > 0.9 && distanceToOutlineBoundary(plain.rawOutline, p) > 0.1);
+    expect(spot).toBeDefined();
+    const hints = [{ kind: "paper" as const, points: [spot!], radius: 0.4 }];
+    const marked = await processImage(image, { detect: { ...JS, hints }, calibration, smoothBoundary: true });
+    expect(pointInOutline(marked.rawOutline, spot!)).toBe(false);
+    expect(pointInOutline(marked.outline, spot!)).toBe(false);
   });
 
   it("says so when no outline can keep a mark", async () => {

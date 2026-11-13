@@ -10,7 +10,7 @@ function index(ring: Ring): Node {
   // asked, so both copies would be dropped below and the corner would be lost.
   const distinct = ring.filter((p, i) => {
     const previous = ring[(i + ring.length - 1) % ring.length];
-    return p.x !== previous.x || p.y !== previous.y;
+    return Math.hypot(p.x - previous.x, p.y - previous.y) > 1e-9;
   });
   if (distinct.length >= 3) ring = distinct;
   // Coalesce exact straight runs before indexing; otherwise a long straight
@@ -85,7 +85,8 @@ function bounded(ring: Ring, target: Node, direction: 1 | -1, allowance: number,
 }
 
 const MIN_WORK = 100_000;
-const MAX_WORK = 2_000_000;
+/** About a quarter of a second on a desktop. A detection makes several comparisons, and a phone is slower. */
+const MAX_WORK = 250_000;
 const WORK_PER_ALLOWANCE = 16;
 
 /**
@@ -95,7 +96,8 @@ const WORK_PER_ALLOWANCE = 16;
  * the allowance, so a fixed budget rejected long outlines and tight allowances
  * for their size alone, and the caller then quietly dropped its smoothing. The
  * budget follows that ratio instead, with room for a boundary that uses most of
- * the allowance, and a ceiling that bounds the time.
+ * the allowance, and a ceiling that bounds the time: a boundary that hugs the
+ * limit all the way round is still turned away, quickly, as too close to call.
  */
 function workBudget(reference: Outline, candidate: Outline, allowance: number): number {
   const length = (ring: Ring) => ring.reduce((sum, a, i) => {

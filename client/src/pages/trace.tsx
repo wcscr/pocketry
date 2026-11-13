@@ -245,10 +245,13 @@ function TraceWorkspace(): JSX.Element {
       // the carrier footprint is independent of the accepted scale ruler.
       let occlusions: Ring[] = [];
       let recognizedSheet = false;
+      // The whole photo as first read below, kept to tell which sheet layout it shows.
+      let wholeSheet: { image: ImageData; toWorking: { x: number; y: number } } | null = null;
       try {
         for (const limit of [undefined, AID_RETRY_CANVAS_MAX]) {
           const frame = getDetectionFrame(limit);
           if (frame?.sourceImageUrl !== source.url) break;
+          wholeSheet ??= { image: frame.imageData, toWorking: frame.toWorking };
           const reference = await autoCalibrate(frame.imageData);
           recognizedSheet ||= reference.kind === "calibrated" || reference.kind === "calibrated-strip" && !!reference.sheet;
           if (reference.kind === "calibrated-strip" && reference.aidOutline) {
@@ -272,8 +275,9 @@ function TraceWorkspace(): JSX.Element {
       const imageData = toolFrame?.imageData ?? (candidateFrame ? getImageData(region) : initialPixels);
       if (!imageData) return;
       // The sheet's printing is known only while the photo is the rectified sheet, page upright:
-      // a template correction with nothing rotated or straightened since.
-      const sheetInk = rectifiedSheetInkRegions(store.perspectiveCorrection, store.imageRotation === 0 && !store.imageAlignment);
+      // a template correction with nothing rotated or straightened since. v2 and v3 sheets share
+      // their markers, so the photo itself says whose text areas apply.
+      const sheetInk = rectifiedSheetInkRegions(store.perspectiveCorrection, store.imageRotation === 0 && !store.imageAlignment, wholeSheet);
       const result = await processImage(imageData, {
         autoCleanup: true,
         smoothBoundary: true,

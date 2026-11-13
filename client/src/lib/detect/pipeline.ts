@@ -115,12 +115,15 @@ async function detectPreparedOutline(
   }
   const materialOutline = rawOutline;
   const allowance = options.inwardTolerancePx ?? Math.max(0.5, options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx);
-  const growth = options.outwardTolerancePx ?? 4;
+  let growth = options.outwardTolerancePx ?? 4;
   if (options.outerSmoothingPx) {
     const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
     const lengthPx = options.outerSmoothingPx === "auto"
       ? AUTO_OUTER_SMOOTHING_SEG_PIXELS * sourcePerSegPixel
       : options.outerSmoothingPx;
+    // Outward smoothing grows a sharp corner by up to two thirds of its length, so the growth
+    // limit cannot be shorter than that length without refusing the smoothing's own result.
+    growth = Math.max(growth, lengthPx);
     rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx, allowance));
   }
 
@@ -134,7 +137,9 @@ async function detectPreparedOutline(
     // smoothing passes, and failing that use it as traced. Neither brings the stair-steps back.
     const conservative = refineOutline(rawOutline, { ...refining, smoothing: 0,
       tolerancePx: Math.min(allowance * .4, options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx) }, field);
-    return validDetectionGeometry(materialOutline, conservative, allowance, growth) ? conservative : rawOutline;
+    if (validDetectionGeometry(materialOutline, conservative, allowance, growth)) return conservative;
+    // The unsmoothed trace is the last resort: it always passes, at the price of its stair-steps.
+    return validDetectionGeometry(materialOutline, rawOutline, allowance, growth) ? rawOutline : materialOutline;
   });
 
   return {

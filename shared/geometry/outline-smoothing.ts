@@ -68,8 +68,12 @@ export function smoothAcceptedPolygon(outline: Outline, allowance: number, sampl
         if (size > 1e-12) {
           const normalX = ty / size * away, normalY = -tx / size * away;
           const outward = moveX * normalX + moveY * normalY;
-          // Take back the part of an inward move that exceeds its own cap.
-          if (outward < -inward) { moveX += (-inward - outward) * normalX; moveY += (-inward - outward) * normalY; }
+          // Take back the part of an inward move beyond its own cap. The cap is approached
+          // smoothly: a hard limit would put a corner in the outline where it starts to apply.
+          if (outward < 0) {
+            const limited = inward > 0 ? -inward * Math.tanh(-outward / inward) : 0;
+            moveX += (limited - outward) * normalX; moveY += (limited - outward) * normalY;
+          }
         }
       }
       return { x: p.x + moveX, y: p.y + moveY };
