@@ -2,8 +2,8 @@ import {
   isValidRing,
   perpendicularDistance,
   ringPerimeter,
-} from "@shared/geometry/rings";
-import type { Outline, Point, Ring } from "@shared/geometry/types";
+} from "./rings";
+import type { Outline, Point, Ring } from "./types";
 
 /**
  * Simplification and smoothing that preserve concavity.
