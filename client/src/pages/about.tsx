@@ -145,7 +145,7 @@ function ProjectGrid({ projects }: { projects: readonly RelatedProject[] }): JSX
   );
 }
 
-/** Project background, legal notices, and links to related Gridfinity tools. */
+/** Project background, contributor credits, legal notices, and related tools. */
 export default function About(): JSX.Element {
   return (
     <main className="h-full overflow-y-auto">
@@ -232,6 +232,28 @@ export default function About(): JSX.Element {
               </a>
             </Button>
           </div>
+        </section>
+
+        <section className="space-y-3" aria-labelledby="contributors-heading">
+          <h2
+            id="contributors-heading"
+            className="text-2xl font-semibold tracking-tight"
+          >
+            Contributors
+          </h2>
+          <ul className="space-y-2 text-base leading-7 text-muted-foreground">
+            <li>
+              <a
+                href="https://github.com/Arucious"
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Arucious
+              </a>
+              {" "}— SVG pocket import.
+            </li>
+          </ul>
         </section>
 
         <section className="space-y-3" aria-labelledby="about-gridfinity-heading">
