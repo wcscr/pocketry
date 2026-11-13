@@ -241,6 +241,9 @@ export default function About(): JSX.Element {
           >
             Contributors
           </h2>
+          <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+            Thank you to everyone who contributes to Pocketry.
+          </p>
           <ul className="space-y-2 text-base leading-7 text-muted-foreground">
             <li>
               <a
