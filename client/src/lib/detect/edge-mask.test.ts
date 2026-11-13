@@ -64,6 +64,65 @@ describe("learned outer silhouette reconstruction", () => {
     expect(result.mask[20 * width + 35]).toBe(1);
     expect(seeds[20 * width + 35]).toBe(0);
   });
+  // A dark part with a bright highlight inside it: the model draws an edge round the highlight
+  // and, where the part's own edge is faint, leaves a narrow way in from the paper.
+  const highlight = (gap: number) => {
+    const { edges, seeds } = fixture(rectangle, (x, y) => rectangle(x, y) && !(x >= 26 && x <= 44 && y >= 28 && y <= 60));
+    // The highlight's own edge, a ring well inside the part.
+    for (let y = 28; y <= 60; y++) for (let x = 26; x <= 44; x++) if (x === 26 || x === 44 || y === 28 || y === 60) edges[y * width + x] = 1;
+    // Two walls from the part's top edge down to the highlight make a channel `gap` pixels wide,
+    // and the part's top edge and the highlight's are open across it.
+    const left = 35 - Math.ceil(gap / 2), right = left + gap + 1;
+    for (let y = 10; y <= 28; y++) { edges[y * width + left] = 1; edges[y * width + right] = 1; }
+    for (let x = left + 1; x < right; x++) { edges[10 * width + x] = 0; edges[28 * width + x] = 0; }
+    return { edges, seeds };
+  };
+
+  it.each([1, 2])("does not let paper through a channel %s pixel(s) wide into a highlight", gap => {
+    const { edges, seeds } = highlight(gap);
+    const result = maskFromEdges(edges, width, height, seeds);
+    expect(result.reason).toBeUndefined();
+    // The highlight stays part of the tool, and so does the channel that led to it.
+    expect(result.mask[44 * width + 35]).toBe(1);
+    expect(result.mask[20 * width + 35]).toBe(1);
+    expect(result.mask[3 * width + 3]).toBe(0);
+  });
+
+  it.each([3, 6])("still follows an opening %s pixels wide, which may be a real recess", gap => {
+    const { edges, seeds } = highlight(gap);
+    const result = maskFromEdges(edges, width, height, seeds);
+    expect(result.reason).toBeUndefined();
+    // Paper reaches down the opening and into the area behind it, as it always did.
+    expect(result.mask[20 * width + 35]).toBe(0);
+    expect(result.mask[44 * width + 35]).toBe(0);
+    // The body either side is still tool.
+    expect(result.mask[44 * width + 18]).toBe(1);
+    expect(result.mask[44 * width + 52]).toBe(1);
+  });
+
+  it("keeps two tools apart when at least three pixels of paper lie between them", () => {
+    const first = (x: number, y: number) => x >= 8 && x <= 30 && y >= 20 && y <= 72;
+    const second = (x: number, y: number) => x >= 34 && x <= 62 && y >= 20 && y <= 72;
+    const { edges, seeds } = fixture((x, y) => first(x, y) || second(x, y));
+    const result = maskFromEdges(edges, width, height, seeds);
+    expect(result.reason).toBeUndefined();
+    expect(result.mask[40 * width + 20]).toBe(1);
+    expect(result.mask[40 * width + 50]).toBe(1);
+    expect(result.mask[40 * width + 32]).toBe(0);
+  });
+
+  it("still accepts a tool that ends two pixels inside the region at both ends", () => {
+    // Two free pixel rows between each end and the frame: the nearest a tool can come before the
+    // gap repair joins it to the frame, which was already reported as a region drawn too tight.
+    const tall = (x: number, y: number) => x >= 20 && x <= 50 && y >= 2 && y <= height - 3;
+    const { edges, seeds } = fixture(tall);
+    const result = maskFromEdges(edges, width, height, seeds);
+    expect(result.reason).toBeUndefined();
+    expect(result.mask[35]).toBe(0);
+    expect(result.mask[(height - 1) * width + 35]).toBe(0);
+    expect(result.mask[40 * width + 35]).toBe(1);
+  });
+
   it("repairs a one-pixel edge gap and rejects an unsupported open outline", () => {
     const { edges, seeds } = fixture(rectangle);
     edges[10 * width + 35] = 0;

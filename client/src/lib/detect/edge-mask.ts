@@ -70,13 +70,33 @@ export function maskFromEdges(edges: Float32Array, width: number, height: number
   const closed = closeSmallGaps(barrier, width, height);
   const exterior = new Uint8Array(count), queue = new Uint32Array(count);
   let head = 0, tail = 0;
-  const push = (i: number) => { if (!closed[i] && !exterior[i]) { exterior[i] = 1; queue[tail++] = i; } };
+  // Paper flows only where the way through is wider than two model pixels. An edge the model
+  // drew faintly leaves a gap a pixel or two wide, and paper that got through one used to claim
+  // whatever bright area lay behind it: a highlight on a dark part, a clear barrel. So the flood
+  // runs on the free pixels that have free pixels all round them, and is grown back by that one
+  // pixel afterwards. A real opening this narrow is closed too, which only makes a pocket roomier.
+  const near = (source: Uint8Array, x: number, y: number): number => {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy;
+      // Beyond the frame is open paper: it is neither a wall nor flooded.
+      if (xx >= 0 && yy >= 0 && xx < width && yy < height && source[yy * width + xx]) return 1;
+    }
+    return 0;
+  };
+  const walled = new Uint8Array(count);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) walled[y * width + x] = near(closed, x, y);
+  const push = (i: number) => { if (!walled[i] && !exterior[i]) { exterior[i] = 1; queue[tail++] = i; } };
   for (let x = 0; x < width; x++) { push(x); push((height - 1) * width + x); }
   for (let y = 0; y < height; y++) { push(y * width); push(y * width + width - 1); }
   while (head < tail) {
     const i = queue[head++], x = i % width, y = Math.floor(i / width);
     if (x) push(i - 1); if (x + 1 < width) push(i + 1);
     if (y) push(i - width); if (y + 1 < height) push(i + width);
+  }
+  const flooded = Uint8Array.from(exterior);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const i = y * width + x;
+    if (!closed[i] && !flooded[i]) exterior[i] = near(flooded, x, y);
   }
   const enclosed = Uint8Array.from(exterior, v => v ? 0 : 1);
   const { labels, sizes } = labelMaskComponents(enclosed, width, height);
