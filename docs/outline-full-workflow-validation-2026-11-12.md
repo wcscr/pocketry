@@ -165,8 +165,11 @@ diagnostics. They do not qualify anything on their own.
 ## Not covered
 
 - Phones: neither runtime nor memory was measured on one. The narrow-gap rule
-  adds two passes over at most 512 × 512 pixels and no inference. The default
-  smoothing pass and its thinning run in the existing worker.
+  adds two passes over at most 512 × 512 pixels, two byte masks of that size,
+  and no inference. On the desktop used here one reconstruction pass over a
+  full synthetic frame took 39.6 ms with the rule and 37.5 ms without (median
+  of 30); automatic sensitivity runs up to 14 such passes, or 28 with the
+  retry. The default smoothing pass and its thinning run in the existing worker.
 - Physical fit: no pocket was printed from these outlines.
 - v3 sheets: every photo here is of a v2 print. Layout detection for v3 is
   covered by synthetic tests only.
