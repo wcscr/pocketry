@@ -115,6 +115,47 @@ describe("corrections after sheet-print removal", () => {
     expect(image.data).toEqual(original);
     if (boundary === "teed") expect(corrected.refinement?.status).toBe("fallback");
   });
+
+  // A block, and a speck far below the size a trace normally keeps.
+  const blockAndSpeck = () => paint(200, 160, (x, y) => rect(40, 40, 140, 120)(x, y) || rect(170, 20, 174, 24)(x, y));
+
+  it("does not turn specks into outlines, or hand back the unsimplified trace", async () => {
+    const image = blockAndSpeck();
+    const automatic = await detectOutline(image, JS);
+    expect(automatic.outline).toHaveLength(1);
+    // A paper mark beside the block: nothing about the speck was asked for.
+    const corrected = await detectOutline(image, { ...JS,
+      hints: [{ kind: "paper", points: [{ x: 20, y: 80 }, { x: 30, y: 80 }], radius: 1 }] });
+    expect(corrected.rawOutline).toHaveLength(1);
+    expect(corrected.outline).toHaveLength(1);
+    expect(corrected.outline).not.toBe(corrected.materialOutline);
+    expect(corrected.outline[0].outer.length).toBeLessThan(corrected.materialOutline![0].outer.length / 4);
+  });
+
+  it("keeps a small part the user marked as tool", async () => {
+    const corrected = await detectOutline(blockAndSpeck(), { ...JS,
+      hints: [{ kind: "tool", points: [{ x: 172, y: 22 }], radius: 1 }] });
+    expect(corrected.outline).toHaveLength(2);
+    expect(pointInOutline(corrected.outline, { x: 172, y: 22 })).toBe(true);
+    // Still simplified, with both parts present on either side of the comparison.
+    expect(corrected.outline).not.toBe(corrected.materialOutline);
+  });
+});
+
+describe("detectOutline: when simplification is rejected", () => {
+  it("falls back to the smoothed trace, never to the stair-stepped one", async () => {
+    // A block whose top edge steps up and down by two pixels every four.
+    const image = paint(200, 200, (x, y) => x > 30 && x < 170 && y > 60 + (Math.floor(x / 4) % 2) * 2 && y < 150);
+    const settings = { spacing: 0.2, scale: 2, minAmplitude: 0.2 };
+    // A simplification of 6 px flattens the steps, which cannot stay within a third of a pixel of the material.
+    const result = await detectOutline(image, { ...JS, outerSmoothingPx: 4, tolerancePx: 6, inwardTolerancePx: 0.35 });
+    const usual = await detectOutline(image, { ...JS, outerSmoothingPx: 4, tolerancePx: 6 });
+    expect(result.outline).not.toEqual(usual.outline);
+    expect(outlineRoughness(result.materialOutline!, settings).reversals).toBeGreaterThan(20);
+    expect(outlineRoughness(result.outline, settings).reversals).toBe(0);
+    // And it still contains the material it was checked against.
+    expect(compareContours(result.materialOutline!, result.outline, { spacing: 0.2 }).excessMax).toBeLessThan(0.36);
+  });
 });
 
 describe("detectOutline: basic shapes", () => {

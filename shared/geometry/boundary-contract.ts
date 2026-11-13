@@ -6,6 +6,13 @@ interface Node { minX: number; minY: number; maxX: number; maxY: number; segment
 
 /** Small immutable BVH for distance and even/odd membership queries. */
 function index(ring: Ring): Node {
+  // A repeated vertex lies on the segment between its neighbours whichever copy is
+  // asked, so both copies would be dropped below and the corner would be lost.
+  const distinct = ring.filter((p, i) => {
+    const previous = ring[(i + ring.length - 1) % ring.length];
+    return p.x !== previous.x || p.y !== previous.y;
+  });
+  if (distinct.length >= 3) ring = distinct;
   // Coalesce exact straight runs before indexing; otherwise a long straight
   // edge needs thousands of redundant distance certifications.
   const corners = ring.filter((p,i) => distanceToSegment(p,ring[(i+ring.length-1)%ring.length],ring[(i+1)%ring.length]) > 1e-10);
@@ -77,10 +84,33 @@ function bounded(ring: Ring, target: Node, direction: 1 | -1, allowance: number,
   return ring.every((a,i)=>interval(a,ring[(i+1)%ring.length],distances[i],distances[(i+1)%ring.length],0));
 }
 
+const MIN_WORK = 100_000;
+const MAX_WORK = 2_000_000;
+const WORK_PER_ALLOWANCE = 16;
+
+/**
+ * Interval checks allowed for one comparison.
+ *
+ * Certifying a boundary takes about its length divided by the room left under
+ * the allowance, so a fixed budget rejected long outlines and tight allowances
+ * for their size alone, and the caller then quietly dropped its smoothing. The
+ * budget follows that ratio instead, with room for a boundary that uses most of
+ * the allowance, and a ceiling that bounds the time.
+ */
+function workBudget(reference: Outline, candidate: Outline, allowance: number): number {
+  const length = (ring: Ring) => ring.reduce((sum, a, i) => {
+    const b = ring[(i + 1) % ring.length];
+    return sum + Math.hypot(b.x - a.x, b.y - a.y);
+  }, 0);
+  const perimeter = [...reference, ...candidate].reduce((sum, shape) =>
+    sum + length(shape.outer) + shape.holes.reduce((holes, hole) => holes + length(hole), 0), 0);
+  return Math.min(MAX_WORK, Math.max(MIN_WORK, Math.ceil(WORK_PER_ALLOWANCE * perimeter / allowance)));
+}
+
 /** Material may grow, but neither a missing tip nor a new cut-in may exceed the allowance. */
 export function preservesMaterial(reference: Outline, candidate: Outline, allowance: number): boolean {
   if(!Number.isFinite(allowance) || allowance<=0 || reference.length!==candidate.length) return false;
-  let remaining=100_000;
+  let remaining=workBudget(reference, candidate, allowance);
   const budget=()=>--remaining>=0;
   for(let s=0;s<reference.length;s++) {
     const before=reference[s], after=candidate[s];
@@ -101,7 +131,7 @@ export function preservesMaterial(reference: Outline, candidate: Outline, allowa
  * discarded boundary. This is not a symmetric replay-distance check. */
 export function boundsMaterialGrowth(reference: Outline, candidate: Outline, allowance: number): boolean {
   if (!Number.isFinite(allowance) || allowance <= 0 || reference.length !== candidate.length) return false;
-  let remaining = 100_000;
+  let remaining = workBudget(reference, candidate, allowance);
   const budget = () => --remaining >= 0;
   for (let s = 0; s < reference.length; s++) {
     const before = reference[s], after = candidate[s];

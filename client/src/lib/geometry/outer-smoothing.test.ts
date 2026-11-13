@@ -238,8 +238,9 @@ describe("smoothOuterBoundary", () => {
     const many: Outline = Array.from({ length: 30 }, (_, i) => ({ outer: rect(0, i * 300, 300, i * 300 + 200), holes: [] }));
     const total = smoothOuterBoundary(many, 1).reduce((sum, shape) => sum + shape.outer.length, 0);
     expect(total).toBeLessThanOrEqual(20_000);
-    // Bounded certification may keep the original sparse ring on very long edges.
-    expect(total).toBeGreaterThanOrEqual(many.reduce((sum,s)=>sum+s.outer.length,0));
+    // Thirty long rings share the sample limit, so each would be resampled more
+    // coarsely than a corner survives. The material check refuses that, and a ring stays as traced.
+    expect(total).toBeGreaterThanOrEqual(many.reduce((sum, shape) => sum + shape.outer.length, 0));
   });
 
   it("returns the outline untouched for a length that is not positive and finite", () => {

@@ -279,6 +279,8 @@ export async function processImage(
       checkDetectionAbort(detect.signal);
       const fittedOutline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (units ?? .1));
       if (!validDetectionGeometry(material, fittedOutline, inward, units ? 1 / units : 4)) throw new Error("Cleanup would exceed the detection detail allowance.");
+      // A fit that crosses a correction mark is rejected here, so the detected outline is kept instead of the whole detection failing.
+      validateDetectionHints(fittedOutline, detect.hints ?? []);
       outline = fittedOutline;
       if (native) curves = fitted.curves;
       refinementBase = outline;
@@ -330,9 +332,26 @@ export async function processImage(
     result.timings.smoothing = performance.now() - began;
   }
 
-  validateDetectionHints(outline, detect.hints ?? []);
-  // Preserve the accepted material boundary before geometric smoothing/fitting.
-  rawOutline = material;
+  // Simplifying can carry the boundary across a correction mark. Step back to the trace it came
+  // from, then to the unsmoothed one, before telling the user that a mark could not be kept.
+  const hints = detect.hints ?? [];
+  const honoursMarks = (candidate: Outline): boolean => {
+    try { validateDetectionHints(candidate, hints); return true; } catch { return false; }
+  };
+  if (hints.length && !honoursMarks(outline)) {
+    const kept = [rawOutline, material].find(honoursMarks);
+    // Not even the corrected trace holds the mark: this throws the message that says what to change.
+    if (!kept) validateDetectionHints(material, hints);
+    outline = kept!;
+    curves = undefined; refinementBase = undefined; autoSimplification = undefined; smoothing = undefined;
+    if (cleanup?.applied !== false) {
+      onNotice?.("Kept the detected outline", "Simplifying this outline would have crossed a correction mark. The detected boundary has been kept for review.");
+    }
+    cleanup = { applied: false, reason: "Simplification would cross a correction mark." };
+  }
+  // `rawOutline` stays the outward-smoothed trace: the detail controls and the detected-outline
+  // comparison start from it, so neither brings the stair-steps back. The unsmoothed `material`
+  // is only what the checks above measure against.
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Keep independently detected tools separate as their margins grow.

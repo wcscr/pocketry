@@ -1,5 +1,6 @@
 import { buildRegionEvidence, solveRegionEvidence } from "./region-evidence";
 import { validDetectionGeometry } from "./boundary-validation";
+import { pointInRing, signedArea } from "@shared/geometry/rings";
 import type { Outline, Point, Ring } from "@shared/geometry/types";
 
 import { AUTO_OUTER_SMOOTHING_SEG_PIXELS, smoothOuterBoundary } from "../geometry/outer-smoothing";
@@ -104,10 +105,17 @@ async function detectPreparedOutline(
   if (options.hints?.length) {
     const evidence = time(timings, "evidence", () => buildRegionEvidence(sourceImage, field, options.hints));
     field = time(timings, "regionCorrection", () => solveRegionEvidence(field, evidence));
-    rawOutline = traceToOutline(field, { ...options, minShellAreaFrac: 0, minHoleAreaFrac: 0 });
+    // A marked part may be smaller than the speck filter allows, so trace everything and
+    // then drop the small parts no mark asks for.
+    rawOutline = time(timings, "correctionTrace", () => keepMarkedParts(
+      traceToOutline(field, { ...options, minShellAreaFrac: 0, minHoleAreaFrac: 0 }), options));
+    // The retrace starts from the corrected mask, so an edge hidden by a measurement aid needs its repair again.
+    if (inferredOccludedEdge) rawOutline = time(timings, "occlusionRepair", () => repairOccludedOutline(rawOutline, estimatedEdgeRegions,
+      Math.max(1 / field.scale, 1 / (field.scaleY ?? field.scale))));
   }
   const materialOutline = rawOutline;
   const allowance = options.inwardTolerancePx ?? Math.max(0.5, options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx);
+  const growth = options.outwardTolerancePx ?? 4;
   if (options.outerSmoothingPx) {
     const sourcePerSegPixel = field.scale > 0 ? 1 / field.scale : 1;
     const lengthPx = options.outerSmoothingPx === "auto"
@@ -116,11 +124,17 @@ async function detectPreparedOutline(
     rawOutline = time(timings, "outerSmoothing", () => smoothOuterBoundary(rawOutline, lengthPx, allowance));
   }
 
-  const candidate = time(timings, "refine", () => refineOutline(rawOutline, options, field));
+  // The trace has already removed specks. Filtering again after simplification could drop a
+  // part that sits at the limit, and one missing part would fail the whole comparison below.
+  const refining: DetectOptions = { ...options, minShellAreaFrac: 0, minHoleAreaFrac: 0 };
+  const candidate = time(timings, "refine", () => refineOutline(rawOutline, refining, field));
   const outline = time(timings, "containment", () => {
-    if (validDetectionGeometry(materialOutline, candidate, allowance, options.outwardTolerancePx ?? 4)) return candidate;
-    const conservative = refineOutline(materialOutline, { ...options, smoothing: 0, tolerancePx: Math.min(allowance*.4, options.tolerancePx ?? 1.2) }, field);
-    return validDetectionGeometry(materialOutline, conservative, allowance, options.outwardTolerancePx ?? 4) ? conservative : materialOutline;
+    if (validDetectionGeometry(materialOutline, candidate, allowance, growth)) return candidate;
+    // Keep what the outward smoothing achieved: simplify it less and without the corner-cutting
+    // smoothing passes, and failing that use it as traced. Neither brings the stair-steps back.
+    const conservative = refineOutline(rawOutline, { ...refining, smoothing: 0,
+      tolerancePx: Math.min(allowance * .4, options.tolerancePx ?? DETECT_DEFAULTS.tolerancePx) }, field);
+    return validDetectionGeometry(materialOutline, conservative, allowance, growth) ? conservative : rawOutline;
   });
 
   return {
@@ -136,6 +150,28 @@ async function detectPreparedOutline(
     refinement,
     debug: options.debug ? buildDebug(field) : undefined,
   };
+}
+
+/**
+ * The speck filter for a corrected trace: a shape or hole below the usual size
+ * stays only when a mark of the matching kind lies inside it. Without this a
+ * correction either loses the small part the user marked or keeps every speck
+ * in the photo as a separate outline.
+ */
+function keepMarkedParts(outline: Outline, options: DetectOptions): Outline {
+  const hints = options.hints ?? [];
+  const marked = (ring: Ring, kind: "tool" | "paper") =>
+    hints.some((hint) => hint.kind === kind && hint.points.some((point) => pointInRing(ring, point)));
+  const area = (ring: Ring) => Math.abs(signedArea(ring));
+  const shellFloor = Math.max(0, ...outline.map((shape) => area(shape.outer))) *
+    (options.minShellAreaFrac ?? DETECT_DEFAULTS.minShellAreaFrac);
+  const holeFraction = options.minHoleAreaFrac ?? DETECT_DEFAULTS.minHoleAreaFrac;
+  return outline
+    .filter((shape) => area(shape.outer) >= shellFloor || marked(shape.outer, "tool"))
+    .map((shape) => ({
+      outer: shape.outer,
+      holes: shape.holes.filter((hole) => area(hole) >= area(shape.outer) * holeFraction || marked(hole, "paper")),
+    }));
 }
 
 /**
