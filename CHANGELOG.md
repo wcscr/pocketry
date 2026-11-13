@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 1.9.0 — 2026-11-12
+
+- Import closed SVG outlines as editable pockets with physical dimensions or a width override.
 - Calibration-sheet v3 recommends photographing tall objects from farther away and allows zoom, with unchanged markers and dimensions.
 
 ## 1.8.3 — 2026-11-05

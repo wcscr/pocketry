@@ -1,6 +1,15 @@
 [
   {
     "packages": [
+      "@nodable/entities@3.0.0"
+    ],
+    "file": "nodable-entities.txt",
+    "sources": [
+      "https://github.com/nodable/val-parsers/blob/d2070d76a8ba07e6c7fa142caeb51ffd756e47eb/LICENSE"
+    ]
+  },
+  {
+    "packages": [
       "@radix-ui/number@1.1.0",
       "@radix-ui/primitive@1.1.0",
       "@radix-ui/react-alert-dialog@1.1.2",

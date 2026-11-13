@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { SvgPocketDialog } from "./svg-pocket-dialog";
 import { BasicPocketDialog } from "./basic-pocket-dialog";
-import { ChevronDown, CircleDot, Circle, RectangleHorizontal, Square, Type } from "lucide-react";
+import { ChevronDown, CircleDot, Circle, RectangleHorizontal, Square, Type, Upload } from "lucide-react";
 import { AddObjectButton } from "./add-object-button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BASIC_POCKET_LABELS, type BasicPocketShape } from "@/lib/gridfinity/basic-shape";
@@ -20,6 +21,7 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
   const isMobile = useIsMobile();
   const addFingerAccess = useAddFingerAccess(onStart);
   const hasTouch = useHasTouchInput();
+  const [svgOpen, setSvgOpen] = useState(false);
   const [dimensionKind, setDimensionKind] = useState<BasicPocketShape | null>(null);
   const draw = (kind: BasicPocketShape, drawDepthMm?: number) => {
     onStart?.();
@@ -42,6 +44,10 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
           else draw(kind);
         }}><Icon className="mr-2 h-4 w-4" />{BASIC_POCKET_LABELS[kind]}{includeFingerAccess ? " pocket" : ""}</DropdownMenuItem>;
       })}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" onSelect={() => { onStart?.(); setSvgOpen(true); }}>
+        <Upload className="mr-2 h-4 w-4" />Import SVG pocket
+      </DropdownMenuItem>
       {includeFingerAccess && <>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="[@media(pointer:coarse)]:min-h-11" onSelect={addFingerAccess}>
@@ -53,6 +59,7 @@ export function AddPocketMenu({ label = "Add pocket", className, onStart, testId
       </>}
     </DropdownMenuContent>
   </DropdownMenu>
+    {svgOpen && <SvgPocketDialog onClose={() => { setSvgOpen(false); if (isMobile) setPanelOpen(false); }} />}
     {dimensionKind && <BasicPocketDialog key={dimensionKind} kind={dimensionKind}
       onClose={() => { setDimensionKind(null); if (isMobile) setPanelOpen(false); }}
       onDraw={depthMm => { draw(dimensionKind, depthMm); setDimensionKind(null); }} />}
