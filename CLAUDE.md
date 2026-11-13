@@ -2,23 +2,40 @@
 
 This file is the single source of truth for all agents and tools working in this repository.
 
+These public instructions apply to contributors and maintainers. Read
+`CLAUDE.local.md` at the repository root if present, or `AGENTS.local.md` if that
+is the local file in use, for personal preferences and maintainer context.
+Both are optional and gitignored; never commit them or copy their private
+contents into public documents. Local preferences supplement
+these rules and do not waive contributor licensing, provenance, human credit,
+or verification requirements.
+
 ## Project Overview
 
-Pocketry is a web application that converts raster images (PNG, JPG) into editable
-vector outlines and printable Gridfinity tool bins. Users upload images, detect the
-tool's silhouette (including concave regions and interior holes), calibrate it to real
-dimensions, refine the rings, and export SVG, DXF, or STL files.
-Calibrated traces can also be handed to the bin designer, arranged as pockets, and
-exported as 3MF or STL; top-down bin layouts export as SVG or DXF for shadow boards and
-CNC work.
+Pocketry is a browser-based tool for tracing photographs into editable,
+calibrated outlines and designing printable storage bins and positioning fixtures.
+The **Trace** workspace handles detection, contour editing, measurement, and
+perspective correction. **Bin** combines traced or drawn pockets with finger
+access, hollow compartments, label tabs, text, and material colors. Bins support
+full/half/quarter Gridfinity pitch, custom footprints, and arbitrary rectangular
+flat-bottom sizes. The `/ultim8` entry starts Wham Bam Systems ULTIM8-compatible
+fixtures. Baseplates are outside the application's scope.
 
-The Gridfinity G1–G5 bin software scope is implemented: bins support
-full/half/quarter pitches, configurable preview/material colors, and
-single- or multi-color 3MF export. Baseplate generation is intentionally left
-to dedicated Gridfinity tools. Server-side image persistence has been removed; lower-priority
-upstream parity remains deferred. The G1 empty-bin and G3 real-tool physical
-print gates are still pending. See `docs/gridfinity-plan.md` for the completion
-ledger and roadmap.
+Exports include single- or multi-color 3MF, STL, fit checks, and SVG/DXF outlines
+and layouts. Processing, geometry generation, autosave, and the named project
+library run on the user's device. Editable project/library downloads provide
+backups; there is no server-side project storage or cross-device sync.
+
+Slanted walls, linking, and grouping have experimental editing controls; saved
+designs remain visible and exportable. See [the documentation index](docs/README.md)
+and [bin implementation reference](docs/gridfinity-plan.md) for current behavior
+and source locations. The [sample library](samples/README.md) includes physical
+print evidence; a software or export check alone does not qualify every feature
+or printer/material combination.
+
+[GitHub issues](https://github.com/wcscr/pocketry/issues) hold enhancement requests,
+problem reports, and the roadmap. Keep documentation about current behavior and
+constraints; link relevant issues rather than maintaining a second roadmap here.
 
 ## Objectives
 
@@ -83,18 +100,83 @@ disagreed about Y, which shipped mirrored STLs.
 
 ## Git
 
-- Author: Will Cobb <will.cobb@sugarcreekresearch.com>
-- Never add Co-Authored-By lines
+- Use the actual contributor's Git identity; do not overwrite an outside
+  contributor's author with the maintainer's name.
+  Git attribution does not establish copyright ownership or replace an assignment.
+- Preserve authorship and copyright notices when integrating contributions.
+  Use accurate human Co-Authored-By credit when a squash or combined commit would
+  otherwise lose it. For outside contributions with material AI assistance,
+  include and preserve tool Co-Authored-By credit under `CONTRIBUTING.md`.
+  Maintainer work covered by the standing project acknowledgment need not repeat
+  AI credit in every commit or PR. Tool credit does not establish copyright
+  ownership or authority to accept the CLA. Do not invent authors.
 - Keep commit messages, PR titles/descriptions, and review comments brief and
   concise. Include only the change, its purpose, and essential validation.
+
+## Contributions and licensing
+
+- Follow `CONTRIBUTING.md` and the maintainer checklist in
+  `docs/contribution-maintenance.md`. All original contributions are submitted under
+  AGPL-3.0 (version 3 only, as defined in `CLA.md`). Contributors retain copyright;
+  the separate CLA grants Sugarcreek Research, LLC permission for additional licensing, including
+  proprietary licensing. Do not call this a copyright ownership assignment.
+- The CLA does not itself require publication of private submissions or privately
+  licensed versions, or create confidentiality or embargo obligations. Contributions
+  incorporated into the public repository are published under AGPL-3.0;
+  applicable third-party license obligations and existing AGPL grants still apply.
+  Only the Company receives the additional copyright grant directly; others need
+  an authorized sublicense to exercise those additional copyright permissions.
+- Follow `CLA.md`. Do not treat past submissions as having accepted it.
+  Maintainers must verify each rights holder's explicit acceptance of the exact
+  published agreement version and current authority before public or private
+  incorporation. The acceptance statements include the default version link;
+  maintainers verify and retain the exact accepted revision and record account IDs, acceptance
+  evidence, and the submitted PR's base commit; do not make contributors manage
+  these records or guess an unversioned patch's patent scope. Reuse valid acceptance
+  rather than collecting it again on every PR. Agents cannot accept for anyone.
+  Keep private contributor records and legal documents out of public commits and PRs.
+- Every contribution needs a dependency/provenance review, including an explicit
+  "None added or changed" when applicable. Review AGPL compatibility and the
+  ability to use/distribute the actual integration under proprietary terms,
+  affected transitive components, copied/adapted code and assets, security
+  advisories, and delivered notices.
+  Contributors disclose known facts and uncertainty; maintainers complete the
+  detailed compatibility and notice checks. Third-party rights cannot be expanded
+  by the CLA. Record the review in the PR
+  or, for local-only work, its accompanying review note.
+- Follow the AI attribution policy in `CONTRIBUTING.md`, including disclosure of
+  known restrictions or provenance uncertainty. Routine autocomplete/formatting
+  needs no separate log; do not include confidential prompts or credentials.
+
+### Reviewing contributor PRs
+
+- Judge a contribution against its stated purpose, supported inputs, and existing
+  behavior. Favor useful incremental improvements; do not expand acceptance into
+  exhaustive format support, unrelated cleanup, or a redesign.
+- Maintainers own exploratory and adversarial stress testing and the resulting
+  hardening work. Do not expect contributors, especially first-time contributors,
+  to anticipate contrived tests or make every new finding their assignment.
+- Base merge blockers on concrete impact and credible risk. Distinguish failures
+  on representative inputs from constructed edge cases, and explain what a user
+  would experience. A synthetic failure alone does not establish a blocker;
+  serious security or data-integrity risks can still justify one even if uncommon.
+- Separate required fixes from optional follow-ups. Keep feedback friendly,
+  focused, and actionable; offer maintainer help with integration and project
+  housekeeping. Follow the review guidance in `docs/contribution-maintenance.md`.
+  Required verification, licensing, and human merge oversight still apply.
 
 ## Versions & Changelog
 
 - About reads `package.json`; keep `package-lock.json` in sync when bumping it.
 - Add notable user-visible changes to **Unreleased** in `CHANGELOG.md`. Keep
-  entries to a few short bullets; omit internal-only refactors.
+  entries to a few short bullets describing the user impact. Contributors include
+  the entry with their change; maintainers check, edit, and combine entries.
+  Documentation-only changes, tests, and internal-only refactors usually need none.
 - On release, use major/minor/patch versioning and a dated changelog section,
-  newest first. Application and saved-project schema versions are independent.
+  newest first. Maintainers own release versions and dates. Application and
+  saved-project schema versions are independent.
+- Update affected current documentation in the same change. Keep dated design
+  and validation records clearly historical; track planned work in GitHub issues.
 
 ## Runtime & Dependencies
 
@@ -102,12 +184,18 @@ disagreed about Y, which shipped mirrored STLs.
 - Use `npm ci` for clean installs (sandbox/CI); `npm install` only when intentionally changing dependencies.
 - New dependencies go into `package.json` with a rationale — no ad-hoc one-off installs.
 - **Licence policy:** record the licence and provenance of every direct dependency,
-  bundled artefact, and adapted source. New code must be compatible with Pocketry's
-  distribution model; copyleft and source-available terms require an explicit
-  compatibility review before they are linked, bundled, or ported. Pocketry's original
-  work ships under AGPL-3.0-only (`LICENSE`); third-party portions retain their own
+  bundled artefact, and adapted source, and review affected transitive components.
+  New material must support Pocketry's AGPL distribution and future proprietary
+  licensing; copyleft, source-available, and custom terms require an explicit
+  review of the actual integration and obligations before inclusion. Development
+  tools need not be relicensed with the app; review their redistributed output
+  and any distribution of the tools themselves. Do not accept material whose
+  obligations cannot be met in the intended use under both models. Pocketry's
+  original work ships under AGPL-3.0 (`LICENSE`); third-party portions retain their own
   licences and attribution in `NOTICE`, which must be updated whenever a direct
-  dependency, bundled artefact, or adapted source is added.
+  dependency, bundled artefact, or adapted source is added. Required third-party
+  notices must reach recipients even when code is bundled; package metadata alone
+  is not proof that a shipped artifact contains them.
 - ArUco specifics: marker *patterns* and OpenCV's aruco module (Apache-2.0, in
   `objdetect` since 4.7) are the sanctioned sources — Pocketry's custom v2
   dictionary is deterministically generated with OpenCV 4.11.0, pinned in
@@ -175,8 +263,8 @@ WASM work may finish after Vitest's timeout. Avoid concurrent full-suite runs;
 
 ### Local-only verification
 
-- Run type checks, tests, and production builds locally. GitHub Actions credits
-  are exhausted; do not run CI on GitHub for routine updates, pushes, or PRs.
+- Run type checks, tests, and production builds locally. Do not run CI on GitHub
+  for routine updates, pushes, or PRs.
 - Do not enable, dispatch, or rerun GitHub CI unless the user explicitly
   authorizes that hosted run. Do not add automatic push or pull-request triggers.
 - The repository's CI workflow is disabled in GitHub. Keep it disabled unless
@@ -198,6 +286,8 @@ No linter is configured yet (prefer ESLint when one lands).
 
 ## Code Conventions
 
+- Use American English spelling in user-facing text, documentation, and comments
+  (for example, "center", "color", and "millimeter").
 - TypeScript strict mode; no `any` unless annotated with a reason.
 - Path aliases per `tsconfig.json` (`@/...` for client src, `@shared/...` for shared).
 - Shared project and geometry validation lives under `shared/`; never duplicate validation logic client- or server-side.

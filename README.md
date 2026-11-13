@@ -7,6 +7,8 @@ project storage, and model generation kept on the user's device.
 
 [Try Pocketry](https://pocketry.xyz) ·
 [Sample projects](samples/README.md) ·
+[Documentation](docs/README.md) ·
+[Issues and roadmap](https://github.com/wcscr/pocketry/issues) ·
 [View the source](https://github.com/wcscr/pocketry) ·
 [Version history](CHANGELOG.md) ·
 [Read the license](LICENSE) ·
@@ -19,6 +21,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Trace and refine outlines from PNG or JPEG photos.
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
+- Build hollow compartment bins with scoops, label tabs, and raised text or hardware symbols.
 - Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Start a fixture (Beta)](https://pocketry.xyz/ultim8).
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
@@ -40,8 +43,8 @@ and browse [his original designs on Thangs](https://thangs.com/designer/ZackFree
 
 ## Sample projects
 
-All of these sample projects are real designs that have been physically printed.
-Browse the [sample projects](samples/README.md) for editable designs, printable
+The sample library includes physically printed designs and photographs, plus
+editable variants. Browse the [sample projects](samples/README.md) for editable designs, printable
 3MFs, and photos. Each project page includes its downloads, dimensions, and any
 fit or stacking notes.
 
@@ -74,7 +77,7 @@ there was estimated. You’ll set pocket depths in Bin.
 ### 2. Arrange the pockets
 
 In **Bin**, set **Bin size** (the Wolfbox example is **4 × 4 cells**, **6.5u** high).
-Use **Construction → Flat bottom** if you want a standalone bin. In **Layout**,
+Use **Construction → Base & mounting → Bottom → Flat bottom** for a standalone bin. In **Layout**,
 drag pockets into place and add finger access where needed. Select a pocket to
 adjust its size, position, and depth.
 
@@ -111,8 +114,12 @@ The original slicer screenshot below shows an earlier **1.2 mm** fit check.
 
 Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.
 Open the file in your slicer at **100% scale** and review the layer preview
-before printing. **Multi-color 3MF** preserves selected colors; SVG and DXF
-layouts are available for shadow boards and CNC work.
+before printing. **Multi-color 3MF** exports selected colors as separate parts.
+For Bambu Studio 2.9.1.70 or PrusaSlicer, use **Bambu / Prusa 3MF**,
+which keeps painted color regions in one model without separate named parts.
+In PrusaSlicer, select a multicolor printer and set your filament colors
+([details](docs/bambu-3mf-compatibility.md)). SVG and DXF layouts are available
+for shadow boards and CNC work.
 
 ![The original printed black-and-orange Wolfbox bin with the duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
 
@@ -135,33 +142,61 @@ return 404 and do not accept or store uploads.
 
 ## Run locally
 
-Pocketry requires Node.js 22 and npm.
+There are two ways to run Pocketry locally: with **Node.js 22 and npm**, or with
+**Docker**.
+
+Start by cloning the repository:
+
+```sh
+git clone https://github.com/wcscr/pocketry.git
+cd pocketry
+```
+
+### Option 1: Node.js and npm
+
+Install Node.js 22 and npm, then build and start Pocketry:
 
 ```sh
 npm ci
+npm run build
+npm start
+```
+
+Open <http://localhost:5000>. This production server listens on all host
+interfaces; see the self-hosting guide below for network access and HTTPS.
+On macOS/Linux, use `PORT=5001 npm start` if the default port is in use.
+
+For development with live updates, use this instead of `npm start`:
+
+```sh
 npm run dev
 ```
 
-The development server binds to IPv4 loopback at <http://127.0.0.1:5000>
-(`localhost` also works when it resolves to IPv4). It is not exposed to other
-computers on your network. Vite rejects untrusted Host names, serves only the
-client, shared source, dependencies, explicit client imports (such as version
-metadata), and public/legal assets. Vite's desktop-editor launch endpoint is disabled;
-Pocketry's Trace and Bin editors remain available. Production `npm start` keeps its
-existing all-interface listener for deliberate hosting.
+The Vite development server binds only to IPv4 loopback at
+<http://127.0.0.1:5000>, so other computers cannot access it. It rejects untrusted
+Host names, restricts file access to application sources, dependencies, and
+public/legal assets, and disables its desktop-editor launch endpoint. Pocketry's
+Trace and Bin editors remain available. Use `PORT=5001 npm run dev` on macOS/Linux
+to choose another port. Use the production build or Docker for ongoing hosting.
 
-If the default port is in use, choose another one:
+### Option 2: Docker
+
+Install Docker Engine or Docker Desktop with Docker Compose. No separate Node.js
+or npm installation is needed.
 
 ```sh
-PORT=5001 npm run dev
+docker compose up -d --build
 ```
 
-## Self-host Pocketry
+Open <http://localhost:8080>. The container serves the production build and is
+accessible only on this computer by default. Stop it with `docker compose down`.
 
-Follow the [self-hosting guide](docs/self-hosting.md) for Docker, production Node,
-or static hosting, including upgrades and backup/restore instructions. Projects
-remain in each user's browser. Use **Export project** and **Export library** for
-backups—copying the container does not back up your designs.
+### Hosting and backups
+
+Follow the [self-hosting guide](docs/self-hosting.md) for access from other devices,
+HTTPS, static hosting, upgrades, and backup/restore instructions. Projects remain
+in each user's browser. Use **Export project** and **Export library** for
+backups—copying the server or container does not back up your designs.
 
 ## Verify and build
 
@@ -172,6 +207,10 @@ npm run check
 npm test
 ```
 
+`npm test` runs the quick suite. Changes to detailed geometry, exports, or UI
+workflows also need the relevant qualification/workflow suites listed in
+[CLAUDE.md](CLAUDE.md). Verification runs locally; hosted CI is disabled.
+
 Create the production build in `dist/public`:
 
 ```sh
@@ -179,13 +218,18 @@ npm run build
 ```
 
 The build includes `LICENSE.txt` and `NOTICE.txt` alongside the application.
+`NOTICE.txt` includes full license texts for bundled npm dependencies, including
+transitive packages used by browser and worker code. See the
+[notice maintenance guide](licenses/npm/README.md) when updating dependencies.
 
 ## Versions and update history
 
 About displays the version from `package.json`; [CHANGELOG.md](CHANGELOG.md)
-tracks notable updates. Keep entries to a few short bullets per version.
+tracks notable updates. Contributors add short **Unreleased** entries for
+user-visible changes; maintainers edit and combine them. Documentation-only
+changes, tests, and internal refactors usually need no entry.
 
-For releases, use `npm version patch --no-git-tag-version` (or `minor` for new
+For releases, maintainers use `npm version patch --no-git-tag-version` (or `minor` for new
 features, `major` for breaking changes), then date the matching changelog entry.
 Commit both package files and the changelog together after verification.
 
@@ -210,15 +254,18 @@ then **Symbol** to pair one with wording or use it alone. See
 ## Contributors
 
 Pocketry is developed and maintained by Sugarcreek Research, LLC.
-[OpenAI Codex](https://openai.com/codex/) is an AI contributor to the project,
+[OpenAI Codex](https://openai.com/codex/) and
+[Anthropic Claude](https://claude.com/claude-code) are AI contributors to the project,
 assisting with implementation, testing, documentation, and code review. This
 acknowledgment includes work not individually credited in the commit history.
 
 ## Contributing
 
-Issues and pull requests are welcome. Keep changes focused, add or update tests,
-run the required verification commands, and update `NOTICE` whenever adding a
-direct dependency, bundled artifact, copied component, or adapted source.
+Issues and focused pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
+covers local checks, dependency/provenance disclosure, and one-time CLA acceptance.
+You keep copyright and submit under AGPL-3.0; the [CLA](CLA.md) also
+allows Sugarcreek Research, LLC to offer other licenses, including proprietary
+versions without royalties or automatic publication.
 
 ### Browser and import limits
 

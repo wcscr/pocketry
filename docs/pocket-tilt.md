@@ -1,244 +1,79 @@
-# Tilted pockets
+# Pocket selection, transforms, and linked designs
 
-Pocket placement, rotation, multi-selection, alignment and distribution are
-available by default. Linking and grouping require **App settings → Enable
-experimental features** (on mobile, **More options → App settings**). This choice
-is saved in the browser independently of project files. Opening a saved project
-never changes it; existing geometry stays visible and exportable.
+Pocket placement, XYZ rotation/elevation, multi-selection, alignment, and
+independent duplication are available by default. Linking and grouping require
+**App settings → Enable experimental features**. Saved designs remain visible
+and exportable with that preference off; opening a project never enables it.
+Shared geometry edits and Group/Ungroup require opting back in.
 
-Turning Experimental off cancels unfinished experimental edits without changing
-saved geometry, links, groups or history. Placement and ordinary independent copies
-stay available. Shared geometry edits and Group/Ungroup require opting back in.
+## Rotation, elevation, and depth
 
-Select a pocket and open **Position & rotation**. X and Y tilt turn its depth
-axis; the existing Z rotation sets its heading in the bin. **Reset tilt** returns
-the pocket upright while keeping its heading. Each placement has its own angles,
-including copied pockets, and changes survive undo, redo, saving and import.
+A pocket has a finite source solid and a rigid pose. Depth describes the source's
+extrusion thickness, not an instruction to stretch it back to the fill surface
+after every move. Z movement changes elevation without changing the source
+shape. Sideways, inverted, partly exposed, and submerged poses are supported,
+subject to geometry and export validation.
 
-Tilt is useful for storing tall objects in a drawer with less vertical space.
-The object slides in and out along the tilted axis. The horizontal opening grows
-with tilt so that this path stays clear. The outline dimensions still describe
-the object's cross-section perpendicular to that axis. For example, a 3 mm wide
-rectangular slot tilted 45 degrees has a nominal 4.24 mm wide top opening.
+Use **Position & rotation** or the 3D object controls. **Reset to X–Y plane**
+clears X/Y rotation while preserving heading, position, elevation, and source
+dimensions. Reset before contour or split editing in Layout.
+See [rotation and elevation](pocket-rotation.md) for the model and migration rules.
 
-- Fixed depth is measured **along the pocket axis**, from the bin's fill surface
-  at the placement centre to the seat centre.
-- Remaining floor sets the **lowest point** of the sloped seat above the bin's
-  underside. Positive fit clearance is included conservatively.
-- Through depth continues along the tilted axis through the base.
-- Split regions keep their own depths and share the same orientation.
-- Bottom rounds and floor material layers follow the seat; top rounds are added
-  at the actual horizontal opening. Finger access stays in the bin's frame.
+Insertion clearance is a separate choice under **Insertion path**. It can follow
+an object axis, use vertical drop-in, or be disabled. Poses do not by themselves
+prove a tool can enter or leave its cavity. See [insertion paths](pocket-insertion-paths.md)
+for finite Through behavior, floor limits, and validation against actual bin
+material. Fit checks, model validation, and physical insertion are separate checks.
 
-The depth summary shows axial depth, actual vertical depth, lowest floor and
-combined axis tilt. The 2D layout shows the nominal top opening; the selected
-pocket also shows a dashed conservative envelope of its shaft. The 3D view
-shows the selected opening and seat as a wireframe. Fit and arrange account for the shaft as
-well as the opening. They can leave extra space around complicated outlines.
+## Selection and editing
 
-Preview and printable export check actual pocket solids for hidden pocket
-intersections and cuts into walls, label tabs and stacking rims. Export rechecks
-the current design. Shafts with less than 1.2 mm of material between them or
-beside a wall produce a warning. A floor that crosses the opening, or a combined axis too
-close to horizontal, must be corrected. These checks do not model the complete
-stored object, attached cables or the space above the bin.
+Use object selection or the list to select a pocket; Shift/Command/Control-click
+adds or removes objects. Selection carries between Layout and 3D. Move and Rotate
+operate on the current selection, and committed gestures produce one undo step.
+Escape or pointer cancellation discards an unfinished gesture. Text and number
+fields retain their normal editing shortcuts.
 
-SVG/DXF layout exports describe nominal horizontal top openings, without fit
-clearance or rounding. They cannot encode tilted depth. A surface fit template
-is a thin section of the actual cavity and checks that section only; print a
-small bin with the full slot depth to assess insertion and retention.
+Object controls offer Move, Rotate, Arrange, and, when experimental editing is
+enabled, Links. Shared properties show mixed values where selected objects
+differ. Finger access remains upright; mixed-object transformations respect the
+supported axes and shared movement limits. Grouping gives selected objects a
+persistent common pivot; an ordinary temporary multi-selection is not a saved
+group. Arrangement changes placements, not source geometry.
 
-## Move and rotate in 3D
-
-Open **Object controls** using the icon directly below the ruler in 3D or Layout.
-The panel starts closed and its X button dismisses it. Click an opening or use
-the checkboxes in the object list. **Move (W)**
-shows red X, green Y and blue Z arrows. X/Y move the opening across the surface;
-Z changes depth beneath it. Plane handles combine their named axes.
-**Rotate (E)** shows only X/Y/Z axis rings. All handles stay aligned with the
-bin's fixed XYZ coordinate system, even when the pocket is tilted. There is
-no local-axis mode or free/view-plane rotation target.
-
-The floating object panel contains **Move**, **Rotate**, **Arrange**, and **Links** tools.
-Numeric XYZ fields show the actual change from each object's **as-drawn** pose,
-including during gizmo drags. Enter a target offset and Apply (or press Enter);
-0 restores that axis while preserving the other axes. Repeated Apply does not
-accumulate the same offset. Mixed selections show **Mixed** where offsets differ;
-entering a value sets that offset for each selected member. References survive
-selection changes, closing the panel, undo history trimming, and project export
-and reload (project format 24). Older projects recover the earliest retained
-appearance in their history, or the loaded pose if no earlier state is available.
-The magnet is an icon-only toggle with a tooltip and pressed-state highlight.
-Solid axis lines and labeled grips identify the fixed bin axes.
-
-Use Shift, Command, or Control + click to add/remove pockets and thumb-access
-features from a selection; checkboxes work without a keyboard. Command/Control+A
-selects all objects when a text field or dialog does not own the shortcut.
-Selection carries between 3D and Layout. Each selection drag or command is one undo
-step and changes only selected objects. In Layout, drag any selected body to move
-the selection; arrows nudge it (Shift = 10 mm), R rotates 15 degrees (Shift reverses).
-Escape, blur, and pointer cancellation discard incomplete drags.
-
-An ungrouped selection defaults to **Each object's center**. **Selection center** also
-rotates their positions around the shared bounding-box center. Rotated pocket
-origins project back to the top surface, retaining the rigidly rotated seats.
-If any member reaches a floor or tilt limit, the entire selection retains the last
-valid rotation. Z movement uses the most restrictive depth limit of all selected
-objects, so their relative floor depths remain unchanged. Through pockets have
-no floor to move. Thumb access remains upright: mixed selections support XYZ
-movement/depth changes and Z rotation; select only pockets to enable X/Y tilt.
-
-**Arrange** aligns nominal opening bounds on X or Y: minimum edge, center, or
-maximum edge. Choose the selection bounds or the last selected object as the
-reference. Rotated, tilted, and mirrored openings use their transformed outline.
-**Equal centers** and **Equal gaps** require at least three objects and leave the
-two outer objects fixed. Equal gaps is unavailable when the objects cannot fit
-between those endpoints without overlap. Clearance/rounding and collisions still
-use the normal layout warnings; arrangement never auto-resizes the bin.
-
-The **magnet** toggles 1 mm move increments and 5° rotation increments. Its
-tooltip describes the increments and whether snapping is on or off. For combined rotations, the displayed Euler
-angles may differ from the snapped rotation about a fixed bin axis.
-
-Each drag previews the opening and seat immediately, rebuilds the solid on
-release, and adds one undo step. **Escape** cancels the active drag. Camera
-orbit is suspended while dragging a handle; drag empty space to orbit normally.
-The ruler temporarily hides the transform handles. Keyboard shortcuts leave
-text and number fields alone.
-
-Pulling Z up makes the pocket shallower; pulling down makes it deeper. Both
-the opening and the handles stay at the bin surface throughout the drag.
-Fixed axial depth or remaining-floor thickness updates directly, with the
-same vertical depth change applied to both split seats. Movement stops with
-at least 0.5 mm below the surface above the highest seat, and before the lowest
-seat passes the underside. A through pocket has no floor to adjust. Its Z
-drag has no effect. Use the existing Depth fields for exact dimensions.
-
-Older saved Z offsets remain readable. On editing, the offset is converted to
-an equivalent surface position and depth, preserving the existing cavity.
-New drags never store an above-surface pocket position.
-
-A gizmo rotation keeps the seat geometry rigid around the anchor. Remaining-floor
-settings convert to equivalent fixed axial depths at the start of a completed
-rotation, including both seats in a split pocket. Numeric tilt controls continue
-to honor remaining-floor mode. The drag retains its last valid orientation if
-either seat would come within 0.5 mm of the surface or pass the underside.
-This prevents the floor and opening from crossing into an inverted preview or
-a failed solid build. Adjust depth or bin height if more tilt is needed.
-Angles retain full precision internally. Depth limits tolerate only numerical
-roundoff at the underside, and remaining-floor values clamp to zero so limit
-drags remain valid in saved projects and their undo history.
-The depth readout measures the selected split section, and switching between
-fixed depth and remaining-floor depth uses that section's tilted axis and floor.
-Check the resulting floor, wall and intersection
-warnings after rotating or lowering a pocket. Undo restores both orientation
-and the original depth mode.
-
-## Implementation
-
-The shared transform is `Rz * Ry * Rx`, applied after outline scaling and mirroring.
-The oblique section at the fill surface is used consistently for placement,
-selection, resizing and contour edits. The geometry kernel constructs the shaft,
-seats and floor bands in the pocket frame, then rotates them into the bin frame.
-Legacy placements without tilt or Z translation use the existing geometry path.
-Project schema 20 added optional `tilt: { xDeg, yDeg }`; schema 21 adds optional
-`zOffsetMm`, including history snapshots. Older saves migrate without introducing
-angles or offsets. Each input axis is limited to ±89 degrees, and the combined
-axis must retain a vertical component of at least 0.01.
-
-Regression coverage includes oblique opening dimensions, axial and remaining
-floor depths, combined transforms, resize anchors, split seats, floor colors,
-hidden intersections, through cuts, packing, legacy saves and export validation.
-
-## Object context menus
-
-Right-click an object in Layout, 3D, or the object list for Properties,
-Duplicate, Rename and Remove. Right-clicking an unselected object selects it;
-right-clicking a selected member keeps the current selection. Ordinary
-Duplicate creates independent copies. Experimental linking commands appear
-only when enabled and applicable; Link geometry opens the existing source
-chooser, and mixed pocket/finger-access unlinking is one undo step.
-
-Retained-material holes are inner contours owned by their pocket, including
-holes created by Trace's Pocket/Hole workflow. Their menu opens the parent
-properties or removes the hole through an immutable contour revision. Trace
-contours have Properties, Edit contour and applicable removal commands.
-In contour editing mode, right-clicking a point removes it immediately, with
-undo/redo support and a minimum of three points per contour. Name fields keep the browser's native editing menu.
+Right-click an object in Layout, 3D, or its list for applicable properties,
+duplicate, rename, and removal actions. A selected member retains the current
+multi-selection. Ordinary duplication creates independent copies. Retained-material
+hole objects from Trace remain separate editable objects; embedded interior rings
+are part of their source outline. Contour editing removes a vertex on right-click,
+with undo/redo and a minimum of three points.
 
 ## Linked designs
 
-**Duplicate linked** creates another instance of the selected pocket or thumb
-slot. Ordinary pocket duplication remains independent. To link existing objects,
-Shift/Ctrl/Command-click two or more pockets (or thumb slots). In **Object controls → Links**
-or properties, review **Use design from** and click **Link geometry**. The
-last selected object supplies the initial source choice; change it if needed. Only
-selected objects join the new set; unselected members of previous sets retain
-their links and designs. Pockets and thumb slots use separate design sets.
+Linked pockets share source geometry and editing properties such as dimensions,
+depth, split settings, clearance, and edge rounding. Each placement retains its
+own name, position, elevation, orientation, and placement-specific material
+choices. Linked finger access shares geometry while keeping its own placement.
+Unlink before changing geometry for just one copy.
 
-Linked pockets share their outline, dimensions, aspect-ratio preference, depth,
-split settings, fit clearance, and edge rounding. Names, X/Y positions, mirroring,
-Z elevation and every rotation axis remain independent. Legacy tilt-link settings
-no longer synchronize orientation. Thumb slots share opening shape, width, length, depth and edge
-settings while keeping their positions, headings and names independent.
+Duplicate linked searches nearby space inside the current bin without moving
+existing pockets or changing the copy’s size or orientation. The search uses
+conservative bounds including clearance, rounding, separate finger access, and
+existing text or symbol labels on the bin surface.
+If no clear position is found (including slanted-wall bins), the copy stays on
+its source and a message explains that it needs moving or a larger bin. Exact
+3D validation remains authoritative.
 
-Independent properties keep **Linked copies** collapsed, and hide it completely
-when Experimental is off. Existing links show the copy count and the scope of
-shared edits; additional guidance is in **About linked copies**. The toolbar's
-**Link** action manages even one selected linked copy. It requires at least two
-objects of the same kind to create a link; a pocket and a finger access cannot
-link to one another. **Select linked** selects that set. **Unlink geometry** removes links from the selected members
-without changing geometry. There is no master instance: deleting the original
-does not delete or disconnect the remaining copies. Every link, unlink, linked
-edit and linked duplication is one undo step, including changes to unselected
-copies. Links survive project/library export, import and saved undo/redo history.
+The Links tool can manage a selected linked copy; linking existing objects
+requires a compatible selection. Existing links show the shared-edit scope.
+Individual placement edits must not leak into other copies, and a rejected shared
+edit must not partially update a set. Grouping and geometry linking are separate:
+a group moves together, while a design link shares geometry.
 
-Depth edits update the shared source dimensions. Elevation fields and XYZ
-transform tools affect only the selected copies. Their positions and rotations
-never propagate through geometry links. Moving a group containing a linked pocket
-also leaves linked copies outside that group in place.
+## Source and verification
 
-Linking an insertion path initializes a legacy copy's rigid elevation from its
-own original outline and orientation before adopting the shared design, retaining
-its current floor. An unavailable outline rejects the whole linking operation.
-Clearance settings still propagate as geometry, so a chosen insertion axis must
-work with each linked copy's independent orientation. Normal layout and solid-build
-checks report overlaps and wall conflicts after design changes.
-
-## Placement groups
-
-With Experimental enabled, select at least two pockets, retained holes or finger-access objects and choose
-**Group objects** in Properties or the context menu. Clicking any member selects
-the whole group. **Ungroup** removes the relationship without moving anything.
-Grouping never creates geometry links; an object may be grouped, linked, or both.
-The named object's Properties edit its geometry; fields labeled for selected
-objects edit all selected members. With Experimental off, Properties shows the
-saved grouping and an opt-in; existing groups still move and rotate together.
-
-The initial pivot is the center of the combined 3D bounds. All members rotate
-around that fixed point, preserving relative spacing and orientation. Moving a
-group moves the pivot by the same amount. Rotation and geometry edits do not
-recompute it. Group angle fields start at zero when grouped and describe the
-whole group's rotation, so entering 90 degrees does not erase member angles.
-Pocket and retained-hole groups support XYZ movement and rotation. Groups that
-include finger access support XY movement and Z rotation: finger access remains
-anchored upright at the bin surface. Invalid group transforms reject as a whole.
-
-Dragging a group or finishing a numeric edit adds one history step. Ordinary
-Duplicate creates an independent group with a new identity. Deleting a group
-removes its selected members; removing an individual member through document
-editing dissolves a group if fewer than two members remain. Align, distribute,
-and auto-arrange require ungrouping first. Groups persist in project format 51,
-including undo and redo snapshots. The earlier format-48 grouping preview and
-main's formats 48–50 migrate with their saved poses, wall settings and bottom provenance.
-
-Project format 22 reconciles the two historical version-20 variants (adjustable
-fill height and pocket tilt) and legacy version-21 offsets. Format 23 adds explicit
-linked-design membership. Each saved snapshot validates consistent design values
-within a linked set. Existing duplicates are never linked implicitly just because
-they reference the same outline.
-
-
-A failed preview retains the last available geometry and offers **Retry preview**.
-Retry starts a fresh build of the same design without adding an undo step; a failed
-worker is replaced lazily. A stopped local development server must first be restarted.
+The current placement schema is in [cutout.ts](../shared/gridfinity/cutout.ts),
+with shared pose math in [object-pose.ts](../shared/gridfinity/object-pose.ts),
+transaction/history behavior in [bin-store.tsx](../client/src/state/bin-store.tsx),
+and object controls in [object-transform-panel.tsx](../client/src/components/gridfinity/object-transform-panel.tsx).
+Use the local workflow and geometry qualifications in [CLAUDE.md](../CLAUDE.md).
+Track enhancement requests and problem reports in [GitHub issues](https://github.com/wcscr/pocketry/issues).

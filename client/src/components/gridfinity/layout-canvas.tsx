@@ -15,7 +15,7 @@ import { ObjectGroupControls } from "./object-group-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import { profileFootprint, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
-import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
+import { usePocketGeometryPreview } from "@/hooks/use-pocket-geometry";
 import { resolvePocketDepth } from "@shared/gridfinity/cutout";
 import {
   Ruler,
@@ -251,22 +251,25 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0 }: {
+export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0, invalidSurfaceTextIds }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
   onSelectSurfaceText?: (id: string, inline?: boolean) => void;
   edgeBandColor?: string;
   /** A placement request exits canvas tools that intercept label dragging. */
   textPositionRequest?: number;
+  /** Labels the last build could not place; outlined until moved. */
+  invalidSurfaceTextIds?: ReadonlySet<string>;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest}
+        invalidSurfaceTextIds={invalidSurfaceTextIds} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest, invalidSurfaceTextIds }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number; invalidSurfaceTextIds?: ReadonlySet<string> }): JSX.Element {
   const openObjectMenu = useBinObjectContextMenu();
   const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
@@ -378,7 +381,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   // Transformed pocket outlines, recomputed per change — pure math over
   // recomputed per change — pure math over ≤150-point rings, cheap enough
   // per drag frame.
-  const profileOutlines = usePocketGeometry(cutouts, shapesById, spec);
+  const { outlines: profileOutlines, status: outlineStatus } = usePocketGeometryPreview(cutouts, shapesById, spec);
   const placed = useMemo(
     () =>
       cutouts.flatMap((cutout) => {
@@ -1769,6 +1772,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
         style={{ cursor }}
         data-testid="layout-canvas"
+        aria-busy={outlineStatus === "pending"}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
@@ -1883,6 +1887,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             })}
 
           {placed.map(({ cutout, shape, outline }) => {
+            const placementGuide = !!(cutout.profileBottom || hasRigidPocket(cutout)) && !profileOutlines.has(cutout.id);
             const severity = severityByCutout.get(cutout.id);
             const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
             const tone = cutout.role === "hole" ? "fill-background/80 stroke-emerald-600" : cutout.depthPending ? "fill-primary/10 stroke-primary" :
@@ -1901,14 +1906,15 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
                   strokeWidth={1} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" data-testid="profile-pocket-envelope"><title>Full profile footprint; raised portions may be above the fill surface</title></path>}
                 {isSelected && hasPocketTilt(cutout) && !hasRigidPocket(cutout) && <path d={outlineToCanvasPath(pocketOccupiedOutline(shape, cutout, spec), spec)} fill="none" className="pointer-events-none stroke-muted-foreground" strokeWidth={1} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" data-testid="tilted-pocket-envelope"><title>Conservative shaft extent below the opening and through the rim</title></path>}
                 <path
-                  d={outlineToCanvasPath(hasRigidPocket(cutout) ? profileOutlines.get(cutout.id)?.opening ?? [] : cutout.profileBottom ? profileOutlines.get(cutout.id)?.opening ?? profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ) : outline, spec)}
+                  d={outlineToCanvasPath(hasRigidPocket(cutout) ? profileOutlines.get(cutout.id)?.opening ?? outline : cutout.profileBottom ? profileOutlines.get(cutout.id)?.opening ?? profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ) : outline, spec)}
                   fillRule={cutout.profileBottom ? "nonzero" : "evenodd"}
                   className={tone}
-                  strokeWidth={(cutout.profileBottom || hasRigidPocket(cutout)) && !profileOutlines.has(cutout.id) ? 0 : isSelected ? 2 : 1.25}
+                  strokeWidth={isSelected ? 2 : 1.25}
                   vectorEffect="non-scaling-stroke"
                   data-cutout-id={cutout.id}
-                  strokeDasharray={cutout.role === "hole" || cutout.depthPending || overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
-                ><title>{cutout.role === "hole" ? "Hole: keeps material. " : ""}{cutout.depthPending ? "Depth needed. " : ""}{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
+                  data-placement-guide={placementGuide || undefined}
+                  strokeDasharray={placementGuide || cutout.role === "hole" || cutout.depthPending || overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
+                ><title>{placementGuide ? "Placement guide; exact opening unavailable. " : ""}{cutout.role === "hole" ? "Hole: keeps material. " : ""}{cutout.depthPending ? "Depth needed. " : ""}{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
                 {cutout.split && !cutout.profileBottom && !hasPocketTilt(cutout) && (() => {
                   const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
                   const boundary = (split.boundary ?? cutout.split.boundary).map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
@@ -2043,7 +2049,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
           {/* Labels must remain visible and receive pointer events above the
               pockets/openings they may overlap while being positioned. */}
-          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} invalidIds={invalidSurfaceTextIds} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
           {editorMode === "contour" &&
             selected &&
@@ -2284,9 +2290,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         </div>
       ) : null}
 
-      {(overlappingCutouts.size > 0 || boundaryCutouts.size > 0) && <div className="pointer-events-none absolute right-3 top-14 rounded border bg-background/95 px-2 py-1 text-xs shadow-sm" aria-label="Layout issue legend">
-        <p className="text-destructive">Red: boundary conflict</p>
-        <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
+      {(outlineStatus !== "ready" || overlappingCutouts.size > 0 || boundaryCutouts.size > 0) && <div className="pointer-events-none absolute right-3 top-14 max-w-[calc(100%-1.5rem)] rounded border bg-background/95 px-2 py-1 text-xs shadow-sm" aria-label="Layout issue legend">
+        {outlineStatus !== "ready" && <p role="status">{outlineStatus === "pending" ? "Updating pocket outlines…" : "Pocket outlines unavailable."} Dashed guides show placement.</p>}
+        {boundaryCutouts.size > 0 && <p className="text-destructive">Red: boundary conflict</p>}
+        {overlappingCutouts.size > 0 && <p className="text-orange-700 dark:text-orange-300">Orange: overlapping pockets</p>}
       </div>}
 
       {showObjectControls && !selectedSurfaceTextId && <ObjectTransformPanel view="2d" disabled={panActive}

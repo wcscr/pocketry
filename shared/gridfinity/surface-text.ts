@@ -11,6 +11,10 @@ export const SURFACE_TEXT_FONTS = [
   { id: "mono", name: "Monospace" },
 ] as const;
 
+export const surfaceTextPositionSchema = z.object({
+  x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672),
+}).strict();
+
 /** Planar raised labels, in the bin's y-up millimetre frame. */
 const surfaceTextFields = z.object({
   id: z.string().min(1).max(100),
@@ -26,9 +30,15 @@ const surfaceTextFields = z.object({
   symbolSizeMm: z.number().finite().min(2).max(40).optional(),
   /** Gap before any leading text spaces; absent keeps the quarter-em spacing. */
   symbolGapMm: z.number().finite().min(0).max(40).optional(),
-  position: z.object({ x: z.number().finite().min(-672).max(672), y: z.number().finite().min(-672).max(672) }).strict(),
+  position: surfaceTextPositionSchema,
   /** Absent uses solid fill when available; hollow bins always use label tabs. */
   surface: z.enum(["bin", "label-tab"]).optional(),
+  /** Retain a removed shelf's identity until it returns or the user moves the label. */
+  orphanedTab: z.object({
+    key: z.string().regex(/^(outer|r\d{1,2}c\d{1,2})$/),
+    offset: z.object({ x: z.number().finite(), y: z.number().finite() }).strict(),
+    rotationDeg: z.union([z.literal(0), z.literal(90)]),
+  }).strict().optional(),
   font: z.union([z.enum(["sans", "sans-bold", "mono", "helvetiker", "helvetiker-bold"]), localFontSchema]).default("sans"),
   /** Font em size; glyph height depends on the characters. */
   sizeMm: z.number().finite().min(2).max(40).default(6),

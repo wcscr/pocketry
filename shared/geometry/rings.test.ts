@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   boundsContain,
+  clipRingToConvex,
   dedupeRing,
   distanceToSegment,
   ensureOrientation,
@@ -221,6 +222,31 @@ describe("distance helpers", () => {
     expect(perpendicularDistance({ x: 5, y: 3 }, a, b)).toBeCloseTo(3, 10);
     // Unlike distanceToSegment, this stays 0 past the endpoint.
     expect(perpendicularDistance({ x: 20, y: 0 }, a, b)).toBeCloseTo(0, 10);
+  });
+});
+
+describe("clipRingToConvex", () => {
+  it("returns the overlap with a convex ring of either winding", () => {
+    const window: Ring = [{ x: 5, y: -5 }, { x: 15, y: -5 }, { x: 15, y: 5 }, { x: 5, y: 5 }];
+    for (const convex of [window, reverseRing(window)]) {
+      const clipped = clipRingToConvex(square, convex);
+      expect(ringBounds(clipped)).toEqual({ minX: 5, minY: 0, maxX: 10, maxY: 5 });
+      expect(ringArea(clipped)).toBeCloseTo(25, 12);
+    }
+  });
+
+  it("bounds the overlap of a concave subject exactly", () => {
+    // An L whose notch removes the window's upper-right corner.
+    const l: Ring = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 4 }, { x: 4, y: 4 }, { x: 4, y: 10 }, { x: 0, y: 10 }];
+    const window: Ring = [{ x: 2, y: 2 }, { x: 8, y: 2 }, { x: 8, y: 8 }, { x: 2, y: 8 }];
+    const clipped = clipRingToConvex(l, window);
+    expect(ringBounds(clipped)).toEqual({ minX: 2, minY: 2, maxX: 8, maxY: 8 });
+    expect(ringArea(clipped)).toBeCloseTo(36 - 16, 12);
+  });
+
+  it("is empty when the rings are apart or the convex ring is degenerate", () => {
+    expect(clipRingToConvex(square, square.map(p => ({ x: p.x + 20, y: p.y })))).toEqual([]);
+    expect(clipRingToConvex(square, [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }])).toEqual([]);
   });
 });
 

@@ -5,6 +5,22 @@ import { expect, it, vi } from "vitest";
 import { CanvasWarnings } from "./canvas-warnings";
 import type { ValidationIssue } from "@shared/gridfinity/validate";
 
+it("identifies and selects the label whose fine details may disappear", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), reveal = vi.fn();
+  const issue: ValidationIssue = { code: "surface-text-thin-strokes", severity: "warning", message: "Fine detail may disappear.", surfaceTextIds: ["label"] };
+  try {
+    React.act(() => root.render(<CanvasWarnings issues={[issue]} selectedCutoutId={null} selectedFingerHoleId={null} selectedSurfaceTextId="label" onRevealIssue={reveal} />));
+    React.act(() => host.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
+    const action = host.querySelector<HTMLButtonElement>('[data-issue-code="surface-text-thin-strokes"]')!;
+    expect(action.textContent).toContain("Edit text or symbol");
+    expect(action.dataset.selected).toBe("true");
+    React.act(() => action.click());
+    expect(reveal).toHaveBeenCalledWith(issue);
+  } finally { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
+
 it.each([
   { ids: ["hole"], label: "Edit hole" },
   { ids: ["pocket"], label: "Edit pocket" },
@@ -43,5 +59,24 @@ it("offers one explicit arrangement action for oversized axes while retaining si
     expect(arrange).toHaveBeenCalledOnce();
     React.act(() => root.render(<CanvasWarnings issues={[{code:"no-infill-space",severity:"warning",message:"No fill"}]} selectedCutoutId={null} selectedFingerHoleId={null} onRevealIssue={reveal} onAutoArrange={arrange} />));
     expect(host.querySelector('[data-testid="compact-layout-action"]')).toBeNull();
+  } finally { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
+
+it.each([
+  { code: "surface-text-placement", label: "Position text in Layout" },
+  { code: "surface-text-needs-tab", label: "Edit label tab" },
+])("sends $code label issues to the matching fix", ({ code, label }) => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), reveal = vi.fn();
+  const issues: ValidationIssue[] = ["a", "b"].map(id => ({ code, severity: "error", message: `Text “${id}” cannot be placed.`, surfaceTextIds: [id] }));
+  try {
+    React.act(() => root.render(<CanvasWarnings issues={issues} selectedCutoutId={null} selectedFingerHoleId={null} onRevealIssue={reveal} />));
+    React.act(() => host.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
+    const actions = host.querySelectorAll<HTMLButtonElement>(`[data-issue-code="${code}"]`);
+    expect(actions).toHaveLength(2);
+    expect(actions[1].textContent).toContain(label);
+    React.act(() => actions[1].click());
+    expect(reveal).toHaveBeenCalledWith(issues[1]);
   } finally { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
