@@ -20,8 +20,19 @@ export const TEMPLATE_VARIANTS: readonly TemplateVariant[] = [
   "letter-experimental",
 ];
 
-/** Printed and machine-readable template generation. */
+/** Machine-readable marker generation; v3 sheets retain the v2 signature. */
 export const TEMPLATE_SIGNATURE_VERSION = 2;
+
+/** Printed sheet revision, independent of the unchanged marker signature. */
+export const TEMPLATE_SHEET_VERSION = 3;
+
+/** Shared photography hints for both printable formats. */
+export const TEMPLATE_PHOTO_INSTRUCTIONS = [
+  "Print at 100% scale (no fit to page).",
+  "Keep markers visible. Avoid overlapping text. Shoot straight down.",
+  "Wide objects: add plain white paper.",
+  "Tall objects: shoot farther away; zoom as needed.",
+] as const;
 
 /** Existing sheets use a 150-200-250 centre rectangle. */
 export const TEMPLATE_SPACING_MM = { width: 150, height: 200 } as const;
@@ -157,7 +168,7 @@ export function templateMarkerCornersMm(
   }));
 }
 
-/** Identifies one Pocketry v2 sheet only from its complete marker signature. */
+/** Identifies a Pocketry sheet only from its complete v2 marker signature. */
 export function templateFromTemplateMarkerIds(
   ids: readonly number[],
 ): TemplateVariant | null {
@@ -244,34 +255,61 @@ function markerLabelBaselineMm(template: TemplateVariant, index: number, centerY
     : top + templateMarkerSizeMm(template) + 5;
 }
 
-/** The sheet's centred text lines: content, font size and baseline, in page millimetres. */
-function templateTextLines(template: TemplateVariant): { title: TextLine; instructions: TextLine; check: TextLine } {
-  const paper = templatePaper(template);
+/** Distance between the baselines of the sheet's instruction lines. */
+const INSTRUCTION_LINE_PITCH_MM = 5;
+const INSTRUCTION_FONT_MM = 3;
+
+/** One centred line of sheet text: content, font size and baseline, in page millimetres. */
+interface TextLine { text: string; size: number; baseline: number }
+
+/** The current sheet's centred text lines, shared by the SVG and the printed-area list. */
+function templateTextLines(template: TemplateVariant): { title: TextLine; instructions: TextLine[]; check: TextLine } {
+  const header = templateHeaderBaselinesMm(template);
+  return {
+    title: {
+      text: `Pocketry v${TEMPLATE_SHEET_VERSION} Cal Sheet — ${templatePaper(template) === "a4" ? "A4" : "US Letter"}`,
+      size: isExperimentalTemplate(template) ? 4 : 5, baseline: header.title,
+    },
+    instructions: TEMPLATE_PHOTO_INSTRUCTIONS.map((text, index) => ({
+      text, size: INSTRUCTION_FONT_MM, baseline: header.instructions + index * INSTRUCTION_LINE_PITCH_MM,
+    })),
+    check: { text: "Scale check: 100 mm", size: LABEL_FONT_MM, baseline: templateVerificationBarMm(template).labelY },
+  };
+}
+
+/**
+ * The text of the v2 sheets, at the same baselines as today's.
+ *
+ * v2 sheets are no longer generated, but printed copies stay in use and carry
+ * the same markers as a v3 sheet, so a photo cannot say which one it shows.
+ * Their longer title, single instruction line and longer caption therefore
+ * remain part of the printed-area list. Never change these strings.
+ */
+function legacyV2TextLines(template: TemplateVariant): TextLine[] {
   const experimental = isExperimentalTemplate(template);
   const header = templateHeaderBaselinesMm(template);
   const spacing = templateMarkerSpacingMm(template);
-  return {
-    title: {
+  return [
+    {
       text: experimental
-        ? `Pocketry v${TEMPLATE_SIGNATURE_VERSION} experimental — ${paper === "a4" ? "A4" : "US Letter"} — print at 100% scale`
-        : `Pocketry v${TEMPLATE_SIGNATURE_VERSION} calibration sheet — print at 100% scale (no “fit to page”)`,
+        ? `Pocketry v2 experimental — ${templatePaper(template) === "a4" ? "A4" : "US Letter"} — print at 100% scale`
+        : "Pocketry v2 calibration sheet — print at 100% scale (no “fit to page”)",
       size: experimental ? 4 : 5, baseline: header.title,
     },
-    instructions: {
+    {
       text: experimental
         ? "Keep all four markers visible · camera 1× · shoot straight down"
         : "Place the tool between the markers, keep all four visible, shoot from directly above.",
       size: experimental ? 3 : 3.5, baseline: header.instructions,
     },
-    check: {
+    {
       text: experimental
         ? `check: this bar is exactly 100 mm — marker centres ${formatTemplateMm(spacing.width)} × ${formatTemplateMm(spacing.height)} mm`
         : "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm",
       size: LABEL_FONT_MM, baseline: templateVerificationBarMm(template).labelY,
     },
-  };
+  ];
 }
-interface TextLine { text: string; size: number; baseline: number }
 
 /**
  * Width of a line of sheet text, in the units of `fontSize`. An over-estimate
@@ -302,11 +340,15 @@ export interface TemplateInkRegion {
 const INK_MARGIN_MM = 1;
 
 /**
- * Everything the sheet prints, as boxes in page millimetres.
+ * Everything a sheet with these markers may print, as boxes in page millimetres.
  *
  * Detection uses these to tell the sheet's own printing from the tool lying on
  * it. They are derived from the same numbers as the SVG and the PDF, and a
  * test checks every drawn element falls inside one, so the three cannot drift.
+ * The list covers the current sheet and the v2 sheet together, because both
+ * carry the same markers; an area the photographed sheet left blank costs
+ * nothing, since only thin dark strokes that end inside a printed area are
+ * removed.
  */
 export function templateInkRegionsMm(template: TemplateVariant): TemplateInkRegion[] {
   const page = TEMPLATE_PAPER_MM[templatePaper(template)];
@@ -324,7 +366,8 @@ export function templateInkRegionsMm(template: TemplateVariant): TemplateInkRegi
   const bar = templateVerificationBarMm(template);
   const size = templateMarkerSizeMm(template);
   const regions: TemplateInkRegion[] = [
-    text(lines.title), text(lines.instructions), text(lines.check),
+    text(lines.title), ...lines.instructions.map((line) => text(line)), text(lines.check),
+    ...legacyV2TextLines(template).map((line) => text(line)),
     {
       x: bar.startX - INK_MARGIN_MM, width: bar.endX - bar.startX + 2 * INK_MARGIN_MM,
       y: bar.y - BAR_TICK_MM - INK_MARGIN_MM, height: BAR_TICK_MM + 2 * INK_MARGIN_MM,
@@ -390,16 +433,19 @@ export function calibrationTemplateSvg(template: TemplateVariant): string {
     return `<line x1="${x}" y1="${ruler.y}" x2="${x}" y2="${ruler.y - (i % 5 === 0 ? BAR_TICK_MM : 2.5)}" stroke="#000" stroke-width="0.3"/>`;
   }).join("");
   const { title, instructions, check } = templateTextLines(template);
+  const instructionLines = instructions.map((line) =>
+    `<text x="${cx}" y="${line.baseline}" text-anchor="middle" font-size="${line.size}" font-family="sans-serif" fill="#333">${line.text}</text>`,
+  ).join("\n  ");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${page.width}mm" height="${page.height}mm" viewBox="0 0 ${page.width} ${page.height}">
   <rect width="${page.width}" height="${page.height}" fill="#fff"/>
   <text x="${cx}" y="${title.baseline}" text-anchor="middle" font-size="${title.size}" font-family="sans-serif" fill="#000">${title.text}</text>
-  <text x="${cx}" y="${instructions.baseline}" text-anchor="middle" font-size="${instructions.size}" font-family="sans-serif" fill="#333">${instructions.text}</text>
+  ${instructionLines}
   ${markers}
   <g>
     <line x1="${ruler.startX}" y1="${ruler.y}" x2="${ruler.endX}" y2="${ruler.y}" stroke="#000" stroke-width="0.5"/>
     ${ticks}
-    <text x="${cx}" y="${ruler.labelY}" text-anchor="middle" font-size="3.5" font-family="sans-serif" fill="#333">${check}</text>
+    <text x="${cx}" y="${check.baseline}" text-anchor="middle" font-size="${check.size}" font-family="sans-serif" fill="#333">${check.text}</text>
   </g>
 </svg>
 `;

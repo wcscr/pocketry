@@ -25,7 +25,7 @@ function markerRectangles(
 describe("printable calibration PDF", () => {
   it("uses exact A4 and US Letter page boxes with print scaling disabled", () => {
     const a4 = pdfText("a4");
-    expect(a4).toContain("Pocketry v2 A4 calibration sheet");
+    expect(a4).toContain("Pocketry v3 Cal Sheet - A4");
     expect(a4).toContain("/MediaBox [0 0 595.2756 841.8898]");
     expect(a4).toContain("/CropBox [0 0 595.2756 841.8898]");
     expect(a4).toContain("/PrintScaling /None");
@@ -150,7 +150,7 @@ describe("printable calibration PDF", () => {
       const height = Number(mediaBox[2]);
       const safe = 8 * (72 / 25.4);
       const checkLabel = pdf.match(
-        /BT \/F1 [\d.]+ Tf [\d.]+ ([\d.]+) Td \(check: this bar/,
+        /BT \/F1 [\d.]+ Tf [\d.]+ ([\d.]+) Td \(Scale check: 100 mm/,
       )!;
       expect(Number(checkLabel[1]) / (72 / 25.4)).toBeCloseTo(14, 4);
       const pageRect = `${width} ${height} re f`;
@@ -184,7 +184,7 @@ describe("printable calibration PDF", () => {
     const instructionBaseline = (pdf: string) =>
       Number(
         pdf.match(
-          /BT \/F1 [\d.]+ Tf [\d.]+ ([\d.]+) Td \(Place the tool/,
+          /BT \/F1 [\d.]+ Tf [\d.]+ ([\d.]+) Td \(Print at 100% scale/,
         )![1],
       ) /
       (72 / 25.4);

@@ -14,6 +14,7 @@ import {
   TEMPLATE_SPACING_MM,
   TEMPLATE_VARIANTS,
   templateFromTemplateMarkerIds,
+  templateHeaderBaselinesMm,
   templateInkRegionsInPixels,
   templateInkRegionsMm,
   templateMarkerCornersMm,
@@ -150,7 +151,7 @@ describe("calibration template", () => {
     expect(letter).toContain('viewBox="0 0 215.9 279.4"');
 
     const experimental = calibrationTemplateSvg("a4-experimental");
-    expect(experimental).toContain("experimental");
+    expect(experimental).toContain("Cal Sheet");
     expect(experimental).toContain('width="24" height="24"');
   });
 
@@ -174,8 +175,8 @@ describe("calibration template", () => {
     const bar = svg.match(/<line x1="([\d.]+)" y1="[\d.]+" x2="([\d.]+)"/);
     expect(bar).not.toBeNull();
     expect(Number(bar![2]) - Number(bar![1])).toBeCloseTo(100, 9);
-    expect(svg).toContain("print at 100% scale");
-    expect(svg).toContain("Pocketry v2 calibration sheet");
+    expect(svg).toContain("Print at 100% scale");
+    expect(svg).toContain("Pocketry v3 Cal Sheet");
     expect(svg).toContain("id 0");
     expect(svg).toContain("id 3");
     const letter = calibrationTemplateSvg("letter");
@@ -223,7 +224,8 @@ describe("the sheet's printed areas", () => {
 
     // Every line of text, at the Helvetica width the PDF prints and with room for ascenders and descenders.
     const texts = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)];
-    expect(texts).toHaveLength(7);
+    // Title, four instruction lines, the bar's caption and four marker labels.
+    expect(texts).toHaveLength(10);
     for (const [tag, content] of texts) {
       const x = attribute(tag, "x"), baseline = attribute(tag, "y"), size = attribute(tag, "font-size");
       const half = estimatedTemplateTextWidth(content, size) / 2;
@@ -252,6 +254,30 @@ describe("the sheet's printed areas", () => {
     }
   });
 
+  // A v2 sheet carries the same markers as a v3 sheet, so its printing has to stay covered.
+  it.each([
+    ["a4", "Pocketry v2 calibration sheet — print at 100% scale (no “fit to page”)", 5,
+      "Place the tool between the markers, keep all four visible, shoot from directly above.", 3.5,
+      "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm"],
+    ["letter", "Pocketry v2 calibration sheet — print at 100% scale (no “fit to page”)", 5,
+      "Place the tool between the markers, keep all four visible, shoot from directly above.", 3.5,
+      "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm"],
+    ["a4-experimental", "Pocketry v2 experimental — A4 — print at 100% scale", 4,
+      "Keep all four markers visible · camera 1× · shoot straight down", 3,
+      "check: this bar is exactly 100 mm — marker centres 138 × 225 mm"],
+    ["letter-experimental", "Pocketry v2 experimental — US Letter — print at 100% scale", 4,
+      "Keep all four markers visible · camera 1× · shoot straight down", 3,
+      "check: this bar is exactly 100 mm — marker centres 143.9 × 207.4 mm"],
+  ] as const)("still cover the text of a v2 %s sheet", (template, title, titleSize, instructions, instructionSize, check) => {
+    const regions = templateInkRegionsMm(template), page = TEMPLATE_PAPER_MM[template.startsWith("a4") ? "a4" : "letter"];
+    const header = templateHeaderBaselinesMm(template), bar = templateVerificationBarMm(template);
+    for (const [text, size, baseline] of [[title, titleSize, header.title], [instructions, instructionSize, header.instructions], [check, 3.5, bar.labelY]] as const) {
+      const half = estimatedTemplateTextWidth(text, size) / 2, x = page.width / 2;
+      expect(regions.some((r) => r.kind === "strokes" && x - half >= r.x && x + half <= r.x + r.width &&
+        baseline - size * 0.8 >= r.y && baseline + size * 0.25 <= r.y + r.height)).toBe(true);
+    }
+  });
+
   it("maps into a rectified photo by the page's scale and offset", () => {
     const page = TEMPLATE_PAPER_MM.letter, bounds = { x: 30, y: 20, width: page.width * 4, height: page.height * 4 };
     const mm = templateInkRegionsMm("letter-experimental"), px = templateInkRegionsInPixels("letter-experimental", bounds);
@@ -268,7 +294,8 @@ describe("the sheet's printed areas", () => {
   it("is offered only for an upright, template-rectified photo", () => {
     const paperBounds = { x: 0, y: 0, width: 864, height: 1118 };
     const template = { source: "template", template: "letter-experimental" as const, paperBounds };
-    expect(rectifiedSheetInkRegions(template, true)).toHaveLength(12);
+    // Six lines of today's sheet, three of the v2 sheet, the bar, and four markers with their labels.
+    expect(rectifiedSheetInkRegions(template, true)).toHaveLength(18);
     // Rotated or straightened since: the layout no longer lines up.
     expect(rectifiedSheetInkRegions(template, false)).toBeUndefined();
     // A manual four-point correction knows no layout, and neither does an uncorrected photo.

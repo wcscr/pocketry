@@ -7,6 +7,7 @@
 - Correct detection with tool/paper strokes and sample original-photo detail after perspective correction. Preserve correction strokes in draft recovery.
 - Add optional editable curves, section repair, symmetry and straightening in Trace and Bin. Preserve curves, calibration and outline edits through Undo, recovery and transfer to Bin; export native SVG curves and sampled DXF/mesh outlines.
 - Restart outline detection or switch methods while keeping the photo, calibration and selected region. Warn before discarding adjustments; switch untouched detections directly. Restore matching outlines and detection settings together with Undo.
+- Calibration-sheet v3 recommends photographing tall objects from farther away and allows zoom, with unchanged markers and dimensions.
 
 ## 1.8.3 — 2026-11-05
 
