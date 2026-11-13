@@ -81,6 +81,38 @@ replace the compatibility review or notices for separately vendored assets.
 
 ## 3. Verify and integrate
 
+### Review proportionately
+
+Review as a collaborator helping a useful contribution land. Assess the intended
+workflow with representative inputs, compatibility with existing behavior, and
+the verification required by [CLAUDE.md](../CLAUDE.md). A first contribution does
+not need to solve every adjacent problem or anticipate an evaluator's next test.
+
+For each finding, distinguish:
+
+- **Required before merge:** a concrete correctness, regression, build, security,
+  or data-integrity problem whose impact and likelihood justify delaying the
+  change, or an unmet licensing requirement. Explain the user impact and the
+  smallest reasonable remedy. Identify whether the contributor or a maintainer
+  will handle it; blocking merge does not automatically assign work to the author.
+- **Follow-up:** uncommon compatibility cases, additional hardening, broader
+  support, and polish that do not undermine the intended use. Keep these out of
+  the acceptance requirements unless evidence establishes a material risk.
+
+Stress tests are valuable maintainer work. Label constructed cases honestly and
+assess their practical relevance before escalating them. Maintainers own this
+testing and resulting hardening; do not turn it into a moving checklist for a new
+contributor. Serious risks still need resolution, with maintainers helping carry
+that work rather than requiring the contributor to anticipate it.
+
+Keep contributor feedback short, welcoming, and specific. Explain consequences
+in user terms, distinguish requests from suggestions, and offer to handle project
+integration details such as license supplements and release bookkeeping. Do not
+attribute pre-existing failures or requirements introduced after submission to
+the contributor; maintainers help resolve them before integration as needed.
+
+### Complete integration checks
+
 Check local commands/results under [CLAUDE.md](../CLAUDE.md), preserve human
 credit, outside contributors' AI-tool attribution, and notices, and resolve
 coverage/provenance gaps before incorporation.
