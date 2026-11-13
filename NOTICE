@@ -436,6 +436,7 @@ MIT License:
   date-fns
   embla-carousel-react
   express
+  fast-xml-parser
   fflate
   framer-motion
   input-otp
@@ -447,6 +448,7 @@ MIT License:
   react-icons
   react-resizable-panels
   recharts
+  svgpath
   tailwind-merge
   tailwindcss-animate
   three

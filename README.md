@@ -254,6 +254,9 @@ then **Symbol** to pair one with wording or use it alone. See
 ## Contributors
 
 Pocketry is developed and maintained by Sugarcreek Research, LLC.
+
+[Arucious](https://github.com/Arucious) contributed SVG pocket import.
+
 [OpenAI Codex](https://openai.com/codex/) and
 [Anthropic Claude](https://claude.com/claude-code) are AI contributors to the project,
 assisting with implementation, testing, documentation, and code review. This
