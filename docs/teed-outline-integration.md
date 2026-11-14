@@ -55,6 +55,19 @@ were tested separately.
 
 ## Editing
 
+**Correct** opens a compact toolbar in place of the ordinary canvas tools.
+**Add** marks missing tool material in green; **Remove** marks unwanted background
+or shadow in red. The active button and brush cursor identify the current tool.
+Each completed stroke re-detects with the existing settings and creates one
+**Correct outline** Undo step. The hand tool pans without drawing; Space-drag also
+pans. The trash button clears correction marks and re-detects, undoably.
+**Done** or Escape leaves correction mode and hides marks without removing them;
+a checkmark on Correct indicates retained corrections. Hover/focus hints explain
+the tools without a persistent instruction banner. Manual outline edits must be
+undone before correcting detection, so strokes cannot silently replace them.
+Changing region, photo or editing mode cancels an unfinished stroke. Detected
+outline review and smoothing previews are separate from correction drawing.
+
 Detection finds a boundary, reconstructs supported lines and rounded sections,
 and applies the bounded smoothing pass automatically. The finishing pass permits
 up to 0.2 mm of movement (2 px without calibration) from the reconstructed outline.
