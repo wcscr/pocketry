@@ -308,6 +308,8 @@ export type TraceAction =
   | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string; autoSimplification?: AppliedOutlineSimplification }
   /** Start a manually traced outer contour with four editable corners. */
   | { type: "ADD_CONTOUR" }
+  /** Rings already placed in working-image pixels, taken beside the current outline or instead of it. */
+  | { type: "OUTLINE_IMPORTED"; outline: Outline; replace: boolean }
   | { type: "ALIGN_UPRIGHT"; outline: Outline; expectedOutline: Outline; radians: number; label?: string }
   | { type: "CURVE_SYMMETRY_COMMITTED"; curves: CurveOutline; expectedCurves: CurveOutline; expectedOutline: Outline;
       expectedCalibration: Calibration | null; radians?: number; label: string }
@@ -840,6 +842,30 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       } : { type: "OUTLINE_COMMITTED", outline: [...state.outline, ...square], label: "Add contour" });
       if (committed === state) return state;
       return { ...committed, mode: "edit", selection: { shapeIndex: state.outline.length, ringIndex: OUTER_RING } };
+    }
+
+    case "OUTLINE_IMPORTED": {
+      // The same gate as a manual contour: never under an unsettled scale or mid-analysis.
+      if (!state.imageUrl || state.processing || state.pendingAutoCalibration ||
+          hasPendingManualCalibration(state) || state.mode === "perspective" ||
+          state.imageSize.width <= 0 || state.imageSize.height <= 0 || !action.outline.length) return state;
+      const kept = action.replace ? [] : state.outline;
+      const label = action.replace && state.outline.length > 0 ? "Replace outline with import" : "Import outline";
+      // A replacement shares nothing with what it replaces. Commit it against an empty
+      // outline so hole syncing cannot pair an old shared hole with an imported one.
+      const base: TraceState = action.replace
+        ? { ...state, outline: [], ...(state.curves ? { curves: [] } : {}) } : state;
+      // While curves are authoritative the import joins them as straight-edged anchors,
+      // which sample back to exactly the imported points.
+      const committed = traceReducer(base, state.curves ? {
+        type: "CURVES_COMMITTED", curves: [...(action.replace ? [] : state.curves), ...curvesFromOutline(action.outline)], label,
+      } : { type: "OUTLINE_COMMITTED", outline: [...kept, ...action.outline], label });
+      if (committed === base) return state;
+      if (!action.replace) return { ...committed, mode: "edit", selection: { shapeIndex: kept.length, ringIndex: OUTER_RING } };
+      // Estimated-edge regions describe the detection that was just replaced; Undo brings them back with it.
+      const history = { ...committed.history, stack: committed.history.stack.map((entry, index) =>
+        index === committed.history.index ? { ...entry, estimatedEdgeRegions: [] } : entry) };
+      return { ...committed, estimatedEdgeRegions: [], history, mode: "edit", selection: { shapeIndex: 0, ringIndex: OUTER_RING } };
     }
 
     case "USE_DETECTED_OUTLINE": {

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.11.0 — 2026-11-14
+
+- Import an SVG outline in Trace to adjust its points over the photo. An outline exported from the same photo returns to its exact position; other files are placed at true size and turned to fit the current outline. Replace or add to the current outline as one undoable step.
+- Move & rotate a contour over the photo by dragging it, turning a handle, or typing values, without changing its size.
+
 ## 1.10.0 — 2026-11-14
 
 - Default new traces to Tool edges on light sheets, with Color contrast and Automatic available. Recover more dark tool parts, retry incomplete edge detection when photo downsampling loses boundaries, and suppress calibration-sheet printing on both v2 and v3 sheets while protecting thin features and gaps; retain uncertain shadows for review. Keep more tools with bright highlights or clear parts whole.

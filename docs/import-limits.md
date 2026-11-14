@@ -31,6 +31,13 @@ If a backup exceeds a limit, split the library or simplify the design in the ver
 that created it. Keep the original backup. Pocketry never silently trims imported
 geometry or partially imports an over-limit library.
 
+SVG outlines imported as pockets in Bin or as contours in Trace must be smaller
+than 5 MB and flatten to at most 20,000 vertices, within the per-ring and
+per-collection limits above. Scripts, referenced resources, effects and open paths
+are rejected. Bin also rejects intersecting or touching contours. Trace imports them
+as drawn and says so, because repairing an outline over its photo is what that import
+is for. An SVG is never trimmed or partially imported.
+
 Trace accepts still PNG, JPEG and WebP up to 10 MiB, 50 megapixels and 16,384 pixels
 per side. Header checks happen before browser decoding, including both current and
 original photos restored from a saved Trace draft. Recovery keeps the existing

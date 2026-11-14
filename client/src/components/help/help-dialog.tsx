@@ -78,6 +78,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
               to correct points. Choose <strong>Add contour</strong> to start another
               trace with a four-point square, then drag its corners and add points on its edges.
+              Choose <strong>Import outline</strong> to bring in a closed SVG outline and edit its points
+              over the photo: an outline exported from this photo returns to its place, and any other
+              is placed at true size and turned to fit the current outline.
+              <strong> Move &amp; rotate</strong> shifts or turns a contour by hand without changing its size.
               <strong> Margin</strong> adds optional clearance.
               In <strong>Contours</strong>, choose <strong>Pocket</strong> to cut
               material or <strong>Hole</strong> to keep material inside a pocket.

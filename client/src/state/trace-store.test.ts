@@ -1320,3 +1320,97 @@ it.each(["outline", "raw", "margin", "region", "calibration", "source", "process
   };
   expect(traceReducer(next, action)).toBe(next);
 });
+
+describe("OUTLINE_IMPORTED", () => {
+  const photo = (): TraceState => run(initialTraceState,
+    { type: "SOURCE_LOADED", imageUrl: "photo", fileName: "tool" },
+    { type: "SOURCE_READY", imageSize: { width: 800, height: 600 } });
+  /** A pocket with a hole and a second part, already normalized and placed in working pixels. */
+  const imported: Outline = [
+    { outer: [{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 250 }, { x: 100, y: 250 }],
+      holes: [[{ x: 150, y: 150 }, { x: 150, y: 200 }, { x: 200, y: 200 }, { x: 200, y: 150 }]] },
+    { outer: [{ x: 400, y: 100 }, { x: 450, y: 100 }, { x: 450, y: 150 }], holes: [] },
+  ];
+
+  it("adds beside the current outline as one edit and opens it for editing", () => {
+    const before = run(photo(), { ...detected(ringA), imageUrl: "photo" });
+    const after = run(before, { type: "OUTLINE_IMPORTED", outline: imported, replace: false });
+    expect(after.outline).toEqual([...ringA, ...imported]);
+    expect(after.outline[0]).toBe(before.outline[0]);
+    expect(after.mode).toBe("edit");
+    expect(after.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    expect(after.history.index).toBe(before.history.index + 1);
+    expect(after.history.stack[after.history.index]).toMatchObject({ label: "Import outline", hasManualEdits: true, refinementBase: after.outline });
+    expect(run(after, { type: "UNDO" }).outline).toBe(before.outline);
+    expect(run(after, { type: "UNDO" }, { type: "REDO" }).outline).toEqual(after.outline);
+  });
+
+  it("replaces the outline together with the estimated-edge regions of the detection it replaces", () => {
+    const estimated = [[{ x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 5 }]];
+    const before = run(photo(), { ...detected(ringA), imageUrl: "photo", estimatedEdgeRegions: estimated });
+    expect(before.estimatedEdgeRegions).toEqual(estimated);
+    const after = run(before, { type: "OUTLINE_IMPORTED", outline: imported, replace: true });
+    expect(after.outline).toEqual(imported);
+    expect(after.estimatedEdgeRegions).toEqual([]);
+    expect(after.selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+    expect(after.history.stack[after.history.index].label).toBe("Replace outline with import");
+    const undone = run(after, { type: "UNDO" });
+    expect(undone.outline).toBe(before.outline);
+    expect(undone.estimatedEdgeRegions).toEqual(estimated);
+    expect(run(undone, { type: "REDO" })).toMatchObject({ outline: imported, estimatedEdgeRegions: [] });
+  });
+
+  it("labels a first import plainly, even when asked to replace", () => {
+    const after = run(photo(), { type: "OUTLINE_IMPORTED", outline: imported, replace: true });
+    expect(after.history.stack.map(entry => entry.label)).toEqual(["Start", "Import outline"]);
+  });
+
+  it("never pairs an imported hole with a shared hole of the outline it replaces", () => {
+    // Same structure as the outline being replaced: two pockets with one hole each.
+    const before = run(photo(), { ...detected(overlappingPocketsWithSharedHole()), imageUrl: "photo" });
+    const replacement: Outline = [
+      { outer: imported[0].outer, holes: imported[0].holes },
+      { outer: [{ x: 400, y: 100 }, { x: 600, y: 100 }, { x: 600, y: 300 }, { x: 400, y: 300 }],
+        holes: [[{ x: 450, y: 150 }, { x: 450, y: 200 }, { x: 500, y: 200 }, { x: 500, y: 150 }]] },
+    ];
+    const after = run(before, { type: "OUTLINE_IMPORTED", outline: replacement, replace: true });
+    expect(after.outline).toEqual(replacement);
+    expect(after.outline[1].holes[0]).not.toEqual(after.outline[0].holes[0]);
+  });
+
+  it("joins editable curves as straight anchors that sample back to the imported points", () => {
+    const curves = editCurves(curvesFromOutline(ringA), { shapeIndex: 0, ringIndex: -1 },
+      { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -1 } });
+    const before = run(photo(), { ...detected(ringA), imageUrl: "photo" }, { type: "CURVES_COMMITTED", curves, label: "Bend edge" });
+
+    const added = run(before, { type: "OUTLINE_IMPORTED", outline: imported, replace: false });
+    expect(added.curves).toHaveLength(3);
+    expect(added.curves![0]).toEqual(before.curves![0]);
+    expect(added.curves!.slice(1).every(shape => [shape.outer, ...shape.holes].every(ring => ring.every(a => !a.in && !a.out)))).toBe(true);
+    expect(added.outline.slice(1)).toEqual(imported);
+    expect(added.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    expect(added.history.index).toBe(before.history.index + 1);
+    expect(run(added, { type: "UNDO" }).curves).toEqual(before.curves);
+
+    const replaced = run(before, { type: "OUTLINE_IMPORTED", outline: imported, replace: true });
+    expect(replaced.outline).toEqual(imported);
+    expect(replaced.curves).toEqual(curvesFromOutline(imported));
+    expect(replaced.history.index).toBe(before.history.index + 1);
+    expect(run(replaced, { type: "UNDO" })).toMatchObject({ curves: before.curves, outline: before.outline });
+  });
+
+  it.each(["no photo", "analysis", "pending scale", "ruler", "perspective", "empty import", "curves with a margin"])("declines during %s", block => {
+    const ready = run(photo(), { ...detected(ringA), imageUrl: "photo" });
+    const blocked: TraceState = block === "no photo" ? initialTraceState
+      : block === "analysis" ? { ...ready, processing: true }
+      : block === "pending scale" ? { ...ready, pendingAutoCalibration: { startX: 0, startY: 0, endX: 10, endY: 0, lengthMm: 5 } }
+      : block === "ruler" ? { ...ready, mode: "calibrate" }
+      : block === "perspective" ? { ...ready, mode: "perspective" }
+      : block === "curves with a margin" ? { ...ready, curves: curvesFromOutline(ringA), margin: 1 }
+      : ready;
+    const outline = block === "empty import" ? [] : imported;
+    for (const replace of [false, true]) {
+      expect(traceReducer(blocked, { type: "OUTLINE_IMPORTED", outline, replace })).toBe(blocked);
+    }
+  });
+});
