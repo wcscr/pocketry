@@ -111,14 +111,19 @@ function physicalLength(value: string | undefined): number | undefined {
   const factors: Record<string, number> = { mm: 1, cm: 10, in: 25.4, pt: 25.4 / 72, pc: 25.4 / 6, q: 0.25 };
   return positive(Number(match[1]) * factors[match[2].toLowerCase()], "SVG canvas size");
 }
+function viewBoxOf(attrs: Record<string, string>): number[] | undefined {
+  if (!attrs.viewBox) return undefined;
+  const box = numbers(attrs.viewBox, "viewBox");
+  if (box.length !== 4 || box[2] <= 0 || box[3] <= 0) fail("viewBox needs four numbers with positive width and height.");
+  return box;
+}
 function canvasMatrix(attrs: Record<string, string>, widthOverride: number | undefined): Matrix {
   const width = physicalLength(attrs.width), height = physicalLength(attrs.height);
   if (widthOverride === undefined && width === undefined && height === undefined) {
     fail("SVG needs physical width/height units (such as mm), or an explicit widthMm for its artwork.");
   }
-  if (!attrs.viewBox) return widthOverride === undefined ? [25.4 / 96, 0, 0, 25.4 / 96, 0, 0] : IDENTITY;
-  const box = numbers(attrs.viewBox, "viewBox");
-  if (box.length !== 4 || box[2] <= 0 || box[3] <= 0) fail("viewBox needs four numbers with positive width and height.");
+  const box = viewBoxOf(attrs);
+  if (!box) return widthOverride === undefined ? [25.4 / 96, 0, 0, 25.4 / 96, 0, 0] : IDENTITY;
   const sx = width === undefined ? (height === undefined ? 1 : height / box[3]) : width / box[2];
   const sy = height === undefined ? sx : height / box[3];
   const aspect = (attrs.preserveAspectRatio ?? "xMidYMid meet").trim().split(/\s+/);
@@ -337,6 +342,87 @@ function filledOutline(rings: Ring[], style: Style): Outline {
   return buildOutline(boundaries.map(entry => entry.ring));
 }
 
+function assertSvgText(svgText: string): void {
+  if (typeof svgText !== "string" || !svgText.trim() || svgText.length > MAX_XML_LENGTH) fail("Supply a nonempty SVG smaller than 5 MB.");
+  if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(svgText)) fail("Document types and custom entities are not supported.");
+}
+/** The single `<svg>` root of a vetted document. */
+function parseRoot(svgText: string): XmlNode {
+  const validXml = XMLValidator.validate(svgText);
+  if (validXml !== true) fail(`Malformed XML: ${validXml.err.msg}`);
+  const parser = new XMLParser({ preserveOrder: true, ignoreAttributes: false, attributeNamePrefix: "", parseTagValue: false, parseAttributeValue: false, processEntities: false });
+  const nodes: unknown = parser.parse(svgText);
+  if (!Array.isArray(nodes)) fail("Missing SVG root.");
+  const roots = nodes.map(record).filter(node => !tagName(node)?.startsWith("?") && tagName(node) !== "#comment");
+  if (roots.length !== 1 || tagName(roots[0])?.split(":").pop() !== "svg") fail("Expected one SVG root.");
+  return roots[0];
+}
+/** Every visible closed silhouette under `root`, mapped through `canvas`. */
+function collectOutline(root: XmlNode, canvas: Matrix, flattenTolerance: number): Outline {
+  const outline: Outline = [];
+  const walk = (node: XmlNode, parentMatrix: Matrix, inherited: Style, rootNode = false, depth = 0) => {
+    if (depth > 64) fail("SVG nesting exceeds 64 levels.");
+    const key = tagName(node);
+    if (!key) return;
+    const tag = key.split(":").pop()!;
+    if (["metadata", "title", "desc", "defs", "#comment"].includes(tag) || tag.startsWith("?")) return;
+    if (tag === "#text") { if (String(node[key]).trim()) fail("Unexpected text outside metadata."); return; }
+    const attrs = attributes(node), style = styleFor(attrs, inherited);
+    if (style.hidden) return;
+    const matrix = multiply(parentMatrix, transform(attrs.transform));
+    if (tag === "g" || rootNode) {
+      const children: unknown = node[key];
+      if (Array.isArray(children)) for (const child of children) walk(record(child), matrix, style, false, depth + 1);
+    } else if (["path", "rect", "circle", "ellipse", "polygon", "polyline"].includes(tag)) {
+      outline.push(...filledOutline(flattenPath(shapePath(tag, attrs), matrix, flattenTolerance), style));
+    } else fail(`Unsupported <${tag}>; convert visible geometry to closed paths first.`);
+  };
+  walk(root, canvas, { fill: "black", fillRule: "nonzero", hidden: false }, true);
+  if (!outline.length) fail("No usable closed silhouettes found.");
+  if (outlinePointCount(outline) > MAX_POINTS) fail(`Artwork exceeds ${MAX_POINTS} vertices; simplify it first.`);
+  return outline;
+}
+
+/** The root viewBox of an SVG, and what one of its units measures. */
+export interface SvgCanvas {
+  width: number;
+  height: number;
+  /** Millimeters per viewBox unit; null without physical width/height or with unequal axes. */
+  mmPerUnit: number | null;
+}
+
+/**
+ * Reads an SVG's canvas without flattening its geometry, so a caller can tell
+ * whether the drawing shares a known pixel grid before choosing how to import it.
+ * Returns null when the root has no viewBox.
+ */
+export function readSvgCanvas(svgText: string): SvgCanvas | null {
+  assertSvgText(svgText);
+  const attrs = attributes(parseRoot(svgText)), box = viewBoxOf(attrs);
+  if (!box) return null;
+  if (physicalLength(attrs.width) === undefined && physicalLength(attrs.height) === undefined) {
+    return { width: box[2], height: box[3], mmPerUnit: null };
+  }
+  const scale = canvasMatrix(attrs, undefined);
+  return { width: box[2], height: box[3], mmPerUnit: Math.abs(scale[0] - scale[3]) <= 1e-9 * scale[0] ? scale[0] : null };
+}
+
+/**
+ * Imports closed SVG silhouettes where they were drawn: y-down viewBox units
+ * measured from the viewBox origin, neither recentered nor rescaled. The same
+ * vetting, fill rules, and vertex limit as `importSvgShape` apply. Rings are
+ * oriented but not sorted; run them through `normalizeOutline` before use.
+ */
+export function importSvgCanvasOutline(svgText: string, toleranceUnits: number): Outline {
+  assertSvgText(svgText);
+  const tolerance = positive(toleranceUnits, "toleranceUnits")!;
+  const root = parseRoot(svgText), box = viewBoxOf(attributes(root));
+  if (!box) fail("SVG needs a viewBox to keep its canvas positions.");
+  assertNoResources(root);
+  // `0 - x` rather than `-x`: a negative zero would otherwise leak into coordinates.
+  return collectOutline(root, [1, 0, 0, 1, 0 - box[0], 0 - box[1]], tolerance);
+}
+
 /**
  * Imports closed SVG silhouettes into Pocketry's centred, y-up millimetre frame.
  * No rasterisation, remote resources, DOM globals, or boolean kernel is involved.
@@ -345,44 +431,13 @@ function filledOutline(rings: Ring[], style: Style): Outline {
  * are rejected instead of silently creating incomplete or incorrectly sized bins.
  */
 export function importSvgShape(svgText: string, options: SvgImportOptions = {}): TracedShape {
-  if (typeof svgText !== "string" || !svgText.trim() || svgText.length > MAX_XML_LENGTH) fail("Supply a nonempty SVG smaller than 5 MB.");
-  if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(svgText)) fail("Document types and custom entities are not supported.");
+  assertSvgText(svgText);
   const widthOverride = positive(options.widthMm, "widthMm");
   const tolerance = positive(options.toleranceMm ?? 0.05, "toleranceMm")!;
   if (tolerance > 1 || tolerance < 0.001) fail("toleranceMm must be between 0.001 and 1 mm.");
-  const validXml = XMLValidator.validate(svgText);
-  if (validXml !== true) fail(`Malformed XML: ${validXml.err.msg}`);
-  const parser = new XMLParser({ preserveOrder: true, ignoreAttributes: false, attributeNamePrefix: "", parseTagValue: false, parseAttributeValue: false, processEntities: false });
-  const nodes: unknown = parser.parse(svgText);
-  if (!Array.isArray(nodes)) fail("Missing SVG root.");
-  const roots = nodes.map(record).filter(node => !tagName(node)?.startsWith("?") && tagName(node) !== "#comment");
-  if (roots.length !== 1 || tagName(roots[0])?.split(":").pop() !== "svg") fail("Expected one SVG root.");
-  const root = roots[0], rootAttrs = attributes(root), scale = canvasMatrix(rootAttrs, widthOverride);
+  const root = parseRoot(svgText), scale = canvasMatrix(attributes(root), widthOverride);
   assertNoResources(root);
-  const collect = (flattenTolerance: number): Outline => {
-    const outline: Outline = [];
-    const walk = (node: XmlNode, parentMatrix: Matrix, inherited: Style, rootNode = false, depth = 0) => {
-      if (depth > 64) fail("SVG nesting exceeds 64 levels.");
-      const key = tagName(node);
-      if (!key) return;
-      const tag = key.split(":").pop()!;
-      if (["metadata", "title", "desc", "defs", "#comment"].includes(tag) || tag.startsWith("?")) return;
-      if (tag === "#text") { if (String(node[key]).trim()) fail("Unexpected text outside metadata."); return; }
-      const attrs = attributes(node), style = styleFor(attrs, inherited);
-      if (style.hidden) return;
-      const matrix = multiply(parentMatrix, transform(attrs.transform));
-      if (tag === "g" || rootNode) {
-        const children: unknown = node[key];
-        if (Array.isArray(children)) for (const child of children) walk(record(child), matrix, style, false, depth + 1);
-      } else if (["path", "rect", "circle", "ellipse", "polygon", "polyline"].includes(tag)) {
-        outline.push(...filledOutline(flattenPath(shapePath(tag, attrs), matrix, flattenTolerance), style));
-      } else fail(`Unsupported <${tag}>; convert visible geometry to closed paths first.`);
-    };
-    walk(root, scale, { fill: "black", fillRule: "nonzero", hidden: false }, true);
-    if (!outline.length) fail("No usable closed silhouettes found.");
-    if (outlinePointCount(outline) > MAX_POINTS) fail(`Artwork exceeds ${MAX_POINTS} vertices; simplify it first.`);
-    return outline;
-  };
+  const collect = (flattenTolerance: number): Outline => collectOutline(root, scale, flattenTolerance);
   let outline = collect(tolerance);
   let bounds = outlineBounds(outline)!;
   let factor = widthOverride === undefined ? 1 : widthOverride / (bounds.maxX - bounds.minX);

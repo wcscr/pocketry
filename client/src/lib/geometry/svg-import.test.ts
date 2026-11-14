@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pointInOutline } from "./outline";
 import { distanceToSegment, signedArea } from "@shared/geometry/rings";
-import { importSvgShape } from "./svg-import";
+import { importSvgCanvasOutline, importSvgShape, readSvgCanvas } from "./svg-import";
 
 const svg = (content: string, attributes = 'width="100mm" height="100mm" viewBox="0 0 100 100"') => `<svg xmlns="http://www.w3.org/2000/svg" ${attributes}>${content}</svg>`;
 const size = (shape: ReturnType<typeof importSvgShape>) => ({ width: shape.bboxMm.maxX - shape.bboxMm.minX, height: shape.bboxMm.maxY - shape.bboxMm.minY });
@@ -165,5 +165,53 @@ describe("importSvgShape", () => {
   it("ignores metadata and explicitly hidden elements without a DOM", () => {
     const shape = importSvgShape(svg('<metadata><rdf:RDF xmlns:rdf="example"><description>arbitrary metadata</description></rdf:RDF></metadata><g display="none"><text>hidden</text></g><rect width="10" height="20"/>'));
     expect(size(shape)).toEqual({ width: 10, height: 20 });
+  });
+});
+
+describe("readSvgCanvas", () => {
+  it("reports the viewBox and the physical size of one unit", () => {
+    expect(readSvgCanvas(svg("", 'width="200mm" height="150mm" viewBox="0 0 800 600"'))).toEqual({ width: 800, height: 600, mmPerUnit: 0.25 });
+    expect(readSvgCanvas(svg("", 'width="2in" viewBox="10 20 200 100"'))).toEqual({ width: 200, height: 100, mmPerUnit: 0.254 });
+    expect(readSvgCanvas(svg("", 'viewBox="0 0 800 600"'))).toEqual({ width: 800, height: 600, mmPerUnit: null });
+    expect(readSvgCanvas(svg("", 'width="800px" height="600px" viewBox="0 0 800 600"'))?.mmPerUnit).toBeNull();
+  });
+
+  it("has no single scale for unequal axes, and no canvas without a viewBox", () => {
+    expect(readSvgCanvas(svg("", 'width="100mm" height="100mm" viewBox="0 0 100 50" preserveAspectRatio="none"'))?.mmPerUnit).toBeNull();
+    expect(readSvgCanvas(svg("", 'width="100mm" height="100mm" viewBox="0 0 100 50"'))?.mmPerUnit).toBe(1);
+    expect(readSvgCanvas(svg("", 'width="100mm" height="100mm"'))).toBeNull();
+  });
+
+  it("does not flatten geometry, and rejects what importSvgShape rejects", () => {
+    expect(readSvgCanvas(svg('<path d="M0 0 L20 0 L20 20"/>', 'viewBox="0 0 10 10"'))).toEqual({ width: 10, height: 10, mmPerUnit: null });
+    expect(() => readSvgCanvas("<svg><path></svg>")).toThrow(/Malformed/);
+    expect(() => readSvgCanvas("")).toThrow(/nonempty/);
+    expect(() => readSvgCanvas('<!DOCTYPE svg><svg viewBox="0 0 1 1"/>')).toThrow(/Document types/);
+    expect(() => readSvgCanvas(svg("", 'viewBox="0 0 0 100"'))).toThrow(/viewBox/);
+  });
+});
+
+describe("importSvgCanvasOutline", () => {
+  it("keeps canvas positions, y-down, without centering or scaling", () => {
+    const outline = importSvgCanvasOutline(svg('<path d="M 10 20 H 70 V 50 H 10 Z"/>', 'width="50mm" viewBox="0 0 800 600"'), 0.1);
+    expect(outline).toHaveLength(1);
+    expect(outline[0].outer).toHaveLength(4);
+    expect(outline[0].outer).toEqual(expect.arrayContaining([{ x: 10, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 50 }, { x: 10, y: 50 }]));
+    expect(signedArea(outline[0].outer)).toBeGreaterThan(0);
+  });
+
+  it("subtracts the viewBox origin and applies element transforms", () => {
+    const outline = importSvgCanvasOutline(svg('<g transform="translate(100 0)"><rect x="5" y="5" width="10" height="10"/></g>', 'viewBox="5 5 100 100"'), 0.1);
+    expect(outline[0].outer).toEqual(expect.arrayContaining([{ x: 100, y: 0 }, { x: 110, y: 10 }]));
+  });
+
+  it("applies the same fill rules and rejections as importSvgShape", () => {
+    const holed = importSvgCanvasOutline(svg('<path fill-rule="evenodd" d="M 0 0 H 60 V 60 H 0 Z M 10 10 H 50 V 50 H 10 Z"/>', 'viewBox="0 0 100 100"'), 0.1);
+    expect(holed[0].holes).toHaveLength(1);
+    expect(signedArea(holed[0].holes[0])).toBeLessThan(0);
+    expect(() => importSvgCanvasOutline(svg('<path d="M0 0 L20 0 L20 20"/>', 'viewBox="0 0 100 100"'), 0.1)).toThrow(/Open path/);
+    expect(() => importSvgCanvasOutline(svg('<use href="#shape"/>', 'viewBox="0 0 100 100"'), 0.1)).toThrow(/referenced/);
+    expect(() => importSvgCanvasOutline(svg('<rect width="10" height="10"/>', 'width="10mm"'), 0.1)).toThrow(/viewBox/);
+    expect(() => importSvgCanvasOutline(svg('<rect width="10" height="10"/>', 'viewBox="0 0 100 100"'), 0)).toThrow(/positive/);
   });
 });

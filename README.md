@@ -86,6 +86,12 @@ units set its size; use the optional width override for unitless artwork. Choose
 a pocket depth, then place and edit it like any other pocket. Files stay local;
 stroke widths are ignored and referenced resources, effects, and open paths are rejected.
 
+To adjust an SVG outline against its photo instead, use **Outline → Import outline**
+in Trace. An SVG exported from the same photo returns to its exact position; any
+other file is placed at true size in the selected region. Replace the current
+outline or add to it, then edit its points. The import is one undoable step and
+follows the same file rules.
+
 SVG parsing uses [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser)
 and [svgpath](https://github.com/fontello/svgpath), both MIT licensed.
 
