@@ -34,11 +34,16 @@ outlines are retained locally and are not published.
 
 ### Scoring
 
-Outlines are compared in millimeters, using the app's own calibration, with draft
-reference outlines prepared by hand for the earlier evaluation. The references
-have not been independently reviewed and are placed by fitting bounds, so a
-figure of a few tenths of a millimeter is within their error, and a large figure
-needs a look at the picture before it is believed. **Left out** is the deepest
+Outlines are compared in millimeters, using the app's own calibration, with the
+draft reference outlines described in [outline evaluation](outline-evaluation.md#draft-reference-outlines).
+They are not an independent measurement: 31 take their shape from the outline
+the detector gave on 2026-11-10 and 5 from a prototype, 11 were corrected by
+hand, and each was then moved onto the strongest edge in the photo and smoothed.
+They were drawn on the lower-resolution crops captured then and are placed on
+these pictures by fitting bounds. No maintainer has reviewed them. A figure of a
+few tenths of a millimeter is within their error, an error the detector made
+that went unnoticed is built into them, and a large figure needs a look at the
+picture before it is believed. **Left out** is the deepest
 place where the outline is inside the reference. **Extra** is the farthest it
 is outside. A **loopback** is an excursion that doubles back on itself; the count
 misses channels wholly inside a tool. **Stair-stepped** means two or more
@@ -90,10 +95,10 @@ Known problems that remain, unchanged from `b9c7c349`:
 - **Clear needle hub** is in three pieces (3.0 mm left out).
 - **Flux syringe** (2.7 mm), **DeWalt screwdriver** (1.3 mm), and the **mould
   line remover** (1.0 mm) still leave material out.
-- **Shadows, attached print, and touching neighbors** add material: the
-  deburring tool's outline follows a part that touches its handle out to the
-  region's edge (10.1 mm); Wiha driver 3 of 5 5.7 mm, Gerber 3.8 mm with a
-  loopback, stapler 3.1 mm.
+- **Shadows, attached print, and a support wire** add material: the deburring
+  tool's outline follows the wire the tool rests on out to the region's edge
+  (10.1 mm; the reference has the wire removed by hand); Wiha driver 3 of 5
+  5.7 mm, Gerber 3.8 mm with a loopback, stapler 3.1 mm.
 - The area-averaged retry ran on three tools (clear needle hub, Gerber, cone
   nozzle) and its result was discarded each time, adding one to two seconds to
   each.
