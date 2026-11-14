@@ -13,6 +13,11 @@ export interface SvgImportOptions {
   widthMm?: number;
   /** Maximum chord deviation when flattening curves, in the final mm frame. */
   toleranceMm?: number;
+  /**
+   * Accept contours that cross or touch, for a caller that can show and repair
+   * them. A pocket must be a simple outline, so the default rejects them.
+   */
+  allowCrossing?: boolean;
 }
 
 type Matrix = [number, number, number, number, number, number];
@@ -315,7 +320,8 @@ function segmentsTouch(a: Point, b: Point, c: Point, d: Point): boolean {
     ((cdA > 1e-9 && cdB < -1e-9) || (cdA < -1e-9 && cdB > 1e-9)) ||
     [distanceToSegment(c, a, b), distanceToSegment(d, a, b), distanceToSegment(a, c, d), distanceToSegment(b, c, d)].some(distance => distance < 1e-9);
 }
-function assertSimpleRings(rings: Ring[]): void {
+/** True when any two edges cross or touch, other than neighbors along one ring. */
+export function ringsCrossOrTouch(rings: Ring[]): boolean {
   const segments = rings.flatMap((ring, ringIndex) => ring.map((point, index) => ({
     a: point, b: ring[(index + 1) % ring.length], index, ringIndex, length: ring.length,
     minX: Math.min(point.x, ring[(index + 1) % ring.length].x), maxX: Math.max(point.x, ring[(index + 1) % ring.length].x),
@@ -325,12 +331,13 @@ function assertSimpleRings(rings: Ring[]): void {
     for (let j = i + 1; j < segments.length && segments[j].minX <= a.maxX + 1e-9; j++) {
       const b = segments[j];
       if (a.ringIndex === b.ringIndex && (Math.abs(a.index - b.index) === 1 || Math.abs(a.index - b.index) === a.length - 1)) continue;
-      if (segmentsTouch(a.a, a.b, b.a, b.b)) fail("Intersecting or touching contours are unsupported; merge them into simple closed paths first.");
+      if (segmentsTouch(a.a, a.b, b.a, b.b)) return true;
     }
   }
+  return false;
 }
-function filledOutline(rings: Ring[], style: Style): Outline {
-  assertSimpleRings(rings);
+function filledOutline(rings: Ring[], style: Style, allowCrossing: boolean): Outline {
+  if (!allowCrossing && ringsCrossOrTouch(rings)) fail("Intersecting or touching contours are unsupported; merge them into simple closed paths first.");
   if (style.fillRule === "evenodd" || style.fill === "none") return buildOutline(rings);
   const entries = rings.map(ring => ({ ring, area: ringArea(ring), sign: Math.sign(signedArea(ring)), bounds: ringBounds(ring)! }));
   // A same-winding nested contour is filled under nonzero, so it is not a hole.
@@ -358,7 +365,7 @@ function parseRoot(svgText: string): XmlNode {
   return roots[0];
 }
 /** Every visible closed silhouette under `root`, mapped through `canvas`. */
-function collectOutline(root: XmlNode, canvas: Matrix, flattenTolerance: number): Outline {
+function collectOutline(root: XmlNode, canvas: Matrix, flattenTolerance: number, allowCrossing = false): Outline {
   const outline: Outline = [];
   const walk = (node: XmlNode, parentMatrix: Matrix, inherited: Style, rootNode = false, depth = 0) => {
     if (depth > 64) fail("SVG nesting exceeds 64 levels.");
@@ -374,7 +381,7 @@ function collectOutline(root: XmlNode, canvas: Matrix, flattenTolerance: number)
       const children: unknown = node[key];
       if (Array.isArray(children)) for (const child of children) walk(record(child), matrix, style, false, depth + 1);
     } else if (["path", "rect", "circle", "ellipse", "polygon", "polyline"].includes(tag)) {
-      outline.push(...filledOutline(flattenPath(shapePath(tag, attrs), matrix, flattenTolerance), style));
+      outline.push(...filledOutline(flattenPath(shapePath(tag, attrs), matrix, flattenTolerance), style, allowCrossing));
     } else fail(`Unsupported <${tag}>; convert visible geometry to closed paths first.`);
   };
   walk(root, canvas, { fill: "black", fillRule: "nonzero", hidden: false }, true);
@@ -412,15 +419,16 @@ export function readSvgCanvas(svgText: string): SvgCanvas | null {
  * measured from the viewBox origin, neither recentered nor rescaled. The same
  * vetting, fill rules, and vertex limit as `importSvgShape` apply. Rings are
  * oriented but not sorted; run them through `normalizeOutline` before use.
+ * `allowCrossing` lets through contours that cross or touch, as drawn.
  */
-export function importSvgCanvasOutline(svgText: string, toleranceUnits: number): Outline {
+export function importSvgCanvasOutline(svgText: string, toleranceUnits: number, options: Pick<SvgImportOptions, "allowCrossing"> = {}): Outline {
   assertSvgText(svgText);
   const tolerance = positive(toleranceUnits, "toleranceUnits")!;
   const root = parseRoot(svgText), box = viewBoxOf(attributes(root));
   if (!box) fail("SVG needs a viewBox to keep its canvas positions.");
   assertNoResources(root);
   // `0 - x` rather than `-x`: a negative zero would otherwise leak into coordinates.
-  return collectOutline(root, [1, 0, 0, 1, 0 - box[0], 0 - box[1]], tolerance);
+  return collectOutline(root, [1, 0, 0, 1, 0 - box[0], 0 - box[1]], tolerance, options.allowCrossing === true);
 }
 
 /**
@@ -437,7 +445,7 @@ export function importSvgShape(svgText: string, options: SvgImportOptions = {}):
   if (tolerance > 1 || tolerance < 0.001) fail("toleranceMm must be between 0.001 and 1 mm.");
   const root = parseRoot(svgText), scale = canvasMatrix(attributes(root), widthOverride);
   assertNoResources(root);
-  const collect = (flattenTolerance: number): Outline => collectOutline(root, scale, flattenTolerance);
+  const collect = (flattenTolerance: number): Outline => collectOutline(root, scale, flattenTolerance, options.allowCrossing === true);
   let outline = collect(tolerance);
   let bounds = outlineBounds(outline)!;
   let factor = widthOverride === undefined ? 1 : widthOverride / (bounds.maxX - bounds.minX);

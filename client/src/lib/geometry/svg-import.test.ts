@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pointInOutline } from "./outline";
 import { distanceToSegment, signedArea } from "@shared/geometry/rings";
-import { importSvgCanvasOutline, importSvgShape, readSvgCanvas } from "./svg-import";
+import { importSvgCanvasOutline, importSvgShape, readSvgCanvas, ringsCrossOrTouch } from "./svg-import";
 
 const svg = (content: string, attributes = 'width="100mm" height="100mm" viewBox="0 0 100 100"') => `<svg xmlns="http://www.w3.org/2000/svg" ${attributes}>${content}</svg>`;
 const size = (shape: ReturnType<typeof importSvgShape>) => ({ width: shape.bboxMm.maxX - shape.bboxMm.minX, height: shape.bboxMm.maxY - shape.bboxMm.minY });
@@ -213,5 +213,35 @@ describe("importSvgCanvasOutline", () => {
     expect(() => importSvgCanvasOutline(svg('<use href="#shape"/>', 'viewBox="0 0 100 100"'), 0.1)).toThrow(/referenced/);
     expect(() => importSvgCanvasOutline(svg('<rect width="10" height="10"/>', 'width="10mm"'), 0.1)).toThrow(/viewBox/);
     expect(() => importSvgCanvasOutline(svg('<rect width="10" height="10"/>', 'viewBox="0 0 100 100"'), 0)).toThrow(/positive/);
+  });
+});
+
+describe("contours that cross or touch", () => {
+  // A square with one small loop in its right side, the kind a tracer or a thinning pass leaves behind.
+  const loop = '<path d="M 0 0 H 60 V 30 L 62 32 L 62 30 L 60 32 V 60 H 0 Z"/>';
+  const touching = '<path d="M0 0 H20 V20 H0 Z M20 20 H30 V30 H20 Z"/>';
+
+  it("stay rejected for pockets", () => {
+    expect(() => importSvgShape(svg(loop))).toThrow(/Intersecting or touching/);
+    expect(() => importSvgCanvasOutline(svg(loop, 'viewBox="0 0 100 100"'), 0.1)).toThrow(/Intersecting or touching/);
+  });
+
+  it("are taken exactly as drawn when the caller asks", () => {
+    const outline = importSvgCanvasOutline(svg(loop, 'viewBox="0 0 100 100"'), 0.1, { allowCrossing: true });
+    expect(outline).toHaveLength(1);
+    expect(outline[0].outer).toHaveLength(8);
+    expect(outline[0].outer).toEqual(expect.arrayContaining([{ x: 62, y: 32 }, { x: 62, y: 30 }, { x: 60, y: 32 }]));
+    const shape = importSvgShape(svg(loop), { allowCrossing: true });
+    expect(shape.pointCount).toBe(8);
+    expect(size(shape)).toEqual({ width: 62, height: 60 });
+    expect(importSvgCanvasOutline(svg(touching, 'viewBox="0 0 100 100"'), 0.1, { allowCrossing: true })).toHaveLength(2);
+  });
+
+  it("can be told apart from clean rings", () => {
+    const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+    expect(ringsCrossOrTouch([square])).toBe(false);
+    expect(ringsCrossOrTouch([square, square.map(point => ({ x: point.x + 30, y: point.y }))])).toBe(false);
+    expect(ringsCrossOrTouch([[{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 10, y: 0 }, { x: 0, y: 10 }, { x: -5, y: 5 }]])).toBe(true);
+    expect(ringsCrossOrTouch([square, square.map(point => ({ x: point.x + 10, y: point.y + 10 }))])).toBe(true);
   });
 });

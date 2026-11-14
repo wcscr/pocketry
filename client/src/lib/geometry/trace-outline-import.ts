@@ -1,9 +1,9 @@
 import { withinImportLimits } from "@shared/gridfinity/import-limits";
 import type { Outline, Point, Rect } from "@shared/geometry/types";
 
-import { mapOutline, normalizeOutline, outlineBounds } from "./outline";
+import { mapOutline, normalizeOutline, outlineBounds, outlineRings } from "./outline";
 import { applyRigid, fitOutlineRigid } from "./outline-fit";
-import { importSvgCanvasOutline, importSvgShape, readSvgCanvas } from "./svg-import";
+import { importSvgCanvasOutline, importSvgShape, readSvgCanvas, ringsCrossOrTouch } from "./svg-import";
 
 /**
  * Placing an SVG outline over the Trace workspace's working photo.
@@ -64,6 +64,11 @@ export interface PlacedOutline {
   fitAvailable: boolean;
   /** How the outline was turned onto the current outline, or null when it was left centered. */
   fit: { degrees: number; typicalGapPx: number } | null;
+  /**
+   * Some contour crosses or touches itself or another. Trace takes it as drawn,
+   * because repairing an outline over its photo is what the import is for.
+   */
+  crossesItself: boolean;
 }
 
 /** Trace's exporter writes the viewBox to two decimals. */
@@ -110,14 +115,14 @@ export function placeSvgOutline(svgText: string, target: TraceImportTarget,
   let placed: Outline;
   if (placement === "photo") {
     if (!matchesPhoto) fail(`This file's canvas is not this photo's ${width} × ${height} px, so its positions cannot be kept.`);
-    placed = importSvgCanvasOutline(svgText, PHOTO_TOLERANCE_PX);
+    placed = importSvgCanvasOutline(svgText, PHOTO_TOLERANCE_PX, { allowCrossing: true });
   } else {
     if (mmPerPx === null) {
       fail(`Set the scale first. This file was not saved from this ${width} × ${height} px photo, so Pocketry needs the scale to place it at true size.`);
     }
     const center = importCenter(target);
     // The shared importer returns centered, y-up millimeters; Trace is y-down pixels.
-    placed = mapOutline(importSvgShape(svgText, { widthMm: options.widthMm }).outlineMm,
+    placed = mapOutline(importSvgShape(svgText, { widthMm: options.widthMm, allowCrossing: true }).outlineMm,
       point => ({ x: center.x + point.x / mmPerPx, y: center.y - point.y / mmPerPx }));
   }
 
@@ -136,5 +141,6 @@ export function placeSvgOutline(svgText: string, target: TraceImportTarget,
   }
   return { outline, placement, matchesPhoto, fileMmPerPx, scaleMismatch,
     sizePx: { width: drawn.maxX - drawn.minX, height: drawn.maxY - drawn.minY },
-    fitAvailable, fit: pose ? { degrees: pose.radians * 180 / Math.PI, typicalGapPx: pose.typicalGap } : null };
+    fitAvailable, fit: pose ? { degrees: pose.radians * 180 / Math.PI, typicalGapPx: pose.typicalGap } : null,
+    crossesItself: ringsCrossOrTouch(outlineRings(outline)) };
 }

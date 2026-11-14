@@ -141,8 +141,10 @@ other file is placed at true size and turned to fit the current outline, which
 puts a straightened or rotated outline back over the tool. **Move & rotate**
 then shifts or turns any contour by hand without changing its size. Replace the
 current outline or add to it, then edit its points. The import is one undoable step and
-follows the same file rules. With **Editable curves** on, imported contours arrive
-as straight-edged points that you can then bend.
+follows the same file rules, with one exception: a contour that crosses or touches
+itself is imported as drawn, with a note, so you can repair it over the photo. With
+**Editable curves** on, imported contours arrive as straight-edged points that you
+can then bend.
 
 SVG parsing uses [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser)
 and [svgpath](https://github.com/fontello/svgpath), both MIT licensed.

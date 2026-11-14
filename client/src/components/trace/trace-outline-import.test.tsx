@@ -298,6 +298,21 @@ describe("TraceOutlineImport", () => {
     expect((bounds.minX + bounds.maxX) / 2).toBeCloseTo(550, 6);
   });
 
+  it("imports an outline that crosses itself and says it needs repair", async () => {
+    render(<Control />);
+    loadPhoto();
+    click("button-import-outline");
+    await choose('<svg viewBox="0 0 800 600"><path d="M 100 100 H 400 V 250 L 404 254 L 404 250 L 400 254 V 400 H 100 Z"/></svg>');
+    expect(alertText()).toBeNull();
+    expect(document.querySelector('[data-testid="import-outline-crossing"]')?.textContent).toContain("crosses or touches itself");
+    click("button-import-outline-confirm");
+    expect(trace.outline[0].outer).toHaveLength(8);
+    expect(trace.mode).toBe("edit");
+    click("button-import-outline");
+    await choose(SAVED_SVG);
+    expect(document.querySelector('[data-testid="import-outline-crossing"]')).toBeNull();
+  });
+
   it("offers no scale choice for a file saved at this trace's scale", async () => {
     render(<Control />);
     loadPhoto();

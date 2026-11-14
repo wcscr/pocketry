@@ -145,6 +145,9 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
                 ? `${(placed.fit.typicalGapPx * mmPerPx).toFixed(2)} mm` : `${placed.fit.typicalGapPx.toFixed(1)} px`}). Move & rotate adjusts it afterward.`
               : `It will be placed at true size in the center of the ${region ? "region" : "photo"}. Move & rotate adjusts it afterward.`}
         </p>}
+        {placed?.crossesItself && <p role="status" className="text-xs text-amber-700 dark:text-amber-300" data-testid="import-outline-crossing">
+          This outline crosses or touches itself. It is imported as drawn; repair it with Edit outline.
+        </p>}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         {outline.length > 0 ? <div className="grid grid-cols-2 gap-2">
           <Button type="button" variant="outline" className="min-h-11 whitespace-normal leading-tight" disabled={!ready}

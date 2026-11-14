@@ -247,3 +247,27 @@ describe("placeSvgOutline fitted to the current outline", () => {
     expect(placed.outline).toEqual(TRACED);
   });
 });
+
+describe("placeSvgOutline with an outline that crosses itself", () => {
+  const loop = "M 100 100 H 400 V 250 L 404 254 L 404 250 L 400 254 V 400 H 100 Z";
+
+  it("takes it as drawn in the photo's frame and says so, where a pocket import would refuse", () => {
+    const placed = placeSvgOutline(`<svg viewBox="0 0 800 600"><path d="${loop}"/></svg>`, target());
+    expect(placed).toMatchObject({ placement: "photo", crossesItself: true });
+    expect(placed.outline).toHaveLength(1);
+    expect(placed.outline[0].outer).toHaveLength(8);
+    expect(placed.outline[0].outer).toEqual(expect.arrayContaining([{ x: 404, y: 254 }, { x: 404, y: 250 }, { x: 400, y: 254 }]));
+  });
+
+  it("also takes it at true size", () => {
+    const placed = placeSvgOutline(physicalSvg('<path d="M 10 10 H 60 V 30 L 62 32 L 62 30 L 60 32 V 50 H 10 Z"/>'), target());
+    expect(placed).toMatchObject({ placement: "true-size", crossesItself: true });
+    expect(placed.sizePx).toEqual({ width: 208, height: 160 });
+  });
+
+  it("flags contours that touch each other, and not a clean outline", () => {
+    const touching = '<svg viewBox="0 0 800 600"><path d="M100 100 H200 V200 H100 Z M200 200 H300 V300 H200 Z"/></svg>';
+    expect(placeSvgOutline(touching, target())).toMatchObject({ crossesItself: true });
+    expect(placeSvgOutline(generateOutlineSVG(TRACED, PHOTO), target()).crossesItself).toBe(false);
+  });
+});
