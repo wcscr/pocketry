@@ -906,7 +906,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Detection automatically smooths lines and rounded sections. Smooth outline under Manual detection settings previews cleanup after edits. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
+                Detection automatically smooths lines and rounded sections, and runs a straight edge over small dips such as grip ribs and notches (up to 0.5 mm deep and 10 mm wide) without trimming the tool. Detected outline shows the trace before that. Smooth outline under Manual detection settings previews cleanup after edits. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
                 Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
               </HelpHint>
             </div>

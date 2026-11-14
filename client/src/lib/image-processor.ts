@@ -8,6 +8,7 @@ import { detectInWorker, reconstructInWorker, simplifyInWorker } from "./detect/
 import { recommendedReconstructionTolerance } from "@shared/geometry/contour-reconstruction";
 import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
 import { AUTO_SMOOTHING_ALLOWANCE, simplifyAcceptedOutline, type AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
+import { AUTO_STRAIGHTENING_DEPTH, straightenOutward } from "@shared/geometry/outline-straightening";
 import { outlineRoughness } from "@shared/geometry/contour-metrics";
 import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { checkDetectionAbort } from "./detect/grabcut";
@@ -146,6 +147,8 @@ export interface ProcessResult {
   refinementBase?: Outline;
   cleanup?: { applied: boolean; tolerancePx?: number; reason?: string };
   smoothing?: { applied: boolean; reason?: string };
+  /** Whether small dips were bridged before the smoothing, how many, and why not when a check turned it down. */
+  straightening?: { applied: boolean; bridges: number; reason?: string };
   /** Source-image regions where a calibration aid hid an estimated edge. */
   estimatedEdgeRegions?: Ring[];
   /** Rings in source-image coordinates, margin applied. */
@@ -294,15 +297,18 @@ export async function processImage(
     result.timings.cleanup = performance.now() - began;
   }
 
+  let straightening: ProcessResult["straightening"];
   if (cleanup?.applied) {
-    const began = performance.now();
-    try {
+    const unitsPerUnit = workingMmPerPixel ?? 1, unit = workingMmPerPixel ? "mm" : "px";
+    const allowance = AUTO_SMOOTHING_ALLOWANCE[unit], editable = !!curves;
+    const cancelled = (error: unknown) => error instanceof Error && (error.name === "AbortError" || error.name === "WorkerCancelledError");
+    // What the cleanup must not make rougher: the fitted outline, whether or not it is straightened first.
+    const fitted = outline;
+    /** The default smoothing of `source`, checked against the detected material. Throws when a check fails. */
+    const smooth = async (source: CurveOutline) => {
       checkDetectionAbort(detect.signal);
-      const unitsPerUnit = workingMmPerPixel ?? 1, unit = workingMmPerPixel ? "mm" : "px";
-      const allowance = AUTO_SMOOTHING_ALLOWANCE[unit];
-      const source = curves ?? curvesFromOutline(outline);
       const request = { source, tolerance: allowance / unitsPerUnit,
-        sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves: !!curves };
+        sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves: editable };
       const smoothed = typeof Worker === "undefined" ? simplifyAcceptedOutline(request)
         : await simplifyInWorker(request, detect.signal);
       checkDetectionAbort(detect.signal);
@@ -315,18 +321,45 @@ export async function processImage(
       // also protect broader ripples that a locally smoother fit can introduce.
       const spacing = (unit === "mm" ? .1 : 1) / unitsPerUnit;
       const roughnessOptions = { spacing, scale: spacing * 10, minAmplitude: spacing };
-      const before = outlineRoughness(outline, roughnessOptions), after = outlineRoughness(candidate, roughnessOptions);
+      const before = outlineRoughness(fitted, roughnessOptions), after = outlineRoughness(candidate, roughnessOptions);
       if (after.reversals > before.reversals || after.jaggedLength > before.jaggedLength + spacing)
         throw new Error("Smoothing would add boundary ripples.");
       validateDetectionHints(candidate, detect.hints ?? []);
-      outline = candidate;
-      if (curves) curves = smoothed.curves;
+      return { outline: candidate, curves: smoothed.curves, source };
+    };
+
+    // Small dips are bridged before the smoothing, which then rounds where the bridges meet.
+    // The detected outline stays in `rawOutline`, for the comparison and the detail controls.
+    let began = performance.now();
+    checkDetectionAbort(detect.signal);
+    const straight = straightenOutward(outline, AUTO_STRAIGHTENING_DEPTH[unit] / unitsPerUnit);
+    straightening = { applied: false, bridges: 0, ...(straight.reason ? { reason: straight.reason } : {}) };
+    result.timings.straightening = performance.now() - began;
+
+    // The smoothing time covers both attempts when the straightened outline is turned down.
+    began = performance.now();
+    let smoothed: Awaited<ReturnType<typeof smooth>> | undefined;
+    if (straight.bridges) {
+      try {
+        smoothed = await smooth(curvesFromOutline(straight.outline));
+        straightening = { applied: true, bridges: straight.bridges };
+      } catch (error) {
+        checkDetectionAbort(detect.signal);
+        if (cancelled(error)) throw error;
+        // A mark, the material allowance or the ripple check objected. The outline as it was is tried next.
+        straightening = { applied: false, bridges: 0, reason: error instanceof Error ? error.message : "Could not straighten this boundary." };
+      }
+    }
+    try {
+      smoothed ??= await smooth(curves ?? curvesFromOutline(outline));
+      outline = smoothed.outline;
+      if (editable) curves = smoothed.curves;
       refinementBase = outline;
-      if ((margin ?? 0) === 0) autoSimplification = { source, allowance, unitsPerUnit, unit };
+      if ((margin ?? 0) === 0) autoSimplification = { source: smoothed.source, allowance, unitsPerUnit, unit };
       smoothing = { applied: true };
     } catch (error) {
       checkDetectionAbort(detect.signal);
-      if (error instanceof Error && (error.name === "AbortError" || error.name === "WorkerCancelledError")) throw error;
+      if (cancelled(error)) throw error;
       smoothing = { applied: false, reason: error instanceof Error ? error.message : "Could not smooth this boundary." };
     }
     result.timings.smoothing = performance.now() - began;
@@ -343,7 +376,7 @@ export async function processImage(
     // Not even the corrected trace holds the mark: this throws the message that says what to change.
     if (!kept) validateDetectionHints(material, hints);
     outline = kept!;
-    curves = undefined; refinementBase = undefined; autoSimplification = undefined; smoothing = undefined;
+    curves = undefined; refinementBase = undefined; autoSimplification = undefined; smoothing = undefined; straightening = undefined;
     if (cleanup?.applied !== false) {
       onNotice?.("Kept the detected outline", "Simplifying this outline would have crossed a correction mark. The detected boundary has been kept for review.");
     }
@@ -370,6 +403,7 @@ export async function processImage(
     refinementBase,
     cleanup,
     smoothing,
+    straightening,
     outline,
     rawOutline,
     estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x * toWorking.x + origin.x, y: p.y * toWorking.y + origin.y }))),

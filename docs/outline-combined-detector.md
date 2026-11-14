@@ -3,11 +3,12 @@
 This integration starts from `claude/outline-detection-pathologies` at
 `5aefd804`. It keeps the same dark-on-paper segmentation, TEED inference, and
 fallback decisions, and adds geometric preservation checks, source-photo
-sampling, and explicit user corrections. Three later changes are described
+sampling, and explicit user corrections. Four later changes are described
 where they apply below: the sheet layout is read from the photo, paper no longer
-reaches into a tool through a narrow gap, and the default smoothing fills dips
-without multiplying points. There is no printing-uncertainty mask or
-experimental source-edge fitting stage.
+reaches into a tool through a narrow gap, the default smoothing fills dips
+without multiplying points, and small dips are bridged with a straight line
+before that smoothing. There is no printing-uncertainty mask or experimental
+source-edge fitting stage.
 
 ## Detection and corrections
 
@@ -93,6 +94,37 @@ shaving the tool. Its result is thinned again within the remaining allowance,
 which keeps the point count close to the cleaned outline's instead of tripling
 it. If the polish would cross a correction mark, the app keeps the detected
 outline and says so.
+
+Before that polish, **outward straightening**
+(`shared/geometry/outline-straightening.ts`) replaces small dips with the
+straight line over them: the ribs of a grip, a notch, a mold line, the last
+wobble of the detector. A pocket has no use for that detail, and smoothing
+cannot remove it without also shaving the crests either side. A line is taken
+only when:
+
+- nothing between its ends lies outside it, so no material is removed and the
+  tool still fits;
+- nothing between them is more than 0.5 mm behind it (5 px without a scale),
+  each dip behind it is at most 10 mm wide along the line, and between two dips
+  the outline comes back to within 0.1 mm of the line;
+- both ends are convex corners of the outline and the line leaves each inside
+  that corner's own turn;
+- it meets no other part of the outline.
+
+The width limit leaves a broad hollow or a long shoulder alone: those are the
+tool's shape. The corner rule means a smooth concave curve is never cut into
+flats, and the rule about coming back to the line means ribs on a curved edge
+become short lines that follow the curve. Every point kept is a point that was
+there. The straightened outline is then smoothed and checked exactly as before,
+against the material reference and any correction marks, and the result must be
+no rougher than the fitted outline. If a check fails, the app smooths the
+outline as it was, so the result is never worse than without this step. The
+detected outline that Compare and restore show is not straightened.
+
+It takes under half a millisecond on a traced tool on a desktop and holds no
+image data. An outline too intricate for its step budget is returned unchanged.
+[The validation note](outline-straightening-validation-2026-11-14.md) has the
+results on seven tools run through the app.
 
 The **Manual detection settings** simplification control applies the user's chosen tolerance to
 the refinement source. It does not silently cancel the adjustment under the
