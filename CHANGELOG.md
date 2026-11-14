@@ -4,7 +4,7 @@
 
 ## 1.10.0 — 2026-11-14
 
-- Require Node.js 26 LTS to build, test, or run Pocketry without Docker; `npm ci` now stops on other versions. The Docker image builds with Node.js 26 and still serves the app from NGINX.
+- Require Node.js 26 LTS to build, test, or run Pocketry without Docker; `npm ci` now stops on other versions. Install Node.js 26 before upgrading a Node-hosted copy. Docker upgrades need no change: the image builds with Node.js 26 and still serves the app from NGINX.
 
 ## 1.9.0 — 2026-11-12
 

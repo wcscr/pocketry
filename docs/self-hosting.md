@@ -65,6 +65,12 @@ For upgrades, export backups, stop the Node service if used, run
 `git pull --ff-only`, `npm ci`, and `npm run build`, then restart the service or
 replace the static host's files. Reload the browser and keep the same address.
 
+Pocketry 1.10.0 and later require Node.js 26. When upgrading from an earlier
+release, install Node.js 26 first; with an older version, `npm ci` stops with an
+engine error. If a service manager starts Pocketry with a fixed path to `node`,
+point it at the Node.js 26 binary before restarting. Docker upgrades need no
+change; the build image is pinned in `Dockerfile`.
+
 ## Where designs are saved
 
 Projects, library entries, and Trace recovery data are stored **in the browser**,
