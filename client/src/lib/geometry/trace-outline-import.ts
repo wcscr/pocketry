@@ -2,6 +2,7 @@ import { withinImportLimits } from "@shared/gridfinity/import-limits";
 import type { Outline, Point, Rect } from "@shared/geometry/types";
 
 import { mapOutline, normalizeOutline, outlineBounds } from "./outline";
+import { applyRigid, fitOutlineRigid } from "./outline-fit";
 import { importSvgCanvasOutline, importSvgShape, readSvgCanvas } from "./svg-import";
 
 /**
@@ -14,8 +15,10 @@ import { importSvgCanvasOutline, importSvgShape, readSvgCanvas } from "./svg-imp
  *   Trace's own SVG export writes. Its coordinates are used verbatim, so an
  *   export of the same photo returns to the pixels it was traced from.
  * - `"true-size"`: the file's physical dimensions (or a width override) are
- *   converted through the trace's scale and the outline is centered on the
- *   detection region, or on the photo when there is none.
+ *   converted through the trace's scale. The outline is then turned and slid
+ *   onto the trace's current outline when there is one to fit, since a file
+ *   saved after straightening has the right size but not the photo's pose;
+ *   otherwise it is centered on the detection region, or on the photo.
  */
 export type OutlinePlacement = "photo" | "true-size";
 
@@ -29,6 +32,8 @@ export interface TraceImportTarget {
   region?: Rect | null;
   /** Visible paper crop of a perspective-corrected photo, when the rest is hidden. */
   visibleBounds?: Rect | null;
+  /** The trace's current outline: where a true-size import of the same object belongs. */
+  fitTo?: Outline | null;
 }
 
 export interface TraceOutlineImportOptions {
@@ -36,6 +41,8 @@ export interface TraceOutlineImportOptions {
   placement?: OutlinePlacement;
   /** Real width of the artwork's bounds, for true-size files without physical units. */
   widthMm?: number;
+  /** Set false to leave a true-size outline centered instead of fitting it to `fitTo`. */
+  fit?: boolean;
 }
 
 export interface PlacedOutline {
@@ -51,8 +58,12 @@ export interface PlacedOutline {
    * placements give different sizes and the choice belongs to the user.
    */
   scaleMismatch: boolean;
-  /** Bounding size of the placed outline in pixels. */
+  /** Bounding size of the outline in pixels, as drawn in the file (before any fitting turn). */
   sizePx: { width: number; height: number };
+  /** A true-size placement with a current outline to fit to, whether or not it was used. */
+  fitAvailable: boolean;
+  /** How the outline was turned onto the current outline, or null when it was left centered. */
+  fit: { degrees: number; typicalGapPx: number } | null;
 }
 
 /** Trace's exporter writes the viewBox to two decimals. */
@@ -111,13 +122,19 @@ export function placeSvgOutline(svgText: string, target: TraceImportTarget,
   }
 
   // The same normalization the tracer applies: winding, hole convention, order.
-  const outline = normalizeOutline(placed);
-  const bounds = outlineBounds(outline);
-  if (!bounds) fail("No usable closed silhouettes found.");
-  if (!withinImportLimits(outline)) fail("Outline exceeds Pocketry's import limits; simplify it first.");
+  const centered = normalizeOutline(placed);
+  const drawn = outlineBounds(centered);
+  if (!drawn) fail("No usable closed silhouettes found.");
+  if (!withinImportLimits(centered)) fail("Outline exceeds Pocketry's import limits; simplify it first.");
+
+  const fitAvailable = placement === "true-size" && Boolean(target.fitTo?.length);
+  const pose = fitAvailable && options.fit !== false ? fitOutlineRigid(centered, target.fitTo!) : null;
+  const outline = pose ? applyRigid(centered, pose) : centered;
+  const bounds = outlineBounds(outline)!;
   if (bounds.maxX <= 0 || bounds.maxY <= 0 || bounds.minX >= width || bounds.minY >= height) {
     fail("This outline lies entirely outside the photo.");
   }
   return { outline, placement, matchesPhoto, fileMmPerPx, scaleMismatch,
-    sizePx: { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY } };
+    sizePx: { width: drawn.maxX - drawn.minX, height: drawn.maxY - drawn.minY },
+    fitAvailable, fit: pose ? { degrees: pose.radians * 180 / Math.PI, typicalGapPx: pose.typicalGap } : null };
 }

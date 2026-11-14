@@ -203,3 +203,47 @@ describe("placeSvgOutline rejections", () => {
       .toThrow(/Choose a photo first/);
   });
 });
+
+describe("placeSvgOutline fitted to the current outline", () => {
+  // An L-shaped part, 60 × 40 mm, drawn upright in the file.
+  const part = physicalSvg('<path d="M 10 10 H 70 V 25 H 30 V 50 H 10 Z"/>');
+  /** Where that part actually lies in the photo: turned 40° and off to one side. */
+  const inPhoto = (): Outline => {
+    const upright = placeSvgOutline(part, target()).outline;
+    const turn = 40 * Math.PI / 180, cos = Math.cos(turn), sin = Math.sin(turn);
+    return normalizeOutline(upright.map(shape => ({ holes: [], outer: shape.outer.map(point => ({
+      x: 520 + cos * (point.x - 400) - sin * (point.y - 300), y: 330 + sin * (point.x - 400) + cos * (point.y - 300) })) })));
+  };
+  const worstGap = (a: Outline, b: Outline) => Math.max(...a[0].outer.map(point =>
+    Math.min(...b[0].outer.map((start, index) => distanceToSegment(point, start, b[0].outer[(index + 1) % b[0].outer.length])))));
+
+  it("turns and moves a true-size file onto it, keeping its size", () => {
+    const current = inPhoto();
+    const placed = placeSvgOutline(part, target({ fitTo: current }));
+    expect(placed).toMatchObject({ placement: "true-size", fitAvailable: true });
+    expect(placed.fit!.degrees).toBeCloseTo(40, 1);
+    expect(placed.fit!.typicalGapPx).toBeLessThan(0.05);
+    expect(worstGap(placed.outline, current)).toBeLessThan(0.05);
+    // The reported size is the file's own, not the bounding box after the turn.
+    expect(placed.sizePx).toEqual({ width: 240, height: 160 });
+    expect(signedArea(placed.outline[0].outer)).toBeGreaterThan(0);
+  });
+
+  it("leaves it centered when fitting is turned off, and says a fit was available", () => {
+    const placed = placeSvgOutline(part, target({ fitTo: inPhoto(), region: { x: 400, y: 200, width: 300, height: 200 } }), { fit: false });
+    expect(placed).toMatchObject({ fitAvailable: true, fit: null });
+    expect(outlineBounds(placed.outline)).toEqual({ minX: 430, minY: 220, maxX: 670, maxY: 380 });
+  });
+
+  it("has nothing to fit without a current outline", () => {
+    for (const fitTo of [undefined, null, []]) {
+      expect(placeSvgOutline(part, target({ fitTo }))).toMatchObject({ fitAvailable: false, fit: null });
+    }
+  });
+
+  it("never refits a file that is already in this photo's frame", () => {
+    const placed = placeSvgOutline(generateOutlineSVG(TRACED, PHOTO), target({ fitTo: inPhoto() }));
+    expect(placed).toMatchObject({ placement: "photo", fitAvailable: false, fit: null });
+    expect(placed.outline).toEqual(TRACED);
+  });
+});

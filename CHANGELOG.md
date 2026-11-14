@@ -4,7 +4,8 @@
 
 ## 1.11.0 — 2026-11-14
 
-- Import an SVG outline in Trace to adjust its points over the photo. An outline exported from the same photo returns to its exact position; other files are placed at true size in the region. Replace or add to the current outline as one undoable step.
+- Import an SVG outline in Trace to adjust its points over the photo. An outline exported from the same photo returns to its exact position; other files are placed at true size and turned to fit the current outline. Replace or add to the current outline as one undoable step.
+- Move & rotate a contour over the photo by dragging it, turning a handle, or typing values, without changing its size.
 
 ## 1.10.0 — 2026-11-14
 

@@ -238,6 +238,32 @@ describe("TraceOutlineImport", () => {
     expect(outlineBounds(trace.outline)).toEqual({ minX: 430, minY: 240, maxX: 670, maxY: 360 });
   });
 
+  it("turns a true-size file to fit the current outline, or leaves it centered when asked", async () => {
+    render(<Control />);
+    loadPhoto({ detected: true });
+    click("button-import-outline");
+    // The detected contour is 65 × 40 mm lying on its side; the file draws the same part upright.
+    await choose('<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100"><rect x="10" y="10" width="40" height="65"/></svg>');
+    const fitSwitch = () => document.querySelector<HTMLButtonElement>("#import-outline-fit");
+    expect(fitSwitch()?.getAttribute("aria-checked")).toBe("true");
+    expect(summary()).toContain("40.00 × 65.00 mm, 1 contour.");
+    expect(summary()).toMatch(/turned -?90\.0° to fit the current outline \(typical gap 0\.00 mm\)/);
+    expect(summary()).toContain("Move & rotate adjusts it afterward.");
+
+    React.act(() => fitSwitch()!.click());
+    expect(summary()).toContain("true size in the center of the region");
+    React.act(() => fitSwitch()!.click());
+    click("button-import-outline-replace");
+    const bounds = outlineBounds(trace.outline)!;
+    for (const [value, expected] of [[bounds.minX, 420], [bounds.minY, 220], [bounds.maxX, 680], [bounds.maxY, 380]]) expect(value).toBeCloseTo(expected, 1);
+    React.act(() => trace.undo());
+    expect(trace.outline).toBe(DETECTED);
+
+    click("button-import-outline");
+    await choose(SAVED_SVG);
+    expect(document.querySelector('[data-testid="import-outline-fit-choice"]')).toBeNull();
+  });
+
   it("asks for a width when a file has neither this photo's canvas nor physical units", async () => {
     render(<Control />);
     loadPhoto();

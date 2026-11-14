@@ -77,6 +77,7 @@ import { useTraceInspector } from "./trace-inspector-context";
 import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 import { TraceRestartDialog } from "./trace-restart-dialog";
 import { TraceOutlineImport } from "./trace-outline-import";
+import { TraceContourPositionTool } from "./trace-contour-position-tool";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-sm leading-tight";
@@ -894,6 +895,7 @@ export function TraceControlsPanel({
             <SquarePlus className="h-4 w-4" />Add manual contour
           </Button>
           <TraceOutlineImport onImported={onCanvasInteraction} />
+          {hasOutline && <TraceContourPositionTool />}
           <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
             size="sm" className="w-full" disabled={!hasOutline || processing}
             aria-pressed={store.mode === "edit" || store.mode === "remove"}

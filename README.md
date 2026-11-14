@@ -137,8 +137,10 @@ stroke widths are ignored and referenced resources, effects, and open paths are 
 
 To adjust an SVG outline against its photo instead, use **Outline → Import outline**
 in Trace. An SVG exported from the same photo returns to its exact position; any
-other file is placed at true size in the selected region. Replace the current
-outline or add to it, then edit its points. The import is one undoable step and
+other file is placed at true size and turned to fit the current outline, which
+puts a straightened or rotated outline back over the tool. **Move & rotate**
+then shifts or turns any contour by hand without changing its size. Replace the
+current outline or add to it, then edit its points. The import is one undoable step and
 follows the same file rules. With **Editable curves** on, imported contours arrive
 as straight-edged points that you can then bend.
 

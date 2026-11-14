@@ -48,6 +48,7 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
   const [loading, setLoading] = useState(false);
   const [width, setWidth] = useState("");
   const [useFileSize, setUseFileSize] = useState(false);
+  const [fitToOutline, setFitToOutline] = useState(true);
   const readVersion = useRef(0);
   useEffect(() => () => { readVersion.current++; }, []);
 
@@ -56,20 +57,21 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
   const imported = useMemo(() => {
     if (!svgText) return { placed: null, error: null };
     try {
-      return { placed: placeSvgOutline(svgText, { imageSize, mmPerPx, region, visibleBounds }, {
+      return { placed: placeSvgOutline(svgText, { imageSize, mmPerPx, region, visibleBounds, fitTo: outline }, {
         placement: useFileSize ? "true-size" : undefined,
+        fit: fitToOutline,
         // The override only applies where the field is offered.
         widthMm: !useFileSize && width.trim() ? Number(width.trim().replace(",", ".")) : undefined,
       }), error: null };
     } catch (error) {
       return { placed: null, error: error instanceof Error ? error.message : "Unable to import this SVG." };
     }
-  }, [svgText, imageSize, mmPerPx, region, visibleBounds, useFileSize, width]);
+  }, [svgText, imageSize, mmPerPx, region, visibleBounds, outline, useFileSize, fitToOutline, width]);
   const { placed } = imported;
 
   const readFile = async (file: File | undefined) => {
     const version = ++readVersion.current;
-    setSvgText(""); setFileError(null); setLoading(false); setWidth(""); setUseFileSize(false);
+    setSvgText(""); setFileError(null); setLoading(false); setWidth(""); setUseFileSize(false); setFitToOutline(true);
     if (!file) return;
     if (file.size > 5_000_000) { setFileError("Choose an SVG smaller than 5 MB."); return; }
     setLoading(true);
@@ -108,7 +110,7 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
     <DialogContent className="max-w-sm" onOpenAutoFocus={event => event.preventDefault()}
       style={keyboard ? { top: keyboard.top + keyboard.height / 2, maxHeight: Math.max(1, keyboard.height - 32) } : undefined}>
       <DialogHeader><DialogTitle>Import outline</DialogTitle>
-        <DialogDescription>Choose a closed SVG outline to adjust over this photo. An outline exported from this photo returns to its place; any other is placed at true size. Files stay on your device.</DialogDescription></DialogHeader>
+        <DialogDescription>Choose a closed SVG outline to adjust over this photo. An outline exported from this photo returns to its place; any other is placed at true size and can be turned to fit the current outline. Files stay on your device.</DialogDescription></DialogHeader>
       <div className="space-y-3">
         <label className="block space-y-1 text-sm">SVG outline
           <Input type="file" accept=".svg,image/svg+xml" onChange={event => { void readFile(event.target.files?.[0]); }} /></label>
@@ -124,6 +126,10 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
             <Switch id="import-outline-file-size" checked={useFileSize} onCheckedChange={setUseFileSize} />
           </div>
         </div>}
+        {placed?.fitAvailable && <div className="flex items-center justify-between gap-2" data-testid="import-outline-fit-choice">
+          <Label htmlFor="import-outline-fit" className="text-xs">Turn and move it to fit the current outline</Label>
+          <Switch id="import-outline-fit" checked={fitToOutline} onCheckedChange={setFitToOutline} />
+        </div>}
         {offerWidth && <>
           <label className="block space-y-1 text-sm">Object width override (mm, optional)
             <Input inputMode="decimal" enterKeyHint="done" value={width} onChange={event => setWidth(event.target.value)} placeholder="Use SVG physical dimensions" /></label>
@@ -134,7 +140,10 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
           Outline: {size}, {contours} contour{contours === 1 ? "" : "s"}.{" "}
           {placed.placement === "photo"
             ? "It matches this photo, so its contours keep their positions."
-            : `It will be placed at true size in the center of the ${region ? "region" : "photo"}.`}
+            : placed.fit
+              ? `It will be placed at true size, turned ${placed.fit.degrees.toFixed(1)}° to fit the current outline (typical gap ${mmPerPx !== null
+                ? `${(placed.fit.typicalGapPx * mmPerPx).toFixed(2)} mm` : `${placed.fit.typicalGapPx.toFixed(1)} px`}). Move & rotate adjusts it afterward.`
+              : `It will be placed at true size in the center of the ${region ? "region" : "photo"}. Move & rotate adjusts it afterward.`}
         </p>}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
         {outline.length > 0 ? <div className="grid grid-cols-2 gap-2">
