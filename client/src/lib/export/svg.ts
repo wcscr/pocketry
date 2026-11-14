@@ -1,6 +1,7 @@
 import { isValidRing } from "@shared/geometry/rings";
 import { mmPerPixel, rulerPixelLength, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Ring } from "@shared/geometry/types";
+import { curvePath, type CurveOutline } from "@shared/geometry/curves";
 
 import { iterateRings } from "@/lib/geometry/outline";
 
@@ -23,6 +24,8 @@ import { iterateRings } from "@/lib/geometry/outline";
  */
 
 export interface SvgOptions {
+  /** Keep native cubic segments when exporting an authored curve contour. */
+  curves?: CurveOutline;
   /** Source image size in pixels. Used verbatim for the viewBox. */
   width: number;
   height: number;
@@ -129,7 +132,7 @@ export function generateOutlineSVG(outline: Outline, options: SvgOptions): strin
   );
   lines.push(...metadataLines(mmPerPx, calibration));
 
-  const pathData = outlineToPathData(outline, precision);
+  const pathData = options.curves ? options.curves.flatMap(s => [s.outer, ...s.holes]).map(r => curvePath(r)).join(" ") : outlineToPathData(outline, precision);
   if (pathData.length > 0) {
     lines.push(
       "  <path",

@@ -1,5 +1,9 @@
 import { ringArea } from "@shared/geometry/rings";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as cleanupModule from "@shared/geometry/detected-cleanup";
+import * as smoothing from "@shared/geometry/outline-simplification";
+import { curvesFromOutline, mapCurves, sampleCurves } from "@shared/geometry/curves";
+import { distanceToOutlineBoundary, sampleRing } from "@shared/geometry/contour-metrics";
 
 import type { ImageLike } from "./detect/types";
 import { convexHullForTest, polygonArea } from "./geometry/fixtures";
@@ -71,7 +75,236 @@ const BODY = { x: 50, y: 45 };
 
 const JS = { engine: "js" } as const;
 
+it("lets manual simplification exceed the automatic detection allowance", async () => {
+  const outer = [
+    ...Array.from({ length: 101 }, (_, x) => ({ x, y: x % 2 ? -1.5 : 0 })),
+    { x: 100, y: 60 }, { x: 0, y: 60 },
+  ];
+  const raw = [{ outer, holes: [] }];
+  const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+  const fine = await reprocessOutline(raw, { detect: { tolerancePx: .1, smoothing: 0 }, calibration });
+  const coarse = await reprocessOutline(raw, { detect: { tolerancePx: 3, smoothing: 0 }, calibration });
+  expect(fine[0].outer.length).toBeGreaterThan(90);
+  expect(coarse[0].outer.length).toBeLessThan(10);
+  expect(pointInOutline(coarse, { x: 50, y: 30 })).toBe(true);
+});
+
+describe("processImage with correction marks", () => {
+  it("keeps the detected outline when cleanup would cross a paper mark, instead of failing", async () => {
+    const image = photo(160, 160, box(30, 30, 130, 130));
+    // Two pixels outside the left edge: closer than cleanup is allowed to grow.
+    const hints = [{ kind: "paper" as const, points: [{ x: 28, y: 70 }, { x: 28, y: 90 }], radius: 0.5 }];
+    const grow = vi.spyOn(cleanupModule, "reconstructDetectedForEditing").mockImplementation((source) => ({
+      curves: mapCurves(source, (p) => ({ x: p.x < 80 ? p.x - 3 : p.x, y: p.y })), changed: true,
+      before: 0, after: 0, maxDeviation: 3, lines: 0, cubics: 0, corners: 0, smoothJoins: 0,
+    }));
+    const notices: string[] = [];
+    try {
+      const result = await processImage(image, { detect: { ...JS, hints }, autoCleanup: true, onNotice: (title) => notices.push(title) });
+      expect(grow).toHaveBeenCalled();
+      expect(result.cleanup?.applied).toBe(false);
+      expect(notices).toEqual(["Kept the detected outline"]);
+      expect(pointInOutline(result.outline, { x: 28, y: 80 })).toBe(false);
+      expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
+    } finally { grow.mockRestore(); }
+  });
+
+  it("steps back to the trace when simplification crosses a mark, and resets what depended on it", async () => {
+    // A block with a shallow notch in its top edge, and paper marked inside the notch.
+    const image = photo(160, 160, (x, y) => box(30, 30, 130, 130)(x, y) && !box(70, 30, 90, 33)(x, y));
+    const hints = [{ kind: "paper" as const, points: [{ x: 80, y: 31.5 }], radius: 0.5 }];
+    // A coarse simplification flattens the notch, within what the checks allow, and so covers the mark.
+    const coarse = await processImage(image, { detect: { ...JS, tolerancePx: 6 } });
+    expect(pointInOutline(coarse.outline, { x: 80, y: 31.5 })).toBe(true);
+    const notices: string[] = [];
+    const result = await processImage(image, { detect: { ...JS, tolerancePx: 6, hints }, onNotice: (title) => notices.push(title) });
+    expect(pointInOutline(result.outline, { x: 80, y: 31.5 })).toBe(false);
+    expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
+    expect(notices).toEqual(["Kept the detected outline"]);
+    expect(result.cleanup).toEqual({ applied: false, reason: "Simplification would cross a correction mark." });
+    expect(result.refinementBase).toBeUndefined();
+    expect(result.curves).toBeUndefined();
+    expect(result.autoSimplification).toBeUndefined();
+    // What the detail controls and the detected-outline comparison start from keeps the mark too.
+    expect(pointInOutline(result.rawOutline, { x: 80, y: 31.5 })).toBe(false);
+  });
+
+  it("does not hand the detail controls a smoothed trace that crosses a mark", async () => {
+    const image = photo(160, 160, box(30, 30, 130, 130));
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const traced = await processImage(image, { detect: JS, calibration });
+    const plain = await processImage(image, { detect: JS, calibration, smoothBoundary: true });
+    // Somewhere beside a corner the smoothed trace has grown a pixel beyond the block: mark that spot as paper.
+    const spots = Array.from({ length: 60 * 24 }, (_, i) => ({ x: 26 + (i % 60) * 0.25, y: 26 + Math.floor(i / 60) * 0.25 }));
+    const spot = spots.find((p) => pointInOutline(plain.rawOutline, p) && !pointInOutline(traced.rawOutline, p) &&
+      distanceToOutlineBoundary(traced.rawOutline, p) > 0.9 && distanceToOutlineBoundary(plain.rawOutline, p) > 0.1);
+    expect(spot).toBeDefined();
+    const hints = [{ kind: "paper" as const, points: [spot!], radius: 0.4 }];
+    const marked = await processImage(image, { detect: { ...JS, hints }, calibration, smoothBoundary: true });
+    expect(pointInOutline(marked.rawOutline, spot!)).toBe(false);
+    expect(pointInOutline(marked.outline, spot!)).toBe(false);
+  });
+
+  it("says so when no outline can keep a mark", async () => {
+    const image = photo(160, 160, box(30, 30, 130, 130));
+    // Paper marked in the middle of the block, with interior holes not kept: nothing can honour it.
+    const hints = [{ kind: "paper" as const, points: [{ x: 80, y: 80 }], radius: 2 }];
+    await expect(processImage(image, { detect: { ...JS, hints }, autoCleanup: true }))
+      .rejects.toThrow(/could not preserve this mark/);
+  });
+});
+
 describe("processImage", () => {
+  it.each([false, true])("automatically reconstructs a rounded outline while preserving dense evidence (curves=%s)", async editableCurves => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const detected = await processImage(image, { detect: JS });
+    const result = await processImage(image, { detect: JS, autoCleanup: true, editableCurves });
+    expect(result.cleanup?.applied).toBe(true);
+    expect(result.smoothing?.applied).toBe(true);
+    expect(result.autoSimplification).toMatchObject({ allowance: 2, unitsPerUnit: 1, unit: "px" });
+    const request = { source: result.autoSimplification!.source, tolerance: 2, sampleTolerance: .1, editableCurves };
+    expect(result.outline).toEqual(sampleCurves(smoothing.simplifyAcceptedOutline(request).curves, .1));
+    expect(result.rawOutline).toEqual(detected.rawOutline);
+    expect(result.refinementBase).toEqual(result.outline);
+    expect(!!result.curves).toBe(editableCurves);
+    expect(result.outline[0].outer.length).toBeLessThan(result.rawOutline[0].outer.length);
+    expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
+    expect(result.timings.cleanup).toBeGreaterThanOrEqual(0);
+    if (editableCurves) expect(result.curves![0].outer.some(a => a.in || a.out)).toBe(true);
+  });
+
+  it("retains the reconstructed boundary and raw evidence when extra smoothing violates the material guard", async () => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const detected = await processImage(image, { detect: JS });
+    const invoke = vi.spyOn(smoothing, "simplifyAcceptedOutline").mockImplementation(({ source }) => ({
+      curves: mapCurves(source, p => ({ x: p.x + 100, y: p.y })), changed: true,
+      before: 0, after: 0, maxDeviation: 0, lines: 0, cubics: 0, corners: 0, smoothJoins: 0,
+    }));
+    try {
+      const result = await processImage(image, { detect: JS, autoCleanup: true });
+      expect(result.cleanup?.applied).toBe(true);
+      expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would exceed the detection detail allowance." });
+      expect(result.autoSimplification).toBeUndefined();
+      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+      expect(result.rawOutline).toEqual(detected.rawOutline);
+      expect(result.refinementBase).toEqual(result.outline);
+    } finally { invoke.mockRestore(); }
+  });
+
+  it("retains the earlier outline when a bounded smoothing proposal adds broad ripples", async () => {
+    const image = photo(160, 160, box(30, 30, 130, 130));
+    const invoke = vi.spyOn(smoothing, "simplifyAcceptedOutline").mockImplementation(({ source }) => {
+      const outline = sampleCurves(source, .1).map(shape => ({ ...shape,
+        outer: sampleRing(shape.outer, .25).map(p => {
+          const ripple = p.y < 31 && p.x > 40 && p.x < 120 ? 1.5 * (1 + Math.sin(p.x * Math.PI / 8)) : 0;
+          return { x: p.x, y: p.y - ripple };
+        }),
+      }));
+      return { curves: curvesFromOutline(outline), changed: true,
+        before: 0, after: 0, maxDeviation: 3, lines: 0, cubics: 0, corners: 0, smoothJoins: 0 };
+    });
+    try {
+      const result = await processImage(image, { detect: JS, autoCleanup: true });
+      expect(result.cleanup?.applied).toBe(true);
+      expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would add boundary ripples." });
+      expect(result.autoSimplification).toBeUndefined();
+      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+    } finally { invoke.mockRestore(); }
+  });
+
+  it("cleans before adding calibrated clearance and keeps its unoffset baseline", async () => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const original = await processImage(image, { detect: JS, autoCleanup: true, calibration, margin: 0 });
+    const offset = await processImage(image, { detect: JS, autoCleanup: true, editableCurves: true, calibration, margin: .5 });
+    expect(offset.curves).toBeUndefined(); // Native editing still requires zero Trace margin.
+    expect(original.autoSimplification).toMatchObject({ allowance: .2, unitsPerUnit: .25, unit: "mm" });
+    expect(offset.autoSimplification).toBeUndefined(); // Offset geometry starts a different manual source.
+    expect(offset.refinementBase).toEqual(original.outline);
+    expect(offset.rawOutline).toEqual(original.rawOutline);
+    expect(outlineArea(offset.outline)).toBeGreaterThan(outlineArea(original.outline));
+  });
+
+  it("smooths the boundary outward by a millimetre at the calibrated scale, before cleanup", async () => {
+    // A diamond at 0.25 mm per pixel.
+    const image = photo(200, 200, (x, y) => Math.abs(x - 100) + Math.abs(y - 100) < 70);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const plain = await processImage(image, { detect: JS, autoCleanup: true, calibration });
+    const smooth = await processImage(image, { detect: JS, autoCleanup: true, calibration, smoothBoundary: true });
+    expect(plain.timings.outerSmoothing).toBeUndefined();
+    expect(smooth.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
+    expect(smooth.cleanup?.applied).toBe(true);
+    // The dense trace the detail controls and the detected-outline comparison start from is the
+    // smoothed one, resampled every quarter of the length: 1 mm is 4 px here, so 1 px.
+    const [first, second] = smooth.rawOutline[0].outer;
+    expect(Math.hypot(second.x - first.x, second.y - first.y)).toBeCloseTo(1, 1);
+    // It only grew, and the cleaned outline still covers the shape.
+    expect(outlineArea(smooth.rawOutline)).toBeGreaterThan(outlineArea(plain.rawOutline));
+    expect(outlineArea(smooth.rawOutline)).toBeLessThan(outlineArea(plain.rawOutline) * 1.03);
+    expect(outlineArea(smooth.outline)).toBeLessThan(outlineArea(plain.rawOutline) * 1.03);
+    for (const [x, y] of [[100, 35], [165, 100], [100, 165], [35, 100], [100, 100]]) expect(pointInOutline(smooth.outline, { x, y })).toBe(true);
+  });
+
+  it("scales the smoothing length with a cropped region, and falls back to segmentation pixels without a scale", async () => {
+    const image = photo(200, 200, (x, y) => Math.abs(x - 100) + Math.abs(y - 100) < 70);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    // The detector's pixels are half a working pixel, so a millimetre is 8 of them and samples are 2 apart.
+    const cropped = await processImage(image, { detect: JS, calibration, smoothBoundary: true, region: {
+      isCropped: true, originalRegion: { x: 0, y: 0, width: 100, height: 100 }, toWorking: { x: 0.5, y: 0.5 },
+    } });
+    const [a, b] = cropped.rawOutline[0].outer;
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(1, 1); // 2 detector pixels, mapped to working pixels
+    const unscaled = await processImage(image, { detect: JS, smoothBoundary: true });
+    expect(unscaled.timings.outerSmoothing).toBeGreaterThanOrEqual(0);
+    const [c, d] = unscaled.rawOutline[0].outer;
+    expect(Math.hypot(d.x - c.x, d.y - c.y)).toBeCloseTo(1, 1); // four segmentation pixels, sampled every one
+  });
+
+  it("maps the sheet's printed areas from the working photo into the detection crop", async () => {
+    // A block with a thin ruled line through it. The crop starts at (40, 20) in the working photo
+    // and has two detection pixels per working pixel.
+    const image = photo(240, 160, (x, y) => box(90, 30, 150, 130)(x, y) || (x >= 20 && x < 220 && y >= 100 && y < 102));
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
+    const region = { isCropped: true as const, originalRegion: { x: 40, y: 20, width: 120, height: 80 }, toWorking: { x: 0.5, y: 0.5 } };
+    const width = (result: Awaited<ReturnType<typeof processImage>>) => outlineBounds(result.outline)!.maxX - outlineBounds(result.outline)!.minX;
+    const plain = await processImage(image, { detect: JS, calibration, region });
+    expect(width(plain)).toBeGreaterThan(75);
+    // The printed area in working pixels: detection (10..230, 88..112) halved and offset by the crop origin.
+    const sheetInk = [{ x: 45, y: 64, width: 110, height: 12, kind: "rule" as const }];
+    const clean = await processImage(image, { detect: JS, calibration, region, sheetInk });
+    expect(clean.timings.sheetInk).toBeGreaterThanOrEqual(0);
+    expect(width(clean)).toBeLessThan(34);
+    // Without a scale a stroke cannot be sized, so the step is skipped.
+    const unscaled = await processImage(image, { detect: JS, region, sheetInk });
+    expect(unscaled.timings.sheetInk).toBeUndefined();
+  });
+
+  it("keeps detection intact if automatic reconstruction exceeds its complexity budget", async () => {
+    const image = photo(400, 400, (x, y) => {
+      const cx = 20 + Math.round((x - 20) / 28) * 28, cy = 20 + Math.round((y - 20) / 28) * 28;
+      return cx >= 20 && cy >= 20 && cx <= 380 && cy <= 380 && Math.hypot(x - cx, y - cy) < 5;
+    });
+    const detected = await processImage(image, { detect: JS });
+    expect(detected.outline.length).toBeGreaterThan(128);
+    const cleaned = await processImage(image, { detect: JS, autoCleanup: true });
+    expect(cleaned.cleanup?.applied).toBe(false);
+    expect(cleaned.outline).toEqual(detected.outline);
+    expect(cleaned.rawOutline).toEqual(detected.rawOutline);
+  });
+
+  it("maps a crop-first detection back per axis before applying physical margins", async () => {
+    const image = photo(100, 120, (x, y) => x > 20 && x < 80 && y > 20 && y < 100);
+    const detect = { ...JS, tolerancePx: 0, smoothing: 0 };
+    const original = await processImage(image, { detect });
+    const mapped = await processImage(image, { detect, region: {
+      isCropped: true, originalRegion: { x: 15, y: 25, width: 20, height: 36 },
+      toWorking: { x: 0.2, y: 0.3 },
+    } });
+    expect(mapped.rawOutline).toEqual(original.rawOutline.map(s => ({
+      outer: s.outer.map(p => ({ x: p.x * 0.2 + 15, y: p.y * 0.3 + 25 })), holes: [],
+    })));
+    expect(mapped.outline).toEqual(mapped.rawOutline);
+  });
   it("keeps manually overlapping shapes when suppressing newly created holes", () => {
     const first = {
       outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],

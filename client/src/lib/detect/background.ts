@@ -33,6 +33,26 @@ export interface ScoreWeights {
  */
 export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = { L: 0.5, a: 1, b: 1 };
 
+/**
+ * On white paper, a surface at most this fraction as light as the paper is an
+ * object, whatever the automatic threshold says.
+ *
+ * The threshold is a two-way split of a score that leans on colour. A tool
+ * with a dark neutral part and a saturated part (a black and yellow driver)
+ * has three populations: paper, dark, coloured. When the coloured part scores
+ * far above the rest the split lands between dark and coloured, and the dark
+ * part is read as paper. Paper is the one thing known on a calibration sheet,
+ * so darkness is judged against it directly. An ordinary cast shadow keeps
+ * well over half the paper's lightness, which is why lightness is still
+ * down-weighted everywhere else.
+ */
+export const PAPER_DARK_FRACTION = 0.5;
+
+/** True when a lightness is dark enough, against the paper's, to be an object. */
+export function isDarkOnPaper(lightness: number, paperLightness: number): boolean {
+  return paperLightness > 0 && lightness <= paperLightness * PAPER_DARK_FRACTION;
+}
+
 /** Width of the border band sampled for the background, in pixels. */
 export function borderBandWidth(width: number, height: number): number {
   return Math.max(8, Math.round(Math.min(width, height) * 0.02));

@@ -11,7 +11,7 @@ export function traceDraftSnapshot(trace: TraceState): TraceDraft | null {
   const { sourceRevision: _revision, processing: _processing, svg: _svg,
     detectedImageUrl, autoCalibrationAttemptedImageUrl, ...state } = trace;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     state: { ...state, imageUrl: trace.imageUrl },
     detectionComplete: detectedImageUrl === trace.imageUrl,
     referencesAttempted: autoCalibrationAttemptedImageUrl === trace.imageUrl,

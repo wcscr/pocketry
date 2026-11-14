@@ -11,7 +11,7 @@ import {
 
 import { z } from "zod";
 import { tracePlacementSchema, type TracePlacement, type TracePlacements } from "@shared/gridfinity/trace-placement";
-import { depthSpecSchema, tracedShapeSchema, type TracedShape } from "@shared/gridfinity/cutout";
+import { depthSpecSchema, tracedShapeObjectSchema, restoreTracedShapeCurves, type TracedShape } from "@shared/gridfinity/cutout";
 
 // Placement choices travel with the session queue, not with reusable geometry
 // or the saved project schema. Older queued shapes have no pendingDepth.
@@ -20,7 +20,8 @@ const pendingDepthSchema = z.union([depthSpecSchema, z.object({ mode: z.literal(
 export type PendingPocketDepth = z.infer<typeof pendingDepthSchema>;
 const destinationSchema = z.object({ key: z.string(), name: z.string() }).strict();
 export type PendingDestination = z.infer<typeof destinationSchema>;
-const queuedToolSchema = tracedShapeSchema.extend({ pendingDepth: pendingDepthSchema.optional(), pendingDestination: destinationSchema.optional(), pendingPlacement: tracePlacementSchema.optional() });
+const queuedToolSchema = tracedShapeObjectSchema.extend({ pendingDepth: pendingDepthSchema.optional(), pendingDestination: destinationSchema.optional(), pendingPlacement: tracePlacementSchema.optional() })
+  .transform(restoreTracedShapeCurves);
 
 /**
  * The app-level shape library: traced shapes on their way to (or living in)

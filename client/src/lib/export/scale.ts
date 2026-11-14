@@ -7,6 +7,7 @@ import {
   type DraftCalibration,
 } from "@shared/geometry/scale";
 import type { Outline } from "@shared/geometry/types";
+import { mapCurves, normalizeCurves, type CurveOutline } from "@shared/geometry/curves";
 
 import { flipOutlineY, scaleOutline } from "@/lib/geometry/outline";
 
@@ -77,6 +78,13 @@ export function toModelSpace(outline: Outline, scale: ExportScale): Outline {
   // Flip-then-scale and scale-then-flip agree ((H − y)·s ≡ H·s − y·s), so the
   // order here is a readability choice, not a correctness one.
   return scale.mmPerPx === null ? flipped : scaleOutline(flipped, scale.mmPerPx);
+}
+
+/** Curve source crosses the same single coordinate boundary as its samples. */
+export function curvesToModelSpace(curves: CurveOutline, scale: ExportScale): CurveOutline {
+  assertUsableScale(scale);
+  const factor = scale.mmPerPx ?? 1;
+  return normalizeCurves(mapCurves(curves, p => ({ x: p.x * factor, y: (scale.imageHeight - p.y) * factor })));
 }
 
 /** Millimetres for a pixel length, or `null` when uncalibrated. */

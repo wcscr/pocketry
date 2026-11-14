@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { FlipHorizontal2, Maximize, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { Item as RadioGroupItem } from "@radix-ui/react-radio-group";
 import type { Outline, Point } from "@shared/geometry/types";
+import { curvePath, CURVE_TOLERANCE_MM, mapCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
+import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -16,8 +18,9 @@ import { useElementSize } from "@/hooks/use-element-size";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { useTrace } from "@/state/trace-store";
 import { SourceImage } from "./trace-scene";
+import { useCurveSymmetry } from "./use-curve-symmetry";
 
-interface Session { outline: Outline; sourceRevision: number; shapeIndex: number }
+interface Session { outline: Outline; curves?: CurveOutline; calibration: Calibration | null; sourceRevision: number; shapeIndex: number }
 
 const segmentClass = "flex h-11 min-w-0 flex-1 items-center justify-center rounded-sm px-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=checked]:bg-background data-[state=checked]:text-foreground data-[state=checked]:shadow-sm";
 
@@ -27,11 +30,11 @@ export function TraceSymmetryTool() {
   const [session, setSession] = useState<Session | null>(null);
   const cancelDrag = useRef<(() => void) | null>(null);
   useEffect(() => {
-    if (session && (trace.outline !== session.outline || trace.sourceRevision !== session.sourceRevision)) setSession(null);
-  }, [trace.outline, trace.sourceRevision, session]);
+    if (session && (trace.outline !== session.outline || trace.curves !== session.curves || trace.calibration !== session.calibration || trace.sourceRevision !== session.sourceRevision)) setSession(null);
+  }, [trace.outline, trace.curves, trace.calibration, trace.sourceRevision, session]);
   return <>
     <Button variant="outline" size="sm" className="w-full" disabled={trace.processing || !trace.outline.length}
-      onClick={() => setSession({ outline: trace.outline, sourceRevision: trace.sourceRevision,
+      onClick={() => setSession({ outline: trace.outline, curves: trace.curves, calibration: trace.calibration, sourceRevision: trace.sourceRevision,
         shapeIndex: trace.selection?.shapeIndex ?? 0 })}>
       <FlipHorizontal2 className="mr-2 h-4 w-4" />Symmetry &amp; straighten
     </Button>
@@ -57,15 +60,24 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   const [alignUpright, setAlignUpright] = useState(false);
   const straightenOnly = mode === "straighten";
   const rotate = straightenOnly || alignUpright;
+  const tolerance = CURVE_TOLERANCE_MM / (mmPerPixel(session.calibration) ?? .1);
+  const curvePreview = useCurveSymmetry(!straightenOnly && session.curves ? {
+    source: session.curves, shapeIndex, axis, side, tolerance,
+  } : undefined);
+  const resultCurves = straightenOnly ? session.curves : curvePreview.result?.curves;
   const [svg, previewSize] = useElementSize<SVGSVGElement>();
   const scene = useRef<SVGGElement>(null);
   const touchPointers = useRef(new Set<number>());
   const drag = useRef<{ endpoint: keyof SymmetryAxis; axis: SymmetryAxis; pointerId: number } | null>(null);
   const result = useMemo<SymmetryResult>(() => {
-    if (!straightenOnly) return symmetrizeShape(shape, axis, side);
+    if (!straightenOnly) {
+      if (!session.curves) return symmetrizeShape(shape, axis, side);
+      if (resultCurves) return { shape: sampleCurves([resultCurves[shapeIndex]], tolerance)[0] };
+      return { error: curvePreview.pending ? "Preparing symmetry preview…" : curvePreview.error ?? "Could not preview symmetry." };
+    }
     const length = Math.hypot(axis.end.x - axis.start.x, axis.end.y - axis.start.y);
     return Number.isFinite(length) && length >= 1 ? { shape } : { error: "Move the axis endpoints farther apart." };
-  }, [shape, axis, side, straightenOnly]);
+  }, [shape, axis, side, straightenOnly, session.curves, resultCurves, curvePreview.pending, curvePreview.error, shapeIndex, tolerance]);
   const radians = Math.atan2(axis.end.x - axis.start.x, axis.end.y - axis.start.y);
   const rotation = useMemo(() => rotateImageAlignment(trace.imageSize, radians, trace.imageAlignment),
     [trace.imageSize, radians, trace.imageAlignment]);
@@ -76,8 +88,10 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   const uprightWidth = uprightBounds ? uprightBounds.maxX - uprightBounds.minX : 0;
   const uprightHeight = uprightBounds ? uprightBounds.maxY - uprightBounds.minY : 0;
   const uprightPadding = Math.max(uprightWidth, uprightHeight) * .08 + 2;
-  const originalPath = useMemo(() => outlineToPathData([shape]), [shape]);
-  const previewPath = useMemo(() => result.shape ? outlineToPathData([result.shape]) : "", [result]);
+  const nativePath = (curves: CurveOutline) => [curves[shapeIndex].outer, ...curves[shapeIndex].holes].map(r => curvePath(r)).join(" ");
+  const originalPath = session.curves ? nativePath(session.curves) : outlineToPathData([shape]);
+  const previewPath = resultCurves ? nativePath(resultCurves) : result.shape ? outlineToPathData([result.shape]) : "";
+  const uprightPath = resultCurves ? nativePath(mapCurves(resultCurves, p => transformImagePoint(p, rotation.transform))) : output.shape ? outlineToPathData([output.shape]) : "";
   // A stable frame while dragging prevents the handles chasing a moving viewBox.
   const bounds = useMemo(() => outlineBounds([shape])!, [shape]);
   const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.15 + 4;
@@ -106,10 +120,18 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
     drag.current = null;
     cancelDrag.current = null;
   };
-  const stale = trace.outline !== session.outline || trace.sourceRevision !== session.sourceRevision;
+  const stale = trace.outline !== session.outline || trace.curves !== session.curves || trace.calibration !== session.calibration || trace.sourceRevision !== session.sourceRevision;
   const apply = () => {
     if (!output.shape || stale) return;
     if (!result.shape) return;
+    if (!straightenOnly && session.curves) {
+      if (!curvePreview.result || curvePreview.pending) return;
+      trace.dispatch({ type: "CURVE_SYMMETRY_COMMITTED", curves: curvePreview.result.curves,
+        expectedCurves: session.curves, expectedOutline: session.outline, radians: rotate ? radians : undefined,
+        expectedCalibration: session.calibration,
+        label: rotate ? "Make contour symmetric and upright" : "Make contour symmetric" });
+      onClose(); return;
+    }
     const outline = straightenOnly ? session.outline : session.outline.map((item, index) => index === shapeIndex ? result.shape : item);
     if (rotate) trace.dispatch({ type: "ALIGN_UPRIGHT", outline, expectedOutline: session.outline, radians,
       label: straightenOnly ? "Straighten photo" : "Make contour symmetric and upright" });
@@ -215,7 +237,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
           <div className="space-y-1">
             <div className="flex items-center gap-1">
               <span id="symmetry-side-label" className="text-sm font-medium">Align with side</span>
-              <HelpHint label="symmetry sides">Mirror the left or right side of the blue axis, or average both. Tapers and shoulders are retained. Dashed is the original outline; purple is the preview.</HelpHint>
+              <HelpHint label="symmetry sides">Mirror the left or right side of the blue axis, or average both. Left/Right preserve the chosen curves and handles exactly, splitting where they meet the axis. Average rebuilds editable curves from the average width profile; separated cross-sections need Left or Right. Dashed is the original; purple is the preview.</HelpHint>
             </div>
             <RadioGroup value={side} onValueChange={(value: SymmetrySide) => setSide(value)} orientation="horizontal"
               aria-labelledby="symmetry-side-label" className="flex gap-0 rounded-md border bg-muted p-0.5">
@@ -237,7 +259,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
             className="h-40 w-full" aria-label="Contour after upright rotation">
             {trace.imageUrl && <SourceImage url={trace.imageUrl} width={rotation.alignment.size.width}
               height={rotation.alignment.size.height} rotation={trace.imageRotation} alignment={rotation.alignment} />}
-            <path d={outlineToPathData([output.shape])} data-testid="symmetry-upright-result" fill="#c026d31c" stroke="#c026d3" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            <path d={uprightPath} data-testid="symmetry-upright-result" fill="#c026d31c" stroke="#c026d3" strokeWidth={2} vectorEffect="non-scaling-stroke" />
           </svg>
         </figure>}
         {output.error && <p role="status" className="text-sm text-destructive">{output.error}</p>}

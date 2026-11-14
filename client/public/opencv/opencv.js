@@ -19,7 +19,7 @@
     // Other shells, e.g. d8
     root.cv = factory();
   }
-}(this, function () {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   
 var cv = (() => {
   var _scriptName = typeof document != 'undefined' ? document.currentScript?.src : undefined;

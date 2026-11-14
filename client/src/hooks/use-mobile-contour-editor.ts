@@ -165,5 +165,6 @@ export function useMobileContourEditor(options: {
     options.onCommit(setRing(options.outline, selectedPoint.ref, selectedRing.filter((_, index) => index !== selectedPoint.index)), "Remove contour node");
     setSelectedPoint(null);
   };
-  return { down, move, end, activePoint, selectedPoint, canRemove, removeSelected };
+  return { down, move, end, activePoint, selectedPoint, canRemove, removeSelected,
+    cancel: () => { cancel(); pointers.current.clear(); } };
 }

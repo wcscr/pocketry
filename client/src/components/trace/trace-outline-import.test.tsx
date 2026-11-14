@@ -3,6 +3,7 @@ import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { curvesFromOutline } from "@shared/geometry/curves";
 import type { Calibration } from "@shared/geometry/scale";
 import type { Outline } from "@shared/geometry/types";
 
@@ -177,6 +178,51 @@ describe("TraceOutlineImport", () => {
     expect(trace.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
     expect(trace.history.stack.at(-1)!.label).toBe("Import outline");
     React.act(() => trace.undo());
+    expect(trace.outline).toBe(DETECTED);
+  });
+
+  it("joins editable curves without disturbing them, and Undo restores them", async () => {
+    render(<Control />);
+    loadPhoto({ detected: true });
+    React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(DETECTED), label: "Enable curves" }));
+    const curves = trace.curves!;
+    expect(curves).toHaveLength(1);
+    click("button-import-outline");
+    await choose(SAVED_SVG);
+    expect(alertText()).toBeNull();
+    click("button-import-outline-add");
+    expect(trace.curves).toHaveLength(3);
+    expect(trace.curves![0]).toEqual(curves[0]);
+    // Straight anchors sample back to exactly the imported points.
+    expect(trace.outline.slice(1)).toEqual(SAVED);
+    expect(trace.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    React.act(() => trace.undo());
+    expect(trace.curves).toEqual(curves);
+    expect(trace.outline).toEqual(DETECTED);
+
+    click("button-import-outline");
+    await choose(SAVED_SVG);
+    click("button-import-outline-replace");
+    expect(trace.outline).toEqual(SAVED);
+    expect(trace.curves).toEqual(curvesFromOutline(SAVED));
+    expect(trace.history.stack.at(-1)!.label).toBe("Replace outline with import");
+  });
+
+  it("says why it cannot import while editable curves carry a trace margin", async () => {
+    render(<Control />);
+    loadPhoto();
+    React.act(() => {
+      trace.dispatch({ type: "SET_MARGIN", margin: 1 });
+      trace.dispatch({ type: "DETECTED", imageUrl: IMAGE_URL, outline: DETECTED, rawOutline: DETECTED, curves: curvesFromOutline(DETECTED), svg: "", region: REGION });
+    });
+    expect(trace.curves).toHaveLength(1);
+    expect(trace.margin).toBe(1);
+    click("button-import-outline");
+    await choose(SAVED_SVG);
+    expect(alertText()).toBe("Set Margin to zero before importing while Editable curves are on.");
+    expect(button("button-import-outline-add")!.disabled).toBe(true);
+    expect(button("button-import-outline-replace")!.disabled).toBe(true);
+    click("button-import-outline-replace");
     expect(trace.outline).toBe(DETECTED);
   });
 

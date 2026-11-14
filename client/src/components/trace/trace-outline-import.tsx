@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
 import { mmPerPixel } from "@shared/geometry/scale";
-import { OUTER_RING } from "@shared/geometry/types";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,7 +41,7 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
   onClose: () => void;
   onImported?: () => void;
 }): JSX.Element {
-  const { dispatch, outline, imageSize, calibration, region, perspectiveCorrection } = useTrace();
+  const { dispatch, outline, curves, margin, imageSize, calibration, region, perspectiveCorrection } = useTrace();
   const keyboard = useKeyboardViewport();
   const [svgText, setSvgText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -84,22 +83,19 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
     }
   };
 
-  const ready = placed !== null && !loading && !fileError && !blocked;
+  // Editable curves cannot carry a trace margin, so the store declines the edit; say so here instead.
+  const curvesNeedZeroMargin = Boolean(curves) && (margin ?? 0) !== 0;
+  const ready = placed !== null && !loading && !fileError && !blocked && !curvesNeedZeroMargin;
   const commit = (replace: boolean) => {
     if (!placed || !ready) return;
-    const kept = replace ? [] : outline;
-    // A selected hole would otherwise be read as a hole edit to mirror across pockets.
-    dispatch({ type: "SELECT_RING", selection: null });
-    dispatch({ type: "OUTLINE_COMMITTED", outline: [...kept, ...placed.outline],
-      label: replace && outline.length > 0 ? "Replace outline with import" : "Import outline" });
-    // Like Add contour: land in editing with the imported contour selected.
-    dispatch({ type: "SET_MODE", mode: "edit" });
-    dispatch({ type: "SELECT_RING", selection: { shapeIndex: kept.length, ringIndex: OUTER_RING } });
+    // One edit, like Add contour: it lands in editing with the imported contour selected.
+    dispatch({ type: "OUTLINE_IMPORTED", outline: placed.outline, replace });
     onClose();
     onImported?.();
   };
 
-  const error = fileError ?? imported.error;
+  const error = fileError ?? imported.error
+    ?? (curvesNeedZeroMargin ? "Set Margin to zero before importing while Editable curves are on." : null);
   const contours = placed ? placed.outline.reduce((count, shape) => count + 1 + shape.holes.length, 0) : 0;
   const size = !placed ? "" : mmPerPx !== null
     ? `${(placed.sizePx.width * mmPerPx).toFixed(2)} × ${(placed.sizePx.height * mmPerPx).toFixed(2)} mm`

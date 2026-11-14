@@ -10,6 +10,9 @@ import { suggestSymmetryAxis } from "@/lib/geometry/symmetry";
 import { transformImagePoint } from "@shared/geometry/image-alignment";
 import { mmPerPixel } from "@shared/geometry/scale";
 import { TraceSymmetryTool } from "./trace-symmetry-tool";
+import { asymmetricHandle } from "@/lib/geometry/curve-symmetry.test-support";
+import { curvePath, mapCurves } from "@shared/geometry/curves";
+import * as photoWorker from "@/lib/detect/worker-client";
 
 let trace: TraceStore;
 let root: Root;
@@ -46,6 +49,42 @@ beforeEach(() => {
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
 describe("symmetry preview", () => {
+  it.each(["Left", "Right", "Average"])("keeps %s curve previews editable and applies symmetry plus straightening once", side => {
+    ready();
+    React.act(() => {
+      trace.dispatch({ type: "CURVES_COMMITTED", curves: mapCurves(asymmetricHandle, p => ({ x: p.x + 60, y: p.y + 30 })), label: "Auto-simplify outline" });
+      trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: OUTER_RING } });
+    });
+    const before = trace.curves, history = trace.history, scale = mmPerPixel(trace.calibration);
+    expect(button("Symmetry & straighten").disabled).toBe(false);
+    click("Symmetry & straighten"); expect(preview()).toContain("C"); click("Symmetry"); click(side);
+    expect(preview()).toContain("C"); expect(trace.curves).toBe(before); expect(trace.history).toBe(history);
+    click("Cancel"); expect(trace.curves).toBe(before); expect(trace.history).toBe(history);
+    click("Symmetry & straighten"); click("Symmetry"); click(side); toggleUpright(); const expected = uprightPreview();
+    click("Apply"); expect(trace.history.index).toBe(history.index + 1); expect(mmPerPixel(trace.calibration)).toBeCloseTo(scale!, 12);
+    expect(curvePath(trace.curves![0].outer)).toBe(expected);
+    const changed = trace.curves; React.act(() => trace.undo()); expect(trace.curves).toEqual(before); expect(trace.calibration).toEqual(calibration);
+    React.act(() => trace.redo()); expect(trace.curves).toEqual(changed);
+  });
+
+  it("cancels pending curve work and ignores a late worker reply", async () => {
+    vi.stubGlobal("Worker", class {});
+    let finish!: (value: never) => void, signal: AbortSignal | undefined;
+    const run = vi.spyOn(photoWorker, "symmetryInWorker").mockImplementation((_request, nextSignal) => {
+      signal = nextSignal; return new Promise(resolve => { finish = resolve; });
+    });
+    try {
+      ready(); React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: asymmetricHandle, label: "Curves" }));
+      React.act(() => trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));
+      const before = trace.curves, history = trace.history;
+      click("Symmetry & straighten"); click("Symmetry");
+      expect(button("Apply").disabled).toBe(true);
+      await React.act(async () => new Promise(resolve => setTimeout(resolve, 90)));
+      expect(run).toHaveBeenCalled(); click("Cancel"); expect(signal?.aborted).toBe(true);
+      await React.act(async () => finish({ curves: [], anchors: 0, cubics: 0, profileAllowance: 0 } as never));
+      expect(trace.curves).toBe(before); expect(trace.history).toBe(history); expect(document.querySelector('[role="dialog"]')).toBeNull();
+    } finally { run.mockRestore(); }
+  });
   it("disables the tool until an outline is available", () => {
     expect(button("Symmetry & straighten").disabled).toBe(true);
   });
