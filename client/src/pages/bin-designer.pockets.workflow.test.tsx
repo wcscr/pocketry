@@ -109,7 +109,10 @@ describe("BinDesignerPage", () => {
       expect(button("Through — no bottom").getAttribute("aria-pressed")).toBe("true");
       React.act(() => button("Fixed depth").click());
       React.act(() => button("Edit bin height").click());
-      await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+      // Allow the drawer and nested disclosure to commit before focus settles.
+      for (let frame = 0; frame < 6; frame++) {
+        await React.act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)); });
+      }
       const height = container.querySelector<HTMLInputElement>('#bin-height-units')!;
       expect(height.closest('[hidden], [inert]')).toBeNull();
       expect(document.activeElement).toBe(height);

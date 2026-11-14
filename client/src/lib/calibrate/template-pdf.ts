@@ -3,6 +3,7 @@ import {
   TEMPLATE_PAPER_MM,
   TEMPLATE_SHEET_VERSION,
   TEMPLATE_PHOTO_INSTRUCTIONS,
+  estimatedTemplateTextWidth as estimatedTextWidth,
   isExperimentalTemplate,
   templateHeaderBaselinesMm,
   templateMarkerCentersMm,
@@ -20,18 +21,6 @@ function number(value: number): string {
 
 function escapePdfText(text: string): string {
   return text.replace(/([\\()])/g, "\\$1");
-}
-
-/** Conservative Helvetica width estimate, sufficient for centred sheet labels. */
-function estimatedTextWidth(text: string, fontSize: number): number {
-  let units = 0;
-  for (const character of text) {
-    if ("ilI1.,:;!'".includes(character)) units += 0.28;
-    else if ("mwMW@".includes(character)) units += 0.86;
-    else if (character === " ") units += 0.28;
-    else units += 0.54;
-  }
-  return units * fontSize;
 }
 
 function concatBytes(parts: readonly Uint8Array[]): Uint8Array {

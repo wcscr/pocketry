@@ -1,4 +1,5 @@
 import type { Outline } from "@shared/geometry/types";
+import type { CurveOutline } from "@shared/geometry/curves";
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
 
@@ -8,13 +9,13 @@ import { traceObjects } from "@/lib/gridfinity/trace-objects";
 import { normalizeTracedShapeWithPlacement } from "@/lib/gridfinity/traced-shape";
 
 /** Reopens editable pockets and holes at their calibrated size and photo-relative positions. */
-export function projectFromTrace(outline: Outline, scale: ExportScale, name: string, marginMm: number): ProjectDoc {
+export function projectFromTrace(outline: Outline, scale: ExportScale, name: string, marginMm: number, curves?: CurveOutline): ProjectDoc {
   if (outline.length === 0) throw new Error("Trace an outline before exporting an editable Pocketry project.");
   let pocketNumber = 0, holeNumber = 0;
-  const entries = traceObjects(outline).map(part => {
+  const entries = traceObjects(outline, curves).map(part => {
     const objectName = part.role === "hole" ? `Hole ${++holeNumber}`
       : ++pocketNumber === 1 ? name : `${name} (${pocketNumber})`;
-    const traced = normalizeTracedShapeWithPlacement(part.outline, scale, objectName);
+    const traced = normalizeTracedShapeWithPlacement(part.outline, scale, objectName, part.curves);
     if (!traced) throw new Error("Set the scale before exporting an editable Pocketry project.");
     return { ...traced, role: part.role, shape: { ...traced.shape, traceMarginMm: marginMm } };
   });

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 1.10.0 — 2026-11-14
+
+- Default new traces to Tool edges on light sheets, with Color contrast and Automatic available. Recover more dark tool parts, retry incomplete edge detection when photo downsampling loses boundaries, and suppress calibration-sheet printing on both v2 and v3 sheets while protecting thin features and gaps; retain uncertain shadows for review. Keep more tools with bright highlights or clear parts whole.
+- Automatically reconstruct and smooth detected outlines, filling dips rather than shaving the tool, and keeping the earlier boundary when extra smoothing would add ripples or lose detail. Run a straight edge over small dips such as grip ribs and notches (up to 0.5 mm deep and 10 mm wide), so pockets follow a tool's outer edge with fewer points. Keep optional smoothing, sensitivity and point simplification under Manual detection settings, with visual comparison, undoable Apply and compact applied/unchanged indicators. Preview and restore the earlier detected contour without restarting the photo workflow.
+- Correct detection with visible Add/Remove tools, brush feedback and undoable strokes; keep guidance in hover hints. Sample original-photo detail after perspective correction and preserve correction strokes in draft recovery.
+- Add optional editable curves, section repair, symmetry and straightening in Trace and Bin. Preserve curves, calibration and outline edits through Undo, recovery and transfer to Bin; export native SVG curves and sampled DXF/mesh outlines.
+- Restart outline detection or switch methods while keeping the photo, calibration and selected region. Warn before discarding adjustments; switch untouched detections directly. Restore matching outlines and detection settings together with Undo.
+- Refine color-contrast outlines with guarded, mask-seeded GrabCut in a cancellable worker. Preserve detected recesses, thin features and holes, and retain the original outline when refinement is unreliable.
+
 ## 1.9.0 — 2026-11-12
 
 - Import closed SVG outlines as editable pockets with physical dimensions or a width override.

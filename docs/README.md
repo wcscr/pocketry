@@ -32,6 +32,15 @@ and internal refactors usually need no changelog entry.
   [insertion clearance](pocket-insertion-paths.md), and [split pockets](split-pockets.md).
 - [Hardware symbols and label surfaces](hardware-symbols.md).
 - [ULTIM8-compatible fixtures](ultim8-peg-bottom.md).
+- [Learned outer outlines](teed-outline-integration.md) and [editable curves](contour-curves-prototype.md).
+  [How outlines are evaluated](outline-evaluation.md); the
+  [detection plan](outline-detection-plan.md) is a proposal, not implemented behavior.
+  [Combined detector](outline-combined-detector.md) describes source sampling,
+  explicit corrections, reconstruction, and the geometry preservation checks.
+  The [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md)
+  records the latest results from original photos on all 36 tools; the
+  [November 14 straightening check](outline-straightening-validation-2026-11-14.md)
+  covers the bridging of small dips on seven of them.
 - [Contour symmetry](contour-symmetry-prototype.md) and
   [calibration aids](calibration/object-reference-strip.md).
 - [DXF compatibility](dxf-compatibility.md) and [import limits](import-limits.md).
@@ -50,7 +59,8 @@ issues for remaining work. A proposal is not a shipped feature.
   [geometry export integrity](geometry-export-integrity.md),
   [surface rounding](pocket-surface-rounding.md), and [label supports](label-tab-support.md).
 - [Detector backend comparison](detector-backend-validation.md) and
-  [reflective-photo validation](reflective-photo-validation.md).
+  [reflective-photo validation](reflective-photo-validation.md), plus
+  [GrabCut and neural-boundary evaluation](photo-refinement-evaluation.md).
 - [Workflow-layout design](prototypes/selection-inspector.md), [mobile review](mobile-ux-review.md), [mobile implementation](mobile-feedback-implementation.md),
   [experimental-control testing](experimental-controls-adversarial.md), and
   [UI audit plan](ui-audit-fixes-plan.md).

@@ -5,6 +5,7 @@ import {
   DEFAULT_SCORE_WEIGHTS,
   fitIlluminationPlane,
   hasUsefulAlpha,
+  isDarkOnPaper,
   isInBorderBand,
   labDistanceScore,
   medianOf,
@@ -47,14 +48,19 @@ export function buildScoreFieldJS(
     useAlpha === "always" ||
     (useAlpha === "auto" && hasUsefulAlpha(data, width, height));
 
+  const paper = !alphaWanted && (options.paperBackground ?? options.boundary === "teed");
+  const dark = paper ? new Uint8Array(width * height) : undefined;
   const score = alphaWanted
     ? scoreFromAlpha(data, width, height)
-    : scoreFromColor(data, width, height);
+    : scoreFromColor(data, width, height, dark);
 
   // With a real alpha mask the split is unambiguous, so skip Otsu and take the
   // conventional half-opaque cut.
   const otsu = alphaWanted ? 128 : otsuThreshold(score);
   const iso = alphaWanted ? 128 : applySensitivity(otsu, sensitivity);
+  // The split is found first, on colour as usual; darkness on paper is then an
+  // object by rule, so it cannot fall on the wrong side of that split.
+  if (dark) liftDarkOnPaper(score, dark, iso);
 
   const mask = threshold(score, iso);
   const kernel = morphKernelSize(width, height);
@@ -178,6 +184,7 @@ function scoreFromColor(
   data: Uint8ClampedArray,
   width: number,
   height: number,
+  dark?: Uint8Array,
 ): Uint8Array {
   const lab = toLabPlanes(data, width, height);
   flatFieldLightness(lab.L, width, height);
@@ -190,8 +197,17 @@ function scoreFromColor(
       background,
       DEFAULT_SCORE_WEIGHTS,
     );
+    if (dark && isDarkOnPaper(lab.L[i], background.L)) dark[i] = 1;
   }
   return score;
+}
+
+/**
+ * Raises every pixel marked dark-on-paper to at least the threshold, so it
+ * counts as the object. Shared by both backends; see `PAPER_DARK_FRACTION`.
+ */
+export function liftDarkOnPaper(score: Uint8Array, dark: Uint8Array, iso: number): void {
+  for (let i = 0; i < score.length; i++) if (dark[i] && score[i] < iso) score[i] = iso;
 }
 
 interface LabPlanes {
