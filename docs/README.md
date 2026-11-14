@@ -38,7 +38,9 @@ and internal refactors usually need no changelog entry.
   [Combined detector](outline-combined-detector.md) describes source sampling,
   explicit corrections, reconstruction, and the geometry preservation checks.
   The [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md)
-  records the latest results from original photos.
+  records the latest results from original photos on all 36 tools; the
+  [November 14 straightening check](outline-straightening-validation-2026-11-14.md)
+  covers the bridging of small dips on seven of them.
 - [Contour symmetry](contour-symmetry-prototype.md) and
   [calibration aids](calibration/object-reference-strip.md).
 - [DXF compatibility](dxf-compatibility.md) and [import limits](import-limits.md).

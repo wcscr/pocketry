@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as cleanupModule from "@shared/geometry/detected-cleanup";
 import * as smoothing from "@shared/geometry/outline-simplification";
 import { curvesFromOutline, mapCurves, sampleCurves } from "@shared/geometry/curves";
+import * as metrics from "@shared/geometry/contour-metrics";
 import { distanceToOutlineBoundary, sampleRing } from "@shared/geometry/contour-metrics";
 
 import type { ImageLike } from "./detect/types";
@@ -151,6 +152,90 @@ describe("processImage with correction marks", () => {
     const hints = [{ kind: "paper" as const, points: [{ x: 80, y: 80 }], radius: 2 }];
     await expect(processImage(image, { detect: { ...JS, hints }, autoCleanup: true }))
       .rejects.toThrow(/could not preserve this mark/);
+  });
+});
+
+describe("processImage straightening", () => {
+  // A tenth of a millimetre per pixel, so the half millimetre that is bridged is 5 px.
+  const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 10 };
+  /** A block with a notch 20 px wide and `depth` px deep in its top edge. */
+  const notched = (depth: number) => photo(200, 200, (x, y) => box(30, 40, 170, 160)(x, y) && !box(90, 40, 110, 40 + depth)(x, y));
+  const inNotch = { x: 100, y: 41.5 };
+
+  it.each([false, true])("bridges a shallow notch in the default cleanup and keeps it in the detected outline (curves=%s)", async editableCurves => {
+    const result = await processImage(notched(3), { detect: JS, autoCleanup: true, calibration, editableCurves });
+    expect(result.straightening).toMatchObject({ applied: true });
+    expect(result.straightening!.bridges).toBeGreaterThan(0);
+    expect(result.smoothing?.applied).toBe(true);
+    expect(pointInOutline(result.outline, inNotch)).toBe(true);
+    // The top edge is straight again: no point of it sits down in the notch.
+    expect(result.outline[0].outer.filter(p => p.x > 85 && p.x < 115 && p.y < 60).every(p => p.y < 40.6)).toBe(true);
+    // The detected outline still has the notch, for the comparison and the detail controls.
+    expect(pointInOutline(result.rawOutline, inNotch)).toBe(false);
+    expect(result.refinementBase).toEqual(result.outline);
+    expect(!!result.curves).toBe(editableCurves);
+    expect(result.timings.straightening).toBeGreaterThanOrEqual(0);
+    // Later smoothing by hand starts from the straightened outline, so it does not bring the notch back.
+    expect(pointInOutline(sampleCurves(result.autoSimplification!.source, .1), inNotch)).toBe(true);
+  });
+
+  it("bridges by pixels when the photo has no scale", async () => {
+    const result = await processImage(notched(3), { detect: JS, autoCleanup: true });
+    expect(result.straightening).toMatchObject({ applied: true });
+    expect(pointInOutline(result.outline, inNotch)).toBe(true);
+  });
+
+  it("keeps a notch deeper than half a millimetre", async () => {
+    const result = await processImage(notched(9), { detect: JS, autoCleanup: true, calibration });
+    expect(pointInOutline(result.outline, { x: 100, y: 45 })).toBe(false);
+    expect(pointInOutline(result.outline, { x: 100, y: 100 })).toBe(true);
+  });
+
+  it("leaves a notch that has paper marked inside it", async () => {
+    const hints = [{ kind: "paper" as const, points: [inNotch], radius: 0.5 }];
+    const result = await processImage(notched(3), { detect: { ...JS, hints }, autoCleanup: true, calibration });
+    expect(result.straightening?.applied ?? false).toBe(false);
+    expect(pointInOutline(result.outline, inNotch)).toBe(false);
+    expect(pointInOutline(result.outline, { x: 100, y: 100 })).toBe(true);
+  });
+
+  it("falls back to the outline as it was when the straightened one fails a check", async () => {
+    const plain = await processImage(notched(3), { detect: JS, autoCleanup: true, calibration });
+    const actual = smoothing.simplifyAcceptedOutline;
+    let calls = 0;
+    // The first smoothing request is the straightened outline's: push it far outside the material allowance.
+    const invoke = vi.spyOn(smoothing, "simplifyAcceptedOutline").mockImplementation((request) => calls++ ? actual(request) : ({
+      curves: mapCurves(request.source, p => ({ x: p.x + 100, y: p.y })), changed: true,
+      before: 0, after: 0, maxDeviation: 0, lines: 0, cubics: 0, corners: 0, smoothJoins: 0,
+    }));
+    try {
+      const result = await processImage(notched(3), { detect: JS, autoCleanup: true, calibration });
+      expect(calls).toBe(2);
+      expect(result.straightening).toEqual({ applied: false, bridges: 0, reason: "Smoothing would exceed the detection detail allowance." });
+      expect(result.smoothing?.applied).toBe(true);
+      // What is left is the smoothing of the fitted outline, as before this step existed: the notch is still there.
+      expect(pointInOutline(result.outline, { x: 100, y: 40.4 })).toBe(false);
+      expect(outlineArea(result.outline)).toBeLessThan(outlineArea(plain.outline));
+    } finally { invoke.mockRestore(); }
+  });
+
+  it("judges added ripples against the fitted outline, not against the straightened one", async () => {
+    const measured: boolean[] = [];
+    const measure = vi.spyOn(metrics, "outlineRoughness");
+    try {
+      const result = await processImage(notched(3), { detect: JS, autoCleanup: true, calibration });
+      expect(result.straightening).toMatchObject({ applied: true });
+      for (const [outline] of measure.mock.calls) measured.push(pointInOutline(outline, inNotch));
+    } finally { measure.mockRestore(); }
+    // The smoothing measures its own candidates first. The last comparison is the cleanup's:
+    // the outline before it, notch and all, then the candidate without the notch.
+    expect(measured.slice(-2)).toEqual([false, true]);
+  });
+
+  it("does nothing when the automatic cleanup is off", async () => {
+    const result = await processImage(notched(3), { detect: JS, calibration });
+    expect(result.straightening).toBeUndefined();
+    expect(pointInOutline(result.outline, inNotch)).toBe(false);
   });
 });
 
