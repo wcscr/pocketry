@@ -1,0 +1,146 @@
+{
+  "s01-black-click-pen": {
+    "assessment": "Tradeoff",
+    "note": "The clip is followed more cleanly, but 1.10 adds a wavy band of shadow above the barrel."
+  },
+  "s02-brass-nameplate": {
+    "assessment": "Similar",
+    "note": "Both versions recover the plaque. The 1.10 outline sits slightly farther out and adds small bumps along the long edge."
+  },
+  "s03-craftsman-hex-keys": {
+    "assessment": "Improved",
+    "note": "Recovers the black side panels instead of tracing only the red handle."
+  },
+  "s04-craftsman-tape-measure": {
+    "assessment": "Improved",
+    "note": "Recovers the full dark casing and hook as one outline; 1.9 follows red panels and cuts through the reference strip."
+  },
+  "s05-dewalt-screwdriver": {
+    "assessment": "Improved",
+    "note": "Recovers the dark grip, chuck and rear cap as one outline instead of three colored fragments."
+  },
+  "s06-digital-calipers": {
+    "assessment": "Improved",
+    "note": "Recovers the reflective beam and connects it to the body. A small bump remains on the beam edge."
+  },
+  "s07-needle-clear-hub": {
+    "assessment": "Still incomplete",
+    "note": "The clear hub remains split and cut into. Its smoother boundary does not make it a complete tool outline."
+  },
+  "s08-needle-pink-hub": {
+    "assessment": "Improved",
+    "note": "Connects the pink hub and metal needle into one complete silhouette instead of three fragments."
+  },
+  "s09-fanttik-desoldering-pump": {
+    "assessment": "Improved",
+    "note": "Includes the pale nozzle and follows the plunger shaft more continuously, with a slightly larger outline."
+  },
+  "s10-fanttik-soldering-iron": {
+    "assessment": "Similar",
+    "note": "Both recover the body; 1.10 rounds the shoulders and includes the small raised control more fully."
+  },
+  "s11-fanttik-stand-arm": {
+    "assessment": "Improved",
+    "note": "Connects the reflective curved arm and follows its outer edges instead of splitting the arm at a highlight."
+  },
+  "s12-fanttik-stand-base": {
+    "assessment": "Similar",
+    "note": "Both recover the round base. The 1.10 boundary is slightly farther outside the rim."
+  },
+  "s13-flipper-zero": {
+    "assessment": "Similar",
+    "note": "Both recover the case and ignore the reference strip on top; 1.10 rounds the corners more smoothly."
+  },
+  "s14-folding-knife": {
+    "assessment": "Improved",
+    "note": "Recovers the reflective metal and wood as one silhouette instead of five fragments."
+  },
+  "s15-gerber-multitool": {
+    "assessment": "Tradeoff",
+    "note": "Smooths the long edges, but adds a pronounced shadow spur at one end and a deeper slit between the handles."
+  },
+  "s16-gray-click-pen": {
+    "assessment": "Similar",
+    "note": "Both recover the pen; 1.10 removes small edge spikes and rounds the clip and tip."
+  },
+  "s17-mini-ratchet": {
+    "assessment": "Tradeoff",
+    "note": "Both recover the ratchet, but 1.10 adds an outward step along the handle's shadow."
+  },
+  "s18-rub-n-buff": {
+    "assessment": "Improved",
+    "note": "Recovers most of the reflective tube instead of just the red label. The white cap is still missing and small foldbacks remain."
+  },
+  "s19-ryobi-cutter": {
+    "assessment": "Improved",
+    "note": "Recovers the dark grip, end cap and reflective cutting head as one silhouette instead of colored fragments."
+  },
+  "s20-flux-syringe-plunger": {
+    "assessment": "Improved",
+    "note": "Recovers the clear shaft and thumb pad instead of only the black seal. Spurs remain around the pad and seal."
+  },
+  "s21-flux-syringe": {
+    "assessment": "Improved",
+    "note": "Connects the syringe body, tip and finger grips, but false interior holes and label-related cuts remain."
+  },
+  "s22-stapler": {
+    "assessment": "Tradeoff",
+    "note": "Removes jagged shadow edges, but fills much of the visible opening between the stapler arms."
+  },
+  "s23-tarkit-mould-line-remover": {
+    "assessment": "Improved",
+    "note": "Recovers the blade tip more fully and smooths the handle shadow; the blade notch still needs inspection."
+  },
+  "s24-deburring-tool": {
+    "assessment": "Tradeoff",
+    "note": "Smooths the handle and metal tip, but includes a prominent spur from the photography support wire."
+  },
+  "s25-tweezers": {
+    "assessment": "Improved",
+    "note": "Recovers the pale tweezer tip instead of cutting into it at the highlight."
+  },
+  "s26-wiha-single-a": {
+    "assessment": "Improved",
+    "note": "Recovers the reflective flat shaft and tip instead of leaving a long cut through the shaft."
+  },
+  "s27-wiha-single-b": {
+    "assessment": "Improved",
+    "note": "Recovers the complete reflective shaft and tip with a continuous outer boundary."
+  },
+  "s28-wiha-single-c": {
+    "assessment": "Improved",
+    "note": "Recovers the thin shaft and tip instead of following only its dark reflection."
+  },
+  "s29-wiha-150mm-1": {
+    "assessment": "Still incomplete",
+    "note": "Removes some attached printing and smooths the handle, but the long shaft still splits into three outline pieces."
+  },
+  "s30-wiha-150mm-2": {
+    "assessment": "Improved",
+    "note": "Reduces attached printing and smooths the shaft and handle; the reflective shaft still has a narrow internal gap."
+  },
+  "s31-wiha-150mm-3": {
+    "assessment": "Tradeoff",
+    "note": "Recovers the shaft more fully, but adds a tall spur from nearby sheet printing at the cap."
+  },
+  "s32-wiha-150mm-4": {
+    "assessment": "Improved",
+    "note": "Connects the split shaft and recovers its width; small ripples remain along the long edge."
+  },
+  "s33-wiha-150mm-5": {
+    "assessment": "Improved",
+    "note": "Connects the three fragments into a continuous shaft and handle, including the tip."
+  },
+  "s34-wolfbox-air-duster": {
+    "assessment": "Improved",
+    "note": "Removes much of the jagged shadow along the grip and nozzle and produces a smoother silhouette."
+  },
+  "s35-wolfbox-cone-nozzle": {
+    "assessment": "Improved",
+    "note": "Replaces the large jagged shadow boundary with a much closer, smoother nozzle outline."
+  },
+  "s36-wolfbox-long-nozzle": {
+    "assessment": "Improved",
+    "note": "Smooths the ribs and removes jagged shadow excursions around the connector shoulders."
+  }
+}

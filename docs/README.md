@@ -37,8 +37,10 @@ and internal refactors usually need no changelog entry.
   [detection plan](outline-detection-plan.md) is a proposal, not implemented behavior.
   [Combined detector](outline-combined-detector.md) describes source sampling,
   explicit corrections, reconstruction, and the geometry preservation checks.
+  The [1.9 → 1.10 release comparison](outline-detection-1.9-to-1.10.md)
+  shows every maintainer-selected reference photo at the released defaults.
   The [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md)
-  records the latest results from original photos on all 36 tools; the
+  records the earlier branch results on all 36 tools; the
   [November 14 straightening check](outline-straightening-validation-2026-11-14.md)
   covers the bridging of small dips on seven of them.
 - [Contour symmetry](contour-symmetry-prototype.md) and
