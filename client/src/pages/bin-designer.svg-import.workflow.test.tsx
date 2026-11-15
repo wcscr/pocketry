@@ -5,7 +5,7 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import { downloadBlob } from "@/lib/download";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 
-it.each([false, true])("imports an editable SVG pocket, saves its geometry, and supports undo (mobile=%s)", async mobile => {
+it.each([false, true])("imports an editable Inkscape SVG pocket, saves its geometry, and supports undo (mobile=%s)", async mobile => {
   const { container, unmount } = renderPage({ mobile });
   try {
     await flushHydration();
@@ -15,7 +15,7 @@ it.each([false, true])("imports an editable SVG pocket, saves its geometry, and 
     const menuItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Import SVG pocket")!;
     expect(menuItem).toBeTruthy();
     React.act(() => menuItem.click());
-    const text = '<svg width="100mm" viewBox="0 0 100 100"><path d="M0 0 H30 L0 20 Z"/></svg>';
+    const text = '<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" width="100mm" viewBox="0 0 100 100"><sodipodi:namedview/><path d="M0 0 H30 L0 20 Z" style="-inkscape-stroke:none;paint-order:stroke fill markers"/></svg>';
     const file = new File([text], "triangle.svg", { type: "image/svg+xml" });
     Object.defineProperty(file, "text", { value: () => Promise.resolve(text) });
     await React.act(async () => {
