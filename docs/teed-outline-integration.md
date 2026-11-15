@@ -77,8 +77,18 @@ It must also stay within the original material-detail allowance and must not add
 broader boundary ripples. A rejected proposal keeps the reconstructed boundary.
 Point mode samples fitted curves; Editable curves is off by default.
 
-**Manual detection settings** contains sensitivity, point simplification and
-**Smooth outline**. Optional smoothing previews the current accepted outline,
+**Include interior holes** stays available with every detection method. Enabling
+it with **Tool edges** asks to switch to **Color contrast** and re-detect, explaining
+that the current outline and adjustments will be replaced. Cancel keeps the
+outline and settings unchanged; Undo restores them after successful detection.
+**Automatic** uses Color contrast when holes are enabled. Help icons beside the main
+actions explain their purpose on hover, keyboard focus, or tap. **Add manual
+contour** can trace an inner feature for a different pocket depth in Bin.
+**Import outline from file** loads an SVG, and **Move & rotate outline** adjusts
+contours over the fixed photo.
+
+**Manual detection settings**, below the contour list, contains sensitivity,
+point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
 A checkmark indicates smoothing already applied during detection or a previous
 Apply; Apply is disabled. A dash marks a preview that would make no change.
