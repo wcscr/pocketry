@@ -1,7 +1,8 @@
 # Mobile feedback implementation
 
 Integrated with the newer UI consistency work on 1.3.0 on 2026-10-05; see
-`docs/mobile-ux-review.md` for the current layout and validation record.
+[mobile-ux-review.md](mobile-ux-review.md) for that historical layout and validation record.
+Use [Help](../client/src/components/help/help-dialog.tsx) for the current workflow.
 
 The original branch implements the full review in `agy-feedback-mobile.md`, including the landscape issue [#87](https://github.com/wcscr/pocketry/issues/87). The implementation is based on `origin/main` at `5382088`.
 

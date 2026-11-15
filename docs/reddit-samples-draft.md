@@ -1,5 +1,10 @@
 # Reddit post draft
 
+Historical, unpublished draft for the original eight-sample collection. Counts and
+control names below are retained as draft history, not current instructions. Use
+[the sample library](../samples/README.md) and [README tutorial](../README.md#basic-process)
+for the current collection and workflow.
+
 ## Title
 
 Pocketry update: non-rectangular bins, two-level pockets, and sample projects to try

@@ -140,8 +140,8 @@ Z moves, translated seat heights, the underside movement limit, independent spli
 seats, source recovery through saved history and closed STL/3MF exports with both
 flat and Gridfinity bases.
 
-Physical insertion fit remains unqualified. Verification runs locally under Node
-22; GitHub Actions remains disabled.
+Physical insertion fit remains unqualified. Current verification runs locally under Node
+26; GitHub Actions remains disabled.
 
 Wall-contact messages distinguish tilted pockets from pockets at a changed
 height. Once the solid check confirms a wall contact, its export-blocking error

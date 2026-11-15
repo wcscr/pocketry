@@ -18,7 +18,8 @@ export function ProjectStatusBar() {
   const name = activity?.name ?? "Untitled project";
   useEffect(() => {
     const previous = document.title;
-    document.title = `${name} · ${location === "/bin" ? "Bin" : location === "/" ? "Trace" : "About"} · Pocketry`;
+    document.title = location === "/help/ultim8" ? "ULTIM8 fixture guide · Pocketry"
+      : `${name} · ${location === "/bin" ? "Bin" : location === "/" ? "Trace" : "About"} · Pocketry`;
     return () => { document.title = previous; };
   }, [name, location]);
   if (!activity) return null;

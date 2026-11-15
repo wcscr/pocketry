@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 
 import { HelpDialog } from "@/components/help/help-dialog";
 import { AppHeader } from "@/components/layout/app-header";
@@ -13,6 +13,7 @@ import { PanelProvider, usePanelState } from "@/components/layout/panel-context"
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import About from "@/pages/about";
+import Ultim8Help from "@/pages/ultim8-help";
 import NotFound from "@/pages/not-found";
 import BinDesignerPage from "@/pages/bin-designer";
 import { ShapeLibraryProvider } from "@/state/shape-library";
@@ -28,8 +29,19 @@ import { queryClient } from "./lib/queryClient";
  * entry in `components/layout/workspaces.ts`.
  */
 export function Router(): JSX.Element {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    // Preserve published links to the former Help section without starting a fixture.
+    const followLegacyHelp = (): void => {
+      if (window.location.hash === "#ultim8-fixtures") navigate("/help/ultim8", { replace: true });
+    };
+    followLegacyHelp();
+    window.addEventListener("hashchange", followLegacyHelp);
+    return () => window.removeEventListener("hashchange", followLegacyHelp);
+  }, [navigate]);
   return (
     <Switch>
+      <Route path="/help/ultim8"><Ultim8Help /></Route>
       {/* One route keeps the designer mounted while entry replaces the URL. */}
       <Route path={/^\/(?:bin|ultim8)\/?$/}><BinDesignerPage /></Route>
       {WORKSPACES.filter(workspace => workspace.path !== "/bin").map(({ path, component: Workspace }) => (
@@ -50,13 +62,7 @@ export function Router(): JSX.Element {
 
 function Shell() {
   const { panelOpen, setPanelOpen, traceRestart } = usePanelState();
-  const [helpOpen, setHelpOpen] = useState(() => window.location.hash === "#ultim8-fixtures");
-  useEffect(() => {
-    /** Help links open the relevant section without starting a new project. */
-    const openLinkedHelp = (): void => { if (window.location.hash === "#ultim8-fixtures") setHelpOpen(true); };
-    window.addEventListener("hashchange", openLinkedHelp);
-    return () => window.removeEventListener("hashchange", openLinkedHelp);
-  }, []);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   return (
     <>

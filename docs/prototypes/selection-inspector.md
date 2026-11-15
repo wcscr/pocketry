@@ -10,7 +10,8 @@ selection, arrangement, geometry validation, and the existing project format.
 
 ## Try it locally
 
-Use Node 22, run `npm ci`, then:
+For the historical checkout below, use Node 22 and run `npm ci`, then
+the listed commands. Current main requires Node 26; follow [CLAUDE.md](../../CLAUDE.md).
 
 ```sh
 npm exec -- vite --host 127.0.0.1 --port 5187 --strictPort

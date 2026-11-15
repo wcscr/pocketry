@@ -14,7 +14,7 @@ wall. Equal depths give the same geometry as an unsplit pocket.
 To check a split's distance from the tool perimeter, turn on the ruler and click
 near the split, then near the perimeter. Endpoints snap anywhere along either
 line, including between vertices. Layout and 3D measure the planar XY distance
-in millimetres; the 3D ruler shows a dashed split guide on the top plane. Pocket
+in millimeters; the 3D ruler shows a dashed split guide on the top plane. Pocket
 rotation, mirroring, and scale are included in the measurement.
 
 The pocket retains one position, rotation, scale, clearance, and set of edge
@@ -27,12 +27,12 @@ depth step remains sharp.
 Starting at the opposite edge keeps Section A/B on their corresponding sides;
 redrawing does not swap depths based on the direction of the gesture.
 **Remove split** restores the original whole-pocket depth. All committed changes
-support undo and redo. Escape, Cancel, and cancelled pointer gestures discard an
+support undo and redo. Escape, Cancel, and canceled pointer gestures discard an
 unfinished boundary. A rejected boundary does not alter the pocket.
 
 Contour edits keep the split line's position and angle fixed. Its ends extend or
 retract along that line to meet the edited perimeter, including when moving or
-removing a neighbouring contour vertex changes an endpoint's edge. The section
+removing a neighboring contour vertex changes an endpoint's edge. The section
 depths stay attached to the same sides. Layout, the ruler, validation, and the
 printed model all use the current outline. Undo restores the contour and its
 split intersections together.

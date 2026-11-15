@@ -14,19 +14,22 @@ source-edge fitting stage.
 
 New sessions default to **Tool edges · white sheet**. Automatic background
 selection and Color contrast remain available; saved drafts retain their method.
-Sensitivity and the point simplification slider are under **Manual detection
-settings**, a button immediately below **Auto simplify outline**. **Editable curves** sits below the main outline actions.
+Sensitivity, point simplification, optional **Smooth outline**, and the
+**Detected outline** comparison are under **Manual detection settings**, below
+the contour list. **Editable curves** sits below the main outline actions.
+See [the control guide](teed-outline-integration.md) for current interaction details.
 
 The automatic detector still receives Claude's copy with inferred sheet ink
-removed. It preserves the original input separately. **Correct → Mark tool** or
-**Mark paper** supplies local hard seeds to a bounded region solve using that
+removed. It preserves the original input separately. **Correct → Add** or
+**Remove** supplies local tool/paper hard seeds to a bounded region solve using that
 original appearance. Tool marks permit additions; paper marks permit removals.
 Unmarked distant pixels retain the automatic proposal. Marks are checked again
 against the final contour before clearance. An unsatisfied mark produces an error
 and leaves the previous contour intact.
 
-The correction controls support mouse/touch strokes, cancel, removal of the last
-mark, and clearing all marks. Undo manual contour edits before correcting a
+The correction controls support mouse/touch strokes, cancellation of an unfinished
+stroke, Undo of a completed stroke, and **Clear correction marks**. **Done** hides
+marks while retaining their effect; each completed stroke re-detects. Undo manual contour edits before correcting a
 detection. Marks survive draft recovery and photo rotation; a new selected region
 clears them. Appearance alone still cannot distinguish all shadows, reflections,
 printing, or transparent parts. A stroke is an explicit constraint, not proof
@@ -136,9 +139,9 @@ New perspective corrections retain the exact homography back to the original
 photo. Tool detection samples a bounded original-image tile and reprojects the
 selected region in the worker. The tile and output are each capped at a
 2048-pixel long side. Existing drafts without this mapping keep the previous
-working-raster path. Rotation composes the mapping; cancelled or stale requests
+working-raster path. Rotation composes the mapping; canceled or stale requests
 cannot replace a newer detection. Exports keep the existing working-coordinate
-calibration and single conversion to millimetres.
+calibration and single conversion to millimeters.
 
 ## Evaluation
 
@@ -157,12 +160,13 @@ diagnostic: only a run through the app from the original photo qualifies a
 photo result.
 
 See the [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md)
-for the current 36-tool results from original photos. The
+for that branch’s 36-tool results from original photos; the
+[1.9 → 1.10 comparison](outline-detection-1.9-to-1.10.md) records the released defaults. The
 [November 11 comparison](outline-combined-validation-2026-11-11.md) has
 the initial 36-case results and the [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md)
 the corrected comparison, manual controls, and expanded photo coverage.
 
-## Local provenance review
+## Integration provenance (historical)
 
 Dependencies and third-party code/assets: **None added or changed.** This combines
 existing Pocketry work with maintainer-requested original implementation and

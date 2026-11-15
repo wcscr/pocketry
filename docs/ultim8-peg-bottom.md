@@ -7,14 +7,14 @@ or keep an unnamed draft. The URL then becomes `/bin`; this is the same designer
 The fixture profile follows `spec.pegBottom` wherever the project is opened.
 
 Add an object from a photo using the empty-state Trace action, or use Add pocket
-for a basic shape. Set the body thickness in millimetres, then export STL/3MF and
+for a basic shape. Set the body thickness in millimeters, then export STL/3MF and
 **Save alignment SVG**. Trace’s **Add to Bin** returns into the same fixture.
 New fixtures start at 100 × 60 mm with a 5 mm body thickness, adjustable
 in Fixture size; the default pegs add 4 mm below the body (9 mm total). No saved project is
-converted automatically. [Fixture Help](https://pocketry.xyz/bin#ultim8-fixtures)
+converted automatically. [Fixture Help](https://pocketry.xyz/help/ultim8)
 is directly linkable.
 
-Fixture controls show dimensions in millimetres and hide Gridfinity pitch, cell
+Fixture controls show dimensions in millimeters and hide Gridfinity pitch, cell
 spans, stacking lip, base fasteners, label-tab shelves, and the size-lock toggle. Legacy custom footprint
 editing is collapsed under Legacy shape settings. Saved geometry and material
 choices remain intact; changing Bottom leaves the fixture profile.
@@ -60,7 +60,7 @@ Existing projects retain their saved underside, including older sloped-root desi
 
 The other **Underside** options print **upright, pegs on the build plate, with supports disabled**:
 
-- **Sloped roots**: eight-millimetre roots expand upward at 45° into
+- **Sloped roots**: eight-millimeter roots expand upward at 45° into
   the flat base, avoiding bridges. This works with rectangular and custom footprints.
 - **Short bridges**: 1.6 mm flared collars join a bridged web and a sloped
   perimeter. The perimeter height follows the actual footprint. At default fit
@@ -111,7 +111,7 @@ is future work.
 
 Choose **Flat backing · pegs up** to attach pegs directly to the flat underside,
 removing all root height. STL and 3MF exports are oriented pocket-side down with
-pegs up; all colour and text parts rotate together. The installed 3D view and
+pegs up; all color and text parts rotate together. The installed 3D view and
 Layout retain the editable coordinates. Choose **Corners only**, **Every hole**,
 or **Every 2, 3, 4, or 5 holes**. Numeric spacing is approximate in both mat
 directions: selection starts at the nearest fitting corner anchors and fills the
@@ -128,10 +128,10 @@ slicer. Hollow bins, lips, tabs and raised text also need first-layer/bridge
 inspection. A successful support-free slice does not qualify print quality.
 
 Rectangular fixtures expose exact outer width, length and body thickness in
-millimetres directly. Regular flat-bottom projects offer the same sizing through
+millimeters directly. Regular flat-bottom projects offer the same sizing through
 **Grid pitch → Arbitrary**. Switching preserves the existing size.
 Arbitrary dimensions stay fixed when adding or arranging tools; fixtures do not
-show a size-lock toggle. Edit the millimetre fields or choose
+show a size-lock toggle. Edit the millimeter fields or choose
 **Fit fixture to contents** to resize. Display rounding does not change the saved
 dimensions.
 Body heights may go down to 2 mm; below 7 mm the stacking lip is off. Returning
@@ -144,7 +144,7 @@ With a Wham Bam Systems ULTIM8-compatible bottom selected, Export labels the exi
 Existing fixture projects can edit and export with Experimental off.
 The optional editable-project download uses the same design snapshot.
 
-The SVG is an installed top view at 1:1 millimetres, independent of the pegs-up
+The SVG is an installed top view at 1:1 millimeters, independent of the pegs-up
 STL/3MF print orientation. It has separate groups/colors for the actual rounded
 bin boundary (gray), pocket openings including clearance/rounding (black),
 finger access (orange), and retained peg shafts (blue). Peg circles use the

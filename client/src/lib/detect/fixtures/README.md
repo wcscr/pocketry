@@ -1,5 +1,9 @@
 # Reflective driver photos
 
+These cropped fixtures are diagnostic regressions, not end-to-end photo
+qualification. Current photo checks must start with the original calibration-sheet
+image and follow the [full UI workflow](../../../../../CLAUDE.md#photo-outline-regression-testing).
+
 These are crops of Will Cobb's calibrated Wiha photos used for the Pocketry
 examples. They cover a dark handle and its thin reflective shaft on paper.
 Each fixture is **161 × 443**, row-major 8-bit RGBA, gzip compressed.
@@ -50,5 +54,5 @@ No EXIF metadata is retained. It tests reflective metal, dark inserts, shadow
 rejection and the two open end recesses at unchanged default detail settings.
 
 See [the refinement evaluation](../../../../../docs/photo-refinement-evaluation.md)
-for sparse manual boundary annotations, their uncertainty, and before/after
-comparisons. These are not full ground-truth masks or physical measurements.
+for the historical experiment summary and comparison report. Sparse diagnostic
+landmarks are not full ground-truth masks or physical measurements.

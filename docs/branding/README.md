@@ -24,9 +24,10 @@ in an isolated headless browser. Capture hides the reference grid and uses
 the camera in `render-settings.json`; the app's lighting and materials are
 otherwise unchanged. Smaller images are resampled from that render.
 
-The project file preserves the geometry. Material colors and camera position
-are view settings, so apply the values in `render-settings.json` after opening
-the project when reproducing the icon.
+This historical icon project preserves the geometry. Apply its recorded colors
+and camera from `render-settings.json` when reproducing the original render.
+Current Pocketry project backups also preserve material colors; the separate
+render settings remain the reference for this asset's original appearance.
 
 ## X header
 
@@ -42,5 +43,5 @@ composition, not an unmodified photograph or application render. The lower-left
 area is clear to accommodate the overlapping profile picture. The generated
 2172 × 724 image was resampled to 1500 × 500 with macOS `sips`.
 
-These assets use the project's AGPL-3.0 licence. Product names and marks
-retain their respective ownership. See `NOTICE` for provenance.
+These assets use the project's AGPL-3.0 license. Product names and marks
+retain their respective ownership. See [NOTICE](../../NOTICE) for provenance.

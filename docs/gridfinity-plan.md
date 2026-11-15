@@ -1,7 +1,7 @@
 # Bin designer implementation reference
 
 This describes the current implementation, checked against the source on
-November 4, 2026. The filename is retained for existing links; this is not a
+November 15, 2026 (`a627ee6b`, version 1.12.0). The filename is retained for existing links; this is not a
 roadmap. [GitHub issues](https://github.com/wcscr/pocketry/issues) track enhancement
 requests and problem reports. See the [documentation index](README.md) for
 feature references and dated investigation records, and [CHANGELOG.md](../CHANGELOG.md)
@@ -11,7 +11,7 @@ for user-visible changes.
 
 | Area | Implemented behavior | Reference |
 | --- | --- | --- |
-| Inputs | Calibrated photo traces and drawn rectangle, square, or circle pockets; outlines remain editable | [Trace](../client/src/pages/trace.tsx), [Bin](../client/src/pages/bin-designer.tsx) |
+| Inputs | Calibrated photo traces, closed SVG outlines in Trace/Bin, and drawn rectangle, square, or circle pockets; outlines remain editable | [Trace](../client/src/pages/trace.tsx), [Bin](../client/src/pages/bin-designer.tsx) |
 | Footprints and size | Full/half/quarter Gridfinity pitch; connected, hole-free custom cell footprints; arbitrary rectangular dimensions for flat or jig bases | [Grid pitch](grid-pitch.md), [size rules](../shared/gridfinity/bin-size.ts) |
 | Construction | Solid or hollow interior, fill height, wall thickness, stacking rim, base/mounting choices | [Controls](../client/src/components/gridfinity/bin-controls-panel.tsx), [bin schema](../shared/gridfinity/types.ts) |
 | Hollow bins | Rows/columns, dividers, scoop bottoms, bottom edge fillets, and tabs on the outer wall or each sub-bin | [Compartments and tabs](bin-compartments.md), [bottom fillets](bottom-edge-fillet.md) |
@@ -89,9 +89,9 @@ singleton. Track WASM handles in an `Arena` and dispose them deterministically.
 Detach returned mesh data before disposing its owning solids. Reuse the existing
 Manifold/Clipper2 geometry path rather than introducing a second geometry kernel.
 
-Trace outlines use oriented rings. Convert pixels to millimetres and flip Y once
+Trace outlines use oriented rings. Convert pixels to millimeters and flip Y once
 at the Trace export/normalization boundary. Bin-local placement and layout
-exports already use millimetres with Y up. A coordinate conversion added inside
+exports already use millimeters with Y up. A coordinate conversion added inside
 a downstream bin writer would duplicate that transformation.
 
 Rigid pockets use a finite source solid, its pose, and a separately derived
@@ -135,7 +135,7 @@ failure must release the endpoint and show a recoverable error. See
 [preview performance](preview-performance.md) for the dated measurements and
 [the current hook](../client/src/lib/gridfinity/use-bin-geometry.ts) for timing values.
 
-3MF carries millimetre units and can contain separate material volumes; STL
+3MF carries millimeter units and can contain separate material volumes; STL
 carries geometry without those color assignments. Inspect serialized output as
 well as in-memory solids. Do not substitute display normals or rounded preview
 coordinates for the printable mesh. [Geometry export integrity](geometry-export-integrity.md)

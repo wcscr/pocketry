@@ -1,5 +1,9 @@
 # Mobile experience review
 
+Historical design and validation record for the revisions dated below. For
+current controls, use [in-app Help](../client/src/components/help/help-dialog.tsx)
+and the [README tutorial](../README.md#basic-process).
+
 ## UI/mobile integration (2026-10-05)
 
 Integrated the UI consistency commits and PR #89 on the merged 1.3.0 baseline

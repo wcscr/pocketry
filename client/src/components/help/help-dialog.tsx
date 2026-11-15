@@ -6,8 +6,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
-import { Ultim8Link } from "@/components/ui/ultim8-link";
-import { useEffect } from "react";
 import { Link } from "wouter";
 
 export interface HelpDialogProps {
@@ -17,11 +15,6 @@ export interface HelpDialogProps {
 
 /** The essential steps for making a first bin in the default editor. */
 export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element {
-  useEffect(() => {
-    if (!open || window.location.hash !== "#ultim8-fixtures") return;
-    const frame = requestAnimationFrame(() => document.getElementById("ultim8-fixtures")?.scrollIntoView({ block: "start" }));
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] max-w-2xl overflow-y-auto">
@@ -29,14 +22,6 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
           <DialogTitle>How to use Pocketry</DialogTitle>
           <DialogDescription>From a tool photo to your first bin.</DialogDescription>
         </DialogHeader>
-
-        <section id="ultim8-fixtures" className="scroll-mt-3 space-y-2 rounded-md border p-3 text-sm" aria-labelledby="ultim8-help-title">
-          <h3 id="ultim8-help-title" className="font-semibold">Wham Bam Systems <Ultim8Link />-compatible fixtures <span className="text-xs font-normal">Beta</span></h3>
-          <p>Start at <Link href="/ultim8" className="underline" onClick={() => onOpenChange(false)}>/ultim8</Link> for a fixture with locating pegs for the eufyMake E1 mat. Your current project is kept or saved through the New Project prompt.</p>
-          <p>Add an object with Trace or Add pocket, set body thickness in millimetres, then export STL/3MF and the 1:1 alignment SVG with peg locations. Trace’s <strong>Add to Bin</strong> returns to the same fixture.</p>
-          <p className="text-muted-foreground">Flat backing exports pegs up. Align the SVG’s peg circles to your calibrated mat template; the SVG does not set a printer bed position. Check the slice and print a small fit test first.</p>
-          <p className="text-xs text-muted-foreground">Pocketry is an independent tool, not affiliated with or endorsed by Wham Bam Systems. <Ultim8Link /> is a Wham Bam Systems trademark.</p>
-        </section>
 
         <p className="text-sm leading-relaxed text-muted-foreground">
           On desktop, the default <strong>Workflow + properties</strong> layout
@@ -50,10 +35,12 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
           <li className="pl-1">
             <h3 className="font-semibold">Choose a photo</h3>
             <p className="text-muted-foreground">
-              In <strong>Trace</strong>, choose a clear PNG or JPEG taken from
+              In <strong>Trace</strong>, choose a clear PNG, JPEG, or WebP taken from
               above. Keep the whole tool visible against a contrasting background.
               Include a known measurement at the tool’s height, or use a
-              calibration template with all four markers visible.
+              calibration template printed at <strong>100% / Actual size</strong> with all four markers visible.
+              For tall objects, move farther away and zoom as needed while keeping the markers sharp.
+              Keep tools clear of the sheet’s printed text.
             </p>
             <CalibrationDownloads />
           </li>
@@ -62,17 +49,21 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="text-muted-foreground">
               In <strong>Scale</strong>, review the reference detection. For a
               calibration sheet, choose <strong>Correct perspective &amp; use scale</strong>;
-              other detected references offer <strong>Accept detected scale</strong>.
+              with a suitable measurement aid, choose <strong>Correct perspective &amp; use aid scale</strong>.
+              Other detected references offer <strong>Accept detected scale</strong>.
               Or choose <strong>Set scale</strong>,
               mark two points a known distance apart, enter that distance in
-              millimetres, and choose <strong>Confirm scale</strong>.
+              millimeters, and choose <strong>Confirm scale</strong>. Check a real tool dimension before printing.
             </p>
           </li>
           <li className="pl-1">
             <h3 className="font-semibold">Trace the tool</h3>
             <p className="text-muted-foreground">
               Choose <strong>Region → Set region</strong> and draw a box around
-              the tool. If perspective correction crops the tool, enable
+              one tool, leaving some paper around it. <strong>Tool edges · white sheet</strong> is the
+              default. For other backgrounds, choose <strong>Color contrast</strong> or
+              <strong> Automatic · match background</strong> under <strong>Find the outline using</strong>.
+              If perspective correction crops the tool, enable
               <strong> Show full photo</strong> beside the canvas. In
               <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points.
               Choose <strong>Add manual contour</strong> to start another trace with a four-point
@@ -82,12 +73,27 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               over the photo: an outline exported from this photo returns to its place, and any other
               is placed at true size and turned to fit the current outline.
               <strong> Move &amp; rotate outline</strong> shifts or turns a contour while the photo stays fixed.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
+              and amber estimated edges. Before editing points, use <strong>Correct → Add</strong> to mark
+              missing tool material or <strong>Remove</strong> to mark unwanted background.
+              Each stroke re-detects and can be undone; <strong>Done</strong> keeps the corrections.
+              Undo manual outline edits before returning to brush corrections.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
-              With Tool edges selected, confirm switching to <strong>Color contrast</strong>
+              With Tool edges selected, confirm switching to <strong>Color contrast</strong>{" "}
               and re-detecting the outline; <strong>Automatic</strong> selects Color contrast for holes.
               For extra cleanup, open <strong>Manual detection settings</strong> below the contour list
-              to adjust sensitivity, simplification, or smoothing.
-              <strong> Margin</strong> adds optional clearance.
+              to adjust sensitivity, point simplification, or preview <strong>Smooth outline</strong>.
+              <strong> Detected outline</strong> compares the earlier detection without changing your work;
+              <strong> Use detected outline</strong> restores it as one Undo step.
+              <strong> Editable curves</strong> enables handles and <strong>Edit outline → Bend edges</strong>.
+              <strong> Restart outline detection</strong> resets tuning and corrections while keeping the photo,
+              scale, region, and margin. Undo restores the previous result.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Leave <strong>Margin</strong> at zero while refining; use Bin’s
+              <strong> Extra pocket clearance</strong> to adjust fit afterward.
               In <strong>Contours</strong>, choose <strong>Pocket</strong> to cut
               material or <strong>Hole</strong> to keep material inside a pocket.
               When the outline looks right, choose <strong>Add to Bin</strong>{" "}
@@ -106,21 +112,15 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               rim, and solid fill height, and <strong>Materials &amp; Colors</strong>{" "}
               for colors. Switch to <strong>Layout</strong> to drag pockets
               into place. <strong>Add</strong> creates pockets and finger access.
+              Use <strong>Add pocket → Import SVG pocket</strong> for a closed vector outline.
+              Physical SVG units set its size; a width override is available for unitless artwork.
+              Inkscape metadata is accepted; flatten clipping, masks, and filters into closed paths first.
             </p>
             <p className="mt-1 text-muted-foreground">
               For a standalone bin that needs no Gridfinity baseplate, choose
               <strong> Construction → Base &amp; mounting → Bottom → Flat bottom</strong>. This makes a smooth
               underside without a Gridfinity base. <strong>Stacking lip</strong>{" "}
               is a separate option; turn it off if you do not need the rim.
-              Custom pockets can hold parts in repeatable positions for laser
-              engraving or UV printing, including eufyMake setups.
-            </p>
-            <p className="mt-1 text-muted-foreground">
-              For flat-bottomed positioning jigs, consider <strong>Through</strong>{" "}
-              under a pocket’s <strong>Depth</strong> settings to save filament.
-              The parts rest directly on the work surface while the pocket walls
-              hold them in position. Keep a pocket floor when the jig needs to
-              support the parts, set their height, or carry them between work areas.
             </p>
             <p className="mt-1 text-muted-foreground">
               Select a pocket on the canvas or in <strong>Pockets</strong> to edit
@@ -162,7 +162,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="text-muted-foreground">
               Open <strong>Export</strong>, review any warnings, and choose
               <strong> Save 3MF</strong> or <strong>Save STL</strong>. Multi-color
-              3MF keeps your selected colors. In your slicer, use
+              3MF keeps separate material parts. Choose <strong>Bambu 3MF</strong> for painted colors in one
+              model, or <strong>Prusa color preview 3MF</strong> to set up filament slots and colors when
+              opened as a project. The Prusa option loads a preview printer configuration;
+              select your actual printer and print settings. In your slicer, use
               <strong> 100% scale</strong>, choose filament and print settings,
               and review the layer preview before printing.
             </p>
@@ -175,7 +178,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               reopen them from <strong>Library</strong>. <strong>Export project</strong>{" "}
               downloads an editable backup with your project colors;
               <strong> Import Project</strong> restores it to this browser’s library.
-              Keep backups to move designs between browsers or devices.
+              <strong> Library → Export library</strong> backs up named designs; save an unnamed draft
+              first or export it separately. Keep the original Trace photo separately: project backups
+              do not include it. Storage belongs to this browser and site address, including when
+              self-hosting; changing the hostname or port opens a separate library. Keep backups to
+              move designs between browsers or devices.
             </p>
           </li>
         </ol>
@@ -204,11 +211,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <strong>Optional tools:</strong> slanted walls and linked
             designs require <strong>App settings → Enable
             experimental features</strong>. The steps above work without them.
-            Converting a regular project to Wham Bam Systems <Ultim8Link />-compatible pegs also requires
-            Experimental; fixtures opened through /ultim8 or from a saved project do not.
             Opening a project keeps your preference; existing experimental
             geometry stays visible and exportable.
           </p>
+          <p><Link href="/help/ultim8" className="text-primary underline underline-offset-4" onClick={() => onOpenChange(false)}>ULTIM8-compatible fixture guide</Link></p>
           <section aria-label="Feedback" className="flex flex-wrap gap-x-5 text-xs">
             <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens a new tab)</span></a>
           </section>
