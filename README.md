@@ -63,124 +63,51 @@ Printables, or elsewhere, please give Pocketry a shout-out and link to
 ### 1. Trace the tools
 
 This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/).
-To follow the Bin steps without tracing first, choose **Open Sample Projects**
-on Welcome, or **Library → Sample Library**, and open that sample.
-The editor screenshots show version 1.12.0; print photos show the original bin.
-[Image sources and capture steps](docs/images/README.md).
+To skip tracing, open it from **Library → Sample Library**. The screenshots
+show version 1.12.0; see [image sources](docs/images/README.md).
 
-Photograph one tool at a time from directly above on plain, contrasting paper.
-Keep the whole tool and all four calibration-sheet markers visible. Print the
-optional v3 A4 or US Letter sheet at **100% / Actual size**. For tall tools,
-move farther away, then zoom as needed while keeping the markers sharp. A
-measurement aid at the relevant tool height can reduce scale error; see
-[calibration and photography guidance](docs/calibration/object-reference-strip.md).
-
-Open the original PNG, JPEG, or WebP in **Trace**. In **Scale**, accept
-**Correct perspective & use scale** for the sheet, or **Correct perspective &
-use aid scale** when a suitable aid is detected. Alternatively use **Set scale**,
-mark a known distance, and **Confirm scale**. Measure a real tool dimension to
-check the result. Use **Show full photo** if correction crops a wide tool.
-
-Choose **Region → Set region** and draw a box around the tool, leaving some
-paper around it. **Tool edges · white sheet** is the default for new traces.
-Under **Find the outline using**, choose **Color contrast** for other backgrounds,
-or **Automatic · match background** to choose from the background. Detection
-cleans up straight lines, rounded sections, and small dips automatically.
-Review tips, shadows, and amber edges, where a hidden boundary was estimated.
-
-Use **Correct** beside the canvas, then **Add** to mark missing tool material
-or **Remove** to mark unwanted paper or shadow. Each completed stroke re-detects
-and can be undone; **Done** hides the marks while keeping their effect. Correct
-before editing points, or undo those edits before returning to corrections.
-**Manual detection settings**, below the contour list, contains **Sensitivity**
-(Auto by default), point **Simplification**, **Smooth outline**, and **Detected
-outline**. Smooth outline offers an Original/Preview comparison and one undoable
-Apply. Detected outline previews the earlier, lightly smoothed detection; **Use
-detected outline** restores it. These controls adjust detected geometry, not fit
-clearance. [Detection controls and limits](docs/teed-outline-integration.md).
-
-**Edit outline** lets you drag points, click an edge to add one, or right-click a
-point to delete it. Shift-click or box-select points to move a group; **Select
-points** also works by tapping. **Repair section** replaces the run between
-selected endpoints with a previewed line or curve. Enable **Editable curves**
-for curve handles and **Bend edges**. Turning it off converts curves to points
-as one undoable edit. [Curve editing and export behavior](docs/contour-curves-prototype.md).
-
-**Include interior holes** uses Color contrast; choosing it from Tool edges asks
-to switch methods and re-detect. In **Contours**, **Pocket** cuts material and
-**Hole** keeps material inside a pocket. **Add manual contour** starts another
-four-point outline, useful for an inner feature needing a different depth.
-**Restart outline detection** resets tuning and corrections while retaining the
-photo, scale, region, and margin; Undo restores the previous result.
-
-Choose **Add to Bin** when the outline looks right. New pockets start **To bin
-floor**; set their depth in Bin. Trace **Margin** is optional; leave it at zero
-while refining and use Bin's **Extra pocket clearance** for fit. Objects traced
-together retain their relative positions, and holes remain separately editable.
+Photograph each tool from above on contrasting paper with all four calibration
+markers visible. Print the sheet at **100% / Actual size**. In **Trace**, open
+the original photo, accept the detected scale correction or **Set scale** from
+a known distance, then check a real dimension. Box the tool with **Region → Set
+region**. Use the default **Tool edges · white sheet** on light paper or **Color
+contrast** on other backgrounds. Fix the outline with **Correct → Add/Remove**
+or **Edit outline**, then choose **Add to Bin**.
+[Detailed tracing guidance](docs/teed-outline-integration.md).
 
 ![The Wolfbox body traced from its original calibration-sheet photo, with current Tool edges and outline controls](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
 
-In **Bin**, set **Bin size** (the Wolfbox example is **4 × 4 cells**, **6.5u** high).
-Use **Construction → Base & mounting → Bottom → Flat bottom** for a standalone bin. In **Layout**,
-drag pockets into place and add finger access where needed. Select a pocket to
-adjust its size, position, and depth.
-
-Use **Add pocket → Import SVG pocket** for a closed vector outline. SVG physical
-units set its size; use the optional width override for unitless artwork. Choose
-a pocket depth, then place and edit it like any other pocket. Files stay local;
-stroke widths are ignored and referenced resources, effects, and open paths are rejected.
-Native Inkscape SVGs can keep their editor metadata and paint-order styles.
-Flatten clipping, masks, and filters into closed paths before importing.
-
-To adjust an SVG outline against its photo instead, use **Outline → Import outline from file**
-in Trace. An SVG exported from the same photo returns to its exact position; any
-other file is placed at true size and turned to fit the current outline, which
-puts a straightened or rotated outline back over the tool. **Move & rotate outline**
-then shifts or turns any contour by hand without changing its size. Replace the
-current outline or add to it, then edit its points. The import is one undoable step and
-follows the same file rules, with one exception: a contour that crosses or touches
-itself is imported as drawn, with a note, so you can repair it over the photo. With
-**Editable curves** on, imported contours arrive as straight-edged points that you
-can then bend.
-
-SVG parsing uses [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser)
-and [svgpath](https://github.com/fontello/svgpath), both MIT licensed.
+In **Bin**, set **Bin size** (the example is **4 × 4 cells**, **6.5u** high).
+Arrange pockets in **Layout**, add finger access, and set depths. Choose
+**Construction → Base & mounting → Bottom → Flat bottom** for a standalone bin.
+To add vector artwork, use **Add pocket → Import SVG pocket** with a closed SVG.
 
 ![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes
 
-Compare the pockets with measurements of the real tools using
-**Measure between contours** and **Size & scale**. Check depth and remaining
-floor in **3D** or **Check fit → Inspect inside**.
+Compare pockets with real tools using **Measure between contours** and **Size &
+scale**. Check depth and floor thickness in **3D**.
 
 ![The Layout ruler measures 145.30 mm between two points on the duster contour beside its size and depth controls](docs/images/ruler-check.jpg)
 
 ### 4. Print a fit check
 
-In **Check fit**, save a **Full surface** or **Tool outlines** fit test STL.
-Print it at **100% scale** (we recommend **0.6–0.8 mm** thick) and try the real
-tools. Adjust the outline or clearance if needed. This checks the openings,
-not pocket depth or baseplate fit.
-
-The original slicer screenshot below shows an earlier **1.2 mm** fit check.
+In **Check fit**, export a **Full surface** or **Tool outlines** STL. Print it
+at **100% scale** (recommended thickness **0.6–0.8 mm**) and try the real
+tools. Adjust the outline or clearance as needed. This checks openings, not
+depth or baseplate fit. The older screenshot shows a 1.2 mm test.
 
 ![The original Wolfbox tool-outline fit check in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
 ### 5. Export and print the finished bin
 
-Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.
-Open the file in your slicer at **100% scale** and review the layer preview
-before printing. **Multi-color 3MF** exports selected colors as separate parts.
-For Bambu Studio 2.9.1.70, choose **Bambu 3MF** to keep painted colors in one
-model. **Prusa color preview 3MF** sets up filament slots and colors when opened
-as a project in the tested PrusaSlicer versions. It loads a preview printer
-configuration: select your actual printer, materials, and print settings before
-printing. Both compatibility options combine the named parts into one model
-([version-specific details](docs/bambu-3mf-compatibility.md)). SVG and DXF layouts are available
-for shadow boards and CNC work.
+Set every pocket's depth, then choose **Export → Save 3MF** or **Save STL**.
+Open it in your slicer at **100% scale** and check the layer preview. For color,
+choose **Multi-color 3MF**, **Bambu 3MF**, or **Prusa color preview 3MF**.
+Select your printer and materials before printing.
 
 ![Current 3MF choices: Single-color, Multi-color, Bambu, and Prusa color preview](docs/images/export-3mf.jpg)
 
@@ -190,10 +117,9 @@ for shadow boards and CNC work.
 
 ### Save an editable copy
 
-Use **Project → Save this draft to Library** to name your design, then
-**Export project** for an editable `.pocketry.json` backup. Projects live in
-this browser and do not sync between devices. The backup does not include the
-original Trace photo, so keep that separately.
+Use **Project → Save this draft to Library**, then **Export project** for a
+`.pocketry.json` backup. Keep the original photo separately; it is not in the
+backup.
 
 ## Privacy
 
