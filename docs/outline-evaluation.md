@@ -1,5 +1,7 @@
 # Outline evaluation
 
+For the released defaults, see the [1.9 → 1.10 comparison](outline-detection-1.9-to-1.10.md): all 36 maintainer-selected reference entries, with original-photo UI captures and paired images. The branch comparisons below remain historical evidence.
+
 **Current photo qualification must follow [CLAUDE.md](../CLAUDE.md#photo-outline-regression-testing): original calibration-sheet photos, full automatic calibration and region selection, then settings selected through the UI in order.** The [original-photo UI report](outline-ui-validation-2026-11-11.md) supersedes the historical crop/replay measurements below, and the [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md) has the latest scored results for all 36 tools. Cached detector replay is diagnostic only, even when it reproduces an earlier app output exactly.
 
 The measurements below are historical. The [combined detector comparison](outline-combined-validation-2026-11-11.md)
