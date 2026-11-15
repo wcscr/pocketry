@@ -16,7 +16,6 @@ import {
 import { buildOutline, outlineArea, outlineBounds, pointInOutline } from "./outline";
 import {
   defaultCircularSegments,
-  offsetOutline,
   offsetOutlineWithKernel,
   outlineToPolygons,
   polygonsToOutline,
@@ -26,8 +25,8 @@ import {
 
 /**
  * Runs the synchronous, kernel-injected form the worker uses, in a throwaway
- * arena. Every assertion below goes through this rather than `offsetOutline`,
- * so a leaked handle would show up as a growing arena, not as a slow test.
+ * arena that `withKernel` disposes after each call, so a leaked handle would
+ * show up as a growing arena, not as a slow test.
  */
 function offset(
   outline: Outline,
@@ -223,7 +222,6 @@ describe("offsetOutlineWithKernel — degenerate input", () => {
   it("returns an empty outline for an empty outline", async () => {
     expect(await offset([], 5)).toEqual([]);
     expect(await offset([], 0)).toEqual([]);
-    expect(await offsetOutline([], 5)).toEqual([]);
   });
 
   it("is a no-op on area for a zero delta", async () => {
@@ -237,7 +235,7 @@ describe("offsetOutlineWithKernel — degenerate input", () => {
 
   it("returns a copy rather than the input for a zero delta", async () => {
     const outline = annulus(100, 40);
-    const result = await offsetOutline(outline, 0);
+    const result = await offset(outline, 0);
 
     expect(result).not.toBe(outline);
     expect(result[0].outer).not.toBe(outline[0].outer);
@@ -246,7 +244,7 @@ describe("offsetOutlineWithKernel — degenerate input", () => {
   it("rejects a non-finite delta", async () => {
     const outline = annulus(100, 40);
     await expect(offset(outline, Number.NaN)).rejects.toThrow(/finite/);
-    await expect(offsetOutline(outline, Infinity)).rejects.toThrow(/finite/);
+    await expect(offset(outline, Infinity)).rejects.toThrow(/finite/);
   });
 
   it("drops a shape whose shell is degenerate", async () => {
@@ -261,22 +259,13 @@ describe("offsetOutlineWithKernel — degenerate input", () => {
   });
 });
 
-describe("offsetOutline", () => {
-  it("matches the kernel-injected form", async () => {
-    const outline = annulus(100, 40);
-    const viaKernel = await offset(outline, 5, { joinType: "Miter" });
-    const direct = await offsetOutline(outline, 5, { joinType: "Miter" });
-
-    expect(outlineArea(direct)).toBeCloseTo(outlineArea(viaKernel), 9);
-    expect(direct[0].holes).toHaveLength(viaKernel[0].holes.length);
-  });
-
+describe("offsetOutlineWithKernel — repeated calls", () => {
   it("does not accumulate handles across repeated calls", async () => {
     // `withKernel` owns the arena, so the only observable proof from here is
     // that many calls in a row keep producing the same answer.
     const outline = annulus(100, 40);
     for (let i = 0; i < 8; i++) {
-      const result = await offsetOutline(outline, 5, { joinType: "Miter" });
+      const result = await offset(outline, 5, { joinType: "Miter" });
       expect(ringArea(result[0].outer)).toBeCloseTo(110 * 110, 6);
     }
   });

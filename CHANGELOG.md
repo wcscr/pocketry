@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.11.3 — 2026-11-15
+
+- Restore command-line STL and 3MF bin exports when running with tsx.
+
 ## 1.11.2 — 2026-11-15
 
 - Import native Inkscape SVG outlines with editor metadata and paint-order styles; explain how to flatten unsupported clipping effects.
