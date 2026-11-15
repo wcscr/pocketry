@@ -10,7 +10,26 @@ import {
   drawAlignedImage,
   fitWithin,
   IMAGE_CANVAS_MAX,
+  toolCropGeometry,
 } from "./use-image-source";
+
+describe("crop-first tool sampling", () => {
+  it("retains original detail in a narrow ROI without changing calibration coordinates", () => {
+    const g = toolCropGeometry({ width: 450, height: 600 }, 4000 / 600,
+      { x: 100, y: 70, width: 50, height: 200 });
+    expect(g.target).toEqual({ width: 256, height: 1024 });
+    expect(g.target.width * g.toWorking.x + g.region.x).toBe(150);
+    expect(g.target.height * g.toWorking.y + g.region.y).toBe(270);
+  });
+  it("clamps a clipped selection and retains exact per-axis mapping after rounding", () => {
+    const g = toolCropGeometry({ width: 800, height: 600 }, 1.7,
+      { x: 779.6, y: -4, width: 100, height: 201 });
+    expect(g.region).toEqual({ x: 780, y: 0, width: 20, height: 201 });
+    expect(g.target.width * g.toWorking.x).toBeCloseTo(20, 12);
+    expect(g.target.height * g.toWorking.y).toBeCloseTo(201, 12);
+    expect(g.target.width * g.target.height).toBeLessThanOrEqual(1024 * 1024);
+  });
+});
 import { rotateImageAlignment } from "@shared/geometry/image-alignment";
 import { RECTIFIED_IMAGE_MAX } from "@/lib/calibrate/perspective";
 

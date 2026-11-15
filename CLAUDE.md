@@ -291,6 +291,32 @@ Tests are type-checked — `tsconfig.json` deliberately does *not* exclude `*.te
 
 No linter is configured yet (prefer ESLint when one lands).
 
+### Photo outline regression testing
+
+- **Every photo-based outline detection test and evaluation must start with the
+  original, unmodified photo on its calibration sheet.** Run the full application
+  workflow: load the photo, detect its calibration markers, accept the available
+  auto-calibration/perspective option, select the tool region, then detect the
+  outline. Do not start from a crop, rectified image, cached detector pixels,
+  precomputed calibration, or saved outline.
+- **Choose detection and simplification settings only through the controls the
+  UI actually provides, in a sequence the UI permits.** Exercise the defaults
+  first; open manual settings before adjusting them, handle any confirmation,
+  and wait for each operation to finish before the next action. Do not inject
+  settings or seed application state to bypass a preceding step. Test method
+  switching, restart, and auto simplification from states reached through these
+  same user actions.
+- Record the original photo's hash, selected region, ordered UI actions, and
+  resulting settings with each evaluation. A missing original, unsuccessful
+  calibration, or unavailable UI action is a failed/incomplete case, never a
+  reason to substitute a prepared image or silently skip the case.
+- Apply this rule to all photo regression tests and comparisons, including
+  existing cases when revisiting them. Cropped-image replay and direct detector
+  probes are diagnostic evidence only and cannot qualify a photo regression or
+  support a claim that the end-to-end workflow passes. Synthetic unit tests may
+  continue checking isolated algorithms and state transitions; report their
+  results separately from photo workflow validation.
+
 ## Code Conventions
 
 - Use American English spelling in user-facing text, documentation, and comments
@@ -304,9 +330,10 @@ No linter is configured yet (prefer ESLint when one lands).
 - Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
 - Server state via TanStack Query; local state via React hooks; routing via wouter.
 - Image processing runs client-side (canvas + OpenCV.js); keep heavy processing off the server.
-- Detection has **one** pipeline (`lib/detect/pipeline.ts`) with two interchangeable
-  backends — OpenCV and pure JS — that must stay behaviourally equivalent. The JS one is
-  a real fallback and the reference implementation, not a degraded second mode. Never
+- Detection has **one** pipeline (`lib/detect/pipeline.ts`) with behaviourally
+  equivalent base segmentation backends — OpenCV and pure JS. Guarded CPU GrabCut
+  may refine the baseline when OpenCV is available; rejection or unavailability
+  preserves the original pipeline. Keep the JS baseline complete and never
   reintroduce a parallel "experimental" path.
 - OpenCV and manifold are **injected, never imported** by geometry code (`cv` and
   `Kernel` are parameters). That is what lets the same modules run on the main thread, in

@@ -143,6 +143,8 @@ describe("BinDesignerPage", () => {
     vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "b", projects });
     vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({ doc: first, project: projects[0], library: { activeProjectId: "a", projects } });
     const trace = vi.spyOn(TraceStoreReview, "useTrace").mockReturnValue({ ...TraceStoreReview.initialTraceState,
+      detectedOutlineReview: { showing: false, preview: null, pending: false, error: undefined, unavailable: undefined,
+        unchanged: false, hint: "", close: vi.fn(), setShowing: vi.fn(), useOutline: vi.fn() },
       dispatch: vi.fn(), canUndo: false, canRedo: false, undo: vi.fn(), redo: vi.fn(), draftSaveStatus: "saved",
       fileName: "Test tool", imageSize: { width: 100, height: 100 },
       calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { curvesFromOutline, editCurves, sampleCurves } from "../geometry/curves";
 
 import { parseProjectDoc, serializeProjectDoc, PROJECT_SCHEMA_VERSION } from "./project";
 import { MAX_HEIGHT_UNITS, parseBinSpec } from "./types";
@@ -51,6 +52,28 @@ const VALID = {
 };
 
 describe("parseProjectDoc", () => {
+  it.each([false, true])("upgrades v60 with stranded labels and optional curve preview data (%s)", withCurves => {
+    const before = labelledTabGrid();
+    const spec = parseBinSpec({ ...before, compartments: { ...before.compartments, columns: 2 } });
+    spec.surfaceTexts = textsAfterLabelTabEdit(before, before, spec);
+    const curves = editCurves(curvesFromOutline(VALID.shapes[0].outlineMm),
+      { shapeIndex: 0, ringIndex: -1 }, { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -1 } });
+    const legacy = { ...VALID, schemaVersion: 60, spec,
+      shapes: withCurves ? [{ ...VALID.shapes[0], curvesMm: curves }] : VALID.shapes };
+    const restored = parseProjectDoc(legacy)!;
+    expect(restored.schemaVersion).toBe(61);
+    expect(restored.spec.surfaceTexts[0].orphanedTab).toEqual(spec.surfaceTexts[0].orphanedTab);
+    expect(restored.shapes[0].curvesMm).toEqual(withCurves ? curves : undefined);
+    expect(restored.shapes[0].outlineMm).toEqual(withCurves ? sampleCurves(curves) : VALID.shapes[0].outlineMm);
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(serializeProjectDoc(restored))))).toEqual(restored);
+  });
+  it("migrates point-only v37 projects without inventing curves or moving vertices", () => {
+    const legacy = { ...VALID, schemaVersion: 37 };
+    const restored = parseProjectDoc(legacy)!;
+    expect(restored.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(restored.shapes).toEqual(VALID.shapes);
+    expect(restored.shapes[0].curvesMm).toBeUndefined();
+  });
   it("upgrades v59 labels and preserves stranded-tab ownership in projects and history", () => {
     const before = labelledTabGrid();
     const legacy = parseProjectDoc({ ...VALID, schemaVersion: 59, spec: before, shapes: [], cutouts: [] })!;

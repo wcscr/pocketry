@@ -48,6 +48,7 @@ Promise.resolve(require('$ARTIFACT')).then((cv) => {
 });"
 
 cp "$ARTIFACT" "$DEST"
+node "$REPO_ROOT/scripts/patch-opencv-worker.cjs" "$DEST"
 echo "== installed $DEST =="
 ls -la "$DEST"
 echo "Run the oracle suite: npx vitest run client/src/lib/calibrate"

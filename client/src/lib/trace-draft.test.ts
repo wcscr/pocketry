@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialTraceState, traceReducer } from "@/state/trace-store";
 import { traceDraftSchema } from "@shared/trace-draft";
+import { curvesFromOutline, editCurves, sampleCurves, CURVE_TOLERANCE_MM } from "@shared/geometry/curves";
+import { mmPerPixel } from "@shared/geometry/scale";
 
 const storage = vi.hoisted(() => new Map<string, unknown>());
 vi.mock("idb-keyval", () => ({
@@ -26,6 +28,46 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("preserves color detection for legacy drafts that predate tool edges", () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const { boundaryMethod: _method, ...legacyState } = snapshot.state;
+    const recovered = traceDraftSchema.parse({ ...snapshot, state: legacyState });
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: recovered });
+    expect(restored.boundaryMethod).toBe("color");
+    expect(restored.outline).toEqual(outline);
+    expect(traceReducer(restored, { type: "SOURCE_LOADED", imageUrl: image, fileName: "Next photo" }).boundaryMethod).toBe("color");
+  });
+  it("recovers detection settings and raw evidence with each history step, including an empty detection", async () => {
+    const before = traceReducer({ ...calibrated(), processing: false }, { type: "DETECTED", imageUrl: image, region: null, outline, rawOutline: outline, svg: "",
+      settings: { sensitivity: 97, tolerancePx: 3, smoothing: 2, boundaryMethod: "teed", includeInteriorHoles: false } });
+    const settings = { sensitivity: 128, tolerancePx: 1.2, smoothing: 1, boundaryMethod: "color" as const, includeInteriorHoles: true };
+    const empty = traceReducer(before, { type: "DETECTED", imageUrl: image, region: null, outline: [], rawOutline: [], settings, svg: "" });
+    const again = traceReducer(empty, { type: "DETECTED", imageUrl: image, region: null, outline, rawOutline: outline, settings: { ...settings, sensitivity: 100 }, svg: "" });
+    await saveTraceDraft(traceDraftSnapshot(again));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    const undone = traceReducer(restored, { type: "UNDO" });
+    expect(undone.outline).toEqual([]); expect(undone.rawOutline).toEqual([]); expect(undone.sensitivity).toBe(128);
+    const original = traceReducer(undone, { type: "UNDO" });
+    expect(original.outline).toEqual(before.outline); expect(original.rawOutline).toEqual(before.rawOutline);
+    expect(original.sensitivity).toBe(97); expect(original.boundaryMethod).toBe("teed"); expect(original.includeInteriorHoles).toBe(false);
+    expect(original.tolerancePx).toBe(3); expect(original.smoothing).toBe(2);
+    const redone = traceReducer(original, { type: "REDO" });
+    expect(redone.boundaryMethod).toBe("color"); expect(redone.includeInteriorHoles).toBe(true); expect(redone.rawOutline).toEqual([]);
+  });
+  it("recovers an explicitly uncalibrated curve history frame at its own precision", async () => {
+    const before = { ...calibrated(), processing: false, margin: 0, calibration: null };
+    const curves = editCurves(curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: -1 },
+      { kind: "bend", index: 0, t: .5, delta: { x: 0, y: -4 } });
+    const edited = traceReducer(before, { type: "CURVES_COMMITTED", curves, label: "Bend curve" });
+    const rotated = traceReducer(edited, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: before.imageSize, maxSize: { width: 1600, height: 1600 } });
+    const calibratedLater = traceReducer(rotated, { type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: .1 } });
+    await saveTraceDraft(traceDraftSnapshot(calibratedLater));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    const undone = traceReducer(restored, { type: "UNDO" });
+    expect(undone.calibration).toBeNull();
+    expect(undone.curves).toEqual(edited.curves);
+    expect(undone.outline).toEqual(sampleCurves(undone.curves!, CURVE_TOLERANCE_MM / .1));
+  });
   it("recovers an added contour, its selected corners, and creation history", async () => {
     const before = { ...calibrated(), processing: false };
     const added = traceReducer(before, { type: "ADD_CONTOUR" });
@@ -37,6 +79,53 @@ describe("browser-local Trace recovery", () => {
     expect(restored.calibration).toEqual(before.calibration);
     expect(traceReducer(restored, { type: "UNDO" }).outline).toEqual(before.outline);
     expect(traceReducer(traceReducer(restored, { type: "UNDO" }), { type: "REDO" }).outline).toEqual(added.outline);
+  });
+
+  it("preserves authored handles through reload and undo/redo, rebuilding stale samples", async () => {
+    const before = { ...calibrated(), margin: 0, processing: false };
+    const curves = editCurves(curvesFromOutline(before.outline), { shapeIndex: 0, ringIndex: -1 }, { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -4 } });
+    const edited = traceReducer(before, { type: "CURVES_COMMITTED", curves, label: "Bend contour curve" });
+    expect(edited.curves).toEqual(curves);
+    const snapshot = traceDraftSnapshot(edited)!;
+    snapshot.state.outline = outline; // Simulate an obsolete polygon cache.
+    await saveTraceDraft(snapshot);
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.curves).toEqual(curves);
+    expect(restored.outline).toEqual(sampleCurves(curves, CURVE_TOLERANCE_MM / mmPerPixel(before.calibration)!));
+    const undo = traceReducer(restored, { type: "UNDO" });
+    expect(undo.curves).toBeUndefined();
+    expect(undo.outline).toEqual(before.outline);
+    const redo = traceReducer(undo, { type: "REDO" });
+    expect(redo.curves).toEqual(curves);
+    expect(redo.outline).toEqual(restored.outline);
+    expect(traceReducer(redo, { type: "OUTLINE_REFINED", outline })).toBe(redo);
+    expect(traceReducer(redo, { type: "MARGIN_COMMITTED", outline, margin: 1 })).toBe(redo);
+    expect(traceReducer(redo, { type: "CURVES_COMMITTED", curves, label: "No change" })).toBe(redo);
+  });
+
+  it("migrates version-one drafts without creating curve data or changing vertices", () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const recovered = traceDraftSchema.parse({ ...snapshot, schemaVersion: 1 });
+    expect(recovered.schemaVersion).toBe(2);
+    expect(recovered.state.curves).toBeUndefined();
+    expect(recovered.state.outline).toEqual(outline);
+  });
+
+  it("keeps curves and matching history through photo rotation and contour removal", async () => {
+    const before = { ...calibrated(), margin: 0, processing: false };
+    const sources = curvesFromOutline([before.outline[0], { ...before.outline[0], outer: before.outline[0].outer.map(p => ({ x: p.x + 100, y: p.y })) }]);
+    const curves = editCurves(sources, { shapeIndex: 0, ringIndex: -1 }, { kind: "bend", index: 0, t: 0.5, delta: { x: 0, y: -4 } });
+    const edited = traceReducer(before, { type: "CURVES_COMMITTED", curves, label: "Bend curve" });
+    const removed = traceReducer(edited, { type: "OUTLINE_COMMITTED", outline: [edited.outline[0]], label: "Delete shape" });
+    expect(removed.curves).toEqual([curves[0]]);
+    expect(traceReducer(removed, { type: "UNDO" }).curves).toEqual(curves);
+    const rotated = traceReducer(edited, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: before.imageSize, maxSize: { width: 1600, height: 1600 } });
+    expect(rotated.curves![0].outer[0].out).not.toEqual(curves[0].outer[0].out);
+    await saveTraceDraft(traceDraftSnapshot(rotated));
+    const restored = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: (await loadTraceDraft())! });
+    expect(restored.curves).toEqual(rotated.curves);
+    expect(traceReducer(restored, { type: "UNDO" }).curves).toEqual(curves);
+    expect(traceReducer(traceReducer(restored, { type: "UNDO" }), { type: "REDO" }).curves).toEqual(rotated.curves);
   });
   it.each([false, true])("recovers a replacement ruler without losing accepted scale (complete: %s)", async complete => {
     const before = calibrated();
@@ -201,4 +290,16 @@ it("rotates estimated areas together with a quarter-turned photo and history", (
   const rotated = traceReducer(state, { type: "ROTATE_SOURCE", direction: "clockwise", naturalSize: state.imageSize, maxSize: { width: 800, height: 800 } });
   expect(rotated.estimatedEdgeRegions).toEqual([rotated.outline[0].outer]);
   expect(rotated.history.stack[0].estimatedEdgeRegions).toEqual(rotated.estimatedEdgeRegions);
+});
+
+it("recovers correction marks and source mapping", () => {
+  const state=calibrated();
+  state.detectionHints=[{kind:"paper",points:[{x:30,y:40},{x:35,y:45}],radius:1}];
+  state.perspectiveCorrection={source:"template",paper:"letter",toOriginal:[.001,0,0,0,.001,0,0,0,1]};
+  const snapshot=traceDraftSnapshot(state)!;
+  const restored=traceReducer(initialTraceState,{type:"TRACE_DRAFT_RESTORED",draft:traceDraftSchema.parse(snapshot)});
+  expect(restored.detectionHints).toEqual(state.detectionHints);
+  expect(restored.perspectiveCorrection).toEqual(state.perspectiveCorrection);
+  const { detectionHints: _hints,...legacy }=snapshot.state;
+  expect(traceDraftSchema.parse({...snapshot,state:legacy}).state.detectionHints).toEqual([]);
 });

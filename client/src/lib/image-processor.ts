@@ -1,15 +1,28 @@
+import { validateDetectionHints } from "./detect/hint-validation";
+import { validDetectionGeometry } from "./detect/boundary-validation";
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
-import { pointInRing, ringArea } from "@shared/geometry/rings";
 
 import { detectOutline } from "./detect/pipeline";
-import type { DetectOptions, DetectResult, ImageLike } from "./detect/types";
+import { detectInWorker, reconstructInWorker, simplifyInWorker } from "./detect/worker-client";
+import { recommendedReconstructionTolerance } from "@shared/geometry/contour-reconstruction";
+import { reconstructDetectedForEditing } from "@shared/geometry/detected-cleanup";
+import { AUTO_SMOOTHING_ALLOWANCE, simplifyAcceptedOutline, type AppliedOutlineSimplification } from "@shared/geometry/outline-simplification";
+import { AUTO_STRAIGHTENING_DEPTH, straightenOutward } from "@shared/geometry/outline-straightening";
+import { outlineRoughness } from "@shared/geometry/contour-metrics";
+import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
+import { checkDetectionAbort } from "./detect/grabcut";
+import { SHEET_STROKE_MM, type SheetInkRegion } from "./detect/sheet-ink";
+import { DETECT_DEFAULTS, type DetectOptions, type DetectResult, type ImageLike } from "./detect/types";
+import { OUTER_SMOOTHING_MM } from "./geometry/outer-smoothing";
 import { offsetDetectedOutline, offsetTraceOutline, refineTraceOutline, retainSurvivingDetectionHoles } from "./geometry/trace-refinement";
 import {
   flattenOutline,
   outlineBounds,
   outlineFromPoints,
+  outsideSilhouettes,
 } from "./geometry/outline";
+export { outsideSilhouettes } from "./geometry/outline";
 import { generateOutlineSVG } from "./export/svg";
 
 export type { Point, Outline };
@@ -43,6 +56,8 @@ export interface Region extends Rect {}
 export interface CroppedRegionInfo {
   originalRegion: Region;
   isCropped: boolean;
+  /** Crop-first source pixels map back to the unchanged Trace working frame. */
+  toWorking?: { x: number; y: number };
 }
 
 function isCroppedRegionInfo(
@@ -99,6 +114,20 @@ export async function adjustOutlineMargin(
 }
 
 export interface ProcessOptions {
+  /** Reconstruct the detected boundary before exposing it for editing. */
+  autoCleanup?: boolean;
+  editableCurves?: boolean;
+  /**
+   * Smooth the dense trace outward before simplification and cleanup, about one
+   * millimetre when a scale is known. Baked in at detection: recalibrating
+   * afterwards does not re-run it.
+   */
+  smoothBoundary?: boolean;
+  /**
+   * Where a recognised calibration sheet prints, in working-photo pixels. Its
+   * text, bar and markers are painted out before detection. Needs a scale.
+   */
+  sheetInk?: readonly SheetInkRegion[];
   /** Tool pockets normally need only the outside silhouette. */
   includeInteriorHoles?: boolean;
   /** Region of interest, or a region already cropped from the source. */
@@ -111,6 +140,15 @@ export interface ProcessOptions {
 }
 
 export interface ProcessResult {
+  curves?: CurveOutline;
+  /** Retains the pre-smoothing source so a manual preview never compounds it. */
+  autoSimplification?: AppliedOutlineSimplification;
+  /** Cleaned, unoffset baseline for later point/detail adjustments. */
+  refinementBase?: Outline;
+  cleanup?: { applied: boolean; tolerancePx?: number; reason?: string };
+  smoothing?: { applied: boolean; reason?: string };
+  /** Whether small dips were bridged before the smoothing, how many, and why not when a check turned it down. */
+  straightening?: { applied: boolean; bridges: number; reason?: string };
   /** Source-image regions where a calibration aid hid an estimated edge. */
   estimatedEdgeRegions?: Ring[];
   /** Rings in source-image coordinates, margin applied. */
@@ -131,15 +169,6 @@ export interface ProcessResult {
   timings: DetectResult["timings"];
 }
 
-/** Detector rings are disjoint or nested. Filling a hole also absorbs any
- * islands inside it, so they must not become overlapping pockets. */
-export function outsideSilhouettes(outline: Outline): Outline {
-  const areas = outline.map((shape) => ringArea(shape.outer));
-  return outline.filter((shape, index) => !outline.some((other, otherIndex) =>
-    areas[otherIndex] > areas[index] && pointInRing(other.outer, shape.outer[0]),
-  )).map((shape) => ({ ...shape, holes: [] }));
-}
-
 /** A margin or simplification can seal a narrow bay into a new hole. Keep an
  * outside-only contour hole-free, while preserving existing intentional holes. */
 export function withoutNewInteriorHoles(outline: Outline, baseline: Outline): Outline {
@@ -158,11 +187,43 @@ export async function processImage(
   // detector applies itself.
   const cropped = isCroppedRegionInfo(region);
   const roi = cropped ? null : (region ?? null);
+  const toWorking = cropped ? region.toWorking ?? { x: 1, y: 1 } : { x: 1, y: 1 };
+  // The detector works in the crop's own pixels; lengths given in working pixels shrink with it.
+  const workingPerDetectPixel = Math.max(toWorking.x, toWorking.y);
+  const workingMmPerPixel = mmPerPixel(calibration);
+  const detectionOptions: DetectOptions = { ...detect, roi,
+    frameTransform: { origin: cropped ? { x: region.originalRegion.x, y: region.originalRegion.y } : { x: 0, y: 0 }, scale: toWorking },
+    tolerancePx: (detect.tolerancePx ?? DETECT_DEFAULTS.tolerancePx) / workingPerDetectPixel,
+    outerSmoothingPx: !options.smoothBoundary ? detect.outerSmoothingPx
+      : workingMmPerPixel ? OUTER_SMOOTHING_MM / (workingMmPerPixel * workingPerDetectPixel) : "auto",
+    // Printed areas arrive in working pixels and need the scale to size a stroke.
+    sheetInk: options.sheetInk?.length && workingMmPerPixel ? {
+      regions: options.sheetInk.map((area) => ({
+        x: (area.x - (cropped ? region.originalRegion.x : 0)) / toWorking.x,
+        y: (area.y - (cropped ? region.originalRegion.y : 0)) / toWorking.y,
+        width: area.width / toWorking.x, height: area.height / toWorking.y, kind: area.kind,
+      })),
+      strokePx: SHEET_STROKE_MM / (workingMmPerPixel * workingPerDetectPixel),
+    } : detect.sheetInk,
+    hints: detect.hints?.map(h => ({ ...h, radius: h.radius / workingPerDetectPixel,
+      points: h.points.map(p => ({ x: (p.x - (cropped ? region.originalRegion.x : 0)) / toWorking.x, y: (p.y - (cropped ? region.originalRegion.y : 0)) / toWorking.y })) })),
+    // Cleanup must honor the requested detail, rather than reject it under a
+    // separate sub-pixel budget and silently restore the dense staircase.
+    inwardTolerancePx: Math.max(workingMmPerPixel ? 0.1 / workingMmPerPixel : 0.5, detect.tolerancePx ?? DETECT_DEFAULTS.tolerancePx) / workingPerDetectPixel,
+    outwardTolerancePx: (workingMmPerPixel ? 1 / workingMmPerPixel : 4) / workingPerDetectPixel,
+    occlusions: detect.occlusions?.map(ring => ring.map(p => ({ x: p.x / toWorking.x, y: p.y / toWorking.y }))),
+  };
 
   let result: DetectResult;
   try {
-    result = await detectOutline(imageData, { ...detect, roi });
+    // Node tests and non-browser consumers can still call the injected pipeline.
+    // Every supported browser runs segmentation and tracing in the worker.
+    result = typeof Worker === "undefined"
+      ? await detectOutline(imageData, { ...detectionOptions, engine: "js", refine: "none" })
+      : await detectInWorker(imageData, detectionOptions);
   } catch (error) {
+    if (detect.signal?.aborted || (error instanceof Error &&
+      (error.name === "AbortError" || error.name === "WorkerCancelledError"))) throw error;
     onNotice?.(
       "Detection failed",
       error instanceof Error ? error.message : String(error),
@@ -173,13 +234,18 @@ export async function processImage(
   if (result.engine === "js" && detect.engine !== "js") {
     onNotice?.(
       "Using the fallback detector",
-      "OpenCV could not be loaded, so detection ran in JavaScript. Results are the same but slower.",
+      "OpenCV could not be loaded, so detection used the basic JavaScript outline without automatic boundary refinement.",
     );
   }
 
   if (result.inferredOccludedEdge) {
     onNotice?.("Review the edge beneath the measurement aid",
       "The aid was removed from the trace. The edge it covers is estimated from the visible outline; check those points, or retake the photo with the aid fully inside the tool.");
+  }
+  if (detect.boundary === "teed" && result.refinement?.status === "fallback") {
+    onNotice?.("Using color detection", result.refinement.reason === "teed-unavailable"
+      ? "Learned outlines could not be loaded. Your photo was traced with the color detector."
+      : "A reliable learned outer outline could not be closed. Color detection was used; try a region with white paper around the whole tool.");
   }
 
   const origin = cropped
@@ -189,9 +255,138 @@ export async function processImage(
   const silhouette = (outline: Outline): Outline => options.includeInteriorHoles
     ? outline
     : outsideSilhouettes(outline);
-  let outline = translate(silhouette(result.outline), origin);
-  let rawOutline = translate(silhouette(result.rawOutline), origin);
+  const mapToWorking = (value: Outline) => value.map(s => ({ outer: s.outer.map(p => ({ x: p.x * toWorking.x, y: p.y * toWorking.y })),
+    holes: s.holes.map(r => r.map(p => ({ x: p.x * toWorking.x, y: p.y * toWorking.y }))) }));
+  let outline = translate(mapToWorking(silhouette(result.outline)), origin);
+  let rawOutline = translate(mapToWorking(silhouette(result.rawOutline)), origin);
+  const material = translate(mapToWorking(silhouette(result.materialOutline ?? result.rawOutline)), origin);
 
+  let curves: CurveOutline | undefined, refinementBase: Outline | undefined;
+  let autoSimplification: AppliedOutlineSimplification | undefined;
+  let smoothing: ProcessResult["smoothing"];
+  let cleanup: ProcessResult["cleanup"];
+  if (options.autoCleanup && outline.length && rawOutline.length) {
+    const began = performance.now();
+    try {
+      checkDetectionAbort(detect.signal);
+      const units = mmPerPixel(calibration), unitsPerPixel = units ?? 1;
+      const recommended = Math.max(...rawOutline.flatMap(s => [s.outer, ...s.holes])
+        .map(ring => recommendedReconstructionTolerance(ring, unitsPerPixel, units ? "mm" : "px")));
+      const inward = detectionOptions.inwardTolerancePx! * workingPerDetectPixel;
+      const tolerance = Math.min(Math.ceil(recommended * unitsPerPixel * 1000) / 1000 / unitsPerPixel, inward);
+      const native = !!options.editableCurves && (margin ?? 0) === 0;
+      const request = { source: curvesFromOutline(outline), dense: rawOutline, tolerance, editableCurves: native };
+      const fitted = typeof Worker === "undefined"
+        ? reconstructDetectedForEditing(request.source, request.dense, tolerance, native)
+        : await reconstructInWorker(request, detect.signal);
+      checkDetectionAbort(detect.signal);
+      const fittedOutline = sampleCurves(fitted.curves, CURVE_TOLERANCE_MM / (units ?? .1));
+      if (!validDetectionGeometry(material, fittedOutline, inward, units ? 1 / units : 4)) throw new Error("Cleanup would exceed the detection detail allowance.");
+      // A fit that crosses a correction mark is rejected here, so the detected outline is kept instead of the whole detection failing.
+      validateDetectionHints(fittedOutline, detect.hints ?? []);
+      outline = fittedOutline;
+      if (native) curves = fitted.curves;
+      refinementBase = outline;
+      cleanup = { applied: true, tolerancePx: tolerance };
+    } catch (error) {
+      checkDetectionAbort(detect.signal);
+      if (error instanceof Error && (error.name === "AbortError" || error.name === "WorkerCancelledError")) throw error;
+      cleanup = { applied: false, reason: error instanceof Error ? error.message : "Could not simplify this boundary." };
+      onNotice?.("Kept the detected outline", "Automatic line and curve cleanup could not preserve this outline reliably. The detected boundary has been kept for review.");
+    }
+    result.timings.cleanup = performance.now() - began;
+  }
+
+  let straightening: ProcessResult["straightening"];
+  if (cleanup?.applied) {
+    const unitsPerUnit = workingMmPerPixel ?? 1, unit = workingMmPerPixel ? "mm" : "px";
+    const allowance = AUTO_SMOOTHING_ALLOWANCE[unit], editable = !!curves;
+    const cancelled = (error: unknown) => error instanceof Error && (error.name === "AbortError" || error.name === "WorkerCancelledError");
+    // What the cleanup must not make rougher: the fitted outline, whether or not it is straightened first.
+    const fitted = outline;
+    /** The default smoothing of `source`, checked against the detected material. Throws when a check fails. */
+    const smooth = async (source: CurveOutline) => {
+      checkDetectionAbort(detect.signal);
+      const request = { source, tolerance: allowance / unitsPerUnit,
+        sampleTolerance: (unit === "mm" ? CURVE_TOLERANCE_MM : .1) / unitsPerUnit, editableCurves: editable };
+      const smoothed = typeof Worker === "undefined" ? simplifyAcceptedOutline(request)
+        : await simplifyInWorker(request, detect.signal);
+      checkDetectionAbort(detect.signal);
+      const candidate = sampleCurves(smoothed.curves, request.sampleTolerance);
+      // The combined cleanup must still respect the original material boundary,
+      // not just the second pass's allowance around an already-fitted outline.
+      if (!validDetectionGeometry(material, candidate, detectionOptions.inwardTolerancePx! * workingPerDetectPixel,
+        detectionOptions.outwardTolerancePx! * workingPerDetectPixel)) throw new Error("Smoothing would exceed the detection detail allowance.");
+      // The fitter guards fine-scale noise. Before applying it automatically,
+      // also protect broader ripples that a locally smoother fit can introduce.
+      const spacing = (unit === "mm" ? .1 : 1) / unitsPerUnit;
+      const roughnessOptions = { spacing, scale: spacing * 10, minAmplitude: spacing };
+      const before = outlineRoughness(fitted, roughnessOptions), after = outlineRoughness(candidate, roughnessOptions);
+      if (after.reversals > before.reversals || after.jaggedLength > before.jaggedLength + spacing)
+        throw new Error("Smoothing would add boundary ripples.");
+      validateDetectionHints(candidate, detect.hints ?? []);
+      return { outline: candidate, curves: smoothed.curves, source };
+    };
+
+    // Small dips are bridged before the smoothing, which then rounds where the bridges meet.
+    // The detected outline stays in `rawOutline`, for the comparison and the detail controls.
+    let began = performance.now();
+    checkDetectionAbort(detect.signal);
+    const straight = straightenOutward(outline, AUTO_STRAIGHTENING_DEPTH[unit] / unitsPerUnit);
+    straightening = { applied: false, bridges: 0, ...(straight.reason ? { reason: straight.reason } : {}) };
+    result.timings.straightening = performance.now() - began;
+
+    // The smoothing time covers both attempts when the straightened outline is turned down.
+    began = performance.now();
+    let smoothed: Awaited<ReturnType<typeof smooth>> | undefined;
+    if (straight.bridges) {
+      try {
+        smoothed = await smooth(curvesFromOutline(straight.outline));
+        straightening = { applied: true, bridges: straight.bridges };
+      } catch (error) {
+        checkDetectionAbort(detect.signal);
+        if (cancelled(error)) throw error;
+        // A mark, the material allowance or the ripple check objected. The outline as it was is tried next.
+        straightening = { applied: false, bridges: 0, reason: error instanceof Error ? error.message : "Could not straighten this boundary." };
+      }
+    }
+    try {
+      smoothed ??= await smooth(curves ?? curvesFromOutline(outline));
+      outline = smoothed.outline;
+      if (editable) curves = smoothed.curves;
+      refinementBase = outline;
+      if ((margin ?? 0) === 0) autoSimplification = { source: smoothed.source, allowance, unitsPerUnit, unit };
+      smoothing = { applied: true };
+    } catch (error) {
+      checkDetectionAbort(detect.signal);
+      if (cancelled(error)) throw error;
+      smoothing = { applied: false, reason: error instanceof Error ? error.message : "Could not smooth this boundary." };
+    }
+    result.timings.smoothing = performance.now() - began;
+  }
+
+  // Simplifying can carry the boundary across a correction mark. Step back to the trace it came
+  // from, then to the unsmoothed one, before telling the user that a mark could not be kept.
+  const hints = detect.hints ?? [];
+  const honoursMarks = (candidate: Outline): boolean => {
+    try { validateDetectionHints(candidate, hints); return true; } catch { return false; }
+  };
+  if (hints.length && !honoursMarks(outline)) {
+    const kept = [rawOutline, material].find(honoursMarks);
+    // Not even the corrected trace holds the mark: this throws the message that says what to change.
+    if (!kept) validateDetectionHints(material, hints);
+    outline = kept!;
+    curves = undefined; refinementBase = undefined; autoSimplification = undefined; smoothing = undefined; straightening = undefined;
+    if (cleanup?.applied !== false) {
+      onNotice?.("Kept the detected outline", "Simplifying this outline would have crossed a correction mark. The detected boundary has been kept for review.");
+    }
+    cleanup = { applied: false, reason: "Simplification would cross a correction mark." };
+  }
+  // The outward smoothing knows nothing of marks either. The detail controls and the detected-outline
+  // comparison start from `rawOutline`, so it must not carry the boundary back across one.
+  if (hints.length && !honoursMarks(rawOutline)) rawOutline = material;
+  // Otherwise `rawOutline` stays the outward-smoothed trace, so neither of those brings the
+  // stair-steps back. The unsmoothed `material` is only what the checks above measure against.
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Keep independently detected tools separate as their margins grow.
@@ -203,10 +398,17 @@ export async function processImage(
   if (marginPx !== 0) rawOutline = await retainSurvivingDetectionHoles(rawOutline, outline);
 
   return {
+    curves,
+    autoSimplification,
+    refinementBase,
+    cleanup,
+    smoothing,
+    straightening,
     outline,
     rawOutline,
-    estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x + origin.x, y: p.y + origin.y }))),
+    estimatedEdgeRegions: (result.estimatedEdgeRegions ?? []).map(ring => ring.map(p => ({ x: p.x * toWorking.x + origin.x, y: p.y * toWorking.y + origin.y }))),
     svg: generateOutlineSVG(outline, {
+      curves,
       width: imageData.width,
       height: imageData.height,
       fill: "rgba(100, 100, 255, 0.3)",
@@ -237,6 +439,9 @@ export async function reprocessOutline(
 ): Promise<Outline> {
   const { detect = {}, margin = null, calibration = null } = options;
 
+  // Manual detail/smoothing is an explicit allowance chosen by the user.
+  // The automatic detector's fixed preservation budget must not silently
+  // cancel it or replace the displayed contour with the unsimplified source.
   const outline = refineTraceOutline(rawOutline, detect);
   const marginPx = marginToPixels(margin, calibration);
   const adjusted = marginPx === 0 ? outline : await offsetTraceOutline(outline, marginPx);

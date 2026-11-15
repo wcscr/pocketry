@@ -36,8 +36,9 @@ without requiring that opt-in; adding jig pegs from the ordinary bin workflow
 uses the experimental controls. See [the settings dialog](../client/src/components/layout/experimental-features-dialog.tsx)
 and [bin controls](../client/src/components/gridfinity/bin-controls-panel.tsx).
 
-Baseplate generation is outside Pocketry's scope. SVG/DXF are supported outputs;
-that does not imply an SVG/DXF import implementation. There is no hosted account
+Baseplate generation is outside Pocketry's scope. SVG/DXF are supported outputs.
+SVG import is limited to closed outlines, as pockets in Bin and as editable
+contours in Trace; DXF is not imported. There is no hosted account
 system, server project storage, shared online project library, or cross-device
 sync in the current editor.
 
