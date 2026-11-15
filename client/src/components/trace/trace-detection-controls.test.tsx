@@ -54,7 +54,7 @@ it.each(["Cancel", "Keep current outline", "Re-detect photo"])("asks before enab
   } finally { React.act(() => root.unmount()); }
 });
 
-it("defaults to tool edges, allows manual choices, and suppresses holes in tool-edge mode", async () => {
+it("explains hole detection for each method and keeps the switch available unless processing", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   let trace!: TraceStore;
@@ -66,12 +66,26 @@ it("defaults to tool edges, allows manual choices, and suppresses holes in tool-
     await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
     expect(trace.boundaryMethod).toBe("teed");
     expect(host.querySelector<HTMLSelectElement>("#outline-detection-method")!.value).toBe("teed");
-    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(false);
+    const holesHelpId = host.querySelector("#include-interior-holes")!.getAttribute("aria-describedby")!;
+    expect(document.getElementById(holesHelpId)?.textContent).toBe("Tool edges traces only the outer boundary. Enabling holes asks to switch to Color contrast.");
     expect(reprocess).not.toHaveBeenCalled();
     await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
       method.value = "color"; method.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(trace.boundaryMethod).toBe("color");
     expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(false);
+    expect(document.getElementById(holesHelpId)).toBeNull();
+    expect(host.querySelector("#include-interior-holes")!.hasAttribute("aria-describedby")).toBe(false);
+    await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
+      method.value = "auto"; method.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(document.getElementById(holesHelpId)?.textContent).toBe("With holes enabled, Automatic uses Color contrast.");
+    React.act(() => host.querySelector<HTMLButtonElement>("#include-interior-holes")!.click());
+    expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 128, includeInteriorHoles: true });
+    React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: true }));
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
+    React.act(() => trace.dispatch({ type: "SET_PROCESSING", processing: false }));
+    await React.act(async () => { const method = host.querySelector<HTMLSelectElement>("#outline-detection-method")!;
+      method.value = "color"; method.dispatchEvent(new Event("change", { bubbles: true })); });
     React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:color", fileName: "other background" }));
     expect(trace.boundaryMethod).toBe("color");
     React.act(() => trace.dispatch({ type: "SET_INCLUDE_INTERIOR_HOLES", include: true }));
@@ -79,11 +93,57 @@ it("defaults to tool edges, allows manual choices, and suppresses holes in tool-
       method.value = "teed"; method.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(trace.boundaryMethod).toBe("teed");
     expect(trace.includeInteriorHoles).toBe(false);
-    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>("#include-interior-holes")!.disabled).toBe(false);
     expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 128, includeInteriorHoles: false, boundary: "teed", restart: true });
     React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:new", fileName: "next tool" }));
     expect(trace.boundaryMethod).toBe("teed");
     expect(trace.includeInteriorHoles).toBe(false);
+  } finally { React.act(() => root.unmount()); }
+});
+
+it.each([false, true])("confirms a method switch when enabling holes, preserving edits on cancel and through Undo (manual edits=%s)", async edited => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore; const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceDetectionControls onReprocess={reprocess} />; }
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 50, y: 90 }], holes: [] }];
+    const region = { x: 0, y: 0, width: 100, height: 100 };
+    React.act(() => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" });
+      trace.dispatch({ type: "SET_REGION", region });
+      trace.dispatch({ type: "DETECTED", imageUrl: "photo", region, outline, rawOutline: outline, svg: "" });
+      if (edited) {
+        trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 });
+        trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ ...outline[0], outer: [...outline[0].outer, { x: 5, y: 50 }] }], label: "Edit contour" });
+      }
+    });
+    const before = trace;
+    const toggle = () => React.act(() => host.querySelector<HTMLButtonElement>("#include-interior-holes")!.click());
+    const choose = (label: string) => React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === label)!.click());
+    toggle();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Switch detection to include holes?");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("replaces your outline and edits");
+    expect(reprocess).not.toHaveBeenCalled();
+    expect(trace.boundaryMethod).toBe("teed"); expect(trace.includeInteriorHoles).toBe(false);
+    choose("Keep current outline");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+    expect(trace.sensitivity).toBe(before.sensitivity);
+    expect(trace.boundaryMethod).toBe("teed"); expect(trace.includeInteriorHoles).toBe(false);
+    toggle(); choose("Switch and include holes");
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ boundary: "color", restart: true, sensitivity: 128, includeInteriorHoles: true });
+    // Accepted settings are published only with successful detection.
+    expect(trace.outline).toBe(before.outline); expect(trace.history).toBe(before.history);
+    expect(trace.boundaryMethod).toBe("teed"); expect(trace.includeInteriorHoles).toBe(false);
+    React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: "photo", region, outline, rawOutline: outline, svg: "",
+      settings: { boundaryMethod: "color", includeInteriorHoles: true, sensitivity: 128,
+        tolerancePx: initialTraceState.tolerancePx, smoothing: initialTraceState.smoothing } }));
+    expect(trace.boundaryMethod).toBe("color"); expect(trace.includeInteriorHoles).toBe(true);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(before.outline); expect(trace.sensitivity).toBe(before.sensitivity);
+    expect(trace.boundaryMethod).toBe("teed"); expect(trace.includeInteriorHoles).toBe(false);
   } finally { React.act(() => root.unmount()); }
 });
 

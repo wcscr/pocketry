@@ -888,21 +888,27 @@ export function TraceControlsPanel({
         >
           <TraceDetectionControls onReprocess={onReprocess} outlineActions={<>
           {hasOutline && <TraceSymmetryTool />}
-          <Button variant="outline" size="sm" className="w-full"
+          <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className="min-w-0 flex-1"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
             onClick={() => { dispatch({ type: "ADD_CONTOUR" }); onCanvasInteraction(); }}
             data-testid="button-add-contour">
             <SquarePlus className="h-4 w-4" />Add manual contour
           </Button>
+          <HelpHint label="adding a manual contour">Start a contour you can trace by hand. Use it for a missed shape or a feature inside an existing contour, such as a belt clip, that needs a different pocket depth in Bin.</HelpHint>
+          </div>
           <TraceOutlineImport onImported={onCanvasInteraction} />
           {hasOutline && <TraceContourPositionTool />}
+          <div className="flex items-center gap-1">
           <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
-            size="sm" className="w-full" disabled={!hasOutline || processing}
+            size="sm" className="min-w-0 flex-1" disabled={!hasOutline || processing}
             aria-pressed={store.mode === "edit" || store.mode === "remove"}
             onClick={() => { dispatch({ type: "SET_MODE", mode: "edit" }); onCanvasInteraction(); }}
             data-testid="button-edit-contour">
             <Spline className="h-4 w-4" />Edit outline
           </Button>
+          <HelpHint label="editing the outline">Move, add, or remove outline points to fix a missed edge or refine a small feature. With Editable curves enabled, use curve handles to adjust rounded edges.</HelpHint>
+          </div>
 
           <div className="border-t pt-3"><TraceCurveSettings onReprocess={onReprocess} /></div>
 
@@ -910,8 +916,7 @@ export function TraceControlsPanel({
             <div className="flex items-center gap-1">
               <p className="text-xs font-semibold">Contours</p>
               <HelpHint label="contour editing">
-                Detection automatically smooths lines and rounded sections, and runs a straight edge over small dips such as grip ribs and notches (up to 0.5 mm deep and 10 mm wide) without trimming the tool. Detected outline shows the trace before that. Smooth outline under Manual detection settings previews cleanup after edits. Edit outline opens manual tools: move points, or choose Curves to bend edges with handles. Add manual contour starts another trace with a four-point square. In Points, drag to move, click an edge to add, or select a point to delete. Shift-click or drag a selection box for multiple points; Select points also works without a keyboard. On a phone, pinch to zoom. Select only changes the selection.
-                Simplification adjusts your edited contour. Sensitivity and interior holes re-detect from the photo and ask before replacing manual edits. Undo restores your contour.
+                Select a contour to work on it, remove unwanted shapes, or change its role. Pocket cuts material; Hole keeps material inside a pocket. Set each pocket's depth in Bin.
               </HelpHint>
             </div>
             <RingList />

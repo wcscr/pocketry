@@ -32,9 +32,14 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
   const trace = useTrace();
   const [manualOpen, setManualOpen] = useState(false);
   const manualId = useId();
+  const holesHelpId = useId();
   const { dispatch, sensitivity, tolerancePx, includeInteriorHoles, processing } = trace;
+  const holesHelp = trace.boundaryMethod === "teed"
+    ? "Tool edges traces only the outer boundary. Enabling holes asks to switch to Color contrast."
+    : trace.boundaryMethod === "auto" ? "With holes enabled, Automatic uses Color contrast." : null;
   const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
   const [pendingDetection, setPendingDetection] = useState<DetectionSettings | null>(null);
+  const switchingForHoles = trace.boundaryMethod === "teed" && pendingDetection?.boundary === "color" && pendingDetection.includeInteriorHoles;
   useEffect(() => {
     setDraftSensitivity(null);
     setPendingDetection(null);
@@ -71,6 +76,13 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };
   const restart = (boundary = trace.boundaryMethod) => request({ boundary, restart: true,
     sensitivity: initialTraceState.sensitivity, includeInteriorHoles: boundary === "teed" ? false : includeInteriorHoles });
+  const requestHoles = (include: boolean) => {
+    if (include && trace.boundaryMethod === "teed") {
+      // Enabling holes changes detection methods, so always explain and confirm it.
+      setPendingDetection({ boundary: "color", restart: true,
+        sensitivity: initialTraceState.sensitivity, includeInteriorHoles: true });
+    } else request({ sensitivity, includeInteriorHoles: include });
+  };
 
   const tuning = <>
 <div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
@@ -99,7 +111,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>
-          <HelpHint label="outline detection method">Tool edges is the default for new sessions and works best on light paper. Automatic chooses between Tool edges and Color contrast for the photo's background. Saved drafts keep their chosen method.</HelpHint></div>
+          <HelpHint label="outline detection method">Find the tool's outline in the photo. Tool edges works best on light paper; Color contrast can also find interior holes. Automatic chooses a method for the background.</HelpHint></div>
         <select id="outline-detection-method" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
           value={trace.boundaryMethod} disabled={processing}
           onChange={event => { const boundary = event.target.value as "auto" | "color" | "teed";
@@ -110,35 +122,46 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         </select>
       </div>
     </div>}
-    {!compact && <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1">
-        <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
-        <HelpHint label="interior holes">Trace openings inside the tool. Reflections are usually not holes. Automatic uses Color contrast when this is enabled. Changing this setting asks before replacing manual edits.</HelpHint>
+    {!compact && <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <Label htmlFor="include-interior-holes" className="text-xs">Include interior holes</Label>
+          <HelpHint label="interior holes">Trace openings inside the tool to keep material in those areas of the pocket. Tool edges will ask to switch to Color contrast; Automatic chooses it for you. Reflections usually aren't holes.</HelpHint>
+        </div>
+        <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing}
+          aria-describedby={holesHelp ? holesHelpId : undefined}
+          onCheckedChange={requestHoles} />
       </div>
-      <Switch id="include-interior-holes" checked={includeInteriorHoles} disabled={processing || trace.boundaryMethod === "teed"}
-        onCheckedChange={(include) => request({ sensitivity, includeInteriorHoles: include })} />
+      {holesHelp && <p id={holesHelpId} className="text-xs text-muted-foreground">{holesHelp}</p>}
     </div>}
-    {compact ? tuning : <>
-      <Button variant="outline" size="sm" className="w-full" aria-expanded={manualOpen} aria-controls={manualId}
+    {outlineActions}
+    {compact ? tuning : <div className="space-y-3 border-t pt-3">
+      <div className="flex items-center gap-1">
+      <Button variant="outline" size="sm" className="min-w-0 flex-1" aria-expanded={manualOpen} aria-controls={manualId}
         onClick={() => { if (manualOpen) trace.detectedOutlineReview.close(); setManualOpen(open => !open); }}>
         <Settings2 className="h-4 w-4" />Manual detection settings
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
       </Button>
+      <HelpHint label="manual detection settings">Adjust sensitivity, point simplification, or smoothing when the automatic outline needs extra cleanup. Most traces won't need these settings.</HelpHint>
+      </div>
       <div id={manualId} hidden={!manualOpen} className="space-y-3 rounded-md border p-3">{tuning}</div>
-    </>}
-    {outlineActions}
-    <div className="border-t pt-3"><Button variant="outline" size="sm" className="w-full" disabled={processing || !trace.imageUrl || !trace.region}
-      onClick={() => restart()}><RotateCcw className="h-4 w-4" />Restart outline detection</Button></div>
+    </div>}
+    <div className="flex items-center gap-1 border-t pt-3"><Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing || !trace.imageUrl || !trace.region}
+      onClick={() => restart()}><RotateCcw className="h-4 w-4" />Restart outline detection</Button>
+      <HelpHint label="restarting outline detection">Start over from the selected photo region when you want a fresh outline. Resets detection adjustments and corrections while keeping the photo, scale, and region. Undo restores the previous outline.</HelpHint>
+    </div>
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{pendingDetection?.restart
+        <DialogHeader><DialogTitle>{switchingForHoles ? "Switch detection to include holes?" : pendingDetection?.restart
           ? pendingDetection.boundary !== trace.boundaryMethod ? "Switch detection method?" : "Restart outline detection?"
           : "Re-detect from the photo?"}</DialogTitle>
-          <DialogDescription>{pendingDetection?.restart
+          <DialogDescription>{switchingForHoles
+            ? "Color contrast is needed to detect holes. This replaces your outline and edits; Undo restores them."
+            : pendingDetection?.restart
             ? `Start again from the photo inside the selected region. This replaces the outline and tool/paper corrections, resets Sensitivity to Auto and Simplification to ${initialTraceState.tolerancePx.toFixed(1)} px. Your photo, calibration, region and margin stay in place. Undo restores the previous outline and settings.`
             : "This replaces manual contour edits with a fresh detection. Undo restores your edited outline."}</DialogDescription>
         </DialogHeader>
-        <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>{pendingDetection?.restart
+        <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>{switchingForHoles ? "Switch and include holes" : pendingDetection?.restart
           ? pendingDetection.boundary !== trace.boundaryMethod ? "Switch and restart" : "Restart detection" : "Replace manual edits"}</Button>
         <Button variant="outline" onClick={cancel}>{pendingDetection?.restart ? "Keep current outline" : "Keep my edits"}</Button>
       </DialogContent>
@@ -155,7 +178,7 @@ export function TraceCurveSettings({ onReprocess }: { onReprocess: (settings: De
   return <>
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-1"><Label htmlFor="editable-curves" className="text-xs">Editable curves</Label>
-        <HelpHint label="editable curves">Off by default: detection makes a familiar point outline, with rounded edges approximated by points. Enable this to keep true curves and edit their handles after re-detection or adjustment. Turning it off converts existing curves to their displayed points as one undoable edit. Existing saved curves load intact.</HelpHint></div>
+        <HelpHint label="editable curves">Keep curved edges editable with handles after detection or adjustment. Useful for refining rounded tool shapes. Turning this off converts curves to points; Undo restores them.</HelpHint></div>
       <Switch id="editable-curves" checked={trace.editableCurves || !!trace.curves} disabled={processing}
         onCheckedChange={enabled => {
           if (enabled && trace.outline.length > 0 && trace.region && trace.imageUrl) setConfirmCurves(true);
