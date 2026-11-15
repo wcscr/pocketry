@@ -74,14 +74,19 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               Choose <strong>Region → Set region</strong> and draw a box around
               the tool. If perspective correction crops the tool, enable
               <strong> Show full photo</strong> beside the canvas. In
-              <strong> Outline</strong>, adjust <strong>Sensitivity</strong> and
-              <strong> Simplification</strong>, or use <strong>Edit contours</strong>{" "}
-              to correct points. Choose <strong>Add contour</strong> to start another
-              trace with a four-point square, then drag its corners and add points on its edges.
-              Choose <strong>Import outline</strong> to bring in a closed SVG outline and edit its points
+              <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points.
+              Choose <strong>Add manual contour</strong> to start another trace with a four-point
+              square, then drag its corners and add points on its edges. Trace an inner feature
+              separately when it needs a different pocket depth in Bin.
+              Choose <strong>Import outline from file</strong> to bring in a closed SVG outline and edit its points
               over the photo: an outline exported from this photo returns to its place, and any other
               is placed at true size and turned to fit the current outline.
-              <strong> Move &amp; rotate</strong> shifts or turns a contour by hand without changing its size.
+              <strong> Move &amp; rotate outline</strong> shifts or turns a contour while the photo stays fixed.
+              Enable <strong>Include interior holes</strong> to trace openings inside the tool.
+              With Tool edges selected, confirm switching to <strong>Color contrast</strong>
+              and re-detecting the outline; <strong>Automatic</strong> selects Color contrast for holes.
+              For extra cleanup, open <strong>Manual detection settings</strong> below the contour list
+              to adjust sensitivity, simplification, or smoothing.
               <strong> Margin</strong> adds optional clearance.
               In <strong>Contours</strong>, choose <strong>Pocket</strong> to cut
               material or <strong>Hole</strong> to keep material inside a pocket.

@@ -6,6 +6,7 @@ import { mmPerPixel } from "@shared/geometry/scale";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport";
@@ -27,10 +28,13 @@ export function TraceOutlineImport({ onImported }: {
   const unavailable = trace.imageSize.width <= 0 || trace.processing || trace.pendingAutoCalibration !== null ||
     hasPendingManualCalibration(trace) || trace.mode === "perspective";
   return <>
-    <Button variant="outline" size="sm" className="w-full" disabled={unavailable}
+    <div className="flex items-center gap-1">
+    <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={unavailable}
       onClick={() => setOpenRevision(trace.sourceRevision)} data-testid="button-import-outline">
-      <Upload className="h-4 w-4" />Import outline
+      <Upload className="h-4 w-4" />Import outline from file
     </Button>
+    <HelpHint label="importing an outline from file">Load a closed SVG outline to reuse a saved trace or a shape drawn elsewhere. Add it to the current outline or replace it, then adjust it over the photo.</HelpHint>
+    </div>
     {openRevision === trace.sourceRevision && <TraceOutlineImportDialog blocked={unavailable}
       onClose={() => setOpenRevision(null)} onImported={onImported} />}
   </>;
@@ -109,7 +113,7 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
     <DialogContent className="max-w-sm" onOpenAutoFocus={event => event.preventDefault()}
       style={keyboard ? { top: keyboard.top + keyboard.height / 2, maxHeight: Math.max(1, keyboard.height - 32) } : undefined}>
-      <DialogHeader><DialogTitle>Import outline</DialogTitle>
+      <DialogHeader><DialogTitle>Import outline from file</DialogTitle>
         <DialogDescription>Choose a closed SVG outline to adjust over this photo. An outline exported from this photo returns to its place; any other is placed at true size and can be turned to fit the current outline. Files stay on your device.</DialogDescription></DialogHeader>
       <div className="space-y-3">
         <label className="block space-y-1 text-sm">SVG outline
@@ -142,8 +146,8 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
             ? "It matches this photo, so its contours keep their positions."
             : placed.fit
               ? `It will be placed at true size, turned ${placed.fit.degrees.toFixed(1)}° to fit the current outline (typical gap ${mmPerPx !== null
-                ? `${(placed.fit.typicalGapPx * mmPerPx).toFixed(2)} mm` : `${placed.fit.typicalGapPx.toFixed(1)} px`}). Move & rotate adjusts it afterward.`
-              : `It will be placed at true size in the center of the ${region ? "region" : "photo"}. Move & rotate adjusts it afterward.`}
+                ? `${(placed.fit.typicalGapPx * mmPerPx).toFixed(2)} mm` : `${placed.fit.typicalGapPx.toFixed(1)} px`}). Move & rotate outline adjusts it afterward.`
+              : `It will be placed at true size in the center of the ${region ? "region" : "photo"}. Move & rotate outline adjusts it afterward.`}
         </p>}
         {placed?.crossesItself && <p role="status" className="text-xs text-amber-700 dark:text-amber-300" data-testid="import-outline-crossing">
           This outline crosses or touches itself. It is imported as drawn; repair it with Edit outline.

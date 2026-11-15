@@ -2,9 +2,17 @@
 
 ## Unreleased
 
-## 1.11.2 — 2026-11-15
+## 1.11.3 — 2026-11-15
 
 - Restore command-line STL and 3MF bin exports when running with tsx.
+
+## 1.11.2 — 2026-11-15
+
+- Import native Inkscape SVG outlines with editor metadata and paint-order styles; explain how to flatten unsupported clipping effects.
+
+## 1.11.1 — 2026-11-15
+
+- Confirm switching to Color contrast when enabling interior holes from Tool edges, distinguish outline movement from photo movement, and add help hints to the Outline actions. Move manual detection settings below the contour list.
 
 ## 1.11.0 — 2026-11-14
 
