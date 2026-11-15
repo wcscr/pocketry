@@ -1,0 +1,614 @@
+[
+  {
+    "name": "s01-black-click-pen",
+    "title": "Black click pen",
+    "subject": 1,
+    "imageSize": {
+      "width": 890,
+      "height": 1184
+    },
+    "region": {
+      "x": 374.68756103515625,
+      "y": 292.1224365234375,
+      "width": 111.54129028320312,
+      "height": 607.1033935546875
+    },
+    "sha256": "12bea7e0609995cd7feebb58baf082fb37985c5dce7cbe988c66e786c6e04935",
+    "sourceFile": "01 Black click pen - ON Pocketry sheet - 20261006_103942.jpg"
+  },
+  {
+    "name": "s02-brass-nameplate",
+    "title": "Brass nameplate blank",
+    "subject": 2,
+    "imageSize": {
+      "width": 845,
+      "height": 1128
+    },
+    "region": {
+      "x": 353.072998046875,
+      "y": 356.4066467285156,
+      "width": 149.78402709960938,
+      "height": 350.5583801269531
+    },
+    "sha256": "f84d87fa4b0e1d262795488fff06d937054bc68eadcaebb728a93388742f981d",
+    "sourceFile": "02 Brass nameplate blank - ON Pocketry sheet - 1000002384.jpg"
+  },
+  {
+    "name": "s03-craftsman-hex-keys",
+    "title": "Craftsman folding hex key set",
+    "subject": 3,
+    "imageSize": {
+      "width": 1112,
+      "height": 1457
+    },
+    "region": {
+      "x": 444.7731628417969,
+      "y": 513.7258911132812,
+      "width": 172.09231567382812,
+      "height": 568.8606567382812
+    },
+    "sha256": "9290c504ff00fdaef1d44ef717ba956239a53b2dba35d7fa5ed28a110d6cad00",
+    "sourceFile": "03 Craftsman folding hex key set - ON Pocketry sheet - 20260927_164640.jpg"
+  },
+  {
+    "name": "s04-craftsman-tape-measure",
+    "title": "Craftsman 25 ft tape measure",
+    "subject": 4,
+    "imageSize": {
+      "width": 982,
+      "height": 1301
+    },
+    "region": {
+      "x": 268.0868225097656,
+      "y": 448.90240478515625,
+      "width": 414.8450012207031,
+      "height": 419.289794921875
+    },
+    "sha256": "c2523ddb4cf29547755c6e4d94dad5a877c0b03f14e45d003500acfb8c3d07fb",
+    "sourceFile": "04 Craftsman tape measure 25ft, reference strip on top - ON Pocketry sheet - 20261017_102958.jpg"
+  },
+  {
+    "name": "s05-dewalt-screwdriver",
+    "title": "DeWalt cordless screwdriver",
+    "subject": 5,
+    "imageSize": {
+      "width": 2128,
+      "height": 2819
+    },
+    "region": {
+      "x": 929.5546264648438,
+      "y": 923.393798828125,
+      "width": 243.28350830078125,
+      "height": 959.0714111328125
+    },
+    "sha256": "8ee756cc022870acdd69864ebe5300153bde615f534fdc0babbeb5b6e8a2a154",
+    "sourceFile": "05 DeWalt cordless screwdriver, 50mm aid on top - ON Pocketry sheet - 20260919_155645.jpg"
+  },
+  {
+    "name": "s06-digital-calipers",
+    "title": "Digital calipers",
+    "subject": 6,
+    "imageSize": {
+      "width": 2124,
+      "height": 2823
+    },
+    "region": {
+      "x": 635.784423828125,
+      "y": 1040.04296875,
+      "width": 710.3822021484375,
+      "height": 667.481689453125
+    },
+    "sha256": "187c0859dc40ea1078e62f11f0f678c01f2491818b5fd17a0d8f63650d803e0e",
+    "sourceFile": "06 Digital calipers - ON Pocketry sheet - 20260919_101355.jpg"
+  },
+  {
+    "name": "s07-needle-clear-hub",
+    "title": "Dispensing needle, clear hub",
+    "subject": 7,
+    "imageSize": {
+      "width": 957,
+      "height": 1280
+    },
+    "region": {
+      "x": 336.9084777832031,
+      "y": 625.020263671875,
+      "width": 168.90542602539062,
+      "height": 65.331298828125
+    },
+    "sha256": "04a85dee41fd641cf76773cf09200f111d0df6f8e49ef8cb0c183a11522c1d3a",
+    "sourceFile": "07 Dispensing needle tips x2 - ON Pocketry sheet - 20261007_143338.jpg"
+  },
+  {
+    "name": "s08-needle-pink-hub",
+    "title": "Dispensing needle, pink hub",
+    "subject": 8,
+    "imageSize": {
+      "width": 957,
+      "height": 1280
+    },
+    "region": {
+      "x": 341.5880126953125,
+      "y": 563.6609497070312,
+      "width": 161.49325561523438,
+      "height": 63.70831298828125
+    },
+    "sha256": "04a85dee41fd641cf76773cf09200f111d0df6f8e49ef8cb0c183a11522c1d3a",
+    "sourceFile": "08 Dispensing needle tips x2 - ON Pocketry sheet - 20261007_143338.jpg"
+  },
+  {
+    "name": "s09-fanttik-desoldering-pump",
+    "title": "Fanttik desoldering pump",
+    "subject": 9,
+    "imageSize": {
+      "width": 929,
+      "height": 1226
+    },
+    "region": {
+      "x": 424.9749450683594,
+      "y": 184.07786560058594,
+      "width": 175.27920532226562,
+      "height": 836.5597686767578
+    },
+    "sha256": "c662539c017f1f58464ed07b13b763041cf54c09eeab44f90a2d9302b59cafe9",
+    "sourceFile": "09 Fanttik soldering kit - desoldering pump - ON Pocketry sheet - 20260913_103958.jpg"
+  },
+  {
+    "name": "s10-fanttik-soldering-iron",
+    "title": "Fanttik soldering iron",
+    "subject": 10,
+    "imageSize": {
+      "width": 1151,
+      "height": 1498
+    },
+    "region": {
+      "x": 452.6158142089844,
+      "y": 296.28680419921875,
+      "width": 173.34597778320312,
+      "height": 797.0950317382812
+    },
+    "sha256": "13351f32643d5b898c2f8696e42e76a9122875ede3ec4130796da2090ce4c9a4",
+    "sourceFile": "10 Fanttik soldering kit - iron - ON Pocketry sheet - 20260913_103936.jpeg"
+  },
+  {
+    "name": "s11-fanttik-stand-arm",
+    "title": "Fanttik soldering stand arm",
+    "subject": 11,
+    "imageSize": {
+      "width": 1257,
+      "height": 1658
+    },
+    "region": {
+      "x": 243.2687225341797,
+      "y": 673.209716796875,
+      "width": 432.6240997314453,
+      "height": 524.482666015625
+    },
+    "sha256": "281ced2ee6b4a8c9f2711db322d7d6b119b92265634914241f26fc4a6a67b8e6",
+    "sourceFile": "11 Fanttik soldering kit - stand arm - ON Pocketry sheet - 20261007_114201.jpg"
+  },
+  {
+    "name": "s12-fanttik-stand-base",
+    "title": "Fanttik soldering stand base",
+    "subject": 12,
+    "imageSize": {
+      "width": 1024,
+      "height": 1358
+    },
+    "region": {
+      "x": 122.04180908203125,
+      "y": 339.80902099609375,
+      "width": 730.423583984375,
+      "height": 669.6784057617188
+    },
+    "sha256": "1249e95a841002de2fd904b41c74b5b391fdbb2ec996b47a54634cccb762a444",
+    "sourceFile": "12 Fanttik soldering kit - stand base - ON Pocketry sheet - 20260913_104023.jpg"
+  },
+  {
+    "name": "s13-flipper-zero",
+    "title": "Flipper Zero",
+    "subject": 13,
+    "imageSize": {
+      "width": 1799,
+      "height": 2350
+    },
+    "region": {
+      "x": 624.5270385742188,
+      "y": 995.8438110351562,
+      "width": 490.40606689453125,
+      "height": 247.42547607421875
+    },
+    "sha256": "9f771bb416126f5b1a524ad6d70c6e48c5f922a9b75ac7be83bd5e361fa9aa0e",
+    "sourceFile": "13 Flipper Zero, 50mm aid on top - ON Pocketry sheet - 20260921_153720.jpg"
+  },
+  {
+    "name": "s14-folding-knife",
+    "title": "Wood-inlay folding knife",
+    "subject": 14,
+    "imageSize": {
+      "width": 1374,
+      "height": 1781
+    },
+    "region": {
+      "x": 504.42059326171875,
+      "y": 819.2354736328125,
+      "width": 229.4564208984375,
+      "height": 444.57177734375
+    },
+    "sha256": "f8476398b1c687542831289fdf60212e30d7e6597c7897b4feabac16e2a95b4c",
+    "sourceFile": "14 Folding pocket knife, wood inlay - ON Pocketry sheet - 20260927_164630.jpg"
+  },
+  {
+    "name": "s15-gerber-multitool",
+    "title": "Gerber multitool",
+    "subject": 15,
+    "imageSize": {
+      "width": 1132,
+      "height": 1486
+    },
+    "region": {
+      "x": 390.9521484375,
+      "y": 512.233154296875,
+      "width": 235.8302001953125,
+      "height": 511.49658203125
+    },
+    "sha256": "023054e4c0fcb586d39a2b0993e560bc8feea3455f000cc70f6499ddfc6bf165",
+    "sourceFile": "15 Gerber multitool - ON Pocketry sheet - 20260927_164652.jpg"
+  },
+  {
+    "name": "s16-gray-click-pen",
+    "title": "Gray click pen",
+    "subject": 16,
+    "imageSize": {
+      "width": 1021,
+      "height": 1369
+    },
+    "region": {
+      "x": 111.93891143798828,
+      "y": 621.0409545898438,
+      "width": 631.0051193237305,
+      "height": 124.28887939453125
+    },
+    "sha256": "1f3817aa32ec05c23489fa5175b985e6b3243fe03d5e9f38906e9bb27b9307cc",
+    "sourceFile": "16 Gray click pen - ON Pocketry sheet - 20261005_161317.jpg"
+  },
+  {
+    "name": "s17-mini-ratchet",
+    "title": "Mini ratchet",
+    "subject": 17,
+    "imageSize": {
+      "width": 1718,
+      "height": 2319
+    },
+    "region": {
+      "x": 412.4283752441406,
+      "y": 1382.374755859375,
+      "width": 506.7035827636719,
+      "height": 142.2325439453125
+    },
+    "sha256": "1596e0d18b77b4d6b5af9de6267e2d5afdba4daab144736547677208ca745028",
+    "sourceFile": "17 Mini ratchet and bit set - bin with ratchet out - ON Pocketry sheet - 20260928_092705.jpg"
+  },
+  {
+    "name": "s18-rub-n-buff",
+    "title": "Rub 'n Buff silver-leaf tube",
+    "subject": 18,
+    "imageSize": {
+      "width": 918,
+      "height": 1227
+    },
+    "region": {
+      "x": 317.137939453125,
+      "y": 519.2022094726562,
+      "width": 383.73162841796875,
+      "height": 162.974853515625
+    },
+    "sha256": "b0bc883982df6534ae8b02c8c04a501ff30b822ff0e20b1289fa121610701762",
+    "sourceFile": "18 Rub n Buff silver leaf tube - ON Pocketry sheet - 20261019_083638.jpg"
+  },
+  {
+    "name": "s19-ryobi-cutter",
+    "title": "Ryobi cordless cutter",
+    "subject": 19,
+    "imageSize": {
+      "width": 1207,
+      "height": 1592
+    },
+    "region": {
+      "x": 217.27952575683594,
+      "y": 459.69970703125,
+      "width": 788.7563629150391,
+      "height": 895.517333984375
+    },
+    "sha256": "dc43e808134a90a6fd6a238b543290fa994029a82a629fd556e971e768fb7f10",
+    "sourceFile": "19 Ryobi cordless cutter - ON Pocketry sheet - 20260907_080053.jpg"
+  },
+  {
+    "name": "s20-flux-syringe-plunger",
+    "title": "Flux-syringe plunger",
+    "subject": 20,
+    "imageSize": {
+      "width": 971,
+      "height": 1274
+    },
+    "region": {
+      "x": 239.50929260253906,
+      "y": 613.3328857421875,
+      "width": 436.6045379638672,
+      "height": 114.7281494140625
+    },
+    "sha256": "bdf55b7b2873a9e790fa0ca8611b52211eb8232fcd9ba847b1d49524318ced0a",
+    "sourceFile": "20 Solder flux syringe - plunger - ON Pocketry sheet - 20261007_143319.jpg"
+  },
+  {
+    "name": "s21-flux-syringe",
+    "title": "10 ml flux syringe",
+    "subject": 21,
+    "imageSize": {
+      "width": 945,
+      "height": 1249
+    },
+    "region": {
+      "x": 213.2733154296875,
+      "y": 556.8052368164062,
+      "width": 559.2999877929688,
+      "height": 231.04986572265625
+    },
+    "sha256": "daa01db1308ef423f762602d4113cde4eb217a2997cea7683f35004690bb42cc",
+    "sourceFile": "21 Solder flux syringe 10ml - ON Pocketry sheet - 20261007_143306.jpg"
+  },
+  {
+    "name": "s22-stapler",
+    "title": "Stapler",
+    "subject": 22,
+    "imageSize": {
+      "width": 996,
+      "height": 1305
+    },
+    "region": {
+      "x": 339.38885498046875,
+      "y": 226.3222198486328,
+      "width": 333.03045654296875,
+      "height": 925.7927703857422
+    },
+    "sha256": "86af206e42829f6e1fba244f7edf8ad23618cf659e613271be1cc7596e10ebc6",
+    "sourceFile": "22 Stapler - ON Pocketry sheet - 20260913_111254.jpg"
+  },
+  {
+    "name": "s23-tarkit-mould-line-remover",
+    "title": "Tarkit mould-line remover",
+    "subject": 23,
+    "imageSize": {
+      "width": 1908,
+      "height": 2485
+    },
+    "region": {
+      "x": 814.2398681640625,
+      "y": 857.4839477539062,
+      "width": 137.03643798828125,
+      "height": 611.8837280273438
+    },
+    "sha256": "659e4d7198c712f2a31310b789a76adc3c0cce03ab059c1062c43846f90d90ca",
+    "sourceFile": "23 Tarkit mould line remover - ON Pocketry sheet - 20260919_102003.jpg"
+  },
+  {
+    "name": "s24-deburring-tool",
+    "title": "Teardrop-handle deburring tool",
+    "subject": 24,
+    "imageSize": {
+      "width": 2094,
+      "height": 2619
+    },
+    "region": {
+      "x": 958.3240356445312,
+      "y": 833.0800170898438,
+      "width": 129.06915283203125,
+      "height": 592.7623901367188
+    },
+    "sha256": "0eec340fca842bb2cf4cd7c697b6849961e563a0641d333ef344f4155b56baeb",
+    "sourceFile": "24 Teardrop-handle deburring tool - ON Pocketry sheet - 20260919_102044.jpg"
+  },
+  {
+    "name": "s25-tweezers",
+    "title": "Tweezers",
+    "subject": 25,
+    "imageSize": {
+      "width": 954,
+      "height": 1241
+    },
+    "region": {
+      "x": 384.8149108886719,
+      "y": 315.5279235839844,
+      "width": 100.38717651367188,
+      "height": 594.3558044433594
+    },
+    "sha256": "f20d5bf3ea9357e90132278096cce187f839b4c501890944060c50c1e9d44086",
+    "sourceFile": "25 Tweezers - ON Pocketry sheet - 20260913_110847.jpg"
+  },
+  {
+    "name": "s26-wiha-single-a",
+    "title": "Wiha precision screwdriver, single (092453)",
+    "subject": 26,
+    "imageSize": {
+      "width": 1751,
+      "height": 2307
+    },
+    "region": {
+      "x": 624.56201171875,
+      "y": 773.5633544921875,
+      "width": 102.22967529296875,
+      "height": 733.38671875
+    },
+    "sha256": "859cf35d210b4915f51f574f1159258f09e596d35d39b8af8ef36d60be9df9c2",
+    "sourceFile": "26 Wiha precision screwdriver, single - ON Pocketry sheet - 20260928_092453.jpg"
+  },
+  {
+    "name": "s27-wiha-single-b",
+    "title": "Wiha precision screwdriver, single (092506)",
+    "subject": 27,
+    "imageSize": {
+      "width": 1756,
+      "height": 2329
+    },
+    "region": {
+      "x": 582.2074584960938,
+      "y": 849.0581665039062,
+      "width": 140.22332763671875,
+      "height": 637.3788452148438
+    },
+    "sha256": "773451fa81010e12dfe8402eee318cffb89b4d18e322db3d2ff3a6f2e001ef7e",
+    "sourceFile": "27 Wiha precision screwdriver, single - ON Pocketry sheet - 20260928_092506.jpg"
+  },
+  {
+    "name": "s28-wiha-single-c",
+    "title": "Wiha precision screwdriver, single (092528)",
+    "subject": 28,
+    "imageSize": {
+      "width": 1760,
+      "height": 2321
+    },
+    "region": {
+      "x": 642.77587890625,
+      "y": 913.9378662109375,
+      "width": 106.760986328125,
+      "height": 533.8048095703125
+    },
+    "sha256": "b91fd0ca059d2d4710cd4acced19627c725189f21d289fe271a2123a57d4bf8b",
+    "sourceFile": "28 Wiha precision screwdriver, single - ON Pocketry sheet - 20260928_092528.jpg"
+  },
+  {
+    "name": "s29-wiha-150mm-1",
+    "title": "Wiha 150 mm driver, 1 of 5",
+    "subject": 29,
+    "imageSize": {
+      "width": 1374,
+      "height": 1793
+    },
+    "region": {
+      "x": 410.981689453125,
+      "y": 246.74390416210565,
+      "width": 95.6068115234375,
+      "height": 1118.6
+    },
+    "sha256": "8467ef2720e7af6b59e1d6a27322f006de82a923b5966a6a3e8da74e598a4f58",
+    "sourceFile": "29 Wiha precision screwdrivers x5 - ON Pocketry sheet - 20260921_163212.jpg"
+  },
+  {
+    "name": "s30-wiha-150mm-2",
+    "title": "Wiha 150 mm driver, 2 of 5",
+    "subject": 30,
+    "imageSize": {
+      "width": 1374,
+      "height": 1793
+    },
+    "region": {
+      "x": 508.18194580078125,
+      "y": 246.74390416210565,
+      "width": 92.41998291015625,
+      "height": 1118.6
+    },
+    "sha256": "8467ef2720e7af6b59e1d6a27322f006de82a923b5966a6a3e8da74e598a4f58",
+    "sourceFile": "30 Wiha precision screwdrivers x5 - ON Pocketry sheet - 20260921_163212.jpg"
+  },
+  {
+    "name": "s31-wiha-150mm-3",
+    "title": "Wiha 150 mm driver, 3 of 5",
+    "subject": 31,
+    "imageSize": {
+      "width": 1374,
+      "height": 1793
+    },
+    "region": {
+      "x": 603.788818359375,
+      "y": 253.11769104003906,
+      "width": 90.82647705078125,
+      "height": 1112.2262131220664
+    },
+    "sha256": "8467ef2720e7af6b59e1d6a27322f006de82a923b5966a6a3e8da74e598a4f58",
+    "sourceFile": "31 Wiha precision screwdrivers x5 - ON Pocketry sheet - 20260921_163212.jpg"
+  },
+  {
+    "name": "s32-wiha-150mm-4",
+    "title": "Wiha 150 mm driver, 4 of 5",
+    "subject": 32,
+    "imageSize": {
+      "width": 1374,
+      "height": 1793
+    },
+    "region": {
+      "x": 700.9890747070312,
+      "y": 321.63592529296875,
+      "width": 92.419921875,
+      "height": 1043.7079788691367
+    },
+    "sha256": "8467ef2720e7af6b59e1d6a27322f006de82a923b5966a6a3e8da74e598a4f58",
+    "sourceFile": "32 Wiha precision screwdrivers x5 - ON Pocketry sheet - 20260921_163212.jpg"
+  },
+  {
+    "name": "s33-wiha-150mm-5",
+    "title": "Wiha 150 mm driver, 5 of 5",
+    "subject": 33,
+    "imageSize": {
+      "width": 1374,
+      "height": 1793
+    },
+    "region": {
+      "x": 795.00244140625,
+      "y": 335.9769287109375,
+      "width": 92.41998291015625,
+      "height": 1029.366975451168
+    },
+    "sha256": "8467ef2720e7af6b59e1d6a27322f006de82a923b5966a6a3e8da74e598a4f58",
+    "sourceFile": "33 Wiha precision screwdrivers x5 - ON Pocketry sheet - 20260921_163212.jpg"
+  },
+  {
+    "name": "s34-wolfbox-air-duster",
+    "title": "Wolfbox air duster",
+    "subject": 34,
+    "imageSize": {
+      "width": 1008,
+      "height": 1346
+    },
+    "region": {
+      "x": 346.30352783203125,
+      "y": 357.2288513183594,
+      "width": 444.57177734375,
+      "height": 691.5560607910156
+    },
+    "sha256": "613d60ac92db52c7ef31db5acaf46b1c59d65434d259a4677a2780278f97b3aa",
+    "sourceFile": "34 Wolfbox air duster - body - ON Pocketry sheet - 20260903_060015.jpg"
+  },
+  {
+    "name": "s35-wolfbox-cone-nozzle",
+    "title": "Wolfbox angled cone nozzle",
+    "subject": 35,
+    "imageSize": {
+      "width": 1062,
+      "height": 1400
+    },
+    "region": {
+      "x": 379.39117431640625,
+      "y": 616.145263671875,
+      "width": 258.138427734375,
+      "height": 262.9188232421875
+    },
+    "sha256": "97383f65c123982416fbf204f0b53a6ead2f6f3d2344f57817bce2ded8d83bf5",
+    "sourceFile": "35 Wolfbox air duster - cone nozzle - ON Pocketry sheet - 20260903_060108.jpg"
+  },
+  {
+    "name": "s36-wolfbox-long-nozzle",
+    "title": "Wolfbox long nozzle assembly",
+    "subject": 36,
+    "imageSize": {
+      "width": 1052,
+      "height": 1368
+    },
+    "region": {
+      "x": 387.7825927734375,
+      "y": 463.1182556152344,
+      "width": 229.4564208984375,
+      "height": 578.4212951660156
+    },
+    "sha256": "95079038c6d81248dd19f8a92df2f770ae9e3bb64633883286850e7e7810ec01",
+    "sourceFile": "36 Wolfbox air duster - long nozzle - ON Pocketry sheet - 20260903_055957.jpg"
+  }
+]
