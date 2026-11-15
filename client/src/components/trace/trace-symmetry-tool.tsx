@@ -33,11 +33,14 @@ export function TraceSymmetryTool() {
     if (session && (trace.outline !== session.outline || trace.curves !== session.curves || trace.calibration !== session.calibration || trace.sourceRevision !== session.sourceRevision)) setSession(null);
   }, [trace.outline, trace.curves, trace.calibration, trace.sourceRevision, session]);
   return <>
-    <Button variant="outline" size="sm" className="w-full" disabled={trace.processing || !trace.outline.length}
+    <div className="flex items-center gap-1">
+    <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={trace.processing || !trace.outline.length}
       onClick={() => setSession({ outline: trace.outline, curves: trace.curves, calibration: trace.calibration, sourceRevision: trace.sourceRevision,
         shapeIndex: trace.selection?.shapeIndex ?? 0 })}>
-      <FlipHorizontal2 className="mr-2 h-4 w-4" />Symmetry &amp; straighten
+      <FlipHorizontal2 className="h-4 w-4" />Symmetry &amp; straighten
     </Button>
+    <HelpHint label="symmetry and straightening">Make both sides of a contour match, or straighten the photo and outline together. Useful for symmetric tools or a tilted photo.</HelpHint>
+    </div>
     <Dialog open={session !== null} onOpenChange={open => { if (!open) setSession(null); }}>
       {session && <DialogContent className="max-w-4xl gap-3 p-4 sm:p-6" onEscapeKeyDown={event => {
         if (cancelDrag.current) { event.preventDefault(); cancelDrag.current(); }

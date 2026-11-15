@@ -262,7 +262,8 @@ it("keeps optional smoothing inside Manual detection settings", async () => {
   expect(manual).toBeDefined();
   const restart = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Restart outline detection")!;
   const contours = host.querySelector('[data-testid="detection-contours"]')!;
-  expect(contours.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(contours.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(manual.compareDocumentPosition(action()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(manual.getAttribute("aria-expanded")).toBe("false");
   const tuning = document.getElementById(manual.getAttribute("aria-controls")!)!;
@@ -275,6 +276,39 @@ it("keeps optional smoothing inside Manual detection settings", async () => {
   await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
   React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
   expect(action().disabled).toBe(false); // Auto always previews the currently edited outline.
+});
+
+it("offers focused action hints without opening tools or changing the outline", async () => {
+  await prepareOutline();
+  expect(host.querySelector('[data-testid="button-import-outline"]')?.textContent).toBe("Import outline from file");
+  expect(host.querySelector('[data-testid="button-position-contour"]')?.textContent).toBe("Move & rotate outline");
+  const { outline, history, mode } = trace;
+  const hints = [
+    ["symmetry and straightening", "straighten the photo and outline together"],
+    ["adding a manual contour", "different pocket depth in Bin"],
+    ["importing an outline from file", "Load a closed SVG outline"],
+    ["moving and rotating the outline", "The photo stays fixed"],
+    ["editing the outline", "Move, add, or remove outline points"],
+    ["manual detection settings", "Most traces won't need these settings"],
+    ["restarting outline detection", "keeping the photo, scale, and region"],
+  ];
+  for (const [label, description] of hints) {
+    const hint = host.querySelector<HTMLButtonElement>(`[aria-label="About ${label}"]`)!;
+    expect(hint.closest('button:not([aria-label])')).toBeNull();
+    await React.act(async () => hint.focus());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(description);
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    await React.act(async () => hint.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(description);
+    React.act(() => hint.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  }
+  expect(trace.outline).toBe(outline);
+  expect(trace.history).toBe(history);
+  expect(trace.mode).toBe(mode);
+  expect(reprocess).not.toHaveBeenCalled();
+  expect(host.querySelector('button[aria-controls][aria-expanded="false"]')).not.toBeNull();
 });
 
 async function changeNumber(id: string, value: string): Promise<void> {
@@ -817,7 +851,7 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).not.toContain("Reflections are usually not holes");
     expect(host.querySelector('[aria-label="About interior holes"]')).not.toBeNull();
     await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About contour editing"]')!.click());
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Set each pocket's depth in Bin");
     React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");

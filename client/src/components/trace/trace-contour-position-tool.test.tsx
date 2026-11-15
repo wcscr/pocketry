@@ -63,11 +63,11 @@ beforeEach(() => {
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
-describe("Move & rotate", () => {
+describe("Move & rotate outline", () => {
   it("moves and turns the selected contour by the typed amounts as one undoable edit", () => {
     ready();
     const history = trace.history;
-    click("Move & rotate");
+    click("Move & rotate outline");
     expect(button("Apply").disabled).toBe(true);
     expect(preview()).toBe(outlineToPathData([outline[1]]));
     enter("position-right", "5");       // 5 mm is 10 px at this scale
@@ -92,7 +92,7 @@ describe("Move & rotate", () => {
 
   it("carries a contour's holes with it", () => {
     ready(0);
-    click("Move & rotate");
+    click("Move & rotate outline");
     enter("position-turn", "180");
     click("Apply");
     const pose = { radians: Math.PI, pivot: centerOf([outline[0]]), shift: { x: 0, y: 0 } };
@@ -104,7 +104,7 @@ describe("Move & rotate", () => {
 
   it("nudges with the arrow keys on the contour and on the turn handle", () => {
     ready();
-    click("Move & rotate");
+    click("Move & rotate outline");
     press('[data-testid="position-result"]', "ArrowRight");
     press('[data-testid="position-result"]', "ArrowRight");
     press('[data-testid="position-result"]', "ArrowUp", true);
@@ -120,7 +120,7 @@ describe("Move & rotate", () => {
 
   it("moves every contour together about their common center", () => {
     ready();
-    click("Move & rotate");
+    click("Move & rotate outline");
     enter("position-right", "3");
     click("All contours");
     // Changing what is moved starts from rest, so an offset cannot silently carry over.
@@ -138,7 +138,7 @@ describe("Move & rotate", () => {
     React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: bent, label: "Bend edge" }));
     React.act(() => trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 1, ringIndex: OUTER_RING } }));
     const before = trace.curves!;
-    click("Move & rotate");
+    click("Move & rotate outline");
     expect(preview()).toContain("C");
     enter("position-right", "4");
     click("Apply");
@@ -152,7 +152,7 @@ describe("Move & rotate", () => {
   it("changes nothing on Reset or Cancel", () => {
     ready();
     const history = trace.history;
-    click("Move & rotate");
+    click("Move & rotate outline");
     enter("position-down", "6");
     expect(button("Apply").disabled).toBe(false);
     React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Reset position"]')!.click());
@@ -172,16 +172,16 @@ describe("Move & rotate", () => {
       trace.dispatch({ type: "SET_MARGIN", margin: 1 });
       trace.dispatch({ type: "DETECTED", imageUrl: "photo", outline, rawOutline: outline, curves: curvesFromOutline(outline), svg: "", region: null });
     });
-    click("Move & rotate");
+    click("Move & rotate outline");
     enter("position-right", "2");
     expect(document.querySelector('[role="dialog"] [role="status"]')?.textContent).toBe("Set Margin to zero to move editable curves.");
     expect(button("Apply").disabled).toBe(true);
   });
 
   it("is unavailable without an outline and closes when the outline changes underneath it", () => {
-    expect(button("Move & rotate").disabled).toBe(true);
+    expect(button("Move & rotate outline").disabled).toBe(true);
     ready();
-    click("Move & rotate");
+    click("Move & rotate outline");
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [outline[0]], label: "Remove contour" }));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
