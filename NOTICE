@@ -496,7 +496,7 @@ Docker self-hosting base images
 ================================================================================
 
 The optional Docker distribution uses official Docker images, pinned by digest
-in Dockerfile. Node.js 22 (MIT, with its own third-party notices) is build tooling
+in Dockerfile. Node.js 26 (MIT, with its own third-party notices) is build tooling
 only; it is not copied into the final image. The runtime is NGINX (2-clause BSD)
 on Alpine Linux. Operating-system packages retain their individual licences and
 package metadata; they are not relicensed under Pocketry's AGPL licence.

@@ -32,7 +32,8 @@ shows startup errors; `docker compose down` stops and removes the container.
 
 ## Without Docker
 
-Install Node.js 22 and npm, then build from a repository checkout:
+Install Node.js 26 and npm (`npm ci` stops with an engine error on other
+versions), then build from a repository checkout:
 
 ```sh
 git clone https://github.com/wcscr/pocketry.git
@@ -63,6 +64,12 @@ existing server's global configuration.
 For upgrades, export backups, stop the Node service if used, run
 `git pull --ff-only`, `npm ci`, and `npm run build`, then restart the service or
 replace the static host's files. Reload the browser and keep the same address.
+
+Pocketry 1.10.0 and later require Node.js 26. When upgrading from an earlier
+release, install Node.js 26 first; with an older version, `npm ci` stops with an
+engine error. If a service manager starts Pocketry with a fixed path to `node`,
+point it at the Node.js 26 binary before restarting. Docker upgrades need no
+change; the build image is pinned in `Dockerfile`.
 
 ## Where designs are saved
 
@@ -152,7 +159,7 @@ are copied from the build stage. `/api` requests return 404; direct links to
 `/bin` and other app routes load the app. HTML and unversioned assets revalidate;
 hashed assets can be cached across page loads.
 
-After starting the container, maintainers can run the HTTP smoke test with Node 22 and dependencies installed (`npm ci`):
+After starting the container, maintainers can run the HTTP smoke test with Node 26 and dependencies installed (`npm ci`):
 
 ```sh
 npx tsx scripts/test-self-hosting.ts http://localhost:8080

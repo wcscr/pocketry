@@ -1,6 +1,26 @@
 import { configDefaults, defineConfig, mergeConfig } from "vitest/config";
 import viteConfig from "./vite.config.ts";
 
+/**
+ * Node arguments for the jsdom test workers.
+ *
+ * Node 25 and newer define their own `localStorage` and `sessionStorage`
+ * globals. Vitest 4's jsdom environment copies a window property onto the Node
+ * global only if the global does not already have it, so jsdom's storage stays
+ * hidden behind Node's. Node's `localStorage` is undefined unless
+ * `--localstorage-file` is given, so storage-backed tests fail with
+ * "Cannot read properties of undefined (reading 'setItem')".
+ *
+ * Turning off Node's Web Storage in these workers lets jsdom provide both
+ * globals, as on Node 22. Vitest 4 has no environment option for this. A setup
+ * file could re-point the globals at `globalThis.jsdom.window`, but it would
+ * duplicate the environment's global copying and teardown. The flag is
+ * accepted on Node 22.4+, where it matches the default. Node-environment
+ * projects are unchanged. `client/src/jsdom-environment.test.ts` guards this.
+ * Vitest 5.1 copies `localStorage` itself; recheck this flag when upgrading.
+ */
+const jsdomExecArgv = ["--no-experimental-webstorage"];
+
 // Vitest config lives in its own file rather than as a `test` key on
 // vite.config.ts: server/vite.ts imports vite.config.ts into the bundled Node
 // server, and a `test` key would drag vitest into that bundle.
@@ -32,6 +52,7 @@ export default mergeConfig(
           test: {
             name: "quick-ui",
             environment: "jsdom",
+            execArgv: jsdomExecArgv,
             exclude: [...configDefaults.exclude, "**/*.workflow.test.{ts,tsx}"],
             include: [
               // App-root tests (the whole-app render smoke test).
@@ -59,6 +80,7 @@ export default mergeConfig(
           test: {
             name: "workflows",
             environment: "jsdom",
+            execArgv: jsdomExecArgv,
             include: ["client/src/**/*.workflow.test.{ts,tsx}"],
           },
         },

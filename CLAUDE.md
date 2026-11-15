@@ -180,7 +180,10 @@ disagreed about Y, which shipped mirrored STLs.
 
 ## Runtime & Dependencies
 
-- Node.js 22, npm with a committed `package-lock.json`.
+- Node.js 26 (LTS "Lithium"), npm with a committed `package-lock.json`. `.nvmrc`
+  names the major for `nvm use`/`fnm use`. The `engines` field and `.npmrc`'s
+  `engine-strict` make `npm ci` refuse any other major. Run `node --version`
+  before the first npm command and report it with verification results.
 - Use `npm ci` for clean installs (sandbox/CI); `npm install` only when intentionally changing dependencies.
 - New dependencies go into `package.json` with a rationale — no ad-hoc one-off installs.
 - **Licence policy:** record the licence and provenance of every direct dependency,
@@ -280,6 +283,10 @@ component/hook/page/state tests), `geometry` (node: qualification tests), and
 `workflows` (jsdom: feature workflow tests). The default and watch commands select
 only the two quick projects; `test:full` selects all four. New qualification tests
 belong under `client/src/lib/`, and workflow tests under `client/src/`.
+The two jsdom projects start their workers with `--no-experimental-webstorage`,
+so jsdom rather than Node supplies `localStorage`. Without it, Node 25+ hides
+jsdom's storage and those tests fail with `Cannot read properties of undefined
+(reading 'setItem')`. Keep the flag while Vitest 4 is in use.
 Tests are type-checked — `tsconfig.json` deliberately does *not* exclude `*.test.ts`.
 
 No linter is configured yet (prefer ESLint when one lands).

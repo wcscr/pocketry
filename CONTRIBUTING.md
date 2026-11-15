@@ -74,7 +74,8 @@ for help with uncertainty; you are not expected to supply a legal opinion.
 
 ## Local checks
 
-Use Node.js 22 and the committed lockfile:
+Use Node.js 26 and the committed lockfile. `.nvmrc` selects the version, and
+`npm ci` stops with an engine error on any other major:
 
 ```sh
 npm ci

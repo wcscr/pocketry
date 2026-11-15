@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.12.0 — 2026-11-15
+
+- Require Node.js 26 LTS for builds and Node-hosted installs. Upgrade Node before updating; Docker continues to serve the app with NGINX.
+
 ## 1.11.3 — 2026-11-15
 
 - Restore command-line STL and 3MF bin exports when running with tsx.

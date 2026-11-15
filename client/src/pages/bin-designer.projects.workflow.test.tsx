@@ -412,7 +412,8 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="export-blocked-reasons"]')?.textContent).toContain("3D export");
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-export-issue="cutouts-require-solid-fill"]')!.click());
-      await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+      // Focus follows several animation frames, so wait for it rather than a fixed delay.
+      await vi.waitFor(() => expect(document.activeElement?.id).toBe("bin-solid-fill"));
       const solidFill = container.querySelector<HTMLButtonElement>('#bin-solid-fill')!;
       expect(solidFill.closest('[hidden], [inert]')).toBeNull();
       expect(document.activeElement).toBe(solidFill);
