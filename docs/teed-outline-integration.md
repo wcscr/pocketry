@@ -1,5 +1,7 @@
 # Photo outlines
 
+The [1.9 → 1.10 release comparison](outline-detection-1.9-to-1.10.md) shows the default output on every entry in the maintainer-selected reference set, including improvements, remaining errors and tradeoffs.
+
 The [combined detector](outline-combined-detector.md) adds geometry preservation,
 tool/paper correction strokes, and original-photo sampling to Claude's detector.
 The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) records the current
