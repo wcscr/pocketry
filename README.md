@@ -66,13 +66,22 @@ This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduste
 To skip tracing, open it from **Library → Sample Library**. The screenshots
 show version 1.12.0; see [image sources](docs/images/README.md).
 
-Photograph each tool from above on contrasting paper with all four calibration
-markers visible. Print the sheet at **100% / Actual size**. In **Trace**, open
-the original photo, accept the detected scale correction or **Set scale** from
-a known distance, then check a real dimension. Box the tool with **Region → Set
-region**. Use the default **Tool edges · white sheet** on light paper or **Color
-contrast** on other backgrounds. Fix the outline with **Correct → Add/Remove**
-or **Edit outline**, then choose **Add to Bin**.
+Photograph each tool from above on contrasting paper. Print the optional
+[v3 A4 or US Letter calibration sheet and surface measurement aids](docs/calibration/object-reference-strip.md)
+at **100% / Actual size**. Keep all four sheet markers visible. For tall or
+thick tools, move farther away to reduce perspective distortion, then zoom in
+while keeping the markers sharp.
+Place one paper or 3D measurement aid flat on the raised surface near the
+dimension that matters, without covering the tool's edge; keep both aid markers
+visible. This measures scale at the tool's height instead of the paper.
+
+In **Trace**, open the original photo and accept **Correct perspective & use
+scale** for the sheet or **Correct perspective & use aid scale** for a detected
+aid. Otherwise, **Set scale** from a known distance. Check a real dimension,
+then box the tool with **Region → Set region**. Use the default **Tool edges ·
+white sheet** on light paper or **Color contrast** on other backgrounds. Fix
+the outline with **Correct → Add/Remove** or **Edit outline**, then choose
+**Add to Bin**.
 [Detailed tracing guidance](docs/teed-outline-integration.md).
 
 ![The Wolfbox body traced from its original calibration-sheet photo, with current Tool edges and outline controls](docs/images/trace-outline.jpg)
