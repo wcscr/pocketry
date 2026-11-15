@@ -37,6 +37,9 @@ per-collection limits above. Scripts, referenced resources, effects and open pat
 are rejected. Bin also rejects intersecting or touching contours. Trace imports them
 as drawn and says so, because repairing an outline over its photo is what that import
 is for. An SVG is never trimmed or partially imported.
+Inkscape's named-view metadata, `-inkscape-stroke`, and `paint-order` styles do not
+affect the imported boundary and are ignored. Clipping, masks, and filters must
+be flattened into closed paths in the source editor before import.
 
 Trace accepts still PNG, JPEG and WebP up to 10 MiB, 50 megapixels and 16,384 pixels
 per side. Header checks happen before browser decoding, including both current and
