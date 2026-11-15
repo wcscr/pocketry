@@ -9,7 +9,10 @@ import {
 // injected by the caller (see `Kernel` in ../manifold/runtime).
 import type { CrossSection, JoinType } from "manifold-3d";
 
-import { withKernel, type Kernel } from "@/lib/manifold/runtime";
+// Type-only as well. The bin generator and the Node export scripts import this
+// module, and a value import of the runtime would pull its Vite-only
+// `manifold.wasm?url` import into plain Node, where it cannot load.
+import type { Kernel } from "@/lib/manifold/runtime";
 
 import { buildOutline, normalizeOutline } from "./outline";
 
@@ -33,12 +36,13 @@ import { buildOutline, normalizeOutline } from "./outline";
  * where the centroid can lie outside the ring altogether. Handing the set to
  * Clipper2 makes both cases fall out for free.
  *
- * ## Two entry points
+ * ## Kernel injection
  *
- * {@link offsetOutlineWithKernel} takes an already-resolved {@link Kernel} and
- * is what the geometry worker and the tests call. {@link offsetOutline} is the
- * convenience wrapper for the main thread: it owns a kernel for the duration of
- * one call, so nothing leaks between calls.
+ * {@link offsetOutlineWithKernel} takes an already-resolved {@link Kernel}, so
+ * the same code runs in the geometry worker, under Vitest, and in the Node
+ * export scripts. Main-thread callers that need a one-off kernel wrap it in
+ * `withKernel` from `lib/manifold/runtime`, which disposes the arena after
+ * each call.
  */
 
 export interface OffsetOptions {
@@ -199,36 +203,10 @@ export function offsetOutlineWithKernel(
   return polygonsToOutline(cleaned.toPolygons());
 }
 
-/**
- * Offsets an outline, resolving the manifold runtime on demand.
- *
- * The kernel's arena is disposed when the call finishes, whether it returns or
- * throws, so repeated calls cannot accumulate WASM handles.
- */
-export async function offsetOutline(
-  outline: Outline,
-  deltaPx: number,
-  options?: OffsetOptions,
-): Promise<Outline> {
-  assertFiniteDelta(deltaPx);
-
-  const normalized = normalizeOutline(outline);
-  // Fast path, hoisted ahead of `withKernel` so a zero margin never pays for
-  // loading the wasm.
-  if (normalized.length === 0 || deltaPx === 0) return normalized;
-
-  // `offsetOutlineWithKernel` normalises again; `normalizeOutline` is
-  // idempotent and O(points), which is noise beside the Clipper2 call, and
-  // repeating it keeps that function safe to call directly from the worker.
-  return withKernel((kernel) =>
-    offsetOutlineWithKernel(kernel, normalized, deltaPx, options),
-  );
-}
-
 function assertFiniteDelta(deltaPx: number): void {
   if (!Number.isFinite(deltaPx)) {
     // Clipper2 does not reject a NaN delta; it silently emits garbage
     // contours, which is far harder to diagnose downstream.
-    throw new Error(`offsetOutline: deltaPx must be finite, got ${deltaPx}`);
+    throw new Error(`offsetOutlineWithKernel: deltaPx must be finite, got ${deltaPx}`);
   }
 }

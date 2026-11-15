@@ -134,6 +134,8 @@ Use **Add pocket → Import SVG pocket** for a closed vector outline. SVG physic
 units set its size; use the optional width override for unitless artwork. Choose
 a pocket depth, then place and edit it like any other pocket. Files stay local;
 stroke widths are ignored and referenced resources, effects, and open paths are rejected.
+Native Inkscape SVGs can keep their editor metadata and paint-order styles.
+Flatten clipping, masks, and filters into closed paths before importing.
 
 To adjust an SVG outline against its photo instead, use **Outline → Import outline**
 in Trace. An SVG exported from the same photo returns to its exact position; any

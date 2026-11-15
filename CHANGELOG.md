@@ -6,6 +6,18 @@
 
 - Require Node.js 26 LTS for builds and Node-hosted installs. Upgrade Node before updating; Docker continues to serve the app with NGINX.
 
+## 1.11.3 — 2026-11-15
+
+- Restore command-line STL and 3MF bin exports when running with tsx.
+
+## 1.11.2 — 2026-11-15
+
+- Import native Inkscape SVG outlines with editor metadata and paint-order styles; explain how to flatten unsupported clipping effects.
+
+## 1.11.1 — 2026-11-15
+
+- Confirm switching to Color contrast when enabling interior holes from Tool edges, distinguish outline movement from photo movement, and add help hints to the Outline actions. Move manual detection settings below the contour list.
+
 ## 1.11.0 — 2026-11-14
 
 - Import an SVG outline in Trace to adjust its points over the photo. An outline exported from the same photo returns to its exact position; other files are placed at true size and turned to fit the current outline. Replace or add to the current outline as one undoable step.

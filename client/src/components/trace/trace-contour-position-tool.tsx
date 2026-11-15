@@ -43,12 +43,15 @@ export function TraceContourPositionTool(): JSX.Element {
     if (session && (trace.outline !== session.outline || trace.curves !== session.curves || trace.calibration !== session.calibration || trace.sourceRevision !== session.sourceRevision)) setSession(null);
   }, [trace.outline, trace.curves, trace.calibration, trace.sourceRevision, session]);
   return <>
-    <Button variant="outline" size="sm" className="w-full" disabled={trace.processing || !trace.outline.length}
+    <div className="flex items-center gap-1">
+    <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={trace.processing || !trace.outline.length}
       data-testid="button-position-contour"
       onClick={() => setSession({ outline: trace.outline, curves: trace.curves, calibration: trace.calibration, sourceRevision: trace.sourceRevision,
         shapeIndex: trace.selection && trace.outline[trace.selection.shapeIndex] ? trace.selection.shapeIndex : 0 })}>
-      <Move className="mr-2 h-4 w-4" />Move &amp; rotate
+      <Move className="h-4 w-4" />Move &amp; rotate outline
     </Button>
+    <HelpHint label="moving and rotating the outline">Move or turn contours over the photo to align an imported or manually drawn outline. The photo stays fixed and the outline keeps its size.</HelpHint>
+    </div>
     <Dialog open={session !== null} onOpenChange={open => { if (!open) setSession(null); }}>
       {session && <DialogContent className="max-w-4xl gap-3 p-4 sm:p-6" onEscapeKeyDown={event => {
         if (cancelDrag.current) { event.preventDefault(); cancelDrag.current(); }
@@ -168,8 +171,8 @@ function PositionEditor({ session, onClose, cancelDrag }: {
 
   return <>
     <DialogHeader>
-      <DialogTitle>Move &amp; rotate</DialogTitle>
-      <DialogDescription className="sr-only">Drag the contour to move it and the round handle to turn it over the photo, then apply.</DialogDescription>
+      <DialogTitle>Move &amp; rotate outline</DialogTitle>
+      <DialogDescription>Move the outline over the photo, which stays fixed. Drag the contour to move it and the round handle to turn it, then apply.</DialogDescription>
     </DialogHeader>
     <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
       <div className="min-w-0 overflow-hidden rounded-md border bg-muted/30">

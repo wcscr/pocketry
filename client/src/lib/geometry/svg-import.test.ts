@@ -166,6 +166,39 @@ describe("importSvgShape", () => {
     const shape = importSvgShape(svg('<metadata><rdf:RDF xmlns:rdf="example"><description>arbitrary metadata</description></rdf:RDF></metadata><g display="none"><text>hidden</text></g><rect width="10" height="20"/>'));
     expect(size(shape)).toEqual({ width: 10, height: 20 });
   });
+
+  it("imports native Inkscape editor metadata without changing artwork or holes", () => {
+    const path = '<path d="M10 20 H70 V50 H10 Z M20 25 H30 V35 H20 Z" fill-rule="evenodd"/>';
+    const content = svg(`<sodipodi:namedview inkscape:document-units="mm"><sodipodi:guide position="200,300" orientation="0,1"/><inkscape:page x="0" y="0" width="100" height="100"/></sodipodi:namedview><g inkscape:groupmode="layer" inkscape:label="Layer 1">${path}</g>`,
+      'xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="100mm" height="100mm" viewBox="0 0 100 100"');
+    const shape = importSvgShape(content);
+    expect(shape.outlineMm).toEqual(importSvgShape(svg(path)).outlineMm);
+    expect(size(shape)).toEqual({ width: 60, height: 30 });
+    expect(shape.outlineMm[0].holes).toHaveLength(1);
+    expect(importSvgCanvasOutline(content, 0.1)).toEqual(importSvgCanvasOutline(svg(path), 0.1));
+  });
+
+  it.each(['-inkscape-stroke:none', 'paint-order:stroke fill markers', '-inkscape-stroke:hairline;paint-order:normal'])("ignores harmless editor and paint styles: %s", style => {
+    const path = '<path d="M10 20 H70 V50 H10 Z"';
+    expect(importSvgShape(svg(`${path} style="${style}"/>`)).outlineMm)
+      .toEqual(importSvgShape(svg(`${path}/>`)).outlineMm);
+  });
+
+  it.each(["clip-path", "mask", "filter"])("explains how to remove unsupported %s effects", effect => {
+    for (const attribute of [`${effect}="url(#effect)"`, `style="fill:black; ${effect}: url(#effect)"`]) {
+      const content = svg(`<rect width="10" height="20" ${attribute}/>`);
+      const message = `${effect} is unsupported; flatten the effect into closed paths`;
+      expect(() => importSvgShape(content)).toThrow(message);
+      expect(() => importSvgCanvasOutline(content, 0.1)).toThrow(message);
+    }
+    expect(size(importSvgShape(svg(`<rect width="10" height="20" style="${effect}:none"/>`))))
+      .toEqual({ width: 10, height: 20 });
+  });
+
+  it.each(['<script>alert(1)</script>', '<image href="https://example.com/image.png"/>'])("still validates resources inside ignored Inkscape metadata: %s", child => {
+    expect(() => importSvgShape(svg(`<sodipodi:namedview xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd">${child}</sodipodi:namedview><rect width="10" height="20"/>`)))
+      .toThrow(/Scripts|referenced/);
+  });
 });
 
 describe("readSvgCanvas", () => {

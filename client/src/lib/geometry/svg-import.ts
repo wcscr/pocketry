@@ -37,6 +37,11 @@ function attributes(node: XmlNode): Record<string, string> {
     .map(([key, value]) => [key, String(value)]));
 }
 function tagName(node: XmlNode): string | undefined { return Object.keys(node).find(key => key !== ":@"); }
+function assertNoEffect(name: string, value: string): void {
+  if (["clip-path", "mask", "filter"].includes(name) && value.trim() !== "none") {
+    fail(`${name} is unsupported; flatten the effect into closed paths in your SVG editor, then import again.`);
+  }
+}
 function assertNoResources(node: XmlNode, depth = 0): void {
   if (depth > 64) fail("SVG nesting exceeds 64 levels.");
   const key = tagName(node);
@@ -44,6 +49,12 @@ function assertNoResources(node: XmlNode, depth = 0): void {
   const tag = key.split(":").pop();
   if (tag === "script" || tag === "foreignObject") fail("Scripts and embedded documents are not supported.");
   for (const [name, value] of Object.entries(attributes(node))) {
+    // Explain geometry-changing effects before the generic url(...) rejection.
+    assertNoEffect(name, value);
+    if (name === "style") for (const declaration of value.split(";")) {
+      const colon = declaration.indexOf(":");
+      if (colon > 0) assertNoEffect(declaration.slice(0, colon).trim(), declaration.slice(colon + 1));
+    }
     if (/^on/i.test(name) || /(?:^|:)href$/.test(name) || /url\s*\(/i.test(value)) fail("Scripts and referenced resources are not supported.");
   }
   const children: unknown = node[key];
@@ -157,7 +168,8 @@ function styleFor(attrs: Record<string, string>, inherited: Style): Style {
     const index = declaration.indexOf(":");
     if (index < 1) fail("Invalid inline style.");
     const key = declaration.slice(0, index).trim(), value = declaration.slice(index + 1).trim();
-    if (!["fill", "fill-rule", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-linejoin", "stroke-linecap", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "opacity", "display", "visibility", "vector-effect"].includes(key)) {
+    // Stroke rendering and paint order do not change the imported closed boundary.
+    if (!["fill", "fill-rule", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-linejoin", "stroke-linecap", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "opacity", "display", "visibility", "vector-effect", "-inkscape-stroke", "paint-order", "clip-path", "mask", "filter"].includes(key)) {
       fail(`Unsupported inline style ${key}; flatten effects into paths first.`);
     }
     css[key] = value;
@@ -165,7 +177,7 @@ function styleFor(attrs: Record<string, string>, inherited: Style): Style {
   const values = { ...attrs, ...css };
   for (const [key, value] of Object.entries(values)) {
     if (/^on/i.test(key) || /(?:^|:)href$/.test(key) || /url\s*\(/i.test(value)) fail("Scripts and referenced resources are not supported.");
-    if (["clip-path", "mask", "filter"].includes(key) && value !== "none") fail(`${key} is unsupported; flatten effects into paths first.`);
+    assertNoEffect(key, value);
   }
   const fillRule = values["fill-rule"] ?? inherited.fillRule;
   if (fillRule !== "evenodd" && fillRule !== "nonzero") fail("Unsupported fill-rule.");
@@ -372,6 +384,9 @@ function collectOutline(root: XmlNode, canvas: Matrix, flattenTolerance: number,
     const key = tagName(node);
     if (!key) return;
     const tag = key.split(":").pop()!;
+    // Inkscape's view, guides, and page metadata are not artwork. Resource
+    // validation still traverses this subtree before collecting geometry.
+    if (key === "sodipodi:namedview") return;
     if (["metadata", "title", "desc", "defs", "#comment"].includes(tag) || tag.startsWith("?")) return;
     if (tag === "#text") { if (String(node[key]).trim()) fail("Unexpected text outside metadata."); return; }
     const attrs = attributes(node), style = styleFor(attrs, inherited);
