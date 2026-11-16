@@ -855,12 +855,56 @@
           ]
         }
       ]
+    },
+    {
+      "directory": "craftsman-tape-measure",
+      "model": {
+        "file": "craftsman-tape-measure.3mf",
+        "sourceFile": "Craftsman-Tape-Measure---25-bin-5x5x4.5-half-multicolor-2026-10-17_12-34-24-592.3mf",
+        "sha256": "728ab6e3c9787dddddecafe7e6f3c8c88aac5ea8b60a4cca831a6bc329573e0a"
+      },
+      "project": {
+        "file": "craftsman-tape-measure.pocketry.json",
+        "sourceFile": "Craftsman-Tape-Measure---25-bin-5x5x4.5-half-multicolor-2026-10-17_12-34-24-592.pocketry.json",
+        "sha256": "3e752abac3288365f6260b811c5f444186805a4d6fec774ec1b611e25b744382",
+        "processing": "Migrated to the current project schema; renamed for the sample catalog; removed undo history, transform origins, and unused shapes. Placed pocket geometry, depths, label, and colors retained from the original project accompanying the 3MF export."
+      },
+      "photos": [
+        {
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20261116_084520.jpg",
+          "cropPixelsAfterOrientation": [525, 1080, 2385, 2940],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "7d29a1cf2a10e020f6fe49f4bf95b07d03f5388b145ce6e5c915847cfd34f34e"
+        },
+        {
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20261116_084526.jpg",
+          "cropPixelsAfterOrientation": [395, 350, 2415, 2370],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "d69f035fbc7af7bdf034dd9710e87c5228f9196ab2ec9c618523975cbdba792e"
+        },
+        {
+          "file": "photos/tape-measure-front.jpg",
+          "sourceFile": "20261116_084526.jpg",
+          "cropPixelsAfterOrientation": [620, 2300, 2320, 4000],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "d0ddd7776b3e438ec339290e02c3c1090c16d3e09a866fd87d8fb71f0a938dea"
+        },
+        {
+          "file": "photos/tape-measure-clip.jpg",
+          "sourceFile": "20261116_084533.jpg",
+          "cropPixelsAfterOrientation": [400, 2140, 2230, 3970],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "b6271421053f348a880ada225da878be44f3c72318fb388ffcbd2c28914c8610"
+        }
+      ]
     }
   ],
   "library": {
     "file": "pocketry-sample-library.json",
-    "projectCount": 10,
-    "description": "All ten sample project JSONs, included verbatim in Pocketry library-backup format.",
-    "sha256": "22e35df52a788e8bc37c5efc71467b23bf664e9e65227efaf2c8f3ac98f3b8d3"
+    "projectCount": 17,
+    "description": "All 17 sample project JSONs, included verbatim in Pocketry library-backup format.",
+    "sha256": "0c61e6edb0a3ba643741f90c788e2dec8a6401c0da7191b5ffb9ac8d22b4b78a"
   }
 }

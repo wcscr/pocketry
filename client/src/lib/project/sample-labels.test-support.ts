@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 
 export const labeledSamples = [
+  { slug: "craftsman-tape-measure", wording: ["Craftsman 25' Tape"] },
   { slug: "wiha-drivers", wording: ["Wiha Drivers"] },
   { slug: "dewalt-right-angle-tools", wording: ["Dewalt Right Angle Adapters"] },
   { slug: "wire-strippers", wording: ["Wire Stripper"] },
