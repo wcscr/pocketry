@@ -873,30 +873,30 @@
         {
           "file": "photos/printed-bin-loaded.jpg",
           "sourceFile": "20261116_084520.jpg",
-          "cropPixelsAfterOrientation": [520, 1080, 2390, 2940],
+          "cropPixelsAfterOrientation": [525, 1080, 2385, 2940],
           "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "2ec3636416e3bdd4321fde0eb32e8344366d8a7bf62eb3a80da11acbd98f9e89"
+          "sha256": "7d29a1cf2a10e020f6fe49f4bf95b07d03f5388b145ce6e5c915847cfd34f34e"
         },
         {
           "file": "photos/printed-bin-pocket.jpg",
           "sourceFile": "20261116_084526.jpg",
-          "cropPixelsAfterOrientation": [390, 350, 2420, 2370],
+          "cropPixelsAfterOrientation": [395, 350, 2415, 2370],
           "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "bb4b0c648168c3a0137abc38412e1f9327569c2c718fda90f773d10318d47c02"
+          "sha256": "d69f035fbc7af7bdf034dd9710e87c5228f9196ab2ec9c618523975cbdba792e"
         },
         {
           "file": "photos/tape-measure-front.jpg",
           "sourceFile": "20261116_084526.jpg",
-          "cropPixelsAfterOrientation": [570, 2390, 2390, 3980],
+          "cropPixelsAfterOrientation": [620, 2300, 2320, 4000],
           "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "bf775c8daeb317dbb449aaac3630852470c45976b75a089d6d3a3c16094e319f"
+          "sha256": "d0ddd7776b3e438ec339290e02c3c1090c16d3e09a866fd87d8fb71f0a938dea"
         },
         {
           "file": "photos/tape-measure-clip.jpg",
           "sourceFile": "20261116_084533.jpg",
-          "cropPixelsAfterOrientation": [510, 2140, 2380, 3970],
+          "cropPixelsAfterOrientation": [400, 2140, 2230, 3970],
           "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
-          "sha256": "a7ab793386acc57b03c79021c953dac0ec33c2a72099f84dd66ac3e0d4f0aa33"
+          "sha256": "b6271421053f348a880ada225da878be44f3c72318fb388ffcbd2c28914c8610"
         }
       ]
     }
