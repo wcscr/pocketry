@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Plan and export SVG pocket bins and saved projects from the command line with `npm run export:bin`. Empty-bin exports keep their existing options and output.
+
 ## 1.12.0 — 2026-11-15
 
 - Require Node.js 26 LTS for builds and Node-hosted installs. Upgrade Node before updating; Docker continues to serve the app with NGINX.
