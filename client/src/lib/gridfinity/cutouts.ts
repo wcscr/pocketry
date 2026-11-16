@@ -498,8 +498,8 @@ function buildOrientedCutout(
   const depths = cutout.split?.depths ?? [cutout.depth];
   const resolved = depths.map((depth, i) => resolvePlacedPocketDepth(spec, depth,
     { outlineMm: split?.regions?.[i] ?? shape.outlineMm }, cutout));
-  if (resolved.some(p => p.axialDepthMm !== null && (p.axialDepthMm <= 0 || (p.highestFloorZ ?? 0) >= p.infillTopZ))) {
-    throw new Error("Increase pocket depth, lower Z, or reduce tilt: the whole pocket floor must sit below the opening.");
+  if (resolved.some(p => p.axialDepthMm !== null && p.axialDepthMm <= 0)) {
+    throw new Error("Increase pocket depth or lower the floor: the extrusion depth must be positive.");
   }
   const real = resolved[0];
   const extent = Math.max(Math.abs(shape.bboxMm.minX), Math.abs(shape.bboxMm.maxX)) * cutout.scaleX
@@ -531,8 +531,14 @@ function buildOrientedCutout(
   if (cutout.topFilletMm > 0 && cutters.length > 0) {
     const union = arena.track(kernel.Manifold.union(cutters));
     const mouth = arena.track(union.slice(real.infillTopZ));
-    const verticalDepth = Math.min(...resolved.map(p => p.highestFloorZ === null ? Infinity : p.infillTopZ - p.highestFloorZ));
-    const radius = Math.min(cutout.topFilletMm, verticalDepth / 2);
+    // Preserve contained seats' rounding limits. Raised split sections must not
+    // suppress the active opening's round; crossing seats use submerged depth.
+    const activeSeats = resolved.filter(p => p.floorZ === null || p.floorZ < p.infillTopZ);
+    const verticalDepth = Math.min(...activeSeats.map(p => p.highestFloorZ === null ? Infinity
+      : p.infillTopZ - (p.highestFloorZ < p.infillTopZ ? p.highestFloorZ : p.floorZ!)));
+    const crossingSeat = activeSeats.some(p => p.highestFloorZ !== null && p.highestFloorZ >= p.infillTopZ);
+    const axialDepth = crossingSeat ? Math.min(...activeSeats.map(p => p.axialDepthMm ?? Infinity)) : Infinity;
+    const radius = Math.min(cutout.topFilletMm, Math.max(0, verticalDepth) / 2, axialDepth / 2);
     if (radius > 0 && !mouth.isEmpty()) {
       // The opening can move across a tilted floor within the rounding depth.
       // Projecting the top outline down creates a flat trench at the exit.

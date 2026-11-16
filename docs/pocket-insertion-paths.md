@@ -85,6 +85,13 @@ Floor colors follow the finished seat, including floor-limited cuts. Projection
 seams are cleaned before floor-color insets can widen them into stripes, and the
 material parts are clipped to the finished bin.
 
+Surface-anchored tilted pockets, including older saved projects, can cross the
+fill surface while keeping their authored slope. Only the portion intersecting
+the bin removes material. A positive-depth pocket wholly above the fill leaves
+the bin unchanged and shows a warning. A raised split section does not suppress
+rounding at the other opening. Nonpositive source depth, base breaches, and real
+insertion collisions still block export.
+
 Through retains the original finite extrusion, pose and rounding. It allows the
 seat to reach the true bin underside (Z=0); translation stops there, and rotation
 never places any part of the original object below it. It does not create an

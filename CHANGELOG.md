@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.12.3 — 2026-11-16
+
+- Export surface-anchored tilted pockets whose floors cross the fill surface,
+  including older saved projects and split sections, while preserving their
+  rounded openings.
+
 ## 1.12.2 — 2026-11-16
 
 - Add the Craftsman 25' tape measure sample with an editable project, multicolor 3MF, and photos of the printed bin and tape measure.
