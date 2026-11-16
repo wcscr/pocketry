@@ -255,18 +255,20 @@ HTTPS, static hosting, upgrades, and backup/restore instructions. Projects remai
 in each user's browser. Use **Export project** and **Export library** for
 backups—copying the server or container does not back up your designs.
 
-### Command-line bin export
+### Command-line export
 
-With Node 26 and dependencies installed, `npm run export:bin` writes an empty
-2 × 3 × 6u bin as STL and 3MF under `exports/`. For example:
+`npm run export:bin` writes STL and 3MF files without opening the editor:
 
 ```sh
-npm run export:bin -- 4x2x3 --fill solid --no-lip --out /tmp/pocketry-exports
+npm run export:bin -- 2x3x6 --out exports
+npm run export:bin -- --svg tool.svg --object-depth 9 --out exports
+npm run export:bin -- --project design.pocketry.json --out exports
 ```
 
-This helper accepts bin dimensions, fill, lip, and output directory; it does not
-load a saved project. Use the browser's Export controls for designed pockets and
-colors.
+SVG mode sizes the smallest bin that fits the outline and also writes an editable
+`.pocketry.json`; `--plan` prints the plan without writing files. Run
+`npm run export:bin -- --help` for all options. To work with saved projects in a
+connected library folder, see [local automation](docs/local-automation.md).
 
 ## Verify and build
 
