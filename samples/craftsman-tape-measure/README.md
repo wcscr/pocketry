@@ -18,21 +18,21 @@ and black filament; the supplied project and 3MF retain their original gray
 and black color assignments. Check dimensions and fit for your tape measure
 before printing.
 
-## Printed bin
+## Printed bin and tape measure
 
-The finished print holds the tape measure with its front face up. With the tape
-removed, the deeper relief for the belt clip is visible in the pocket floor.
+The top row shows the finished print with the tape measure seated, then the
+empty pocket and its deeper belt-clip relief. The bottom row shows both sides
+of the tape measure outside the bin.
 
-<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Finished orange-and-black Craftsman tape measure bin with the red tape seated in its pocket"></a>
-
-<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Empty printed Craftsman tape measure bin showing the body pocket and deeper belt-clip relief"></a>
-
-## Tape measure outside the bin
-
-Both sides of the same tape measure are shown below. The clip-side view shows
-the part that sits in the deeper pocket relief.
-
-<a href="photos/tape-measure-front.jpg"><img src="photos/tape-measure-front.jpg" width="360" alt="Front of the red Craftsman 25-foot tape measure outside the bin"></a>
-<a href="photos/tape-measure-clip.jpg"><img src="photos/tape-measure-clip.jpg" width="360" alt="Back of the Craftsman 25-foot tape measure outside the bin, showing its black belt clip"></a>
+<table>
+  <tr>
+    <td align="center"><a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="340" alt="Finished orange-and-black Craftsman tape measure bin with the red tape seated in its pocket"></a><br>Loaded bin</td>
+    <td align="center"><a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="340" alt="Empty printed Craftsman tape measure bin showing the body pocket and deeper belt-clip relief"></a><br>Empty pocket</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="photos/tape-measure-front.jpg"><img src="photos/tape-measure-front.jpg" width="340" alt="Front of the red Craftsman 25-foot tape measure outside the bin"></a><br>Front of tape measure</td>
+    <td align="center"><a href="photos/tape-measure-clip.jpg"><img src="photos/tape-measure-clip.jpg" width="340" alt="Back of the Craftsman 25-foot tape measure outside the bin, showing its black belt clip"></a><br>Belt-clip side</td>
+  </tr>
+</table>
 
 [All samples](../README.md)
