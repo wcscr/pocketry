@@ -44,6 +44,7 @@ export default mergeConfig(
               "shared/**/*.test.ts",
               "client/src/lib/**/*.test.ts",
               "server/**/*.test.ts",
+              "scripts/**/*.test.ts",
             ],
           },
         },
