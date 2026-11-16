@@ -46,7 +46,9 @@ normal space widths to this gap; trailing spaces do not change it. Existing
 labels default to a quarter-em gap until edited, while an explicitly set gap
 stays fixed when text or symbol size changes. The combined outline is centered at the
 label position and then rotated. Existing text-only outlines are unchanged.
-STL joins labels to the bin; 3MF retains each label as a separately named part.
+STL joins labels to the bin; regular Multi-color 3MF retains each label as a
+separately named part. Bambu and Prusa compatibility exports combine parts into
+one painted model; see [3MF compatibility](bambu-3mf-compatibility.md).
 The model warning panel flags text and symbol details that may disappear at
 **0.42 mm line width**, a reference for a typical **0.4 mm nozzle**. Click the
 warning to select its label. Increase the font size or choose a bolder font;

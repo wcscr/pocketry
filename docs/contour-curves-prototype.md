@@ -35,7 +35,8 @@ marks a result that would make no change. Hover or keyboard focus explains eithe
 indicator. See the [default-smoothing UI comparison](outline-default-smoothing-validation-2026-11-11.md).
 
 **Detected outline**, in Manual detection settings (or the compact Adjust tray),
-compares the earlier contour before geometric smoothing and fitting. The green
+compares the earlier contour after bounded outward smoothing and before
+simplification, fitting, small-dip straightening, and finishing polish. The green
 preview leaves your outline untouched. **Use detected outline** replaces it with
 detected points, retains the current margin and creates one Undo step. Undo also
 restores any native curve handles. An already-used contour shows a checkmark and
@@ -78,9 +79,10 @@ are not a proof for arbitrarily tiny features. Fitting approximates detected
 geometry; it does not infer exact arcs or concealed tool shapes.
 
 Curve sources survive Trace recovery, one-step Undo/Redo, separate pocket/hole
-handoff, Bin revisions and project backups. Project schema 61 migrates supported
-older projects, including the two version-60 representations. Trace draft schema
-2 accepts schema 1. Scale/Y-flip conversion transforms points and handles together
+handoff, Bin revisions and project backups. Curve persistence was introduced in project schema 61, including migration of
+the two version-60 representations. Consult `PROJECT_SCHEMA_VERSION` in
+[project.ts](../shared/gridfinity/project.ts) for the current format.
+Trace draft schema 2 accepts schema 1. Scale/Y-flip conversion transforms points and handles together
 once. Derived samples use a 0.025 mm finite-chord bound; that is a sampling bound,
 not a manufacturing tolerance.
 

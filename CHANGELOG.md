@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.12.1 — 2026-11-15
+
+- Give ULTIM8-compatible fixtures a separate Help page, keeping the main guide focused on photo-to-bin steps and preserving existing fixture-help links.
+
 ## 1.12.0 — 2026-11-15
 
 - Require Node.js 26 LTS for builds and Node-hosted installs. Upgrade Node before updating; Docker continues to serve the app with NGINX.

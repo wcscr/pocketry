@@ -33,11 +33,13 @@ shows startup errors; `docker compose down` stops and removes the container.
 ## Without Docker
 
 Install Node.js 26 and npm (`npm ci` stops with an engine error on other
-versions), then build from a repository checkout:
+versions). With nvm or fnm, run `nvm use` or `fnm use` in the checkout to select
+the major in `.nvmrc`; install that major first if needed. Then build:
 
 ```sh
 git clone https://github.com/wcscr/pocketry.git
 cd pocketry
+node --version # Must report v26.x
 npm ci
 npm run build
 npm start
@@ -51,9 +53,21 @@ and HTTPS reverse proxy for deliberate remote hosting. Keep the checkout,
 if it should keep running after logout. Do not use `npm run dev` or `vite preview`
 for production hosting.
 
+`npm start` uses POSIX environment-variable syntax. On Windows PowerShell, start
+an already-built checkout with:
+
+```powershell
+$env:NODE_ENV = "production"
+$env:PORT = "5000" # Optional; 5000 is the default
+node dist/index.js
+```
+
+For development, `npm run dev` binds to `127.0.0.1:5000`; set `PORT` in your
+shell to choose another port. It is a local development service, not a LAN host.
+
 Alternatively, copy the **contents of `dist/public`** to an existing static web
 host. Node is then needed only for building. Serve the app at a hostname's root,
-route app URLs such as `/bin` to `index.html`, return 404 for `/api` and missing
+route app URLs such as `/bin`, `/ultim8`, and `/help/ultim8` to `index.html`, return 404 for `/api` and missing
 assets, and serve JavaScript/CSS/WebAssembly with their correct MIME types
 (`application/wasm` for `.wasm`). Keep `LICENSE.txt` and `NOTICE.txt` with the app.
 Revalidate HTML and unversioned files after updates; only hashed `/assets/` files
@@ -65,11 +79,27 @@ For upgrades, export backups, stop the Node service if used, run
 `git pull --ff-only`, `npm ci`, and `npm run build`, then restart the service or
 replace the static host's files. Reload the browser and keep the same address.
 
-Pocketry 1.10.0 and later require Node.js 26. When upgrading from an earlier
+Pocketry 1.12.0 and later require Node.js 26. When upgrading from an earlier
 release, install Node.js 26 first; with an older version, `npm ci` stops with an
 engine error. If a service manager starts Pocketry with a fixed path to `node`,
 point it at the Node.js 26 binary before restarting. Docker upgrades need no
 change; the build image is pinned in `Dockerfile`.
+
+## Hosting modes at a glance
+
+| Mode | Server | Default address | Node requirement |
+| --- | --- | --- | --- |
+| `npm run dev` | Express with Vite/HMR | `127.0.0.1:5000`, loopback only | Node 26 |
+| `npm start` | Express serving `dist/public` | `0.0.0.0:5000`, all interfaces | Node 26 on the host |
+| Docker Compose | Nginx serving built static files | Host `127.0.0.1:8080` → container port 8080 | Included in the build stage only |
+| Existing static host | Your web server | Your configured hostname | Node 26 only on the build machine |
+
+The bundled Nginx configuration supplies explicit cache headers and returns 404
+for missing `/assets/` files and its listed asset extensions. The Node production
+server uses Express's static defaults and falls back to the app shell for other
+missing paths; it does not implement Nginx's asset/cache policy. Both reject
+retired `/api` routes. The container smoke test below targets the Nginx contract,
+not the development server or an unchanged Node production server.
 
 ## Where designs are saved
 

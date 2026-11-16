@@ -48,5 +48,7 @@ original photos restored from a saved Trace draft. Recovery keeps the existing
 PNG files that can exceed the original upload byte limit. The same pixel and side
 limits still apply before decoding. Animated PNG/WebP, deferred-height
 JPEG, malformed headers and conflicting WebP frame dimensions are rejected. Resize
-large photos before importing. These input limits do not change the existing 800×600
-working coordinate system or calibrated exports.
+large photos before importing. Uncorrected photos use a working frame fitted within 800 × 600 pixels.
+Perspective correction can create a larger working image; tool-edge detection
+can sample bounded original-photo tiles. These input limits do not change
+calibrated export units. See [source-coordinate handling](outline-combined-detector.md#geometry-and-source-coordinates).

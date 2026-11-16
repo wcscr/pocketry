@@ -1,7 +1,9 @@
 # Sample projects
 
-All of these sample projects are real designs that have been physically printed.
-Browse the editable Pocketry designs, printable 3MF exports, and photos below.
+This library contains 16 editable projects across 14 example pages, with physical
+print photographs and derived variants. Photos document the pictured prints;
+individual-tool variants and later edits are not all separately print-qualified.
+Browse the editable Pocketry designs, supplied 3MF exports, and photos below.
 Start with a project to see how its pockets are arranged, or download a 3MF to
 open in your slicer.
 
@@ -53,7 +55,8 @@ filament or process settings.
 
 ## Print photos
 
-The original 13 designs include photographs of their finished bins. The 40 mm and
+The 14 example pages include photographs of their finished bins; the Bessey/Gerber
+page documents the combined print and also offers two separate-tool variants. The 40 mm and
 50 mm Wiha samples show the loaded bins; the 60 mm sample also shows a pocket
 with a driver removed. The original ten samples include a view with tools
 removed except for the DeWalt set.

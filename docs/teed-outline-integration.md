@@ -4,8 +4,11 @@ The [1.9 → 1.10 release comparison](outline-detection-1.9-to-1.10.md) shows th
 
 The [combined detector](outline-combined-detector.md) adds geometry preservation,
 tool/paper correction strokes, and original-photo sampling to Claude's detector.
-The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) records the current
-historical cropped comparison. The [original-photo UI comparison](outline-ui-validation-2026-11-11.md) is the current workflow evidence; cached replays cannot qualify photo behavior.
+The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) and
+[original-photo UI comparison](outline-ui-validation-2026-11-11.md) preserve earlier
+branch evidence. The November 15 release comparison above records the 1.9/1.10
+defaults; none of these reports qualifies every later build. Cached replays
+cannot qualify photo behavior.
 
 **Tool edges · white sheet** is the default for new sessions. Draw a region
 around one tool, leaving light paper visible around it. **Automatic · match
@@ -18,8 +21,10 @@ Existing saved method choices are preserved, including older color-only drafts.
 [Before/after comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
 are included as a portable HTML report, with one view per distinct tool or
 attachment. In a running build, open `/reports/outline-comparison/`. The report
-compares the previous PR default with the current default; optional columns show
-the original detector before this PR and the rejected color-fusion experiment.
+preserves the November 5 PR comparison, before the later combined-detector and
+straightening changes; optional columns show the original detector before that
+PR and the rejected color-fusion experiment. It is historical diagnostic evidence,
+not the current release comparison.
 Each driver from the group photo is selected individually. A tighter region
 around the deburring tool excludes its support wire's long tail on both sides.
 Repeated views, trays and retail cases are omitted. Wood-background controls
@@ -118,12 +123,14 @@ starts from the currently displayed boundary and retains that source until
 another edit or detection establishes a new one. It smooths small bumps within its
 allowance; it cannot recover missing material or remove a large segmentation error.
 
-The earlier dense silhouette is retained as `rawOutline` in working-photo
-coordinates, sourced from the pipeline's `materialOutline` before geometric
-smoothing, simplification and fitting. It includes segmentation/refinement,
-correction strokes and accepted occlusion repair. It can expose detail removed by
-fitting, but cannot recover material segmentation never detected. It may contain
-pixel noise, shadows or slits. **Detected outline** under Manual detection settings
+The earlier silhouette is retained as `rawOutline` in working-photo coordinates,
+after the pipeline's bounded outward smoothing but before simplification,
+line/curve fitting, small-dip straightening, and finishing polish. The separate
+unsmoothed `materialOutline` guards later geometry changes; it is not the displayed
+comparison. Correction marks can force the comparison back to that material
+reference if smoothing would cross a mark. The comparison includes segmentation,
+corrections, and accepted occlusion repair. It can expose detail removed by fitting,
+but cannot recover material segmentation never detected. Shadows or slits may remain. **Detected outline** under Manual detection settings
 previews this contour in green without changing saved/exported geometry. The
 conditional **Use detected outline** action replaces the current outline and edits
 in one Undo step, retaining the photo, calibration, region and margin. Native
@@ -160,11 +167,11 @@ shafts and tips before using the outline.
 
 ## Performance and verification
 
-The HTML report gives desktop CPU/WASM detection-plus-cleanup timings for all
-36 distinct tool regions. The default adds the approved boundary reconstruction
-and finer sensitivity search without color fusion. Against the previous PR
-default, visual review found four improvements, two mixed results and 30
-unchanged results. Disabling fusion avoided five regressions from the combined
+The historical November 5 HTML report gives desktop CPU/WASM
+detection-plus-cleanup timings for 36 distinct tool regions. That branch added
+boundary reconstruction and finer sensitivity search without color fusion.
+Against its previous PR default, visual review found four improvements, two
+mixed results and 30 unchanged results. Disabling fusion avoided five regressions from the combined
 experiment but also gave up its syringe improvement. Printing, reflections and
 transparent material remain difficult. These development photos are not a held-out
 accuracy benchmark, and sparse feature checks are not contour ground truth.
@@ -178,11 +185,13 @@ strips and supported shafts; the unseeded-shaft counterexample is retained as an
 explicit expected failure. Phone speed, peak memory and physical fit remain
 unqualified.
 
-Local checks: `npm run check`, `npm test`, `npm run test:workflows`,
-`npm run test:geometry`, `npm run build`, and `git diff --check`. Focused
-regressions cover small-tool merges, line/curve bounds, shared holes, interrupted touch edits, calibrated
-recovery and Undo. GitHub CI remains disabled. The PR lists the latest results;
-raw experimental records are kept outside the repository.
+For changes in this area, use `npm run check`, `npm test`, and the affected
+workflow/geometry suites under [CLAUDE.md](../CLAUDE.md), plus `npm run build`
+and `git diff --check`. Focused regressions cover small-tool merges, line/curve
+bounds, shared holes, interrupted touch edits, calibrated recovery, and Undo.
+These are verification instructions, not a claim of a new run. Record actual
+commands and results with each change. GitHub CI remains disabled; raw
+experimental records are kept outside the repository.
 
 ## Model provenance
 

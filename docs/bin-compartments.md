@@ -40,7 +40,7 @@ Recess accepts 0–10 mm and defaults to
 0.5 mm for newly enabled tabs; zero is flush. Outer tabs use the wall top as
 their reference, repeated tabs use the divider top, with or without a stacking
 lip. Wall/divider heights stay unchanged. Text follows the shelf vertically and
-keeps its offset from the shelf centre on slanted bins. New lettering defaults
+keeps its offset from the shelf center on slanted bins. New lettering defaults
 to 0.5 mm extrusion, matching the recess so its top is flush with the walls.
 Text size is independent. Saved extrusion heights stay unchanged; taller
 lettering can extend above the walls. Shallow
@@ -67,7 +67,7 @@ and undo/redo. Construction groups show short value summaries and clear
 Show/Hide affordances. Switches, help, and disclosure buttons have separate
 keyboard targets; collapsed controls are hidden from focus navigation. Wall thickness uses
 a number field, with the existing recommendation and reset control.
-Bottom edge fillet is an independent millimetre field, visible whenever Solid fill
+Bottom edge fillet is an independent millimeter field, visible whenever Solid fill
 is off. Zero disables it. It rounds the floor into outer walls and both sides of
 dividers, retaining the entered radius through fill toggles, disabled compartments,
 save/reload and undo/redo. The effective radius is limited to the hollow height

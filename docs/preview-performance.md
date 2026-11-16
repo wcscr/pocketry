@@ -110,7 +110,7 @@ failure of all pending channels, detached endpoints, and synchronous post errors
 
 Validation on 2026-09-23: `npm run check`, all 1,853 tests in 107 files,
 `npm run build`, and `git diff --check` passed. These local checks used Node
-26.8.1; the repository's target runtime remains Node 22. The production build
+26.8.1; the repository targeted Node 22 at the time. Current builds require Node 26 (see [setup](../README.md#run-locally)). The production build
 retains its existing large-chunk warning.
 
 The imported Wiha project was exercised in an isolated in-app browser origin:

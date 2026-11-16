@@ -7,7 +7,7 @@ or Help. The **Calibration aids** dialog has separate **Paper printable aids**
 and **3D printable aids** sections. Paper downloads include v3 A4 /
 US Letter corner-marker sheets and one sheet containing all three
 **50, 100 and 200 mm** measurement aids in either paper size. The 3D section
-offers the same lengths as two-colour
+offers the same lengths as two-color
 **3MF** downloads. Legacy sheets,
 the original paper strip and recessed STL aids are no longer offered in the
 app. Previously printed marker families remain recognized. Generation and
@@ -28,7 +28,7 @@ detection happen locally in the browser.
   10 mm ticks. The underside has a 0.3 mm, 45° chamfer, the top edge a 0.25 mm
   round, and the plan corners a 0.8 mm radius. Marker faces stay flat.
 - **Paper PDF:** print in landscape at **100% / Actual size**, with Fit to page
-  turned off. Verify the marker-centre spacing (**35 / 85 / 185 mm**), then cut
+  turned off. Verify the marker-center spacing (**35 / 85 / 185 mm**), then cut
   along the dashed line. The cut border adds **2 mm of white margin** around
   the unchanged **50 / 100 / 200 × 15 mm** artwork. Mount on thin, rigid
   backing if needed. Paper uses the same markers, labels and ruler ticks as
@@ -39,7 +39,7 @@ detection happen locally in the browser.
   carrier and opaque black to the markers, label and graduations. Print flat,
   markers facing up, at 0.2 mm layers. The black inlays occupy the top 0.4 mm
   and finish flush. Keep the parts assembled; do not auto-arrange them.
-  Preview colours alone do not prove filament assignment.
+  Preview colors alone do not prove filament assignment.
 - Print at **100%**, never scale to fit. Check the finished end-to-end length
   and ruler ticks against a physical ruler or calipers before using it for scale.
 - Choose the longest aid that fits flat on the part furthest from the paper,
@@ -49,7 +49,7 @@ detection happen locally in the browser.
   straight down with the whole object in frame.
 - Import the photo and review the detected references. Unique marker pairs
   identify the aid size automatically. Its scale line joins the **marker
-  centres**, not the physical ends. See the baseline lengths below.
+  centers**, not the physical ends. See the baseline lengths below.
 - When both references are usable, choose **Correct perspective & use aid
   scale** to straighten the image using the paper corners while deriving scale
   from the aid. Alternatively choose aid-only or paper-only scale, or paper
@@ -107,7 +107,7 @@ fallback if persistent storage is blocked.
 ## Geometry and detection contract
 
 `reference-strip.ts` is the shared physical specification for artwork, mesh and
-recognition. Sizes refer to the full body; baseline lengths refer to marker centres.
+recognition. Sizes refer to the full body; baseline lengths refer to marker centers.
 
 | Design | Body (mm) | Marker IDs | Marker square | Centre baseline |
 | --- | --- | --- | --- | --- |
@@ -116,9 +116,9 @@ recognition. Sizes refer to the full body; baseline lengths refer to marker cent
 | 200 mm aid | 200 × 15 × 2 | 26 / 27 | 9 mm | 185 mm |
 | Original strip | 100 × 20; 1.2 mm for 3MF | 20 / 21 | 15 mm | 80 mm |
 
-New marker centres lie 7.5 mm from each end and on the 7.5 mm midline. Each 6 × 6
+New marker centers lie 7.5 mm from each end and on the 7.5 mm midline. Each 6 × 6
 module marker has a 1.5 mm white quiet zone. Ticks and labels remain outside that
-zone. The original strip retains 2.5 mm quiet zones and centres at (10, 10) and
+zone. The original strip retains 2.5 mm quiet zones and centers at (10, 10) and
 (90, 10) mm. Patterns come from OpenCV 4.11.0's deterministic
 `extendDictionary(28, 4)`: the earlier 8-, 16- and 22-marker prefixes are unchanged.
 IDs 16–19 remain reserved for the separate photo board. Paper detection retains
@@ -131,7 +131,7 @@ pair's physical baseline. RMS residual must be at most 0.45 mm and the baseline
 at least 40 image pixels. Individual marker-edge disagreement is limited to 6%
 of its expected image size plus 0.5 image pixels of edge-localization allowance.
 The pixel allowance matters for small markers: a one-pixel difference on a
-14-pixel edge exceeds 7%, even when the long centre baseline is stable. It does
+14-pixel edge exceeds 7%, even when the long center baseline is stable. It does
 not change the scale derived from the baseline or bypass the corner-fit checks.
 The raw measured disagreement is still shown above 2% at review. For clearer
 markers, fill more of the photo with the tool while retaining both end markers.
@@ -169,8 +169,8 @@ recover the actual contour or holes hidden by the carrier.
 The 3MF is a Manifold-built white carrier with complementary black inlays. Both
 parts are closed indexed meshes, share a flush top plane and form one assembled
 build item without overlapping volume. Recessed STL downloads were withdrawn
-because recognition of manually coloured prints has not been physically validated.
-Existing 3MF serialization supplies material colours and Bambu part extruder
+because recognition of manually colored prints has not been physically validated.
+Existing 3MF serialization supplies material colors and Bambu part extruder
 metadata. Other slicers may need explicit white/black assignments.
 
 Rebuild all three aids and the original paper/3MF strip without the browser:

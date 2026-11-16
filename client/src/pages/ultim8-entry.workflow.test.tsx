@@ -48,6 +48,41 @@ function enterName(value: string): void {
 }
 
 describe("/ultim8 entry", () => {
+  it("reads fixture help without opening or replacing the saved project", async () => {
+    const { route, container } = enterFixture({ path: "/help/ultim8" });
+    await flushHydration();
+    expect(container.querySelector("h1")?.textContent).toBe("ULTIM8-compatible fixture guide");
+    expect(Persistence.loadProjectDoc).not.toHaveBeenCalled();
+    expect(Persistence.startNewProject).not.toHaveBeenCalled();
+    expect(useBinGeometry).not.toHaveBeenCalled();
+    await React.act(async () => container.querySelector<HTMLAnchorElement>('a[href="/bin"]')!.click());
+    await flushHydration();
+    expect(route.history?.at(-1)).toBe("/bin");
+    expect(Persistence.startNewProject).not.toHaveBeenCalled();
+    expect(currentSpec()).toEqual(INITIAL_BIN_SPEC);
+  });
+
+  it("starts a fixture only after choosing the guide's start link", async () => {
+    const { route, container } = enterFixture({ path: "/help/ultim8" });
+    await flushHydration();
+    await React.act(async () => container.querySelector<HTMLAnchorElement>('a[href="/ultim8"]')!.click());
+    await flushHydration();
+    expect(Persistence.startNewProject).toHaveBeenCalledOnce();
+    expect(currentSpec().pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
+    expect(route.history).toEqual(["/about", "/help/ultim8", "/bin"]);
+  });
+
+  it("redirects published fixture-help anchors to the guide without creating a fixture", async () => {
+    window.history.replaceState(null, "", "/bin#ultim8-fixtures");
+    try {
+      const { route, container } = enterFixture({ path: "/bin" });
+      await flushHydration();
+      expect(route.history).toEqual(["/about", "/help/ultim8"]);
+      expect(container.querySelector("h1")?.textContent).toBe("ULTIM8-compatible fixture guide");
+      expect(Persistence.startNewProject).not.toHaveBeenCalled();
+    } finally { window.history.replaceState(null, "", "/"); }
+  });
+
   it.each([false, true])("starts one fixture after hydration and replaces history (mobile=%s)", async mobile => {
     const { route, container } = enterFixture({ mobile });
     await flushHydration();

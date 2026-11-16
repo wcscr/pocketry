@@ -1,3 +1,6 @@
+<!-- Renderer template for docs/outline-detection-1.9-to-1.10.md. Relative links
+resolve from that generated destination; this file is not the published report. -->
+
 # Outline detection: 1.9 → 1.10
 
 Captured November 15, 2026. All **36 reference entries / 31 distinct original photos** from the maintainer-selected `ReferenceVerification/photos` folder are included. These are the default outlines shown by the application after calibration and region selection.
