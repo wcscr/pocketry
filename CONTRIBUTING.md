@@ -8,6 +8,11 @@ straight to a PR.
 enhancement requests and problem reports. Use the [documentation index](docs/README.md)
 for current behavior and architecture.
 
+Maintainers screen every issue, contribution, and PR with Daybreak Blue for
+security risks, including malicious or hidden instructions. This check is owned
+by maintainers; contributors need not run Daybreak Blue. Keep submitted text,
+files, and links relevant to the report or change, and never include secrets.
+
 ## Submitting a change
 
 1. Explain what the change fixes or adds. Keep unrelated changes separate.
@@ -31,6 +36,21 @@ pocketry@sugarcreekresearch.com.
 
 Maintainers review and edit changelog entries, combine related items, and set
 release versions and dates. You do not need to bump the version for a normal PR.
+
+## Keeping documentation consistent
+
+Check instructions against the current target branch and rendered controls.
+Update the [README tutorial](README.md#basic-process), [in-app Help](client/src/components/help/help-dialog.tsx),
+and affected references in [docs](docs/README.md) together. For runtime or hosting
+changes, check `.nvmrc`, `package.json`, `Dockerfile`, the README setup, and the
+[self-hosting guide](docs/self-hosting.md), including the first affected release.
+Refresh screenshots when the pictured controls change and record their source,
+version, and capture steps in [the image notes](docs/images/README.md).
+
+Keep dated reports and physical-print photos as evidence for their recorded
+versions. Label superseded instructions as historical and link to current
+guidance; do not rewrite old test results as if they qualified today's build.
+Never copy private local preferences or contributor records into public docs.
 
 ## Licensing in plain language
 
@@ -60,8 +80,9 @@ tests, documentation, or assets and the tool used. Include the tool's
 `Co-Authored-By` trailer on affected commits, using its standard attribution
 identity where available; do not invent a person or email address. Maintainers
 preserve that credit when squashing. Routine autocomplete, spelling, and formatting
-need no separate credit. Maintainer work covered by the project's standing AI
-acknowledgment need not repeat that acknowledgment in every commit or PR.
+need no separate credit. Maintainer work covered by the project's
+[standing acknowledgment of OpenAI Codex and Anthropic Claude](README.md#contributors)
+need not repeat that acknowledgment in every commit or PR.
 
 AI credit records assistance, not copyright ownership or authority to accept the
 CLA. Review and test your submission yourself, and disclose known restrictions
@@ -73,9 +94,11 @@ for help with uncertainty; you are not expected to supply a legal opinion.
 
 ## Local checks
 
-Use Node.js 22 and the committed lockfile:
+Use Node.js 26 and the committed lockfile. `.nvmrc` selects the version, and
+`npm ci` stops with an engine error on any other major:
 
 ```sh
+node --version # Must report v26.x
 npm ci
 npm run check
 npm test

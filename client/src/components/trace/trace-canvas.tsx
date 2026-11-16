@@ -1,3 +1,6 @@
+import { outlineToPathData } from "@/lib/export/svg";
+import { CorrectButton, CorrectionTools, type CorrectionTool } from "./correction-tools";
+import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { pointInRing } from "@shared/geometry/rings";
@@ -41,17 +44,22 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useRulerInputFraming } from "./use-ruler-input-framing";
 import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
 import { useContourPointFocus } from "@/hooks/use-contour-point-focus";
-import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { useCurveEditor } from "@/components/canvas/use-curve-editor";
+import { useCurveFitting } from "@/components/canvas/use-curve-fitting";
+import { usePointSelection } from "@/components/canvas/use-point-selection";
+import { CURVE_TOLERANCE_MM, curvesFromOutline } from "@shared/geometry/curves";
+import { outlineCleanupUnavailable } from "./outline-cleanup";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
 import { getRing, iterateRings, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Tooltip,
@@ -67,9 +75,11 @@ import { TraceScene } from "./trace-scene";
 const PICK_RADIUS_PX = 10;
 
 export interface TraceCanvasProps {
+  outlineCleanupRequest?: { id: number; sourceRevision: number };
   /** Incremented by the persistent review notice to focus the estimated area. */
   estimatedEdgeFocusRequest?: number;
   onReprocess: (region?: Rect) => void;
+  onCorrection?: (hints: DetectionHint[]) => void;
   /** Rendered when no image is loaded. */
   emptyState?: React.ReactNode;
 }
@@ -104,9 +114,36 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   );
 }
 
-function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: TraceCanvasProps): JSX.Element {
+function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
+  const detectedReview = store.detectedOutlineReview;
+  const detectedPreview = detectedReview.preview;
+  const [correctionMode, setCorrectionMode] = useState<CorrectionTool | null>(null);
+  const correctionStroke = useRef<DetectionHint | null>(null);
+  const correctionPointer = useRef<number | null>(null);
+  const [strokePreview, setStrokePreview] = useState<DetectionHint | null>(null);
+  const [brushPoint, setBrushPoint] = useState<Point | null>(null);
+  const cancelStroke = () => { correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null); setBrushPoint(null); };
+  const finishCorrection = () => { setCorrectionMode(null); cancelStroke(); };
+  const manualEdits = !!store.history.stack[store.history.index]?.hasManualEdits;
+  const correctionUnavailable = store.processing ? "Wait for detection to finish."
+    : manualEdits ? "Undo manual outline edits before correcting detection."
+      : store.pendingAutoCalibration || hasPendingManualCalibration(store) || store.mode === "perspective" ? "Finish calibration before correcting detection." : undefined;
+  useEffect(finishCorrection, [store.sourceRevision, store.region]);
+  useEffect(() => { if (store.mode !== "pan" || manualEdits || detectedReview.showing) finishCorrection(); }, [store.mode, manualEdits, detectedReview.showing]);
+  useEffect(() => { if (store.processing) cancelStroke(); }, [store.processing]);
+  useEffect(cancelStroke, [store.history]);
+  useEffect(() => {
+    if (!correctionMode) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !canHandleCanvasShortcut(event)) return;
+      event.preventDefault(); event.stopPropagation();
+      finishCorrection();
+    };
+    document.addEventListener("keydown", escape, true);
+    return () => document.removeEventListener("keydown", escape, true);
+  }, [correctionMode]);
   const isMobile = useIsMobile();
   const sceneId = useId();
   const {
@@ -148,6 +185,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
       (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration))
     );
   const measurementMmPerPx = mmPerPixel(calibration);
+  const brushRadius = Math.max(.5, .3 / (measurementMmPerPx ?? .3));
   const imageCrop = store.perspectiveCorrection?.showFullPhoto ? null : store.perspectiveCorrection?.paperBounds ?? null;
 
   const handleRulerLengthCommit = useCallback(
@@ -174,7 +212,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
     containerHeight: containerSize.height,
     // Fit the whole photo between the touch toolbars on compact canvases.
     padding: containerSize.width < 768 ? Math.min(64, containerSize.width / 5, containerSize.height / 5) : 24,
-    panEnabled: mode === "navigate",
+    panEnabled: mode === "navigate" || correctionMode === "pan",
   });
   useRulerInputFraming(isMobile, draftCalibration ?? calibration, containerSize, viewport);
 
@@ -279,9 +317,80 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   }, []);
 
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
+  const cleanupSource = useMemo(() => store.curves ?? curvesFromOutline(outline), [store.curves, outline]);
+  const cleanupAvailable = !detectedReview.showing && !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
+  // Existing native curves remain authoritative after Undo or draft recovery,
+  // even when the preference for future detections is point mode.
+  const cleanupUsesCurves = store.editableCurves || !!store.curves;
+  const cleanupEntry = store.history.stack[store.history.index];
+  const appliedSimplification = useMemo(() => cleanupEntry?.autoSimplification &&
+    (cleanupEntry.outline === outline || JSON.stringify(cleanupEntry.outline) === JSON.stringify(outline))
+    ? cleanupEntry.autoSimplification : undefined, [cleanupEntry, outline]);
+  const cleanup = useCurveFitting({ source: cleanupSource, ringRef: { shapeIndex: 0, ringIndex: -1 },
+    editableCurves: cleanupUsesCurves,
+    appliedSimplification,
+    enabled: cleanupAvailable && (mode === "pan" || mode === "navigate"), contextKey: String(store.sourceRevision),
+    allowOutlineSimplification: cleanupAvailable,
+    scale: viewport.transform.scale, toCanvas: p => p,
+    unitsPerUnit: mmPerPixel(calibration) ?? 1, unit: mmPerPixel(calibration) ? "mm" : "px",
+    onCommit: (curves, label, autoSimplification) => cleanupUsesCurves ? dispatch({ type: "CURVES_COMMITTED", curves, label, autoSimplification }) : dispatch({ type: "OUTLINE_COMMITTED",
+      outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label, autoSimplification }),
+  });
+  useEffect(() => {
+    // Only a new user request starts work. Later source changes dismiss the
+    // preview through the fitting hook; they must never restart it implicitly.
+    if (outlineCleanupRequest && outlineCleanupRequest.sourceRevision === store.sourceRevision && cleanupAvailable && (mode === "pan" || mode === "navigate")) {
+      finishCorrection();
+      cleanup.start("reconstruct");
+    }
+  }, [outlineCleanupRequest]);
+  const curveEditor = useCurveEditor({
+    allowCurves: store.editableCurves || !!store.curves,
+    outline, curves: store.curves, enabled: (mode === "edit" || mode === "remove") && outline.length > 0,
+    contextKey: String(store.sourceRevision), scale: viewport.transform.scale,
+    viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
+    tolerance: CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? 0.1), fromClient: toImage,
+    fitUnitsPerUnit: mmPerPixel(calibration) ?? 1, fitUnit: mmPerPixel(calibration) ? "mm" : "px",
+    startDisabled: (store.margin ?? 0) !== 0,
+    startHint: "Set trace margin to zero before editing curves. Use Bin clearance to adjust fit.",
+    onFrameRepair: points => {
+      const bounds = outlineBounds([{ outer: points, holes: [] }]);
+      const width = containerSize.width, height = containerSize.height;
+      if (!bounds || width <= 80 || height <= 160) return;
+      // Frame the chosen boundary above the floating preview controls, so the
+      // replacement and both endpoints remain visible while reviewing it.
+      const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 10) * .5;
+      const reserve = Math.min(300, height * .45);
+      const scale = Math.min((width - 48) / (bounds.maxX - bounds.minX + 2 * padding),
+        Math.max(40, height - reserve - 96) / (bounds.maxY - bounds.minY + 2 * padding));
+      const framedWidth = (width - 48) / scale, framedHeight = (height - 48) / scale;
+      fitToRect({ x: (bounds.minX + bounds.maxX - framedWidth) / 2,
+        y: (bounds.minY + bounds.maxY - framedHeight) / 2 + reserve / (2 * scale), width: framedWidth, height: framedHeight });
+    },
+    onDone: () => dispatch({ type: "SET_MODE", mode: "pan" }),
+    onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
+      outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
+  });
+  const pointSelection = usePointSelection({ source: cleanupSource,
+    enabled: !curveEditor.active && (mode === "edit" || mode === "remove") && outline.length > 0,
+    contextKey: String(store.sourceRevision), scale: viewport.transform.scale, fromClient: toImage, toCanvas: p => p,
+    viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
+    onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
+      outline: next.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })) }),
+    onSmoothSection: curveEditor.fitSection,
+    onRepairSection: curveEditor.repairSection,
+    repairDisabledReason: store.editableCurves && (store.margin ?? 0) !== 0 ? "Set trace margin to zero to repair with editable curves. Use Bin clearance to adjust fit." : undefined,
+    onBlankClick: () => { desktopPoint.clear(); dispatch({ type: "SELECT_RING", selection: null }); },
+    onPinchStart: () => {
+      mobileEditor.cancel();
+      const drag = dragRef.current; dragRef.current = null;
+      if (drag?.kind === "vertex" && drag.moved) dispatch({ type: "OUTLINE_DRAGGING", outline: drag.originalOutline });
+      desktopPoint.clear();
+    },
+  });
   const desktopPoint = useContourPointFocus({
     outline,
-    enabled: !isMobile && selection !== null && (mode === "edit" || mode === "remove"),
+    enabled: !curveEditor.active && !isMobile && selection !== null && (mode === "edit" || mode === "remove"),
     contextKey: `${store.sourceRevision}:${imageRotation}`,
   });
   useEffect(() => {
@@ -408,7 +517,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
     return true;
   };
 
-  const mobileEditing = isMobile && (mode === "edit" || mode === "remove");
+  const mobileEditing = !curveEditor.active && isMobile && (mode === "edit" || mode === "remove");
   const focusContour = () => {
     const ring = selection && getRing(outline, selection);
     const bounds = outlineBounds(ring ? [{ outer: ring, holes: [] }] : outline);
@@ -435,6 +544,24 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (detectedReview.showing) {
+      viewport.handlers.onPointerDown(event, { pan: true });
+      return;
+    }
+    if (correctionMode && (correctionMode === "pan" || viewport.isSpaceHeld || event.shiftKey || event.button === 1)) {
+      viewport.handlers.onPointerDown(event, { pan: true }); return;
+    }
+    if (correctionMode && event.button === 0) {
+      if (correctionUnavailable || correctionStroke.current) return;
+      const p = toImage(event.clientX, event.clientY);
+      if (!p || !region || p.x < region.x || p.y < region.y || p.x > region.x + region.width || p.y > region.y + region.height) return;
+      const hint: DetectionHint = { kind: correctionMode, points: [p], radius: brushRadius };
+      correctionPointer.current = event.pointerId;
+      correctionStroke.current = hint; setStrokePreview(hint);
+      event.currentTarget.setPointerCapture(event.pointerId); return;
+    }
+    if (pointSelection.down(event)) return;
+    if (curveEditor.down(event)) return;
     if (mobileEditor.down(event)) return;
     if (isMobile && mode === "pan") {
       viewport.handlers.onPointerDown(event, { pan: true });
@@ -611,6 +738,22 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (correctionMode) {
+      const p = toImage(event.clientX, event.clientY);
+      setBrushPoint(p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height ? p : null);
+    }
+    const hint = correctionStroke.current;
+    if (hint) {
+      if (event.pointerId !== correctionPointer.current) return;
+      const p = toImage(event.clientX, event.clientY), last = hint.points[hint.points.length - 1];
+      if (p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height && hint.points.length < 4096 && Math.hypot(p.x-last.x,p.y-last.y) >= hint.radius/2) {
+        const next = { ...hint, points: [...hint.points, p] }; correctionStroke.current = next; setStrokePreview(next);
+      }
+      return;
+    }
+    if (correctionMode) { viewport.handlers.onPointerMove(event); return; }
+    if (pointSelection.move(event)) return;
+    if (curveEditor.move(event)) return;
     if (mobileEditor.move(event)) return;
     // Any real movement turns a candidate click into not-a-click.
     const click = clickRef.current;
@@ -707,6 +850,17 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const hint = correctionStroke.current;
+    if (hint) {
+      if (event.pointerId !== correctionPointer.current) return;
+      correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null);
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      if (event.type === "pointerup") onCorrection?.([...store.detectionHints, hint]);
+      return;
+    }
+    if (correctionMode) { viewport.handlers.onPointerUp(event); return; }
+    if (pointSelection.end(event)) return;
+    if (curveEditor.end(event)) return;
     if (mobileEditor.end(event)) return;
     desktopPoint.finish();
     const drag = dragRef.current;
@@ -759,7 +913,9 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (detectedReview.showing || correctionMode) { event.preventDefault(); return; }
     if (usesNativeEditingMenu(event.target)) return;
+    if (curveEditor.contextMenu(event)) return;
     if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
     if (mode === "edit" || mode === "remove") {
       event.preventDefault();
@@ -802,9 +958,9 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
 
   const cursor = useMemo(() => {
     if (viewport.isPanning) return "grabbing";
-    // Promise the pan before the drag: Shift or Space turns the arrow into a
-    // hand. Otherwise the arrow is the normal state in every pointing mode.
-    if (viewport.isSpaceHeld || shiftHeld || mode === "navigate") return "grab";
+    if (correctionMode) return correctionMode === "pan" || viewport.isSpaceHeld || shiftHeld ? "grab" : processing ? "wait" : "crosshair";
+    // Shift selects nodes during editing; Space and the hand tool still pan.
+    if (viewport.isSpaceHeld || mode === "navigate" || shiftHeld && mode !== "edit" && mode !== "remove") return "grab";
     // Promise the grab before the drag, too.
     if (hoveredVertexIndex !== null) return "move";
     if (
@@ -816,7 +972,7 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
       return "crosshair";
     }
     return "default";
-  }, [mode, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex]);
+  }, [mode, correctionMode, processing, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex]);
 
   // No wrapper element of its own: CanvasViewport already provides the
   // positioned, clipped, full-size box these children lay out against.
@@ -844,9 +1000,9 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
           imageAlignment={store.imageAlignment}
           imageCrop={imageCrop}
           transform={viewport.transform}
-          outline={outline}
+          outline={cleanup.open || detectedPreview ? [] : outline}
           estimatedEdgeRegions={store.estimatedEdgeRegions}
-          selection={selection}
+          selection={detectedReview.showing || correctionMode ? null : selection}
           region={region}
           regionActive={mode === "region"}
           calibration={
@@ -886,12 +1042,26 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
           hoveredVertexIndex={hoveredVertexIndex}
           selectedVertexIndex={focusedPoint && sameRingRef(focusedPoint.ref, selection) ? focusedPoint.index : null}
           compactHandles={isMobile}
-          showVertices={mode === "edit" || mode === "remove"}
+          showVertices={!curveEditor.active && (mode === "edit" || mode === "remove")}
+          contourOverlay={<>{detectedPreview && <g data-testid="detected-outline-preview" pointerEvents="none">
+              <path d={outlineToPathData(detectedPreview)} fill="none" stroke="white" strokeWidth={5} vectorEffect="non-scaling-stroke" />
+              <path d={outlineToPathData(detectedPreview)} fill="none" stroke="#10b981" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+            </g>}{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
+            {correctionMode && [...store.detectionHints, ...(strokePreview ? [strokePreview] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
+              points={h.points.concat(h.points.length === 1 ? h.points : []).map(p => `${p.x},${p.y}`).join(" ")}
+              fill="none" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={.7} pointerEvents="none" />)}
+            {correctionMode && correctionMode !== "pan" && brushPoint && !processing && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld &&
+              <circle data-testid="correction-brush" cx={brushPoint.x} cy={brushPoint.y} r={brushRadius}
+                fill={correctionMode === "tool" ? "#16a34a33" : "#dc262633"} stroke={correctionMode === "tool" ? "#16a34a" : "#dc2626"}
+                strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
+          </>}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          onLostPointerCapture={event => { if (event.pointerId === correctionPointer.current) cancelStroke(); pointSelection.lostCapture(event); curveEditor.lostCapture(event); }}
           onPointerLeave={() => {
+            setBrushPoint(null);
             setHoveredVertexIndex(null);
             setMeasurementPointer(null);
             setPerspectivePointer(null);
@@ -907,18 +1077,20 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
       {imageUrl && (
         <>
           <CanvasToolbar position="top-left" className="max-md:flex-nowrap">
-            {isMobile ? <>
+            {correctionMode ? <CorrectionTools tool={correctionMode} busy={processing} hasMarks={store.detectionHints.length > 0}
+              onTool={tool => { cancelStroke(); setCorrectionMode(tool); }} onClear={() => onCorrection?.([])}
+              onDone={finishCorrection} /> : <>{isMobile ? <>
               <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
               {mode === "measure" ? <ModeButton mode="measure" icon={Ruler} label="Measure distance" />
                 : !calibration || mode === "calibrate" || mode === "perspective" ? <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
                 : mode === "region" || outline.length === 0 ? <ModeButton mode="region" icon={Crop} label="Region" disabled={!canSelectRegion} />
-                : <ModeButton mode="edit" icon={Spline} label="Edit contours" onSelect={focusContour} />}
+                : <ModeButton mode="edit" icon={Spline} label="Edit outline" onSelect={focusContour} />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11" aria-label="More trace tools"><Ellipsis className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   {([
                     { mode: "region", label: "Region", icon: Crop, disabled: !canSelectRegion },
-                    { mode: "edit", label: "Edit contours", icon: Spline, disabled: outline.length === 0 },
+                    { mode: "edit", label: "Edit outline", icon: Spline, disabled: outline.length === 0 },
                     { mode: "calibrate", label: "Set scale", icon: Scaling, disabled: false },
                     { mode: "measure", label: "Measure distance", icon: Ruler, disabled: measurementMmPerPx === null },
                   ] as const).map(tool => <DropdownMenuItem key={tool.mode} className="min-h-11" disabled={tool.disabled}
@@ -929,16 +1101,16 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
               <ModeButton mode="pan" icon={MousePointer2} label="Select" />
               <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
               <ModeButton mode="region" icon={Crop} label="Region" disabled={!canSelectRegion} />
-              <ModeButton mode="edit" icon={Spline} label="Edit contours" disabled={outline.length === 0} />
+              <ModeButton mode="edit" icon={Spline} label="Edit outline" disabled={outline.length === 0} />
               <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
               <ModeButton mode="measure" icon={Ruler} label="Measure distance" disabled={measurementMmPerPx === null} />
             </>}
+            {onCorrection && region && <CorrectButton unavailable={correctionUnavailable} hasMarks={store.detectionHints.length > 0}
+              onClick={() => { detectedReview.close(); cleanup.dismiss(); dispatch({ type: "SET_MODE", mode: "pan" }); setCorrectionMode("tool"); }} />}
+            </>}
           </CanvasToolbar>
+          {correctionMode && <span className="sr-only" role="status">{correctionMode === "tool" ? "Add missing tool material" : correctionMode === "paper" ? "Remove unwanted background" : "Pan photo"}. Strokes update the outline automatically.</span>}
 
-          {mobileEditing && <div className="absolute left-2 bottom-16 z-30">
-            <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
-              onDone={() => dispatch({ type: "SET_MODE", mode: "navigate" })} />
-          </div>}
           <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height} compact={isMobile}
             point={magnifiedPoint ? {
               x: viewport.transform.translateX + magnifiedPoint.x * viewport.transform.scale,
@@ -977,14 +1149,22 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
             />
           </CanvasToolbar>
 
-          {(mode === "edit" || mode === "remove") && selection && getRing(outline, selection) && (
-            <div className="absolute bottom-16 left-2 z-30 max-md:hidden">
-              <ContourEditTools removeActive={mode === "remove"}
+          {(curveEditor.controls || curveEditor.startButton) && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto">
+            {curveEditor.active ? curveEditor.controls : <div className="flex max-h-[60vh] max-w-xl flex-wrap items-center gap-2 overflow-y-auto rounded-lg border bg-background p-2 shadow-md" aria-label="Outline editing controls">
+              {curveEditor.startButton}
+              <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Select two endpoints for Repair section and preview a line or curve. Space-drag pans; Done leaves editing. Edits apply immediately and can be undone.</HelpHint>
+              {selection && getRing(outline, selection) && !isMobile && <ContourEditTools compact removeActive={mode === "remove"}
                 onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete}
                 selectionLabel={`Contour ${selection.shapeIndex + 1}${selection.ringIndex === OUTER_RING ? "" : ` · Hole ${selection.ringIndex + 1}`}`}
-                onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />
-            </div>
-          )}
+                onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />}
+              {isMobile && mobileEditor.selectedPoint && <Button size="sm" variant="outline" disabled={!mobileEditor.canRemove} onClick={mobileEditor.removeSelected}>Delete point</Button>}
+              {pointSelection.controls}
+              {(store.margin ?? 0) !== 0 && <span className="w-full text-xs">Set trace margin to zero to bend edges. Use Bin clearance to adjust fit.</span>}
+            </div>}
+          </div>}
+          {cleanup.open && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto" data-testid="outline-cleanup-panel">
+            <div className="max-h-[60vh] w-full overflow-y-auto rounded-xl border bg-background p-4 shadow-lg md:w-[23rem]" role="region" aria-label="Smooth outline preview">{cleanup.controls}</div>
+          </div>}
 
           <CanvasToolbar position="bottom-right">
             <IconButton
@@ -1018,15 +1198,16 @@ function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0 }: 
                 </>
               )}
             </span>
-            <span className="hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground md:inline">
+            <span className={cn("hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground", !correctionMode && "md:inline")}>
               {mode === "measure"
                 ? !measurement
                   ? "Click the first measurement point"
                   : measurement.end
                     ? "Click to start a new measurement"
                     : "Click the second measurement point"
+                : curveEditor.active ? "Click edge to add · Right-click point to delete · Drag edge to bend · Space pans"
                 : selection && (mode === "edit" || mode === "remove")
-                  ? "Drag points to move · Click an edge to add · Right-click a point to remove · Esc cancels"
+                  ? "Click edge to add · Right-click point to delete · Shift-click or box-select points · Space pans"
                   : mode === "pan"
                     ? "Click a contour to select · Empty space clears selection · Shift-drag pans"
                     : "Shift-drag pans · Ctrl-scroll zooms"}

@@ -11,6 +11,7 @@ import { buildBinWithCutouts, EXPORT_QUALITY } from "./bin";
 import { createBasicPocket } from "./basic-shape";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { surfaceTextOutline, surfaceTextZ } from "./surface-text";
+import { surfaceTextIssueText } from "./surface-text.test-support";
 
 describe("hardware symbol export", () => {
   it.each([2, 6, 40].flatMap(sizeMm => [-180, -45, 0, 90].map(symbolRotationDeg => ({ sizeMm, symbolRotationDeg }))))("preserves area, holes and pieces at $sizeMm mm / $symbolRotationDeg degrees", async ({ sizeMm, symbolRotationDeg }) => {
@@ -87,12 +88,12 @@ describe("hardware symbol export", () => {
     const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, surfaceTexts: [label] });
     await withKernel(kernel => {
       const build = (surfaceTexts: typeof spec.surfaceTexts) => buildBinWithCutouts(kernel, { ...spec, surfaceTexts }, null, EXPORT_QUALITY);
-      expect(() => build([{ ...label, position: { x: 21, y: 0 } }])).toThrow("must fit on the flat surface");
-      expect(() => build([{ ...label, text: "M3", symbolGapMm: 40 }])).toThrow("must fit on the flat surface");
-      expect(() => build([{ ...label, text: "                    M3" }])).toThrow("must fit on the flat surface");
-      expect(() => build([label, { ...label, id: "other" }])).toThrow("overlaps");
+      expect(surfaceTextIssueText(build([{ ...label, position: { x: 21, y: 0 } }]))).toContain("must fit on the flat surface");
+      expect(surfaceTextIssueText(build([{ ...label, text: "M3", symbolGapMm: 40 }]))).toContain("must fit on the flat surface");
+      expect(surfaceTextIssueText(build([{ ...label, text: "                    M3" }]))).toContain("must fit on the flat surface");
+      expect(surfaceTextIssueText(build([label, { ...label, id: "other" }]))).toContain("overlaps");
       const pocket = createBasicPocket("rectangle", { x: -8, y: -8 }, { x: 8, y: 8 }, "pocket")!;
-      expect(() => buildBinWithCutouts(kernel, spec, { cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [] }, EXPORT_QUALITY)).toThrow("must fit on the flat surface");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, spec, { cutouts: [pocket.cutout], shapesById: new Map([[pocket.shape.id, pocket.shape]]), fingerHoles: [] }, EXPORT_QUALITY))).toContain("must fit on the flat surface");
     });
   });
 });

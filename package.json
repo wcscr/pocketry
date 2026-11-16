@@ -1,8 +1,11 @@
 {
   "name": "rest-express",
-  "version": "1.6.0",
+  "version": "1.12.2",
   "type": "module",
   "license": "AGPL-3.0-only",
+  "engines": {
+    "node": "^26"
+  },
   "scripts": {
     "dev": "tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
@@ -58,6 +61,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
     "express": "^4.22.3",
+    "fast-xml-parser": "5.10.1",
     "fflate": "^0.8.3",
     "framer-motion": "^11.13.1",
     "idb-keyval": "^6.3.0",
@@ -72,6 +76,7 @@
     "react-icons": "^5.4.0",
     "react-resizable-panels": "^2.1.4",
     "recharts": "^2.13.0",
+    "svgpath": "2.6.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.180.0",
@@ -92,7 +97,7 @@
     "jsdom": "^30.0.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.19.1",
+    "tsx": "^4.23.15",
     "typescript": "5.6.3",
     "vite": "^6.4.4",
     "vitest": "4.1.11",

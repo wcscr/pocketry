@@ -143,6 +143,8 @@ describe("BinDesignerPage", () => {
     vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: "b", projects });
     vi.mocked(ProjectPersistence.openProjectFromLibrary).mockResolvedValue({ doc: first, project: projects[0], library: { activeProjectId: "a", projects } });
     const trace = vi.spyOn(TraceStoreReview, "useTrace").mockReturnValue({ ...TraceStoreReview.initialTraceState,
+      detectedOutlineReview: { showing: false, preview: null, pending: false, error: undefined, unavailable: undefined,
+        unchanged: false, hint: "", close: vi.fn(), setShowing: vi.fn(), useOutline: vi.fn() },
       dispatch: vi.fn(), canUndo: false, canRedo: false, undo: vi.fn(), redo: vi.fn(), draftSaveStatus: "saved",
       fileName: "Test tool", imageSize: { width: 100, height: 100 },
       calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
@@ -410,7 +412,8 @@ describe("BinDesignerPage", () => {
       expect(container.querySelector('[data-testid="export-blocked-reasons"]')?.textContent).toContain("3D export");
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-3mf"]')!.disabled).toBe(true);
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-export-issue="cutouts-require-solid-fill"]')!.click());
-      await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+      // Focus follows several animation frames, so wait for it rather than a fixed delay.
+      await vi.waitFor(() => expect(document.activeElement?.id).toBe("bin-solid-fill"));
       const solidFill = container.querySelector<HTMLButtonElement>('#bin-solid-fill')!;
       expect(solidFill.closest('[hidden], [inert]')).toBeNull();
       expect(document.activeElement).toBe(solidFill);

@@ -42,7 +42,7 @@ const RULER_3D_Z_FIGHT_OFFSET_MM = 0.25;
 const EMPTY_MEASUREMENT_OUTLINES: readonly Outline[] = [];
 const EMPTY_MEASUREMENT_PATHS: MeasurementPaths = [];
 
-export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim" | "text";
+export type MaterialColorTarget = "bin" | "pocket-floor" | "stacking-rim" | "label-background" | "text";
 
 /** A lost GPU context must not take the project, history, or Layout view down. */
 class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -76,6 +76,9 @@ export interface BinViewportProps {
   pocketFloorGeometry?: BufferGeometry | null;
   /** Exact printable lip crest or flush border material volume. */
   stackingRimGeometry?: BufferGeometry | null;
+  /** Exact printable material below the label writing surface. */
+  labelBackgroundGeometry?: BufferGeometry | null;
+  labelBackgroundColor?: string;
   /** Separate raised labels sharing the project text color. */
   textGeometries?: { label: SurfaceText; geometry: BufferGeometry }[];
   textColor?: string;
@@ -282,6 +285,8 @@ export function BinViewport({
   showPocketOutlines = true,
   pocketFloorGeometry = null,
   stackingRimGeometry = null,
+  labelBackgroundGeometry = null,
+  labelBackgroundColor = BIN_BODY_COLOR,
   textGeometries = [],
   textColor = STACKING_RIM_COLOR,
   surfaceTextEditor,
@@ -473,6 +478,10 @@ export function BinViewport({
             />
           </mesh>
         ) : null}
+        {labelBackgroundGeometry && <mesh geometry={labelBackgroundGeometry}>
+          <meshStandardMaterial color={labelBackgroundColor} roughness={0.55} metalness={0.02}
+            polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+        </mesh>}
         {textGeometries.map(part => {
           const display = surfaceTextEditor?.label.id === part.label.id ? textPreview ?? surfaceTextEditor.label : part.label;
           return <group key={part.label.id} position={[display.position.x, display.position.y, 0]}
@@ -616,7 +625,7 @@ export function BinViewport({
       ) : null}
 
       {(hasPocketFloor && showPocketFloorColor) ||
-      (hasStackingRim && showStackingRimColor) || textGeometries.length > 0 ? (
+      (hasStackingRim && showStackingRimColor) || labelBackgroundGeometry || textGeometries.length > 0 ? (
         <div
           className="absolute bottom-3 left-3 flex max-h-24 max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 overflow-auto rounded-xl border bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur"
           data-testid="material-color-legend"
@@ -664,6 +673,12 @@ export function BinViewport({
               Rim top
             </button>
           ) : null}
+          {labelBackgroundGeometry && <button type="button"
+            className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onEditColor("label-background")} title="Edit label background color">
+            <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ backgroundColor: labelBackgroundColor }} aria-hidden="true" />
+            Label background
+          </button>}
           {textGeometries.length > 0 && (
             <button type="button" className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onEditColor("text")} title="Edit text color">
@@ -695,7 +710,7 @@ export function BinViewport({
         <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 mx-auto w-fit max-w-[80%] rounded-md bg-destructive/90 px-3 py-1.5 text-xs text-destructive-foreground shadow">
           {error}
           {onPositionText && <Button variant="outline" size="sm" className="pointer-events-auto ml-2 text-foreground" onClick={onPositionText}>Position text in Layout</Button>}
-          {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2" onClick={onRetryPreview}>Retry preview</Button>}
+          {onRetryPreview && <Button variant="outline" size="sm" className="pointer-events-auto ml-2 text-foreground" onClick={onRetryPreview}>Retry preview</Button>}
         </div>
       ) : null}
     </div>

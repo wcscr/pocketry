@@ -164,16 +164,16 @@ describe("bin preview worker lifecycle", () => {
   it("clears an obsolete bin and all material meshes when the current design fails, then recovers", async () => {
     const label = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 3, surfaceTexts: [{ id: "label", text: "A", position: { x: 0, y: 0 } }] }).surfaceTexts[0];
     const old = { ...resultFor(1), materialMeshes: { body: resultFor(2).mesh,
-      pocketFloors: resultFor(3).mesh, stackingRim: resultFor(4).mesh },
+      pocketFloors: resultFor(3).mesh, stackingRim: resultFor(4).mesh, labelBackground: resultFor(6).mesh },
       textMeshes: [{ label, z: 21, mesh: resultFor(5).mesh }] };
     await render(2); await tick(); await reply(() => worker().finish(0, old));
-    const meshes = [state!.geometry!, state!.pocketFloorGeometry!, state!.stackingRimGeometry!, state!.textGeometries[0].geometry];
+    const meshes = [state!.geometry!, state!.pocketFloorGeometry!, state!.stackingRimGeometry!, state!.labelBackgroundGeometry!, state!.textGeometries[0].geometry];
     const disposals = meshes.map(mesh => vi.spyOn(mesh, "dispose"));
     await render(3); await tick();
     expect(state!.geometry).toBe(meshes[0]);
     await reply(() => worker().fail(1));
     expect(state!.geometry).toBeNull(); expect(state!.builtSpec).toBeNull();
-    expect(state!.pocketFloorGeometry).toBeNull(); expect(state!.stackingRimGeometry).toBeNull();
+    expect(state!.pocketFloorGeometry).toBeNull(); expect(state!.stackingRimGeometry).toBeNull(); expect(state!.labelBackgroundGeometry).toBeNull();
     expect(state!.textGeometries).toEqual([]);
     expect(state!.hasPocketFloor).toBe(false); expect(state!.hasStackingRim).toBe(false);
     expect(state!.statsAreStale).toBe(true); expect(state!.error).toBe("Bad geometry");

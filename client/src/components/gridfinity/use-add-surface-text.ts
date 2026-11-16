@@ -1,21 +1,29 @@
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
 import { placeSurfaceTextOnTab } from "@/lib/gridfinity/surface-text";
+import { placeSurfaceTextOnSurface, surfaceTextObstacles } from "@/lib/gridfinity/surface-text-placement";
 import { revealPanelSection } from "@/components/layout/panel-section";
 import { usePanelState } from "@/components/layout/panel-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useBin } from "@/state/bin-store";
+import { useShapeLibrary } from "@/state/shape-library";
 import { useSelectionInspector } from "./selection-inspector-context";
 
 /** Both creation entry points select the new label and open Layout for placement. */
 export function useAddSurfaceText(onAdd?: () => void): () => void {
-  const { spec, dispatch } = useBin();
+  const { spec, cutouts, fingerHoles, dispatch } = useBin();
+  const { shapes } = useShapeLibrary();
   const { setPanelOpen } = usePanelState();
   const isMobile = useIsMobile();
   const inspector = useSelectionInspector();
   return () => {
     if (spec.surfaceTexts.length >= 32) return;
     onAdd?.();
-    const label = placeSurfaceTextOnTab(spec, surfaceTextSchema.parse({ id: crypto.randomUUID(), text: "Text", font: "helvetiker", position: { x: 0, y: 0 } }));
+    const fresh = surfaceTextSchema.parse({ id: crypto.randomUUID(), text: "Text", font: "helvetiker", position: { x: 0, y: 0 } });
+    // Tabs take the next empty shelf; solid fill starts at the first clear spot instead of over a pocket.
+    const onTab = placeSurfaceTextOnTab(spec, fresh);
+    const label = onTab === fresh
+      ? placeSurfaceTextOnSurface(spec, fresh, surfaceTextObstacles(spec, cutouts, shapes, fingerHoles))
+      : onTab;
     dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [...spec.surfaceTexts, label] }, historyLabel: "Add surface text" });
     dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
     dispatch({ type: "SET_VIEW_MODE", viewMode: "2d" });

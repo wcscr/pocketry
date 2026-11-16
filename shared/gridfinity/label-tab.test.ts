@@ -3,11 +3,12 @@ import { defaultLabelTabWall, labelTabProfileMm, labelTabRecessMm, labelTabFront
   labelTabDepthMm, labelTabWidthMm } from "./label-tab";
 import { compartmentLayout, compartmentLabelTabPlacements } from "./compartments";
 import { parseBinSpec } from "./types";
-import { labelTabTopZ, labelTabSurfaces, moveTextsWithLabelTabRecess } from "./label-tab-surfaces";
+import { labelTabTopZ, labelTabSurfaces, moveTextsWithLabelTabs, pointOnLabelTab, textsAfterLabelTabEdit } from "./label-tab-surfaces";
 import { validateBinSpec, labelTabStripMm } from "./validate";
 import { ringBounds } from "../geometry/rings";
 import { surfaceTextSchema } from "./surface-text";
 import { TAB_DEPTH_MM, TAB_WIDTH_NOMINAL_MM, TAB_SUPPORT_HEIGHT_MM, TAB_SUPPORT_ANGLE_DEG } from "./standard";
+import { labelledTabGrid } from "./label-tab.test-support";
 
 describe("label tab sizing", () => {
   const bin = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6, fill: "none", lip: "none",
@@ -76,7 +77,7 @@ describe("label tab sizing", () => {
     const before = parseBinSpec({ ...bin, wallThicknessMm: 1.6, wallSlant: { axis: "y", angleDeg: 30 }, surfaceTexts: [label] });
     const after = parseBinSpec({ ...before, labelTab: { ...before.labelTab, depthMm: 1, widthMm: 1 } });
     expect(after.surfaceTexts).toEqual(before.surfaceTexts);
-    expect(moveTextsWithLabelTabRecess(before, after)).toBe(after.surfaceTexts);
+    expect(moveTextsWithLabelTabs(before, after)).toBe(after.surfaceTexts);
     expect(labelTabSurfaces(after)).toEqual([]);
   });
 
@@ -142,14 +143,14 @@ describe("label tab defaults", () => {
         position: { x: (b.minX + b.maxX) / 2 + 0.3, y: (b.minY + b.maxY) / 2 - 0.2 } });
     });
     const next = parseBinSpec({ ...previous, labelTab: { ...previous.labelTab, recessMm: 0.4 } });
-    next.surfaceTexts = moveTextsWithLabelTabRecess(previous, next);
+    next.surfaceTexts = moveTextsWithLabelTabs(previous, next);
     labelTabSurfaces(next).forEach((surface, i) => {
       const b = ringBounds(surface.ring)!, label = next.surfaceTexts[i];
       expect(label.position.x).toBeCloseTo((b.minX + b.maxX) / 2 + 0.3);
       expect(label.position.y).toBeCloseTo((b.minY + b.maxY) / 2 - 0.2);
       expect({ ...label, position: previous.surfaceTexts[i].position }).toEqual(previous.surfaceTexts[i]);
     });
-    moveTextsWithLabelTabRecess(next, { ...previous, surfaceTexts: next.surfaceTexts }).forEach((label, i) => {
+    moveTextsWithLabelTabs(next, { ...previous, surfaceTexts: next.surfaceTexts }).forEach((label, i) => {
       expect(label.position.x).toBeCloseTo(previous.surfaceTexts[i].position.x);
       expect(label.position.y).toBeCloseTo(previous.surfaceTexts[i].position.y);
     });
@@ -167,5 +168,123 @@ describe("label tab defaults", () => {
   it("uses the back for upright walls", () => {
     expect(defaultLabelTabWall({ wallSlant: null })).toBe("north");
     expect(defaultLabelTabWall({ wallSlant: { axis: "x", angleDeg: 0 } })).toBe("north");
+  });
+});
+
+describe("labels follow their sub-bin when the grid changes", () => {
+  const grid = (rows: number, columns: number, base = slanted) => parseBinSpec({ ...base, compartments: { ...base.compartments, rows, columns } });
+  const slanted = parseBinSpec({ gridPitch: "half", gridX: 4, gridY: 4, heightUnits: 5.5, fill: "none", lip: "none",
+    wallSlant: { axis: "y", angleDeg: 30 }, compartments: { rows: 2, columns: 3 },
+    labelTab: { wall: "south", scope: "compartments", recessMm: 0.5, frontRim: true } });
+  /** One label per shelf, nudged off-centre so the preserved offset is visible. */
+  const labelled = (spec: typeof slanted) => ({ ...spec, surfaceTexts: labelTabSurfaces(spec).map(surface => {
+    const b = ringBounds(surface.ring)!;
+    return surfaceTextSchema.parse({ id: surface.key, text: "M2x8", sizeMm: 3.2, rotationDeg: 180, surface: "label-tab",
+      position: { x: (b.minX + b.maxX) / 2 + 0.4, y: (b.minY + b.maxY) / 2 - 0.1 } });
+  }) });
+  const shelfOf = (spec: typeof slanted, id: string) => {
+    const label = spec.surfaceTexts.find(item => item.id === id)!;
+    return labelTabSurfaces(spec).find(surface => pointOnLabelTab(label.position, surface))?.key;
+  };
+
+  it("keys sub-bin shelves by row and column, front row and left column first", () => {
+    expect(labelTabSurfaces(slanted).map(surface => surface.key)).toEqual(["r0c0", "r0c1", "r0c2", "r1c0", "r1c1", "r1c2"]);
+    expect(labelTabSurfaces(parseBinSpec({ ...slanted, compartments: { ...slanted.compartments, enabled: false },
+      labelTab: { ...slanted.labelTab, scope: "outer" } })).map(surface => surface.key)).toEqual(["outer"]);
+  });
+
+  it.each([[2, 4], [3, 3], [2, 2], [1, 3], [3, 4]])("keeps every surviving label on its own shelf at %i × %i", (rows, columns) => {
+    const before = labelled(slanted);
+    const after = { ...grid(rows, columns), surfaceTexts: before.surfaceTexts };
+    after.surfaceTexts = moveTextsWithLabelTabs(before, after);
+    for (const label of before.surfaceTexts) {
+      const [row, column] = label.id.slice(1).split("c").map(Number);
+      const moved = after.surfaceTexts.find(item => item.id === label.id)!;
+      const { orphanedTab, ...design } = moved;
+      expect({ ...design, position: label.position }).toEqual(label);
+      if (row < rows && column < columns) {
+        expect(orphanedTab).toBeUndefined();
+        expect(shelfOf(after, label.id)).toBe(label.id);
+        const b = ringBounds(labelTabSurfaces(after).find(surface => surface.key === label.id)!.ring)!;
+        expect(moved.position.x).toBeCloseTo((b.minX + b.maxX) / 2 + 0.4);
+        expect(moved.position.y).toBeCloseTo((b.minY + b.maxY) / 2 - 0.1);
+      } else {
+        // Its sub-bin is gone: the label stays put and the build reports it.
+        expect(moved.position).toEqual(label.position);
+        expect(orphanedTab?.key).toBe(label.id);
+      }
+    }
+  });
+
+  it.each(["none", "standard"] as const)("remembers removed rows and columns across committed edits with %s lip", lip => {
+    for (const [rows, columns, nextRows, nextColumns] of [[1, 3, 1, 2], [3, 1, 2, 1]]) {
+      const before = labelledTabGrid(rows, columns, lip);
+      let after = parseBinSpec({ ...before, compartments: { ...before.compartments, rows: nextRows, columns: nextColumns } });
+      after.surfaceTexts = textsAfterLabelTabEdit(before, before, after);
+      expect(after.surfaceTexts[0].position).toEqual(before.surfaceTexts[0].position);
+      expect(after.surfaceTexts[0].orphanedTab?.key).toBe(`r${rows - 1}c${columns - 1}`);
+      // Other committed edits must not infer ownership from the unchanged coordinates.
+      const resized = parseBinSpec({ ...after, gridX: 3, gridY: 3 });
+      resized.surfaceTexts = textsAfterLabelTabEdit(after, after, resized);
+      expect(resized.surfaceTexts).toEqual(after.surfaceTexts);
+      const restored = parseBinSpec({ ...resized, gridX: before.gridX, gridY: before.gridY, compartments: before.compartments });
+      restored.surfaceTexts = textsAfterLabelTabEdit(resized, resized, restored);
+      expect(restored.surfaceTexts[0].orphanedTab).toBeUndefined();
+      expect(restored.surfaceTexts[0].position.x).toBeCloseTo(before.surfaceTexts[0].position.x, 9);
+      expect(restored.surfaceTexts[0].position.y).toBeCloseTo(before.surfaceTexts[0].position.y, 9);
+    }
+  });
+
+  it("restores the original layout when a typed grid edit passes through other sizes", () => {
+    const committed = labelled(slanted);
+    let current = committed;
+    for (const columns of [1, 12, 4, 3]) {
+      const next = grid(2, columns, { ...current, surfaceTexts: current.surfaceTexts });
+      current = { ...next, surfaceTexts: textsAfterLabelTabEdit(committed, current, next) };
+    }
+    current.surfaceTexts.forEach((label, i) => {
+      expect(label.position.x).toBeCloseTo(committed.surfaceTexts[i].position.x, 9);
+      expect(label.position.y).toBeCloseTo(committed.surfaceTexts[i].position.y, 9);
+    });
+    const unchanged = { ...committed };
+    expect(textsAfterLabelTabEdit(committed, committed, unchanged)).toBe(unchanged.surfaceTexts);
+  });
+
+  it("does not undo a label edit that is still in progress", () => {
+    const committed = labelled(slanted);
+    const dragged = { ...committed, surfaceTexts: committed.surfaceTexts.map((label, i) => i ? label
+      : { ...label, position: { x: label.position.x + 1, y: label.position.y } }) };
+    const next = { ...grid(2, 4, dragged), surfaceTexts: dragged.surfaceTexts };
+    const texts = textsAfterLabelTabEdit(committed, dragged, next);
+    const b = ringBounds(labelTabSurfaces(next).find(surface => surface.key === "r0c0")!.ring)!;
+    expect(texts[0].position.x).toBeCloseTo((b.minX + b.maxX) / 2 + 1.4);
+  });
+
+  it("keeps parse-time retargeting while moving labels", () => {
+    const committed = labelled(slanted);
+    const next = { ...grid(2, 4), surfaceTexts: committed.surfaceTexts.map(label => ({ ...label, name: "renamed" })) };
+    expect(textsAfterLabelTabEdit(committed, committed, next).every(label => label.name === "renamed")).toBe(true);
+  });
+});
+
+describe("tab size edits keep text in place", () => {
+  it("does not move labels when only the tab depth, width style or front rim changes", () => {
+    const committed = parseBinSpec({ gridPitch: "half", gridX: 4, gridY: 4, heightUnits: 5.5, fill: "none", lip: "none",
+      compartments: { rows: 2, columns: 3 }, labelTab: { wall: "south", scope: "compartments", recessMm: 0.5, frontRim: true } });
+    committed.surfaceTexts = labelTabSurfaces(committed).map(surface => {
+      const b = ringBounds(surface.ring)!;
+      return surfaceTextSchema.parse({ id: surface.key, text: "M3", sizeMm: 3, surface: "label-tab",
+        position: { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } });
+    });
+    for (const labelTab of [{ depthMm: 8 }, { width: "left" as const, widthMm: 15 }, { frontRim: false }]) {
+      const next = parseBinSpec({ ...committed, labelTab: { ...committed.labelTab, ...labelTab } });
+      expect(textsAfterLabelTabEdit(committed, committed, next)).toBe(next.surfaceTexts);
+    }
+    // A combined grid edit still moves labels with their sub-bin, ignoring the size change.
+    const both = parseBinSpec({ ...committed, compartments: { ...committed.compartments, columns: 4 }, labelTab: { ...committed.labelTab, depthMm: 8 } });
+    const moved = textsAfterLabelTabEdit(committed, committed, both);
+    expect(moved[0].position.x).not.toBeCloseTo(committed.surfaceTexts[0].position.x);
+    const cols4 = parseBinSpec({ ...committed, compartments: { ...committed.compartments, columns: 4 } });
+    expect(moved[0].position.x).toBeCloseTo(textsAfterLabelTabEdit(committed, committed, cols4)[0].position.x);
   });
 });

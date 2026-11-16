@@ -1,5 +1,8 @@
 # Detector backend validation
 
+**Historical validation:** commands, runtime, and results below describe the recorded
+revisions. Current checks use [CLAUDE.md](../CLAUDE.md) and Node 26.
+
 Initial comparison, 2026-10-05, against `73a834a812f24ad0b8ea52cdf7a883a5b1a91d39`.
 Revalidated on 2026-10-06 after integrating main at `7233310c`.
 The integration required only a changelog conflict resolution; detector code is unchanged.

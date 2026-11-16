@@ -11,8 +11,10 @@ import { useSelectionInspector } from "./selection-inspector-context";
 import { useObjectToolbar } from "./object-toolbar-context";
 
 /** Millimetre SVG outlines share the printable font, including letter holes. */
-export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edgeBandColor = STACKING_RIM_COLOR }: {
+export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edgeBandColor = STACKING_RIM_COLOR, invalidIds }: {
   interactive: boolean; onSelect?: (id: string, inline?: boolean) => void; inverseScale?: number; edgeBandColor?: string;
+  /** Labels the build left out (blocked or overlapping); outlined like conflicting pockets. */
+  invalidIds?: ReadonlySet<string>;
 }): JSX.Element {
   const { spec, selectedSurfaceTextId, dispatch, history, textTool, textSnap } = useBin();
   const inspector = useSelectionInspector();
@@ -172,9 +174,11 @@ export function SurfaceTextLayer({ interactive, onSelect, inverseScale = 1, edge
           cannot select or move a pocket underneath the label. */}
       {bounds && <rect x={bounds.minX - 0.5} y={bounds.minY - 0.5}
         width={bounds.maxX - bounds.minX + 1} height={bounds.maxY - bounds.minY + 1}
-        className={interactive && selectedSurfaceTextId === label.id ? "fill-transparent stroke-primary" : interactive ? "fill-transparent stroke-transparent group-hover:stroke-primary/50" : "fill-transparent stroke-transparent"}
-        strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke"
-        pointerEvents={interactive ? "all" : "none"} data-testid={`surface-text-hit-${label.id}`} />}
+        className={invalidIds?.has(label.id) ? "fill-destructive/10 stroke-destructive"
+          : interactive && selectedSurfaceTextId === label.id ? "fill-transparent stroke-primary" : interactive ? "fill-transparent stroke-transparent group-hover:stroke-primary/50" : "fill-transparent stroke-transparent"}
+        strokeWidth={invalidIds?.has(label.id) ? 1.5 : 1} strokeDasharray={invalidIds?.has(label.id) ? undefined : "3 3"} vectorEffect="non-scaling-stroke"
+        pointerEvents={interactive ? "all" : "none"} data-testid={`surface-text-hit-${label.id}`}
+        data-invalid={invalidIds?.has(label.id) || undefined} />}
       <path d={d} fillRule="nonzero" fill={spec.textColor ?? edgeBandColor}
         stroke="currentColor" strokeOpacity={0.35} strokeWidth={0.6} vectorEffect="non-scaling-stroke"
         pointerEvents="none" data-testid={`surface-text-${label.id}`} />

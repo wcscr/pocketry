@@ -15,7 +15,7 @@ import { ObjectGroupControls } from "./object-group-controls";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
 import { profileFootprint, hasProfileRotation } from "@shared/gridfinity/profile-bottom";
-import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
+import { usePocketGeometryPreview } from "@/hooks/use-pocket-geometry";
 import { resolvePocketDepth } from "@shared/gridfinity/cutout";
 import {
   Ruler,
@@ -91,6 +91,8 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { Button } from "@/components/ui/button";
 import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { useCurveEditor } from "@/components/canvas/use-curve-editor";
+import { CURVE_TOLERANCE_MM } from "@shared/geometry/curves";
 import { MobileContourTools } from "@/components/canvas/mobile-contour-tools";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
 import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
@@ -251,22 +253,25 @@ function nearestContourEdge(
   return best;
 }
 
-export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0 }: {
+export function LayoutCanvas({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest = 0, invalidSurfaceTextIds }: {
   /** Called on a pocket tap or the explicit edit action, after any drag ends. */
   onEditPocket?: () => void;
   onSelectSurfaceText?: (id: string, inline?: boolean) => void;
   edgeBandColor?: string;
   /** A placement request exits canvas tools that intercept label dragging. */
   textPositionRequest?: number;
+  /** Labels the last build could not place; outlined until moved. */
+  invalidSurfaceTextIds?: ReadonlySet<string>;
 } = {}): JSX.Element {
   return (
     <CanvasViewport>
-      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest} />
+      <LayoutStage onEditPocket={onEditPocket} onSelectSurfaceText={onSelectSurfaceText} edgeBandColor={edgeBandColor} textPositionRequest={textPositionRequest}
+        invalidSurfaceTextIds={invalidSurfaceTextIds} />
     </CanvasViewport>
   );
 }
 
-function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number }): JSX.Element {
+function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPositionRequest, invalidSurfaceTextIds }: { onEditPocket?: () => void; onSelectSurfaceText?: (id: string, inline?: boolean) => void; edgeBandColor?: string; textPositionRequest: number; invalidSurfaceTextIds?: ReadonlySet<string> }): JSX.Element {
   const openObjectMenu = useBinObjectContextMenu();
   const toolbar = useObjectToolbar();
   const inspector = useSelectionInspector();
@@ -378,7 +383,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   // Transformed pocket outlines, recomputed per change — pure math over
   // recomputed per change — pure math over ≤150-point rings, cheap enough
   // per drag frame.
-  const profileOutlines = usePocketGeometry(cutouts, shapesById, spec);
+  const { outlines: profileOutlines, status: outlineStatus } = usePocketGeometryPreview(cutouts, shapesById, spec);
   const placed = useMemo(
     () =>
       cutouts.flatMap((cutout) => {
@@ -460,6 +465,22 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [layoutIssues]);
 
   const selected = placed.find((p) => p.cutout.id === selectedCutoutId) ?? null;
+  const curveEditor = useCurveEditor({
+    outline: selected?.shape.outlineMm ?? [], curves: selected?.shape.curvesMm,
+    enabled: editorMode === "contour" && !!selected && !panActive && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout),
+    contextKey: selectedCutoutId ?? "", scale, tolerance: CURVE_TOLERANCE_MM,
+    fitUnitsPerUnit: selected ? Math.max(selected.cutout.scaleX, selected.cutout.scaleY) : 1,
+    onDone: () => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }),
+    viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
+    fromClient: (x, y) => { const p = toBin(x, y); return p && selected ? untransformPointPlacement(p, selected.cutout) : null; },
+    toCanvas: p => selected ? binToCanvas(transformPointPlacement(p, selected.cutout), spec) : p,
+    onCommit: (curves, label) => {
+      if (!selected) return;
+      const revision = reviseTracedShape(selected.shape, selected.shape.outlineMm, crypto.randomUUID(), curves);
+      storeShape(revision);
+      dispatch({ type: "UPDATE_CUTOUT", id: selected.cutout.id, patch: { shapeId: revision.id }, historyLabel: label });
+    },
+  });
   useEffect(() => {
     if ((selected?.cutout.profileBottom || (selected && hasPocketTilt(selected.cutout))) && (editorMode === "contour" || editorMode === "split")) {
       dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" });
@@ -467,7 +488,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [selected?.cutout.profileBottom, editorMode, dispatch]);
   const desktopPoint = useContourPointFocus({
     outline: selected?.shape.outlineMm ?? [],
-    enabled: !isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
+    enabled: !curveEditor.active && !isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
     contextKey: selectedCutoutId,
   });
   const splitEditor = usePocketSplit({ cutout: selected?.cutout ?? null, shape: selected?.shape ?? null,
@@ -715,7 +736,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const mobileEditor = useMobileContourEditor({
-    enabled: isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
+    enabled: !curveEditor.active && isMobile && editorMode === "contour" && !!selected && !selected.cutout.profileBottom && !hasPocketTilt(selected.cutout) && !panActive,
     outline: selected?.shape.outlineMm ?? [],
     selectionKey: selectedCutoutId,
     toLocal: point => {
@@ -836,6 +857,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (curveEditor.down(event)) return;
     if (mobileEditor.down(event)) return;
     if (!panActive && editorMode === "placement" && !rulerActive && event.button === 0 && !viewport.isSpaceHeld && (event.shiftKey || event.metaKey || event.ctrlKey)) {
       const point = toBin(event.clientX, event.clientY);
@@ -1141,6 +1163,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (curveEditor.move(event)) return;
     if (mobileEditor.move(event)) return;
     if (panActive) { viewport.handlers.onPointerMove(event); return; }
     if (editorMode === "footprint" && event.pointerType === "touch") {
@@ -1307,6 +1330,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (curveEditor.end(event)) return;
     if (mobileEditor.end(event)) return;
     desktopPoint.finish();
     if (panActive) { viewport.handlers.onPointerUp(event); return; }
@@ -1404,6 +1428,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       if (target && openObjectMenu?.(target, contextMenuPoint(event))) event.preventDefault();
       return;
     }
+    if (curveEditor.contextMenu(event)) return;
     if (editorMode !== "contour") return;
     event.preventDefault();
     const handle = contourHandle(event.target as Element);
@@ -1769,11 +1794,12 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
         style={{ cursor }}
         data-testid="layout-canvas"
+        aria-busy={outlineStatus === "pending"}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onLostPointerCapture={basicPocket.cancel}
+        onLostPointerCapture={event => { basicPocket.cancel(); curveEditor.lostCapture(event); }}
         onContextMenu={handleContextMenu}
       >
         <g
@@ -1883,6 +1909,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             })}
 
           {placed.map(({ cutout, shape, outline }) => {
+            const placementGuide = !!(cutout.profileBottom || hasRigidPocket(cutout)) && !profileOutlines.has(cutout.id);
             const severity = severityByCutout.get(cutout.id);
             const isSelected = selection.some(ref => ref.kind === "pocket" && ref.id === cutout.id);
             const tone = cutout.role === "hole" ? "fill-background/80 stroke-emerald-600" : cutout.depthPending ? "fill-primary/10 stroke-primary" :
@@ -1901,14 +1928,15 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
                   strokeWidth={1} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" data-testid="profile-pocket-envelope"><title>Full profile footprint; raised portions may be above the fill surface</title></path>}
                 {isSelected && hasPocketTilt(cutout) && !hasRigidPocket(cutout) && <path d={outlineToCanvasPath(pocketOccupiedOutline(shape, cutout, spec), spec)} fill="none" className="pointer-events-none stroke-muted-foreground" strokeWidth={1} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" data-testid="tilted-pocket-envelope"><title>Conservative shaft extent below the opening and through the rim</title></path>}
                 <path
-                  d={outlineToCanvasPath(hasRigidPocket(cutout) ? profileOutlines.get(cutout.id)?.opening ?? [] : cutout.profileBottom ? profileOutlines.get(cutout.id)?.opening ?? profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ) : outline, spec)}
+                  d={outlineToCanvasPath(hasRigidPocket(cutout) ? profileOutlines.get(cutout.id)?.opening ?? outline : cutout.profileBottom ? profileOutlines.get(cutout.id)?.opening ?? profileFootprint(shape.outlineMm, cutout, resolvePocketDepth(spec, { mode: "through" }).infillTopZ) : outline, spec)}
                   fillRule={cutout.profileBottom ? "nonzero" : "evenodd"}
                   className={tone}
-                  strokeWidth={(cutout.profileBottom || hasRigidPocket(cutout)) && !profileOutlines.has(cutout.id) ? 0 : isSelected ? 2 : 1.25}
+                  strokeWidth={isSelected ? 2 : 1.25}
                   vectorEffect="non-scaling-stroke"
                   data-cutout-id={cutout.id}
-                  strokeDasharray={cutout.role === "hole" || cutout.depthPending || overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
-                ><title>{cutout.role === "hole" ? "Hole: keeps material. " : ""}{cutout.depthPending ? "Depth needed. " : ""}{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
+                  data-placement-guide={placementGuide || undefined}
+                  strokeDasharray={placementGuide || cutout.role === "hole" || cutout.depthPending || overlappingCutouts.has(cutout.id) ? "5 3" : undefined}
+                ><title>{placementGuide ? "Placement guide; exact opening unavailable. " : ""}{cutout.role === "hole" ? "Hole: keeps material. " : ""}{cutout.depthPending ? "Depth needed. " : ""}{boundaryCutouts.has(cutout.id) ? "Boundary conflict. " : ""}{overlappingCutouts.has(cutout.id) ? "Overlapping pockets. " : ""}{pocketName(cutout, shapesById.get(cutout.shapeId))}</title></path>
                 {cutout.split && !cutout.profileBottom && !hasPocketTilt(cutout) && (() => {
                   const split = resolvePocketSplit(shape.outlineMm, cutout.split.boundary);
                   const boundary = (split.boundary ?? cutout.split.boundary).map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
@@ -2043,9 +2071,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
           {/* Labels must remain visible and receive pointer events above the
               pockets/openings they may overlap while being positioned. */}
-          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
+          <SurfaceTextLayer inverseScale={inv} onSelect={onSelectSurfaceText} edgeBandColor={edgeBandColor} invalidIds={invalidSurfaceTextIds} interactive={editorMode === "placement" && !rulerActive && !panActive && !viewport.isSpaceHeld} />
 
-          {editorMode === "contour" &&
+          {curveEditor.overlay}
+          {!curveEditor.active && editorMode === "contour" &&
             selected &&
             selected.shape.outlineMm.flatMap((shape, shapeIndex) => {
               const rings = [
@@ -2284,9 +2313,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         </div>
       ) : null}
 
-      {(overlappingCutouts.size > 0 || boundaryCutouts.size > 0) && <div className="pointer-events-none absolute right-3 top-14 rounded border bg-background/95 px-2 py-1 text-xs shadow-sm" aria-label="Layout issue legend">
-        <p className="text-destructive">Red: boundary conflict</p>
-        <p className="text-orange-700 dark:text-orange-300">Dashed outline: overlapping pockets</p>
+      {(outlineStatus !== "ready" || overlappingCutouts.size > 0 || boundaryCutouts.size > 0) && <div className="pointer-events-none absolute right-3 top-14 max-w-[calc(100%-1.5rem)] rounded border bg-background/95 px-2 py-1 text-xs shadow-sm" aria-label="Layout issue legend">
+        {outlineStatus !== "ready" && <p role="status">{outlineStatus === "pending" ? "Updating pocket outlines…" : "Pocket outlines unavailable."} Dashed guides show placement.</p>}
+        {boundaryCutouts.size > 0 && <p className="text-destructive">Red: boundary conflict</p>}
+        {overlappingCutouts.size > 0 && <p className="text-orange-700 dark:text-orange-300">Orange: overlapping pockets</p>}
       </div>}
 
       {showObjectControls && !selectedSurfaceTextId && <ObjectTransformPanel view="2d" disabled={panActive}
@@ -2304,12 +2334,14 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
 
       {editorMode === "contour" && selected && !panActive ? (
         <div className="bin-canvas-guidance absolute bottom-2 left-2 z-30">
-          {isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
+          {curveEditor.active ? curveEditor.controls : isMobile ? <MobileContourTools selected={!!mobileEditor.selectedPoint} canRemove={mobileEditor.canRemove} onRemove={mobileEditor.removeSelected}
             onDone={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })} /> :
             <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices}
               onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete} />}
+          {curveEditor.startButton}
           <WorkflowHint hintKey="contour-edit" className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
-            {isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
+            {curveEditor.active ? "Drag an edge to bend · Drag handles to shape · Esc cancels a drag" :
+            isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
               : removeVertices ? "Tap a vertex to remove it · Undo restores it" : "Drag points to move · Click near an edge to add · Select a point for Delete"}
           </WorkflowHint>
         </div>

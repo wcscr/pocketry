@@ -1,7 +1,7 @@
 # Bin designer implementation reference
 
 This describes the current implementation, checked against the source on
-November 4, 2026. The filename is retained for existing links; this is not a
+November 15, 2026 (`a627ee6b`, version 1.12.0). The filename is retained for existing links; this is not a
 roadmap. [GitHub issues](https://github.com/wcscr/pocketry/issues) track enhancement
 requests and problem reports. See the [documentation index](README.md) for
 feature references and dated investigation records, and [CHANGELOG.md](../CHANGELOG.md)
@@ -11,14 +11,14 @@ for user-visible changes.
 
 | Area | Implemented behavior | Reference |
 | --- | --- | --- |
-| Inputs | Calibrated photo traces and drawn rectangle, square, or circle pockets; outlines remain editable | [Trace](../client/src/pages/trace.tsx), [Bin](../client/src/pages/bin-designer.tsx) |
+| Inputs | Calibrated photo traces, closed SVG outlines in Trace/Bin, and drawn rectangle, square, or circle pockets; outlines remain editable | [Trace](../client/src/pages/trace.tsx), [Bin](../client/src/pages/bin-designer.tsx) |
 | Footprints and size | Full/half/quarter Gridfinity pitch; connected, hole-free custom cell footprints; arbitrary rectangular dimensions for flat or jig bases | [Grid pitch](grid-pitch.md), [size rules](../shared/gridfinity/bin-size.ts) |
 | Construction | Solid or hollow interior, fill height, wall thickness, stacking rim, base/mounting choices | [Controls](../client/src/components/gridfinity/bin-controls-panel.tsx), [bin schema](../shared/gridfinity/types.ts) |
 | Hollow bins | Rows/columns, dividers, scoop bottoms, bottom edge fillets, and tabs on the outer wall or each sub-bin | [Compartments and tabs](bin-compartments.md), [bottom fillets](bottom-edge-fillet.md) |
 | Pockets and access | Independent placement/size/depth, split depths, retained-material holes, finger access, contour editing, and auto-arrange | [Split pockets](split-pockets.md), [placement schema](../shared/gridfinity/cutout.ts) |
 | 3D placement | XYZ rotation/elevation and optional vertical or object-axis insertion clearance | [Rotation](pocket-rotation.md), [insertion paths](pocket-insertion-paths.md) |
 | Labels | Raised text and hardware symbols on filled surfaces or label shelves; hollow-bin labels use shelves | [Hardware symbols and label surfaces](hardware-symbols.md) |
-| Materials | Body, floor/interior, rim/top-border, optional divider-top, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
+| Materials | Body, floor/interior, rim/top-border, optional divider-top, label-background, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
 | Fixtures | Wham Bam Systems ULTIM8-compatible pegs, arbitrary dimensions, and 1:1 alignment SVG | [Jig geometry and export](ultim8-peg-bottom.md) |
 | Persistence | Browser-local autosave, named library, undo/redo, project and library import/export | [Project schema/migrations](../shared/gridfinity/project.ts), [project storage](../client/src/lib/project/) |
 | Output | Single- or multi-color 3MF, STL, thin fit checks, and SVG/DXF layouts | [DXF](dxf-compatibility.md), [mesh writers](../client/src/lib/mesh/) |
@@ -36,8 +36,9 @@ without requiring that opt-in; adding jig pegs from the ordinary bin workflow
 uses the experimental controls. See [the settings dialog](../client/src/components/layout/experimental-features-dialog.tsx)
 and [bin controls](../client/src/components/gridfinity/bin-controls-panel.tsx).
 
-Baseplate generation is outside Pocketry's scope. SVG/DXF are supported outputs;
-that does not imply an SVG/DXF import implementation. There is no hosted account
+Baseplate generation is outside Pocketry's scope. SVG/DXF are supported outputs.
+SVG import is limited to closed outlines, as pockets in Bin and as editable
+contours in Trace; DXF is not imported. There is no hosted account
 system, server project storage, shared online project library, or cross-device
 sync in the current editor.
 
@@ -88,9 +89,9 @@ singleton. Track WASM handles in an `Arena` and dispose them deterministically.
 Detach returned mesh data before disposing its owning solids. Reuse the existing
 Manifold/Clipper2 geometry path rather than introducing a second geometry kernel.
 
-Trace outlines use oriented rings. Convert pixels to millimetres and flip Y once
+Trace outlines use oriented rings. Convert pixels to millimeters and flip Y once
 at the Trace export/normalization boundary. Bin-local placement and layout
-exports already use millimetres with Y up. A coordinate conversion added inside
+exports already use millimeters with Y up. A coordinate conversion added inside
 a downstream bin writer would duplicate that transformation.
 
 Rigid pockets use a finite source solid, its pose, and a separately derived
@@ -134,11 +135,23 @@ failure must release the endpoint and show a recoverable error. See
 [preview performance](preview-performance.md) for the dated measurements and
 [the current hook](../client/src/lib/gridfinity/use-bin-geometry.ts) for timing values.
 
-3MF carries millimetre units and can contain separate material volumes; STL
+3MF carries millimeter units and can contain separate material volumes; STL
 carries geometry without those color assignments. Inspect serialized output as
 well as in-memory solids. Do not substitute display normals or rounded preview
 coordinates for the printable mesh. [Geometry export integrity](geometry-export-integrity.md)
 records why tiny native-precision features need care at the writer boundary.
+
+The 3MF export dialog warns that Bambu Studio 2.9.1.70 loses colors on separate
+parts. **Bambu 3MF** combines selected material meshes into one model with
+per-face colors and Prusa painting metadata. It includes no printer settings.
+**Prusa color preview 3MF** adds automatic filament slots and RGB colors for
+PrusaSlicer 2.9.7 and 3.0 alpha12/alpha13 when opened as a project. It loads a
+labeled preview printer configuration; select the actual printer and print
+settings before printing. Both options preserve geometry and vertex identities,
+but body, color regions, and text no longer appear as separate named parts.
+Regular **Multi-color 3MF** retains separate parts. See
+[Bambu and Prusa compatibility](bambu-3mf-compatibility.md) and
+[issue #211](https://github.com/wcscr/pocketry/issues/211).
 
 Fit checks reduce print cost but answer narrower questions. A surface check tests
 openings and, for a full-surface plate, relative spacing; it does not validate

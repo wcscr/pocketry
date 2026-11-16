@@ -7,6 +7,8 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { objectGroupErrors } from "@shared/gridfinity/object-groups";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
 import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
+import { resolvePocketDepth } from "@shared/gridfinity/cutout";
+import { validateLayout } from "@shared/gridfinity/validate";
 import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import { createPlacementGroup, transformObjects } from "@/lib/gridfinity/object-arrangement";
 
@@ -88,6 +90,35 @@ it("commits a rigid gesture once and restores group frames through undo, redo an
   ui.send({ type: "SELECT_CUTOUT", id: "p0" });
   ui.send({ type: "UNDO" }); expect(getCommittedBinDoc(ui.state())).toEqual(after);
   expect(ui.state().selection).toHaveLength(2);
+});
+
+it("keeps surface-anchored floors through grouped XY moves and Z turns, undo, redo and save/load", () => {
+  const ui = mount(), spec = parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 3 });
+  const top = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+  // A valid legacy floor 6.5 mm above the underside, under the rigid 7 mm minimum.
+  ui.send({ type: "HYDRATE", spec, cutouts: ui.state().cutouts.map(c => ({ ...c, depth: { mode: "mm" as const, value: top - 6.5 } })) });
+  ui.group();
+  const grouped = getCommittedBinDoc(ui.state()), index = ui.state().history.index;
+  const floorErrors = () => validateLayout(spec, ui.state().cutouts, new Map([[ui.shape.id, ui.shape]])).filter(issue => issue.code === "too-deep");
+  expect(floorErrors()).toEqual([]);
+  const turn = (deg: number) => new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), deg * Math.PI / 180);
+  const docs = [grouped];
+  for (const [delta, rotation] of [[new Vector3(0, -5, 0), new Quaternion()], [new Vector3(), turn(15)], [new Vector3(), turn(165)]] as const) {
+    ui.send({ type: "UPDATE_OBJECTS", edits: transformObjects(ui.objects(), spec, delta, rotation)!, historyLabel: "Transform group" });
+    expect(ui.state().editError).toBeNull();
+    expect(floorErrors()).toEqual([]);
+    expect(ui.state().cutouts.map(({ position, rotationDeg, placementGroup, ...rest }) => rest))
+      .toEqual(grouped.cutouts.map(({ position, rotationDeg, placementGroup, ...rest }) => rest));
+    docs.push(getCommittedBinDoc(ui.state()));
+  }
+  expect(ui.state().history.index).toBe(index + 3);
+  expect(ui.state().cutouts.map(c => Math.round(c.rotationDeg))).toEqual([180, -155]);
+  const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION, ...docs.at(-1)!, shapes: [ui.shape], history: ui.state().history })))!;
+  expect(saved).not.toBeNull();
+  ui.send({ type: "HYDRATE", ...saved });
+  expect(getCommittedBinDoc(ui.state())).toEqual(docs.at(-1));
+  for (let i = docs.length - 2; i >= 0; i--) { ui.send({ type: "UNDO" }); expect(getCommittedBinDoc(ui.state())).toEqual(docs[i]); }
+  for (let i = 1; i < docs.length; i++) { ui.send({ type: "REDO" }); expect(getCommittedBinDoc(ui.state())).toEqual(docs[i]); }
 });
 
 it("duplicates a group with a distinct frame and deletes only the selected group", () => {

@@ -86,12 +86,13 @@ export function compartmentLabelTabPlacements(spec: BinSpec) {
   const start = tab.width === "left" ? -chord / 2 : tab.width === "right" ? chord / 2 - length : -length / 2;
   const depth = Math.min(profile.depthMm, (horizontal ? cellLength : cellWidth) / 2);
   const rotation = tab.wall === "north" ? 0 : tab.wall === "east" ? -90 : tab.wall === "south" ? 180 : 90;
-  return rowFronts.flatMap(y => columnFronts.map(x => {
+  // Row 0 is the front (−Y) row and column 0 the left (−X) column; labels key on these.
+  return rowFronts.flatMap((y, row) => columnFronts.map((x, column) => {
     const origin = {
       x: tab.wall === "west" ? x : tab.wall === "east" ? x + cellWidth : x + cellWidth / 2,
       y: tab.wall === "south" ? y : tab.wall === "north" ? y + cellLength : y + cellLength / 2,
     };
-    return { ...origin, start, length, depth, rotation,
+    return { ...origin, row, column, start, length, depth, rotation,
       profile: supportedLabelTabProfileMm(spec, profile, tab.wall, origin, depth,
         BASE_HEIGHT + compartmentHeightMm(spec) - labelTabRecessMm(spec)) };
   }));

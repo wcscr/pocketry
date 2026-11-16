@@ -13,20 +13,26 @@ A fitted bin with a 16 mm-deep pocket for the tape measure body and a deeper
 
 The 3MF is the original multicolor export from October 17, 2026. The editable
 project comes from the matching export, migrated to the current format with
-unused shapes and editing history removed. Check dimensions and fit for your
-tape measure before printing.
+unused shapes and editing history removed. The photographed print uses orange
+and black filament; the supplied project and 3MF retain their original gray
+and black color assignments. Check dimensions and fit for your tape measure
+before printing.
 
 ## Printed bin
 
-Printed-design photos will be added here when available. These placeholders
-reserve views of the loaded bin and the empty pocket; they are not print photos.
+The finished print holds the tape measure with its front face up. With the tape
+removed, the deeper relief for the belt clip is visible in the pocket floor.
 
-<img src="photos/printed-bin-loaded-placeholder.svg" width="640" alt="Photo placeholder: Craftsman tape measure in the printed bin; photo coming soon">
+<a href="photos/printed-bin-loaded.jpg"><img src="photos/printed-bin-loaded.jpg" width="640" alt="Finished orange-and-black Craftsman tape measure bin with the red tape seated in its pocket"></a>
 
-<img src="photos/printed-bin-pocket-placeholder.svg" width="640" alt="Photo placeholder: empty Craftsman tape measure bin showing the body pocket and belt-clip relief; photo coming soon">
+<a href="photos/printed-bin-pocket.jpg"><img src="photos/printed-bin-pocket.jpg" width="640" alt="Empty printed Craftsman tape measure bin showing the body pocket and deeper belt-clip relief"></a>
 
-<!-- Replace the placeholders with photos/printed-bin-loaded.jpg and
-photos/printed-bin-pocket.jpg, update the catalog thumbnail, and record the
-photo provenance and hashes in ../source-files.json when the photos arrive. -->
+## Tape measure outside the bin
+
+Both sides of the same tape measure are shown below. The clip-side view shows
+the part that sits in the deeper pocket relief.
+
+<a href="photos/tape-measure-front.jpg"><img src="photos/tape-measure-front.jpg" width="360" alt="Front of the red Craftsman 25-foot tape measure outside the bin"></a>
+<a href="photos/tape-measure-clip.jpg"><img src="photos/tape-measure-clip.jpg" width="360" alt="Back of the Craftsman 25-foot tape measure outside the bin, showing its black belt clip"></a>
 
 [All samples](../README.md)

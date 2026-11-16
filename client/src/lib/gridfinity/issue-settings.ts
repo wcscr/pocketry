@@ -9,6 +9,7 @@ export function issueSettingsTarget(code: string): { id: string; label: string; 
       return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-recess" };
     case "label-tab-edge-missing":
     case "label-tab-shadow":
+    case "surface-text-needs-tab":
       return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab" };
     case "fractional-grid-holes":
       return { id: "bin-settings-size", label: "Change grid pitch", focusId: "bin-grid-pitch" };

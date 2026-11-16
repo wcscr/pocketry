@@ -31,6 +31,16 @@ If a backup exceeds a limit, split the library or simplify the design in the ver
 that created it. Keep the original backup. Pocketry never silently trims imported
 geometry or partially imports an over-limit library.
 
+SVG outlines imported as pockets in Bin or as contours in Trace must be smaller
+than 5 MB and flatten to at most 20,000 vertices, within the per-ring and
+per-collection limits above. Scripts, referenced resources, effects and open paths
+are rejected. Bin also rejects intersecting or touching contours. Trace imports them
+as drawn and says so, because repairing an outline over its photo is what that import
+is for. An SVG is never trimmed or partially imported.
+Inkscape's named-view metadata, `-inkscape-stroke`, and `paint-order` styles do not
+affect the imported boundary and are ignored. Clipping, masks, and filters must
+be flattened into closed paths in the source editor before import.
+
 Trace accepts still PNG, JPEG and WebP up to 10 MiB, 50 megapixels and 16,384 pixels
 per side. Header checks happen before browser decoding, including both current and
 original photos restored from a saved Trace draft. Recovery keeps the existing
@@ -38,5 +48,7 @@ original photos restored from a saved Trace draft. Recovery keeps the existing
 PNG files that can exceed the original upload byte limit. The same pixel and side
 limits still apply before decoding. Animated PNG/WebP, deferred-height
 JPEG, malformed headers and conflicting WebP frame dimensions are rejected. Resize
-large photos before importing. These input limits do not change the existing 800×600
-working coordinate system or calibrated exports.
+large photos before importing. Uncorrected photos use a working frame fitted within 800 × 600 pixels.
+Perspective correction can create a larger working image; tool-edge detection
+can sample bounded original-photo tiles. These input limits do not change
+calibrated export units. See [source-coordinate handling](outline-combined-detector.md#geometry-and-source-coordinates).

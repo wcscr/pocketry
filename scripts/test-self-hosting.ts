@@ -1,4 +1,4 @@
-// Run against a started Docker container; uses only Node 22 built-ins.
+// Run against a started Docker container; uses only Node.js built-ins.
 import assert from "node:assert/strict";
 
 const base = new URL(process.argv[2] ?? "http://localhost:8080");
@@ -15,7 +15,7 @@ assert.match(index.headers.get("content-type") ?? "", /text\/html/);
 assert.equal(index.headers.get("cache-control"), "no-cache");
 assert.equal(index.headers.get("x-content-type-options"), "nosniff");
 const html = await index.text();
-for (const route of ["/bin", "/about", "/index.html"]) {
+for (const route of ["/bin", "/ultim8", "/help/ultim8", "/about", "/index.html"]) {
   assert.equal(await (await get(route)).text(), html, `SPA route ${route}`);
 }
 for (const path of ["/api", "/api/images", "/API/images", "/api/images?x=1"]) {

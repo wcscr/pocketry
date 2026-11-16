@@ -1,6 +1,7 @@
 import { ensureOrientation } from "@shared/geometry/rings";
 import { getRing, removeRing } from "./outline";
 import type { Outline, Ring, RingRef } from "@shared/geometry/types";
+import type { CurveOutline, CurveRing } from "@shared/geometry/curves";
 
 /** A canonical cyclic ring key, independent of winding and starting vertex. */
 export function traceRingKey(ring: Ring): string {
@@ -11,15 +12,39 @@ export function traceRingKey(ring: Ring): string {
   return forward < reverse ? forward : reverse;
 }
 
-/** Mirror a selected hole edit to its duplicate references in overlapping pockets. */
+/** A hole shared by overlapping pockets is one authored contour. Infer changed
+ * references too: box/Shift selection does not necessarily select a ring. */
+function sharedHoleReplacements<T>(before: Outline, previous: T[][], next: T[][],
+  same: (a: T, b: T) => boolean): Map<string, T> {
+  const replacements = new Map<string, T>();
+  if (before.length !== next.length || before.some((s, i) => s.holes.length !== next[i].length)) return replacements;
+  before.forEach((s, i) => s.holes.forEach((hole, j) => {
+    if (!same(previous[i][j], next[i][j])) {
+      const key = traceRingKey(hole);
+      if (!replacements.has(key)) replacements.set(key, next[i][j]);
+    }
+  }));
+  return replacements;
+}
+
+/** Mirror hole edits to duplicate references without depending on UI selection. */
 export function syncHoleEdit(before: Outline, after: Outline,
-  ref: RingRef | null): Outline {
-  if (!ref || ref.ringIndex < 0 || before.length !== after.length) return after;
-  const previous = before[ref.shapeIndex]?.holes[ref.ringIndex];
-  const changed = after[ref.shapeIndex]?.holes[ref.ringIndex];
-  if (!previous || !changed || traceRingKey(previous) === traceRingKey(changed)) return after;
-  const key = traceRingKey(previous);
-  return after.map(part => ({ ...part, holes: part.holes.map(hole => traceRingKey(hole) === key ? changed : hole) }));
+  _ref: RingRef | null): Outline {
+  const replacements = sharedHoleReplacements(before, before.map(s => s.holes), after.map(s => s.holes),
+    (a, b) => traceRingKey(a) === traceRingKey(b));
+  if (!replacements.size) return after;
+  return after.map((part, i) => ({ ...part, holes: part.holes.map((hole, j) =>
+    replacements.get(traceRingKey(before[i].holes[j])) ?? hole) }));
+}
+
+/** Preserve the exact edited handles in every reference to the same hole. */
+export function syncCurveHoleEdits(before: Outline, previous: CurveOutline, after: CurveOutline): CurveOutline {
+  if (previous.length !== before.length || previous.some((s, i) => s.holes.length !== before[i].holes.length)) return after;
+  const replacements = sharedHoleReplacements<CurveRing>(before, previous.map(s => s.holes), after.map(s => s.holes),
+    (a, b) => JSON.stringify(a) === JSON.stringify(b));
+  if (!replacements.size) return after;
+  return after.map((part, i) => ({ ...part, holes: part.holes.map((hole, j) =>
+    replacements.get(traceRingKey(before[i].holes[j])) ?? hole) }));
 }
 
 /** Transform each authored hole once, retaining its references in every pocket. */

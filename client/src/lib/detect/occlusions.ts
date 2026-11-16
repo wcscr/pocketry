@@ -15,7 +15,7 @@ export function restoreOccludedScore(field: ScoreField, footprints: readonly Rin
     if (footprint.length < 3 || footprint.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) continue;
     const ring = footprint.map(p => ({
       x: (p.x - field.offsetX) * field.scale - 0.5,
-      y: (p.y - field.offsetY) * field.scale - 0.5,
+      y: (p.y - field.offsetY) * (field.scaleY ?? field.scale) - 0.5,
     }));
     const bounds = ringBounds(ring)!;
     const x0 = Math.max(0, Math.floor(bounds.minX) - 1), y0 = Math.max(0, Math.floor(bounds.minY) - 1);

@@ -13,8 +13,15 @@ const EMPTY: Footprints = new Map();
  * Never display a previous pose's boundaries or publish an obsolete result.
  * Active 3D gestures use kernel-free wires instead of blocking pointer input. */
 export function usePocketGeometry(cutouts: readonly CutoutPlacement[], shapesById: ReadonlyMap<string, TracedShape>, spec: BinSpec, enabled = true): Footprints {
-  const request = useMemo(() => ({ cutouts: cutouts.filter(c => c.profileBottom || hasRigidPocket(c)), shapesById, spec, enabled }), [cutouts, shapesById, spec, enabled]);
-  const [result, setResult] = useState<{ request: typeof request; outlines: Footprints }>();
+  return usePocketGeometryPreview(cutouts, shapesById, spec, enabled).outlines;
+}
+
+/** Layout can distinguish a pending opening from an empty or failed one. */
+export function usePocketGeometryPreview(cutouts: readonly CutoutPlacement[], shapesById: ReadonlyMap<string, TracedShape>, spec: BinSpec, enabled = true): {
+  outlines: Footprints; status: "ready" | "pending" | "error";
+} {
+  const request = useMemo(() => ({ cutouts: cutouts.filter(c => (c.profileBottom || hasRigidPocket(c)) && shapesById.has(c.shapeId)), shapesById, spec, enabled }), [cutouts, shapesById, spec, enabled]);
+  const [result, setResult] = useState<{ request: typeof request; outlines: Footprints; status: "ready" | "error" }>();
   useEffect(retainPocketGeometryWorker, []);
   useEffect(() => {
     if (!request.enabled || !request.cutouts.length) return;
@@ -23,11 +30,13 @@ export function usePocketGeometry(cutouts: readonly CutoutPlacement[], shapesByI
       const shape = request.shapesById.get(cutout.shapeId);
       if (!shape) return [];
       return [requestPocketGeometry(shape, cutout, request.spec).then(geometry => [cutout.id, geometry] as const)];
-    })).then(outlines => { if (current) setResult({ request, outlines: new Map(outlines) }); }).catch(() => {
+    })).then(outlines => { if (current) setResult({ request, outlines: new Map(outlines), status: "ready" }); }).catch(() => {
       // The geometry worker reports model errors. Retain the synchronous
       // footprint for selection if the optional outline preview cannot build.
+      if (current) setResult({ request, outlines: EMPTY, status: "error" });
     });
     return () => { current = false; };
   }, [request]);
-  return result?.request === request ? result.outlines : EMPTY;
+  if (!enabled || !request.cutouts.length) return { outlines: EMPTY, status: "ready" };
+  return result?.request === request ? result : { outlines: EMPTY, status: "pending" };
 }

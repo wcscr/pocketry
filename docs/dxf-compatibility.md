@@ -1,9 +1,9 @@
 # DXF compatibility
 
 Trace and Bin layout share `client/src/lib/export/dxf.ts`. Exports use AutoCAD
-2013 (`AC1027`), millimetres, and one closed `LWPOLYLINE` per ring. Trace applies
-its existing pixel-to-millimetre/Y-flip boundary; layout coordinates are already
-in millimetres and must not be converted again.
+2013 (`AC1027`), millimeters, and one closed `LWPOLYLINE` per ring. Trace applies
+its existing pixel-to-millimeter/Y-flip boundary; layout coordinates are already
+in millimeters and must not be converted again.
 
 ## Fusion import failure
 

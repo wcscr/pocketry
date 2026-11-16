@@ -18,11 +18,11 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 
 ## What it does
 
-- Trace and refine outlines from PNG or JPEG photos.
+- Trace and refine outlines from PNG, JPEG, or WebP photos, or import closed SVG outlines.
 - Calibrate dimensions and correct perspective with printable reference sheets.
 - Design Gridfinity or standalone flat-bottomed bins with custom pockets, finger access, and colors.
 - Build hollow compartment bins with scoops, label tabs, and raised text or hardware symbols.
-- Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Start a fixture (Beta)](https://pocketry.xyz/ultim8).
+- Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Fixture guide (Beta)](https://pocketry.xyz/help/ultim8).
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
 - Save projects locally, undo changes, and export editable backups.
@@ -63,51 +63,62 @@ Printables, or elsewhere, please give Pocketry a shout-out and link to
 ### 1. Trace the tools
 
 This example uses the [Wolfbox MF70 Airduster Kit](samples/wolfbox-mf70-airduster-kit/).
+To skip tracing, open it from **Library → Sample Library**. The screenshots
+show version 1.12.0; see [image sources](docs/images/README.md).
 
-Photograph your tools from above on a plain, contrasting background, then open
-the photo in **Trace**. Set the scale from a measurement, paper corners, or an
-optional calibration sheet or aid.
+Photograph each tool from above on contrasting paper. Print the optional
+[v3 A4 or US Letter calibration sheet and surface measurement aids](docs/calibration/object-reference-strip.md)
+at **100% / Actual size**. Keep all four sheet markers visible. For tall or
+thick tools, move farther away to reduce perspective distortion, then zoom in
+while keeping the markers sharp.
+Place one paper or 3D measurement aid flat on the raised surface near the
+dimension that matters, without covering the tool's edge; keep both aid markers
+visible. This measures scale at the tool's height instead of the paper.
 
-Draw a **Region** around each tool and refine its **Outline**. Add clearance with
-**Margin**, then choose **Add to bin**. Review any amber edges: the tool shape
-there was estimated. You’ll set pocket depths in Bin.
+In **Trace**, open the original photo and accept **Correct perspective & use
+scale** for the sheet or **Correct perspective & use aid scale** for a detected
+aid. Otherwise, **Set scale** from a known distance. Check a real dimension,
+then box the tool with **Region → Set region**. Use the default **Tool edges ·
+white sheet** on light paper or **Color contrast** on other backgrounds. Fix
+the outline with **Correct → Add/Remove** or **Edit outline**, then choose
+**Add to Bin**.
+[Detailed tracing guidance](docs/teed-outline-integration.md).
 
-![The Wolfbox duster outline in the default Trace layout, with workflow steps on the left and contour controls on the right](docs/images/trace-outline.jpg)
+![The Wolfbox body traced from its original calibration-sheet photo, with current Tool edges and outline controls](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
 
-In **Bin**, set **Bin size** (the Wolfbox example is **4 × 4 cells**, **6.5u** high).
-Use **Construction → Base & mounting → Bottom → Flat bottom** for a standalone bin. In **Layout**,
-drag pockets into place and add finger access where needed. Select a pocket to
-adjust its size, position, and depth.
+In **Bin**, set **Bin size** (the example is **4 × 4 cells**, **6.5u** high).
+Arrange pockets in **Layout**, add finger access, and set depths. Choose
+**Construction → Base & mounting → Bottom → Flat bottom** for a standalone bin.
+To add vector artwork, use **Add pocket → Import SVG pocket** with a closed SVG.
 
 ![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)
 
 ### 3. Check tool shapes and sizes
 
-Compare the pockets with measurements of the real tools using
-**Measure between contours** and **Size & scale**. Check depth and remaining
-floor in **3D** or **Check fit → Inspect inside**.
+Compare pockets with real tools using **Measure between contours** and **Size &
+scale**. Check depth and floor thickness in **3D**.
 
-![The Layout ruler measures 145.31 mm along the duster contour beside its width, length, and depth controls](docs/images/ruler-check.jpg)
+![The Layout ruler measures 145.30 mm between two points on the duster contour beside its size and depth controls](docs/images/ruler-check.jpg)
 
 ### 4. Print a fit check
 
-In **Check fit**, save a **Full surface** or **Tool outlines** fit test STL.
-Print it at **100% scale** (we recommend **0.6–0.8 mm** thick) and try the real
-tools. Adjust the outline or clearance if needed. This checks the openings,
-not pocket depth or baseplate fit.
-
-The original slicer screenshot below shows an earlier **1.2 mm** fit check.
+In **Check fit**, export a **Full surface** or **Tool outlines** STL. Print it
+at **100% scale** (recommended thickness **0.6–0.8 mm**) and try the real
+tools. Adjust the outline or clearance as needed. This checks openings, not
+depth or baseplate fit. The older screenshot shows a 1.2 mm test.
 
 ![The original Wolfbox tool-outline fit check in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
 ### 5. Export and print the finished bin
 
-Set every pocket's depth, then use **Export → Save 3MF** or **Save STL**.
-Open the file in your slicer at **100% scale** and review the layer preview
-before printing. **Multi-color 3MF** preserves selected colors; SVG and DXF
-layouts are available for shadow boards and CNC work.
+Set every pocket's depth, then choose **Export → Save 3MF** or **Save STL**.
+Open it in your slicer at **100% scale** and check the layer preview. For color,
+choose **Multi-color 3MF**, **Bambu 3MF**, or **Prusa color preview 3MF**.
+Select your printer and materials before printing.
+
+![Current 3MF choices: Single-color, Multi-color, Bambu, and Prusa color preview](docs/images/export-3mf.jpg)
 
 ![The original printed black-and-orange Wolfbox bin with the duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
 
@@ -115,10 +126,9 @@ layouts are available for shadow boards and CNC work.
 
 ### Save an editable copy
 
-Use **Project → Save this draft to Library** to name your design, then
-**Export project** for an editable `.pocketry.json` backup. Projects live in
-this browser and do not sync between devices. The backup does not include the
-original Trace photo, so keep that separately.
+Use **Project → Save this draft to Library**, then **Export project** for a
+`.pocketry.json` backup. Keep the original photo separately; it is not in the
+backup.
 
 ## Privacy
 
@@ -130,7 +140,7 @@ return 404 and do not accept or store uploads.
 
 ## Run locally
 
-There are two ways to run Pocketry locally: with **Node.js 22 and npm**, or with
+There are two ways to run Pocketry locally: with **Node.js 26 and npm**, or with
 **Docker**.
 
 Start by cloning the repository:
@@ -142,9 +152,11 @@ cd pocketry
 
 ### Option 1: Node.js and npm
 
-Install Node.js 22 and npm, then build and start Pocketry:
+Install Node.js 26 and npm (`npm ci` stops with an engine error on other
+versions), then build and start Pocketry:
 
 ```sh
+node --version # Must report v26.x
 npm ci
 npm run build
 npm start
@@ -153,6 +165,9 @@ npm start
 Open <http://localhost:5000>. This production server listens on all host
 interfaces; see the self-hosting guide below for network access and HTTPS.
 On macOS/Linux, use `PORT=5001 npm start` if the default port is in use.
+On Windows PowerShell, use `$env:NODE_ENV="production"; node dist/index.js`
+instead of `npm start`. See the [self-hosting guide](docs/self-hosting.md#without-docker)
+for port overrides and upgrades.
 
 For development with live updates, use this instead of `npm start`:
 
@@ -185,6 +200,19 @@ Follow the [self-hosting guide](docs/self-hosting.md) for access from other devi
 HTTPS, static hosting, upgrades, and backup/restore instructions. Projects remain
 in each user's browser. Use **Export project** and **Export library** for
 backups—copying the server or container does not back up your designs.
+
+### Command-line bin export
+
+With Node 26 and dependencies installed, `npm run export:bin` writes an empty
+2 × 3 × 6u bin as STL and 3MF under `exports/`. For example:
+
+```sh
+npm run export:bin -- 4x2x3 --fill solid --no-lip --out /tmp/pocketry-exports
+```
+
+This helper accepts bin dimensions, fill, lip, and output directory; it does not
+load a saved project. Use the browser's Export controls for designed pockets and
+colors.
 
 ## Verify and build
 
@@ -242,7 +270,11 @@ then **Symbol** to pair one with wording or use it alone. See
 ## Contributors
 
 Pocketry is developed and maintained by Sugarcreek Research, LLC.
-[OpenAI Codex](https://openai.com/codex/) is an AI contributor to the project,
+
+[Arucious](https://github.com/Arucious) contributed SVG pocket import.
+
+[OpenAI Codex](https://openai.com/codex/) and
+[Anthropic Claude](https://claude.com/claude-code) are AI contributors to the project,
 assisting with implementation, testing, documentation, and code review. This
 acknowledgment includes work not individually credited in the commit history.
 

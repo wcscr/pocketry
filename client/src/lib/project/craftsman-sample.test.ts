@@ -25,11 +25,16 @@ it("retains the Craftsman body and belt-clip pockets without editing history or 
     .filter(issue => issue.severity === "error")).toEqual([]);
 });
 
-it("records the downloadable files and photo placeholders without claiming photo evidence", () => {
+it("records the downloadable files and four print and tool photos", () => {
   const sample = provenance.samples.find(sample => sample.directory === slug)!;
   expect(sample).toBeDefined();
-  expect(sample.photos).toEqual([]);
-  for (const asset of [sample.project, sample.model, ...sample.previews ?? []]) {
+  expect(sample.photos.map(photo => photo.file)).toEqual([
+    "photos/printed-bin-loaded.jpg",
+    "photos/printed-bin-pocket.jpg",
+    "photos/tape-measure-front.jpg",
+    "photos/tape-measure-clip.jpg",
+  ]);
+  for (const asset of [sample.project, sample.model, ...sample.photos]) {
     expect(createHash("sha256").update(readSample(asset.file)).digest("hex")).toBe(asset.sha256);
   }
   expect(provenance.library.projectCount).toBe(catalog.projects.length);

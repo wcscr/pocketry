@@ -20,6 +20,15 @@ import {
   type Shape,
 } from "@shared/geometry/types";
 
+/** Detector rings are disjoint or nested. Filling a hole also absorbs any
+ * islands inside it, so they must not become overlapping pockets. */
+export function outsideSilhouettes(outline: Outline): Outline {
+  const areas = outline.map((shape) => ringArea(shape.outer));
+  return outline.filter((shape, index) => !outline.some((other, otherIndex) =>
+    areas[otherIndex] > areas[index] && pointInRing(other.outer, shape.outer[0]),
+  )).map((shape) => ({ ...shape, holes: [] }));
+}
+
 /**
  * Groups unordered rings into shapes by containment depth.
  *

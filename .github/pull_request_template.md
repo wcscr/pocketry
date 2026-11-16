@@ -8,7 +8,7 @@ usually need none. Maintainers handle release versions and dates.
 
 ## Local checks
 
-Commands and results, including relevant checks you could not run. Follow
+Node version, commands and results, including relevant checks you could not run. Follow
 [CLAUDE.md](https://github.com/wcscr/pocketry/blob/main/CLAUDE.md); do not trigger hosted CI.
 
 ## Dependencies and provenance

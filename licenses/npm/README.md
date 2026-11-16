@@ -15,6 +15,10 @@ The Radix license was identical at both listed revisions. Builds make no network
 requests to obtain these texts and fail when a bundled package has no license text
 or an applicable supplement.
 
+The `@nodable/entities@3.0.0` archive omits its license file. Its supplement
+reproduces the upstream repository's MIT license at the package's published npm
+`gitHead`, including the Nodable copyright notice.
+
 The react-remove-scroll-bar and react-style-singleton revisions declare MIT in
 their package metadata but provide no standalone license text. Their supplements
 preserve that declaration and author attribution, and reproduce the standard MIT

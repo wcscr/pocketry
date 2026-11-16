@@ -9,8 +9,9 @@ import { rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { clampFingerHoleToBin, fingerHoleSchema, parseCutoutPlacement, resolvePocketDepth, type TracedShape } from "@shared/gridfinity/cutout";
 
 import { surfaceTextSchema } from "@shared/gridfinity/surface-text";
-import { labelTabSurfaces } from "@shared/gridfinity/label-tab-surfaces";
+import { labelTabSurfaces, pointOnLabelTab } from "@shared/gridfinity/label-tab-surfaces";
 import { ringBounds } from "@shared/geometry/rings";
+import { labelledTabGrid } from "@shared/gridfinity/label-tab.test-support";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { DEFAULT_PEG_BOTTOM } from "@shared/gridfinity/peg-bottom";
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION } from "@shared/gridfinity/project";
@@ -58,6 +59,49 @@ const CUTOUT = parseCutoutPlacement({
 });
 
 describe("bin store", () => {
+  it("restores a stranded label's original tab after save, reload, grid restoration, undo and redo", () => {
+    const { store, act } = mountBin();
+    const original = labelledTabGrid();
+    act(() => store().dispatch({ type: "HYDRATE", spec: original, cutouts: [] }));
+    const columns = (value: number, transient = false) => act(() => store().dispatch({ type: "PATCH_SPEC", transient,
+      patch: { compartments: { ...store().spec.compartments, columns: value } } }));
+    columns(2, true); columns(1, true); columns(2);
+    const orphan = store().spec.surfaceTexts[0];
+    expect(orphan.orphanedTab?.key).toBe("r0c2");
+    expect(orphan.position).toEqual(original.surfaceTexts[0].position);
+    const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
+      ...getCommittedBinDoc(store()), shapes: [], history: store().history })))!;
+    act(() => store().dispatch({ type: "HYDRATE", ...saved }));
+    columns(3);
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+    expect(store().spec.surfaceTexts[0].position.x).toBeCloseTo(original.surfaceTexts[0].position.x, 9);
+    expect(store().spec.surfaceTexts[0].position.y).toBeCloseTo(original.surfaceTexts[0].position.y, 9);
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.surfaceTexts[0]).toEqual(orphan);
+    act(() => store().dispatch({ type: "REDO" }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+  });
+
+  it("keeps stranded-label warnings through wording edits and clears them only on explicit placement", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "HYDRATE", spec: labelledTabGrid(), cutouts: [] }));
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { compartments: { ...store().spec.compartments, columns: 2 } } }));
+    const orphan = { ...store().spec.surfaceTexts[0], text: "D", sizeMm: 2 };
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [orphan] } }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toEqual(orphan.orphanedTab);
+    const moved = { ...orphan, position: { ...orphan.position, x: orphan.position.x - 1 } };
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [moved] }, transient: true }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+    // Pointer-up can still carry the original drag snapshot's anchor.
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: [moved] } }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toBeUndefined();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { compartments: { ...store().spec.compartments, columns: 3 } } }));
+    const label = store().spec.surfaceTexts[0];
+    expect(labelTabSurfaces(store().spec).find(surface => pointOnLabelTab(label.position, surface))?.key).toBe("r0c1");
+    act(() => store().dispatch({ type: "UNDO" }));
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec.surfaceTexts[0].orphanedTab).toEqual(orphan.orphanedTab);
+  });
   it("moves shelf labels once across transient recess edits, commit, undo and redo", () => {
     const { store, act } = mountBin();
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fill: "none", lip: "none",
@@ -77,6 +121,39 @@ describe("bin store", () => {
     expect(store().spec).toEqual(before);
     act(() => store().dispatch({ type: "REDO" }));
     expect(store().spec).toEqual(after);
+  });
+  it("keeps each label on its sub-bin when rows or columns change, through live edits, undo and resize", () => {
+    const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { gridPitch: "half", gridX: 4, gridY: 4, heightUnits: 5.5,
+      fill: "none", lip: "none", wallSlant: { axis: "y", angleDeg: 30 }, compartments: { rows: 2, columns: 3 },
+      labelTab: { wall: "south", scope: "compartments", recessMm: 0.5, frontRim: true } } }));
+    const labels = labelTabSurfaces(store().spec).map(surface => {
+      const b = ringBounds(surface.ring)!;
+      return surfaceTextSchema.parse({ id: surface.key, text: "M2x8", sizeMm: 3.2, surface: "label-tab",
+        position: { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } });
+    });
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { surfaceTexts: labels } }));
+    const before = store().spec;
+    const centreOf = (key: string) => {
+      const b = ringBounds(labelTabSurfaces(store().spec).find(surface => surface.key === key)!.ring)!;
+      return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+    };
+    const columns = (value: number, transient = false) => act(() => store().dispatch({ type: "PATCH_SPEC", transient,
+      patch: { compartments: { ...store().spec.compartments, columns: value } } }));
+    // A slider-style gesture passes through grids that strand labels, then settles on four columns.
+    columns(1, true); columns(12, true); columns(4, true); columns(4);
+    for (const key of ["r0c0", "r0c2", "r1c1"]) {
+      const label = store().spec.surfaceTexts.find(item => item.id === key)!;
+      expect(label.position.x).toBeCloseTo(centreOf(key).x, 6);
+      expect(label.position.y).toBeCloseTo(centreOf(key).y, 6);
+      expect(label.sizeMm).toBe(3.2);
+    }
+    act(() => store().dispatch({ type: "UNDO" }));
+    expect(store().spec).toEqual(before);
+    act(() => store().dispatch({ type: "PATCH_SPEC", patch: { compartments: { ...store().spec.compartments, rows: 3 } } }));
+    expect(store().spec.surfaceTexts.find(item => item.id === "r1c2")!.position.y).toBeCloseTo(centreOf("r1c2").y, 6);
+    act(() => store().dispatch({ type: "SET_GRID", gridX: 6, gridY: 4 }));
+    expect(store().spec.surfaceTexts.find(item => item.id === "r0c1")!.position.x).toBeCloseTo(centreOf("r0c1").x, 6);
   });
   it("preserves saved and manually anchored tabs when the wall slant changes", () => {
     const { store, act } = mountBin();

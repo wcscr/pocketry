@@ -92,6 +92,11 @@ export function createBinWorkerHandlers(
       "Pocket-floor material thickness",
       MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
     );
+    const labelBackgroundThicknessMm = parseMaterialThickness(
+      payload.labelBackgroundMaterialThicknessMm,
+      "Label-background material thickness",
+      MULTICOLOR_FLOOR_MAX_THICKNESS_MM,
+    );
     const rimMaterialThicknessMm = parseMaterialThickness(
       payload.stackingRimMaterialThicknessMm,
       "Stacking-rim material thickness",
@@ -152,6 +157,7 @@ export function createBinWorkerHandlers(
           : payload.quality,
         {
           floorInsertThicknessMm: floorMaterialThicknessMm,
+          labelBackgroundThicknessMm,
           rimInsertThicknessMm: rimMaterialThicknessMm,
           borderWidthMm,
           colorDividerTops,
@@ -181,6 +187,8 @@ export function createBinWorkerHandlers(
             pocketFloors: materialParts.pocketFloors
               ? displayedPart(materialParts.pocketFloors)
               : null,
+            labelBackground: materialParts.labelBackground
+              ? displayedPart(materialParts.labelBackground) : null,
             stackingRim: materialParts.stackingRim
               ? displayedPart(materialParts.stackingRim)
               : null,
@@ -220,6 +228,8 @@ export function createBinWorkerHandlers(
                   pocketFloors: extractPart(displayedMaterialParts.pocketFloors),
                 }
               : {}),
+            ...(displayedMaterialParts.labelBackground && !displayedMaterialParts.labelBackground.isEmpty()
+              ? { labelBackground: extractPart(displayedMaterialParts.labelBackground) } : {}),
             ...(displayedMaterialParts.stackingRim &&
             !displayedMaterialParts.stackingRim.isEmpty()
               ? {
@@ -277,6 +287,11 @@ export function createBinWorkerHandlers(
           if (materialMeshes.pocketFloors.normals) {
             transfer.push(materialMeshes.pocketFloors.normals.buffer);
           }
+        }
+        if (materialMeshes.labelBackground) {
+          const mesh = materialMeshes.labelBackground;
+          transfer.push(mesh.positions.buffer, mesh.indices.buffer);
+          if (mesh.normals) transfer.push(mesh.normals.buffer);
         }
         if (materialMeshes.stackingRim) {
           transfer.push(

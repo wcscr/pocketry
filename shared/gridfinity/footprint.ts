@@ -332,6 +332,18 @@ export function footprintInteriorRingMm(spec: FootprintSpec, circularSegments = 
   );
 }
 
+/** The outer material boundary moved inward by `insetMm`, as a Round offset
+ * would move it: convex corners tighten and concave corners widen. */
+export function footprintInsetRingMm(spec: FootprintSpec, insetMm: number, circularSegments = 64): Ring {
+  return roundedOffsetRing(
+    spec,
+    BASE_GAP_MM / 2 + insetMm,
+    Math.max(0, BASE_TOP_RADIUS - insetMm),
+    BASE_TOP_RADIUS + insetMm,
+    circularSegments,
+  );
+}
+
 /** Positive inside, negative outside, exact for the sampled boundary segments. */
 export function signedDistanceToFootprintRing(point: Point, ring: Ring): number {
   if (ring.length === 0) return -Infinity;

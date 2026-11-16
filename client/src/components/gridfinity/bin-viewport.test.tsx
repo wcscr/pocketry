@@ -58,6 +58,7 @@ function renderViewport(
   recovery: Pick<BinViewportProps, "error" | "onPositionText" | "onRetryPreview"> = { error: null },
   stackingRimGeometry: BufferGeometry | null = null,
   pocketFloorGeometry: BufferGeometry | null = null,
+  labelBackgroundGeometry: BufferGeometry | null = null,
 ): HTMLElement {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.createElement("div");
@@ -69,6 +70,8 @@ function renderViewport(
         geometry={null}
         stackingRimGeometry={stackingRimGeometry}
         pocketFloorGeometry={pocketFloorGeometry}
+        labelBackgroundGeometry={labelBackgroundGeometry}
+        labelBackgroundColor="#eee8da"
         textGeometries={textGeometries}
         textColor="#ff6600"
         pocketEditor={pocketEditor}
@@ -395,4 +398,18 @@ it("keeps linking experimental while arrangement and Select All remain standard"
   expect(onSelectionChange).toHaveBeenCalledWith([{kind:"pocket",id:basic.cutout.id}]);
   expect(container.querySelector('[aria-label="Move pocket (W)"]')).not.toBeNull();
   expect(container.querySelector('[aria-label="Rotate pocket (E)"]')).not.toBeNull();
+});
+
+
+it("shows an independent label-background material and opens its color control", () => {
+  const face = new BufferGeometry();
+  const onEditColor = vi.fn();
+  const container = renderViewport(false, 1, false, false, [], onEditColor, false, undefined,
+    "Pocket floor", [], { error: null }, null, null, face);
+  const mesh = React.Children.toArray(canvasFailure.children).find(child =>
+    React.isValidElement(child) && child.type === "mesh" && child.props.geometry === face,
+  ) as React.ReactElement<{ children: React.ReactElement<{ color: string }> }>;
+  expect(mesh.props.children.props.color).toBe("#eee8da");
+  React.act(() => container.querySelector<HTMLButtonElement>('[title="Edit label background color"]')!.click());
+  expect(onEditColor).toHaveBeenCalledWith("label-background");
 });

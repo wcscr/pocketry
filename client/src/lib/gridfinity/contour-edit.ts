@@ -1,4 +1,5 @@
 import type { TracedShape } from "@shared/gridfinity/cutout";
+import { normalizeCurves, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { ensureOrientation } from "@shared/geometry/rings";
 import {
   HOLE_ORIENTATION,
@@ -88,8 +89,11 @@ export function reviseTracedShape(
   source: TracedShape,
   outline: Outline,
   id: string,
+  curves?: CurveOutline,
 ): TracedShape {
-  const normalized = outline.map((shape) => ({
+  if (source.curvesMm && !curves) throw new Error("Edit the curve source to preserve this contour's handles.");
+  const normalizedCurves = curves && normalizeCurves(curves);
+  const normalized = normalizedCurves ? sampleCurves(normalizedCurves) : outline.map((shape) => ({
     outer: ensureOrientation(shape.outer, OUTER_ORIENTATION),
     holes: shape.holes.map((hole) => ensureOrientation(hole, HOLE_ORIENTATION)),
   }));
@@ -102,6 +106,7 @@ export function reviseTracedShape(
     ...source,
     id,
     outlineMm: normalized,
+    curvesMm: normalizedCurves,
     bboxMm: {
       minX: Math.min(...xs),
       minY: Math.min(...ys),

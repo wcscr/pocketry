@@ -1,7 +1,9 @@
 # Sample projects
 
-These sample projects include physically printed designs and editable variants.
-Browse the editable Pocketry designs, printable 3MF exports, and photos below.
+This library contains 17 editable projects across 15 example pages, with physical
+print photographs and derived variants. Photos document the pictured prints;
+individual-tool variants and later edits are not all separately print-qualified.
+Browse the editable Pocketry designs, supplied 3MF exports, and photos below.
 Start with a project to see how its pockets are arranged, or download a 3MF to
 open in your slicer.
 
@@ -16,7 +18,7 @@ add the designs alongside your existing projects, then select a design to open i
 
 | Design | Preview / printed bin | Files | Highlights |
 | --- | :---: | --- | --- |
-| [Craftsman 25' tape measure](craftsman-tape-measure/) | <a href="craftsman-tape-measure/"><img src="craftsman-tape-measure/photos/printed-bin-loaded-placeholder.svg" width="152" height="100" alt="Craftsman tape measure bin: printed photo coming soon"></a> | [JSON](craftsman-tape-measure/craftsman-tape-measure.pocketry.json)<br>[3MF](craftsman-tape-measure/craftsman-tape-measure.3mf) | Body pocket and deeper belt-clip relief; raised label; print photos coming soon |
+| [Craftsman 25' tape measure](craftsman-tape-measure/) | <a href="craftsman-tape-measure/"><img src="craftsman-tape-measure/photos/printed-bin-loaded.jpg" width="100" height="100" alt="Finished Craftsman tape measure bin with the tape seated in its pocket"></a> | [JSON](craftsman-tape-measure/craftsman-tape-measure.pocketry.json)<br>[3MF](craftsman-tape-measure/craftsman-tape-measure.3mf) | Body pocket and deeper belt-clip relief; raised label; print photos |
 | [Bessey and Gerber](bessey-gerber/) | <a href="bessey-gerber/photos/printed-bin-loaded.jpg"><img src="bessey-gerber/photos/printed-bin-loaded.jpg" width="89" height="100" alt="Original printed combined Bessey and Gerber bin"></a> | [JSON](bessey-gerber/bessey-gerber.pocketry.json)<br>[3MF](bessey-gerber/bessey-gerber.3mf) | Combined bin and individual bins for each tool on one example page |
 | [Mini socket set](mini-socket-set/) | <a href="mini-socket-set/photos/printed-bin-loaded-portrait.jpg"><img src="mini-socket-set/photos/printed-bin-loaded-portrait.jpg" width="76" height="100" alt="Finished mini socket set bin with its reused pre-cut shadowbox"></a> | [JSON](mini-socket-set/mini-socket-set.pocketry.json)<br>[3MF](mini-socket-set/mini-socket-set.3mf) | Reuses the pre-cut shadowbox that came with the toolset |
 | [Wiha 40 mm drivers](wiha-40mm-drivers/) | <a href="wiha-40mm-drivers/photos/printed-bin-loaded.jpg"><img src="wiha-40mm-drivers/photos/printed-bin-loaded.jpg" width="59" height="100" alt="Finished Wiha 40 mm driver bin"></a> | [JSON](wiha-40mm-drivers/wiha-40mm-drivers.pocketry.json)<br>[3MF](wiha-40mm-drivers/wiha-40mm-drivers.3mf) | Four linked pockets in the same direction; half-pitch footprint |
@@ -54,10 +56,9 @@ filament or process settings.
 
 ## Print photos
 
-The Craftsman tape measure example has placeholders for loaded-bin and empty-pocket
-photos, to be replaced when the printed-design photographs are available.
-
-The original 13 designs include photographs of their finished bins. The 40 mm and
+The 15 example pages include photographs of their finished bins; the Bessey/Gerber
+page documents the combined print and also offers two separate-tool variants.
+The Craftsman page also shows both sides of the tape measure outside the bin. The 40 mm and
 50 mm Wiha samples show the loaded bins; the 60 mm sample also shows a pocket
 with a driver removed. The original ten samples include a view with tools
 removed except for the DeWalt set.

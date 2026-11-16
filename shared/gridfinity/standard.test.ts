@@ -31,7 +31,9 @@ import {
   STACKING_LIP_LINE,
   MAGNET_HOLE_CRUSH_RIB_COUNT,
   MAGNET_HOLE_CRUSH_RIB_INNER_RADIUS,
+  STACKING_LIP_SUPPORT_HEIGHT,
   STACKING_LIP_SUPPORT_HEIGHT_MM,
+  stackingLipReachMm,
   TAB_DEPTH_MM,
   TAB_HEIGHT_MM,
   TAB_PROFILE,
@@ -151,6 +153,31 @@ describe("gridfinity standard constants", () => {
         2.5,
       ),
     ).toEqual({ gridX: 3, gridY: 5, gridPitch: "half" });
+  });
+});
+
+describe("stacking lip reach", () => {
+  it("follows the inner face from the support cone over the tip to the top chamfer", () => {
+    const at = (height: number) => stackingLipReachMm(height, height);
+    expect(at(-STACKING_LIP_SUPPORT_HEIGHT_MM - 1)).toBe(0);
+    expect(at(-STACKING_LIP_SUPPORT_HEIGHT_MM)).toBe(0);
+    // 45° support: one millimetre of reach per millimetre of rise.
+    expect(at(-2.5)).toBeCloseTo(1.3, 12);
+    expect(at(-STACKING_LIP_SUPPORT_HEIGHT)).toBe(STACKING_LIP_DEPTH);
+    expect(at(-0.5)).toBe(STACKING_LIP_DEPTH);
+    expect(at(0.35)).toBeCloseTo(STACKING_LIP_DEPTH - 0.35, 12);
+    expect(at(1.5)).toBeCloseTo(STACKING_LIP_DEPTH - STACKING_LIP_LINE[1][0], 12);
+    expect(at(STACKING_LIP_HEIGHT)).toBeCloseTo(0, 12);
+    expect(at(STACKING_LIP_HEIGHT + 1)).toBe(0);
+  });
+
+  it("reports the deepest reach across a height band", () => {
+    // A band spanning the vertical inner face reaches the full lip depth even
+    // though both ends lie on the sloped faces.
+    expect(stackingLipReachMm(-3, 1.5)).toBe(STACKING_LIP_DEPTH);
+    expect(stackingLipReachMm(-3.5, -3)).toBeCloseTo(0.8, 12);
+    expect(stackingLipReachMm(3, 3.5)).toBeCloseTo(STACKING_LIP_DEPTH - 1.2, 12);
+    expect(stackingLipReachMm(-10, -STACKING_LIP_SUPPORT_HEIGHT_MM)).toBe(0);
   });
 });
 

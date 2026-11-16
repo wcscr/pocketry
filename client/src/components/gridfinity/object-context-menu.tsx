@@ -129,7 +129,7 @@ export function BinObjectMenuProvider({ children, onProperties }: {
       </>}
       {enabled && target?.kind !== "text" && target?.kind !== "hole" && (refs.length === 1 || canLink || selected.some(item => item.designLink)) && <>
         <DropdownMenuSeparator />
-        {refs.length === 1 && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "DUPLICATE_LINKED", kind: refs[0].kind, id: refs[0].id, newId: crypto.randomUUID(), linkId: crypto.randomUUID(), labels })}><CopyPlus className="h-4 w-4" />Duplicate linked</DropdownMenuItem>}
+        {refs.length === 1 && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "DUPLICATE_LINKED", kind: refs[0].kind, id: refs[0].id, newId: crypto.randomUUID(), linkId: crypto.randomUUID(), labels, shapes })}><CopyPlus className="h-4 w-4" />Duplicate linked</DropdownMenuItem>}
         {canLink && <DropdownMenuItem className={itemClass} onSelect={() => setLinking(true)}><Link2 className="h-4 w-4" />Link geometry…</DropdownMenuItem>}
         {selected.some(item => item.designLink) && <DropdownMenuItem className={itemClass} onSelect={() => bin.dispatch({ type: "UNLINK_DESIGNS", kind: "selection", ids: refs.map(ref => ref.id) })}><Unlink className="h-4 w-4" />Unlink geometry</DropdownMenuItem>}
         {refs.length === 1 && selected[0]?.designLink && <DropdownMenuItem className={itemClass} onSelect={() => {

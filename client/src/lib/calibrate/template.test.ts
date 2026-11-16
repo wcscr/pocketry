@@ -3,14 +3,21 @@ import { describe, expect, it } from "vitest";
 import { POCKETRY_ARUCO_BITS, markerBits } from "./aruco-4x4";
 import {
   calibrationTemplateSvg,
+  detectSheetLayout,
+  estimatedTemplateTextWidth,
   EXPERIMENTAL_TEMPLATE_MARKER_SIZE_MM,
   EXPERIMENTAL_TEMPLATE_OUTER_MARGIN_MM,
   paperFromTemplateMarkerIds,
+  rectifiedSheetInkRegions,
   TEMPLATE_MARKER_IDS,
   TEMPLATE_MARKER_SIZE_MM,
   TEMPLATE_PAPER_MM,
   TEMPLATE_SPACING_MM,
+  TEMPLATE_VARIANTS,
   templateFromTemplateMarkerIds,
+  templateHeaderBaselinesMm,
+  templateInkRegionsInPixels,
+  templateInkRegionsMm,
   templateMarkerCornersMm,
   templateMarkerCentersMm,
   templateMarkerSizeMm,
@@ -145,7 +152,7 @@ describe("calibration template", () => {
     expect(letter).toContain('viewBox="0 0 215.9 279.4"');
 
     const experimental = calibrationTemplateSvg("a4-experimental");
-    expect(experimental).toContain("experimental");
+    expect(experimental).toContain("Cal Sheet");
     expect(experimental).toContain('width="24" height="24"');
   });
 
@@ -169,8 +176,8 @@ describe("calibration template", () => {
     const bar = svg.match(/<line x1="([\d.]+)" y1="[\d.]+" x2="([\d.]+)"/);
     expect(bar).not.toBeNull();
     expect(Number(bar![2]) - Number(bar![1])).toBeCloseTo(100, 9);
-    expect(svg).toContain("print at 100% scale");
-    expect(svg).toContain("Pocketry v2 calibration sheet");
+    expect(svg).toContain("Print at 100% scale");
+    expect(svg).toContain("Pocketry v3 Cal Sheet");
     expect(svg).toContain("id 0");
     expect(svg).toContain("id 3");
     const letter = calibrationTemplateSvg("letter");
@@ -205,5 +212,164 @@ describe("calibration template", () => {
 
   it("is deterministic", () => {
     expect(calibrationTemplateSvg("a4")).toBe(calibrationTemplateSvg("a4"));
+  });
+});
+
+describe("the sheet's printed areas", () => {
+  const attribute = (tag: string, name: string) => Number(new RegExp(` ${name}="([^"]+)"`).exec(tag)![1]);
+
+  it.each(TEMPLATE_VARIANTS)("cover everything the %s sheet draws", (template) => {
+    const svg = calibrationTemplateSvg(template), regions = templateInkRegionsMm(template);
+    const covered = (kinds: string[], x0: number, y0: number, x1: number, y1: number) => regions.some((r) =>
+      kinds.includes(r.kind) && x0 >= r.x && y0 >= r.y && x1 <= r.x + r.width && y1 <= r.y + r.height);
+
+    // Every line of text, at the Helvetica width the PDF prints and with room for ascenders and descenders.
+    const texts = [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)];
+    // Title, four instruction lines, the bar's caption and four marker labels.
+    expect(texts).toHaveLength(10);
+    for (const [tag, content] of texts) {
+      const x = attribute(tag, "x"), baseline = attribute(tag, "y"), size = attribute(tag, "font-size");
+      const half = estimatedTemplateTextWidth(content, size) / 2;
+      expect(covered(["strokes"], x - half, baseline - size * 0.8, x + half, baseline + size * 0.25)).toBe(true);
+    }
+    // The bar and all eleven ticks, with their stroke width.
+    const lines = [...svg.matchAll(/<line[^>]*>/g)];
+    expect(lines).toHaveLength(12);
+    for (const [tag] of lines) {
+      const xs = [attribute(tag, "x1"), attribute(tag, "x2")], ys = [attribute(tag, "y1"), attribute(tag, "y2")];
+      expect(covered(["rule"], Math.min(...xs) - 0.25, Math.min(...ys) - 0.25, Math.max(...xs) + 0.25, Math.max(...ys) + 0.25)).toBe(true);
+    }
+    // Each marker's black square.
+    const markers = [...svg.matchAll(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" fill="#000"\/>/g)];
+    expect(markers).toHaveLength(4);
+    for (const [, x, y, width, height] of markers.map((m) => m.map(Number))) {
+      expect(covered(["solid"], x, y, x + width, y + height)).toBe(true);
+    }
+    // And nothing reaches off the page.
+    const page = TEMPLATE_PAPER_MM[template.startsWith("a4") ? "a4" : "letter"];
+    for (const r of regions) {
+      expect(r.x).toBeGreaterThanOrEqual(0);
+      expect(r.y).toBeGreaterThanOrEqual(0);
+      expect(r.x + r.width).toBeLessThanOrEqual(page.width);
+      expect(r.y + r.height).toBeLessThanOrEqual(page.height);
+    }
+  });
+
+  // A v2 sheet carries the same markers as a v3 sheet, so its printing has to stay covered. These
+  // are the lines as the v2 PDF and the v2 SVG wrote them; the spacings are the marker centres.
+  it.each([
+    ["a4", 5, 3.5, [
+      ["Pocketry v2 A4 calibration sheet - print at 100% scale (no fit to page)", "Pocketry v2 calibration sheet — print at 100% scale (no “fit to page”)"],
+      ["Place the tool between the markers, keep all four visible, shoot from directly above."],
+      ["check: this bar is exactly 100 mm - marker centres 150 x 200 mm, diagonals 250 mm", "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm"]]],
+    ["letter", 5, 3.5, [
+      ["Pocketry v2 US Letter calibration sheet - print at 100% scale (no fit to page)", "Pocketry v2 calibration sheet — print at 100% scale (no “fit to page”)"],
+      ["Place the tool between the markers, keep all four visible, shoot from directly above."],
+      ["check: this bar is exactly 100 mm - marker centres 150 x 200 mm, diagonals 250 mm", "check: this bar is exactly 100 mm — marker centres 150 × 200 mm, diagonals 250 mm"]]],
+    ["a4-experimental", 4, 3, [
+      ["Pocketry v2 experimental - A4 - print at 100% scale", "Pocketry v2 experimental — A4 — print at 100% scale"],
+      ["Keep all four markers visible - camera 1x - shoot straight down.", "Keep all four markers visible · camera 1× · shoot straight down"],
+      ["check: this bar is exactly 100 mm - marker centres 162 x 249 mm", "check: this bar is exactly 100 mm — marker centres 162 × 249 mm"]]],
+    ["letter-experimental", 4, 3, [
+      ["Pocketry v2 experimental - US Letter - print at 100% scale", "Pocketry v2 experimental — US Letter — print at 100% scale"],
+      ["Keep all four markers visible - camera 1x - shoot straight down.", "Keep all four markers visible · camera 1× · shoot straight down"],
+      ["check: this bar is exactly 100 mm - marker centres 167.9 x 231.4 mm", "check: this bar is exactly 100 mm — marker centres 167.9 × 231.4 mm"]]],
+  ] as const)("still cover the text of a v2 %s sheet", (template, titleSize, instructionSize, [titles, instructions, checks]) => {
+    const regions = templateInkRegionsMm(template), page = TEMPLATE_PAPER_MM[template.startsWith("a4") ? "a4" : "letter"];
+    const header = templateHeaderBaselinesMm(template), bar = templateVerificationBarMm(template);
+    const spacing = templateMarkerCentersMm(template);
+    // The caption's numbers are the real spacing of this sheet's markers.
+    expect(checks[0]).toContain(`${Number((spacing[1].x - spacing[0].x).toFixed(4))} x ${Number((spacing[3].y - spacing[0].y).toFixed(4))} mm`);
+    for (const [texts, size, baseline] of [[titles, titleSize, header.title], [instructions, instructionSize, header.instructions], [checks, 3.5, bar.labelY]] as const) {
+      for (const text of texts) {
+        const half = estimatedTemplateTextWidth(text, size) / 2, x = page.width / 2;
+        expect(regions.some((r) => r.kind === "strokes" && r.layout === "v2" && x - half >= r.x && x + half <= r.x + r.width &&
+          baseline - size * 0.8 >= r.y && baseline + size * 0.25 <= r.y + r.height)).toBe(true);
+      }
+    }
+  });
+
+  describe("telling a v2 sheet from a v3 sheet", () => {
+    // A rectified sheet at 4 px/mm with "text" painted as fine upright bars in the chosen layouts' areas.
+    const scale = 4, page = TEMPLATE_PAPER_MM.letter;
+    const bounds = { x: 0, y: 0, width: page.width * scale, height: page.height * scale };
+    const regions = templateInkRegionsInPixels("letter-experimental", bounds);
+    const sheet = (layouts: readonly string[], extra?: (x: number, y: number) => boolean) => {
+      const width = Math.round(bounds.width), height = Math.round(bounds.height);
+      const data = new Uint8ClampedArray(width * height * 4).fill(235);
+      const ink = (x: number, y: number) => { if (x >= 0 && y >= 0 && x < width && y < height) data.fill(40, (y * width + x) * 4, (y * width + x) * 4 + 3); };
+      for (const region of regions) {
+        if (!region.layout || !layouts.includes(region.layout)) continue;
+        // Bars 2 px wide every 5 px, inside the box's margin, like the strokes of a line of text.
+        for (let y = Math.ceil(region.y + 6); y < region.y + region.height - 6; y++)
+          for (let x = Math.ceil(region.x + 6); x < region.x + region.width - 6; x++) if (x % 5 < 2) ink(x, y);
+      }
+      if (extra) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (extra(x, y)) ink(x, y);
+      return { width, height, data };
+    };
+
+    it("names the layout whose text is on the sheet", () => {
+      expect(detectSheetLayout(sheet(["v2"]), regions)).toBe("v2");
+      expect(detectSheetLayout(sheet(["v3"]), regions)).toBe("v3");
+    });
+
+    it("does not guess from a blank sheet, or one that seems to show both", () => {
+      expect(detectSheetLayout(sheet([]), regions)).toBeNull();
+      expect(detectSheetLayout(sheet(["v2", "v3"]), regions)).toBeNull();
+    });
+
+    it("is not fooled by tools lying across the other layout's lines", () => {
+      // Five shafts 6 mm wide running down through the header, as five drivers side by side would.
+      const shafts = (x: number, y: number) => y < 60 * scale && x > 40 * scale && x < 180 * scale && (x % (28 * scale)) < 6 * scale;
+      expect(detectSheetLayout(sheet(["v2"], shafts), regions)).toBe("v2");
+    });
+
+    it("keeps both layouts when a tool hides most of the text", () => {
+      // The whole header under one large tool: only the caption is left to read.
+      const cover = (_: number, y: number) => y < 60 * scale;
+      expect(detectSheetLayout(sheet(["v2"], cover), regions)).toBeNull();
+    });
+
+    it("drops the other layout's text areas from what detection removes", () => {
+      const correction = { source: "template", template: "letter-experimental" as const, paperBounds: bounds };
+      // Read at half the working resolution, as the page does with a large photo.
+      const whole = sheet(["v2"]), half = { width: whole.width >> 1, height: whole.height >> 1, data: new Uint8ClampedArray((whole.width >> 1) * (whole.height >> 1) * 4) };
+      for (let y = 0; y < half.height; y++) for (let x = 0; x < half.width; x++)
+        half.data.set(whole.data.subarray((2 * y * whole.width + 2 * x) * 4, (2 * y * whole.width + 2 * x) * 4 + 4), (y * half.width + x) * 4);
+      const v2 = rectifiedSheetInkRegions(correction, true, { image: half, toWorking: { x: 2, y: 2 } })!;
+      expect(v2).toHaveLength(12);
+      expect(v2.some((region) => region.layout === "v3")).toBe(false);
+      const v3 = rectifiedSheetInkRegions(correction, true, { image: sheet(["v3"]), toWorking: { x: 1, y: 1 } })!;
+      expect(v3).toHaveLength(15);
+      expect(v3.some((region) => region.layout === "v2")).toBe(false);
+      // Not readable: everything stays.
+      expect(rectifiedSheetInkRegions(correction, true, { image: sheet([]), toWorking: { x: 1, y: 1 } })).toHaveLength(18);
+    });
+  });
+
+  it("maps into a rectified photo by the page's scale and offset", () => {
+    const page = TEMPLATE_PAPER_MM.letter, bounds = { x: 30, y: 20, width: page.width * 4, height: page.height * 4 };
+    const mm = templateInkRegionsMm("letter-experimental"), px = templateInkRegionsInPixels("letter-experimental", bounds);
+    expect(px).toHaveLength(mm.length);
+    px.forEach((region, i) => {
+      expect(region.kind).toBe(mm[i].kind);
+      expect(region.x).toBeCloseTo(30 + mm[i].x * 4, 9);
+      expect(region.y).toBeCloseTo(20 + mm[i].y * 4, 9);
+      expect(region.width).toBeCloseTo(mm[i].width * 4, 9);
+      expect(region.height).toBeCloseTo(mm[i].height * 4, 9);
+    });
+  });
+
+  it("is offered only for an upright, template-rectified photo", () => {
+    const paperBounds = { x: 0, y: 0, width: 864, height: 1118 };
+    const template = { source: "template", template: "letter-experimental" as const, paperBounds };
+    // Six lines of today's sheet, three of the v2 sheet, the bar, and four markers with their labels.
+    expect(rectifiedSheetInkRegions(template, true)).toHaveLength(18);
+    // Rotated or straightened since: the layout no longer lines up.
+    expect(rectifiedSheetInkRegions(template, false)).toBeUndefined();
+    // A manual four-point correction knows no layout, and neither does an uncorrected photo.
+    expect(rectifiedSheetInkRegions({ source: "manual", paperBounds }, true)).toBeUndefined();
+    expect(rectifiedSheetInkRegions({ source: "template", template: "a4" }, true)).toBeUndefined();
+    expect(rectifiedSheetInkRegions(null, true)).toBeUndefined();
   });
 });

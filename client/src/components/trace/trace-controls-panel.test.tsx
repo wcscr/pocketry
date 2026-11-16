@@ -26,6 +26,7 @@ const CALIBRATION: Calibration = {
 const applyPerspective = vi.fn();
 const rotateImage = vi.fn();
 const reprocess = vi.fn();
+const simplifyOutline = vi.fn();
 const detectMarkers = vi.fn();
 let trace: TraceStore;
 
@@ -169,6 +170,7 @@ function Harness(): JSX.Element {
         onRotateImage={rotateImage}
         onExport={() => {}}
         onReprocess={reprocess}
+        onSmoothOutline={simplifyOutline}
         onDetectMarkers={detectMarkers}
         onApplyPerspective={applyPerspective}
       />
@@ -248,6 +250,65 @@ it("adds a square from the Outline controls after empty detection and guards pro
   expect(add().disabled).toBe(true);
   await click("button-add-contour");
   expect(trace.outline).toHaveLength(2);
+});
+
+it("keeps optional smoothing inside Manual detection settings", async () => {
+  await prepareOutline();
+  const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+  React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
+  const action = () => host.querySelector<HTMLButtonElement>('[data-testid="button-smooth-outline"]')!;
+  expect(action().textContent).toContain("Smooth outline"); expect(action().disabled).toBe(false);
+  const manual = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Manual detection settings")!;
+  expect(manual).toBeDefined();
+  const restart = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Restart outline detection")!;
+  const contours = host.querySelector('[data-testid="detection-contours"]')!;
+  expect(contours.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.compareDocumentPosition(action()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(manual.getAttribute("aria-expanded")).toBe("false");
+  const tuning = document.getElementById(manual.getAttribute("aria-controls")!)!;
+  expect(tuning.hidden).toBe(true);
+  expect(tuning.contains(action())).toBe(true);
+  React.act(() => manual.click());
+  expect(manual.getAttribute("aria-expanded")).toBe("true");
+  expect(tuning.hidden).toBe(false);
+  const history = trace.history;
+  await click("button-smooth-outline"); expect(simplifyOutline).toHaveBeenCalled(); expect(trace.history).toBe(history); expect(trace.curves).toBeUndefined();
+  React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [...ring, { x: 5, y: 50 }], holes: [] }] }));
+  expect(action().disabled).toBe(false); // Auto always previews the currently edited outline.
+});
+
+it("offers focused action hints without opening tools or changing the outline", async () => {
+  await prepareOutline();
+  expect(host.querySelector('[data-testid="button-import-outline"]')?.textContent).toBe("Import outline from file");
+  expect(host.querySelector('[data-testid="button-position-contour"]')?.textContent).toBe("Move & rotate outline");
+  const { outline, history, mode } = trace;
+  const hints = [
+    ["symmetry and straightening", "straighten the photo and outline together"],
+    ["adding a manual contour", "different pocket depth in Bin"],
+    ["importing an outline from file", "Load a closed SVG outline"],
+    ["moving and rotating the outline", "The photo stays fixed"],
+    ["editing the outline", "Move, add, or remove outline points"],
+    ["manual detection settings", "Most traces won't need these settings"],
+    ["restarting outline detection", "keeping the photo, scale, and region"],
+  ];
+  for (const [label, description] of hints) {
+    const hint = host.querySelector<HTMLButtonElement>(`[aria-label="About ${label}"]`)!;
+    expect(hint.closest('button:not([aria-label])')).toBeNull();
+    await React.act(async () => hint.focus());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(description);
+    React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    await React.act(async () => hint.click());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(description);
+    React.act(() => hint.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  }
+  expect(trace.outline).toBe(outline);
+  expect(trace.history).toBe(history);
+  expect(trace.mode).toBe(mode);
+  expect(reprocess).not.toHaveBeenCalled();
+  expect(host.querySelector('button[aria-controls][aria-expanded="false"]')).not.toBeNull();
 });
 
 async function changeNumber(id: string, value: string): Promise<void> {
@@ -650,7 +711,7 @@ describe("TraceControlsPanel guided workflow", () => {
     await React.act(async () => {
       document.querySelector<HTMLButtonElement>('[data-testid="button-template-letter-experimental"]')!.click();
     });
-    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-calibration-v2-letter-experimental.pdf");
+    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), "pocketry-calibration-v3-letter-experimental.pdf");
     await React.act(async () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
@@ -790,12 +851,12 @@ describe("TraceControlsPanel guided workflow", () => {
     expect(host.textContent).not.toContain("Reflections are usually not holes");
     expect(host.querySelector('[aria-label="About interior holes"]')).not.toBeNull();
     await React.act(async () => host.querySelector<HTMLButtonElement>('[aria-label="About contour editing"]')!.click());
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Simplification adjusts your edited contour");
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Set each pocket's depth in Bin");
     React.act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(section("detect")?.querySelector("#smoothing")).toBeNull();
     expect(section("detect")?.textContent).not.toContain("Smoothing");
     expect(host.querySelector('#include-interior-holes')?.getAttribute("aria-checked")).toBe("false");
-    expect(host.textContent).toContain("No outline found. Choose Add contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
+    expect(host.textContent).toContain("No outline found. Choose Add manual contour to trace manually, increase Sensitivity, or redraw the region around the whole tool.");
     expect(
       section("detect")?.querySelector("[data-testid='detection-contours']"),
     ).not.toBeNull();
@@ -932,7 +993,7 @@ describe("automatic sensitivity detection", () => {
     await prepareOutline();
     await stepSensitivity();
     expect(reprocess).toHaveBeenLastCalledWith({ sensitivity: 127, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // Committed only when re-detection succeeds.
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Re-detect outline")).toBe(false);
     await React.act(async () => {
@@ -960,7 +1021,7 @@ describe("automatic sensitivity detection", () => {
     await stepSensitivity();
     await chooseConfirmation("Replace manual edits");
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 127, includeInteriorHoles: false });
-    expect(trace.sensitivity).toBe(127);
+    expect(trace.sensitivity).toBe(128); // Committed only when re-detection succeeds.
   });
 
   it("does not ask after all manual vertex edits have been undone", async () => {
@@ -974,11 +1035,12 @@ describe("automatic sensitivity detection", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("applies the interior-hole option immediately through the same detection flow", async () => {
+  it("requests interior holes through the same atomic detection flow", async () => {
     await prepareOutline();
+    React.act(() => trace.dispatch({ type: "SET_BOUNDARY_METHOD", method: "auto" }));
     await React.act(async () => host.querySelector<HTMLButtonElement>('#include-interior-holes')!.click());
     expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: true });
-    expect(trace.includeInteriorHoles).toBe(true);
+    expect(trace.includeInteriorHoles).toBe(false); // Published with successful detection.
   });
 });
 

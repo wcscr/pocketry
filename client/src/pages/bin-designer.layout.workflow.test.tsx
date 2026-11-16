@@ -1,5 +1,6 @@
 import {
   projectToast,
+  binGeometryMock,
   EMPTY_PROJECT,
   rectangularShape,
   flushHydration,
@@ -1241,3 +1242,26 @@ it.each(['Move selected objects', 'Rotate selected objects', 'Arrange selected o
     } finally { unmount(); window.history.replaceState(null, '', originalUrl); }
   },
 );
+
+
+it.each([false, true])("shows one exact wall error for a raised pocket and keeps export blocked, mobile=%s", async mobile => {
+  const pocket = createBasicPocket("rectangle", { x: -6, y: -12 }, { x: 6, y: 12 }, "driver")!;
+  const cutout = { ...pocket.cutout, position: { x: 35.5, y: 0 }, elevationMm: 7 };
+  const spec = parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6 });
+  expect(validateLayout(spec, [cutout], new Map([[pocket.shape.id, pocket.shape]])).some(issue => issue.code === "wall-breach")).toBe(true);
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, cutouts: [cutout], shapes: [pocket.shape] });
+  binGeometryMock.validationIssues = [{ code: "tilted-pocket-wall", severity: "error", cutoutIds: [cutout.id],
+    message: "The pocket at this height cuts into a wall, label tab, or stacking rim. Move it inward, adjust its height, or enlarge the bin." }];
+  const { container, unmount } = renderPage({ mobile });
+  try {
+    await flushHydration();
+    const warnings = container.querySelector<HTMLElement>('[data-testid="canvas-warnings"]')!;
+    React.act(() => warnings.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click());
+    expect(warnings.textContent).toContain("pocket at this height");
+    expect(warnings.textContent).not.toContain("combined clearance and top-edge round");
+    expect(warnings.textContent).not.toContain("reduce tilt");
+    openSettingsSection(document.body, "export");
+    expect(document.querySelector('[data-testid="export-blocked-reasons"] [data-export-issue="tilted-pocket-wall"]')).not.toBeNull();
+    expect(document.querySelector('[data-export-issue="wall-breach"]')).toBeNull();
+  } finally { unmount(); }
+});

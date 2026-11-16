@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   boundaryEdges,
   edgeForWall,
+  footprintInsetRingMm,
   footprintInteriorRingMm,
   footprintOuterRingMm,
   footprintTopologyError,
@@ -11,6 +12,7 @@ import {
   occupiedCellCount,
   resolveBoundaryRun,
 } from "./footprint";
+import { D_WALL } from "./standard";
 import { parseBinSpec } from "./types";
 
 const L_SPEC = parseBinSpec({
@@ -55,6 +57,21 @@ describe("footprint perimeter", () => {
     expect(Math.max(...outer.map((point) => point.y))).toBeCloseTo(41.75, 6);
     expect(Math.abs(signedArea(inner))).toBeLessThan(Math.abs(signedArea(outer)));
     expect(occupiedCellCount(L_SPEC)).toBe(3);
+  });
+
+  it("insets the outer ring like a Round offset, matching the wall's inner face", () => {
+    const close = (a: { x: number; y: number }[], b: { x: number; y: number }[]) => {
+      expect(a).toHaveLength(b.length);
+      a.forEach((point, i) => {
+        expect(point.x).toBeCloseTo(b[i].x, 9);
+        expect(point.y).toBeCloseTo(b[i].y, 9);
+      });
+    };
+    close(footprintInsetRingMm(L_SPEC, 0), footprintOuterRingMm(L_SPEC));
+    close(footprintInsetRingMm(L_SPEC, D_WALL), footprintInteriorRingMm(L_SPEC));
+    const lip = footprintInsetRingMm(L_SPEC, 2.6);
+    expect(Math.max(...lip.map((point) => point.x))).toBeCloseTo(41.75 - 2.6, 6);
+    expect(Math.abs(signedArea(lip))).toBeLessThan(Math.abs(signedArea(footprintInteriorRingMm(L_SPEC))));
   });
 
   it("resolves a selected unit edge to the full straight run", () => {

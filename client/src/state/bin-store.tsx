@@ -1,5 +1,5 @@
 import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
-import { moveTextsWithLabelTabRecess } from "@shared/gridfinity/label-tab-surfaces";
+import { textsAfterLabelTabEdit } from "@shared/gridfinity/label-tab-surfaces";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
 import { pocketInsertionError } from "@shared/gridfinity/pocket-insertion";
 import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-text";
@@ -12,6 +12,7 @@ import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, t
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
 import { expandGroupSelection, groupForRef, objectGroupSchema, pruneObjectGroups, rebaseLayoutGroups, type ObjectGroup } from "@shared/gridfinity/object-groups";
 import { NumericEditContext, type NumericEditSession } from "@/components/ui/numeric-edit-context";
+import { linkedPocketCopyPosition } from "@/lib/gridfinity/autoplace";
 import { useExperimentalFeatures } from "./experimental-features";
 
 import {
@@ -103,6 +104,20 @@ export interface BinState {
  * the visible state but deliberately leave this document unchanged, allowing
  * expensive consumers such as the geometry worker to wait for release.
  */
+/** Labels follow their shelves whenever an edit moves them (grid, recess, slant, resize). */
+function withLabelsOnTabs(state: Pick<BinState, "history" | "spec">, spec: BinSpec): BinSpec {
+  spec.surfaceTexts = textsAfterLabelTabEdit(getCommittedBinDoc(state).spec, state.spec, spec);
+  return spec;
+}
+
+/** Moving a stranded label explicitly assigns its location; wording/size edits do not. */
+function afterSurfaceTextPlacementEdit(previous: SurfaceText | undefined, next: SurfaceText): SurfaceText {
+  if (!next.orphanedTab || (previous?.orphanedTab && previous.position.x === next.position.x
+    && previous.position.y === next.position.y && previous.surface === next.surface)) return next;
+  const { orphanedTab: _anchor, ...placed } = next;
+  return placed;
+}
+
 export function getCommittedBinDoc(
   state: Pick<BinState, "history">,
 ): BinDoc {
@@ -183,7 +198,7 @@ export type BinAction = (
   | { type: "CANCEL_REMOVE_CUTOUT" }
   | { type: "REMOVE_CUTOUT"; id: string }
   | { type: "DUPLICATE_CUTOUT"; id: string; newId: string; labels?: ReadonlyMap<string, string> }
-  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string> }
+  | { type: "DUPLICATE_LINKED"; kind: DesignObjectKind; id: string; newId: string; linkId: string; labels?: ReadonlyMap<string, string>; shapes?: readonly TracedShape[] }
   | { type: "LINK_DESIGNS"; kind: DesignObjectKind; ids: string[]; sourceId: string; linkId: string; tilt: boolean; shapes?: readonly TracedShape[] }
   | { type: "UNLINK_DESIGNS"; kind: DesignObjectKind | "selection"; ids: string[] }
   | { type: "SET_LINKED_TILT"; id: string; enabled: boolean }
@@ -606,8 +621,11 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       if (doc.spec.labelTab?.autoWall && !doc.spec.labelTab.edge) {
         doc.spec.labelTab = { ...doc.spec.labelTab, wall: defaultLabelTabWall(doc.spec) };
       }
-      if (!action.patch.surfaceTexts) {
-        doc.spec.surfaceTexts = moveTextsWithLabelTabRecess(state.spec, doc.spec);
+      if (action.patch.surfaceTexts) {
+        doc.spec.surfaceTexts = doc.spec.surfaceTexts.map(label =>
+          afterSurfaceTextPlacementEdit(state.spec.surfaceTexts.find(previous => previous.id === label.id), label));
+      } else {
+        withLabelsOnTabs(state, doc.spec);
       }
       if ("fillHeightPercent" in action.patch) {
         const previous = getCommittedBinDoc(state);
@@ -630,12 +648,12 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       return commit(
         state,
         {
-          spec: parseBinSpec({
+          spec: withLabelsOnTabs(state, parseBinSpec({
             ...state.spec,
             gridX: action.gridX,
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
-          }),
+          })),
           cutouts: [...state.cutouts, ...action.cutouts.map((cutout): CutoutPlacement => {
             const colored: CutoutPlacement = { ...cutout, colorFloorAxis: cutout.colorFloorAxis ?? "insertion" };
             return defaultPocketFloorThicknessMm(state.spec) !== defaultPocketFloorThicknessMm({ flatBottom: false })
@@ -803,11 +821,15 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const designLink = source.designLink ?? { id: action.linkId, tilt: false };
       const name = copyNameAllocator(state, action.labels)(source.id);
       let doc: BinDoc;
+      let placementMessage: string | null = null;
       if (action.kind === "pocket") {
         const pocket = source as CutoutPlacement;
+        const position = linkedPocketCopyPosition(state.spec, pocket, state.cutouts,
+          new Map(action.shapes?.map(shape => [shape.id, shape])), state.fingerHoles);
+        if (!position) placementMessage = "No clear space was found. The linked copy is on top of its source; move it or enlarge the bin.";
         doc = { spec: state.spec, fingerHoles: state.fingerHoles, cutouts: [
           ...state.cutouts.map(c => c.id === source.id ? { ...c, designLink } : c),
-          { ...pocket, name, id: action.newId, designLink, placementGroup: undefined, position: { x: pocket.position.x + 10, y: pocket.position.y - 10 } },
+          { ...pocket, name, id: action.newId, designLink, placementGroup: undefined, position: position ?? { ...pocket.position } },
         ] };
       } else {
         const hole = source as FingerHole;
@@ -816,7 +838,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
           { ...hole, name, id: action.newId, designLink, placementGroup: undefined, center: { x: hole.center.x + 10, y: hole.center.y - 10 } },
         ] };
       }
-      return commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }]));
+      return { ...commit(state, doc, "Duplicate linked design", selectionState([{ kind: action.kind, id: action.newId }])), editError: placementMessage };
     }
     case "REPLACE_LAYOUT": {
       if (action.operation === "auto-arrange" && [...state.cutouts, ...state.fingerHoles].some(object => object.placementGroup)) {
@@ -827,13 +849,13 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       return commit(
         state,
         {
-          spec: parseBinSpec({
+          spec: withLabelsOnTabs(state, parseBinSpec({
             ...state.spec,
             ...action.specPatch,
             gridX: action.gridX,
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
-          }),
+          })),
           ...objects,
         },
         action.historyLabel ?? "Arrange tool pockets",
@@ -937,21 +959,19 @@ function reduceBin(state: BinState, action: BinAction): BinState {
     case "SET_EDITOR_MODE":
       return { ...state, editorMode: action.editorMode,
         drawDepthMm: action.editorMode.startsWith("draw-") ? action.drawDepthMm : undefined };
-    case "SET_GRID":
+    case "SET_GRID": {
+      const spec = parseBinSpec({
+        ...state.spec,
+        gridX: action.gridX,
+        gridY: action.gridY,
+        footprint: { kind: "rectangle" },
+      });
       return commit(
         state,
-        {
-          spec: parseBinSpec({
-            ...state.spec,
-            gridX: action.gridX,
-            gridY: action.gridY,
-            footprint: { kind: "rectangle" },
-          }),
-          cutouts: state.cutouts,
-          fingerHoles: state.fingerHoles,
-        },
+        { spec: withLabelsOnTabs(state, spec), cutouts: state.cutouts, fingerHoles: state.fingerHoles },
         action.historyLabel ?? "Resize bin",
       );
+    }
     case "UNDO": {
       if (state.history.index <= 0) return state;
       const index = state.history.index - 1;

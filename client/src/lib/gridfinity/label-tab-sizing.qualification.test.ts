@@ -13,6 +13,7 @@ import { buildBin, buildBinWithCutouts, EXPORT_QUALITY, PREVIEW_QUALITY } from "
 import { placeSurfaceTextOnTab } from "./surface-text";
 import { getHandler, context, nonManifoldEdgeCount, printableMeshVolume, previewMeshVolume } from "./bin-worker-handlers.test-support";
 import type { BuildBinRequest } from "./worker-api";
+import { surfaceTextIssueText } from "./surface-text.test-support";
 
 const custom = { kind: "custom" as const, cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] };
 const bin = (extra: Partial<BinSpecInput> = {}) => parseBinSpec({ gridX: 2, gridY: 2, heightUnits: 6,
@@ -115,7 +116,7 @@ describe("adjustable label-tab solids", () => {
     expect(small.surfaceTexts).toEqual(original.surfaceTexts);
     await withKernel(kernel => {
       expect(buildBinWithCutouts(kernel, original, null, PREVIEW_QUALITY).textParts).toHaveLength(1);
-      expect(() => buildBinWithCutouts(kernel, small, null, PREVIEW_QUALITY)).toThrow("must fit on a label tab");
+      expect(surfaceTextIssueText(buildBinWithCutouts(kernel, small, null, PREVIEW_QUALITY))).toContain("must fit on a label tab");
     });
     expect(small.surfaceTexts).toEqual(original.surfaceTexts);
   });
@@ -130,7 +131,7 @@ describe("adjustable label-tab solids", () => {
         expect(result.solid.decompose().map(part => kernel.arena.track(part)).filter(part => part.volume() > 1e-6)).toHaveLength(1);
         expect(nonManifoldEdgeCount(extractPrintableMeshData(kernel, result.solid))).toBe(0);
         const text = surfaceTextSchema.parse({ id: "buried", text: "I", sizeMm: 2, surface: "label-tab", position: { x: 0, y: 40 } });
-        expect(() => buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [text] }, null, EXPORT_QUALITY)).toThrow("overlaps another label or the bin walls");
+        expect(surfaceTextIssueText(buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [text] }, null, EXPORT_QUALITY))).toContain("overlaps another label or the bin walls");
       });
     }
   });

@@ -2,7 +2,83 @@
 
 ## Unreleased
 
-- Add the Craftsman 25' tape measure bin to the sample library, with an editable project, original multicolor 3MF, and placeholders for printed-bin photos.
+## 1.12.2 — 2026-11-16
+
+- Add the Craftsman 25' tape measure sample with an editable project, multicolor 3MF, and photos of the printed bin and tape measure.
+
+## 1.12.1 — 2026-11-15
+
+- Give ULTIM8-compatible fixtures a separate Help page, keeping the main guide focused on photo-to-bin steps and preserving existing fixture-help links.
+
+## 1.12.0 — 2026-11-15
+
+- Require Node.js 26 LTS for builds and Node-hosted installs. Upgrade Node before updating; Docker continues to serve the app with NGINX.
+
+## 1.11.3 — 2026-11-15
+
+- Restore command-line STL and 3MF bin exports when running with tsx.
+
+## 1.11.2 — 2026-11-15
+
+- Import native Inkscape SVG outlines with editor metadata and paint-order styles; explain how to flatten unsupported clipping effects.
+
+## 1.11.1 — 2026-11-15
+
+- Confirm switching to Color contrast when enabling interior holes from Tool edges, distinguish outline movement from photo movement, and add help hints to the Outline actions. Move manual detection settings below the contour list.
+
+## 1.11.0 — 2026-11-14
+
+- Import an SVG outline in Trace to adjust its points over the photo. An outline exported from the same photo returns to its exact position; other files are placed at true size and turned to fit the current outline. Replace or add to the current outline as one undoable step.
+- Move & rotate a contour over the photo by dragging it, turning a handle, or typing values, without changing its size.
+
+## 1.10.0 — 2026-11-14
+
+- Improve tool outline detection on light calibration sheets, including dark, reflective and clear parts. [Comparison report](docs/outline-detection-1.9-to-1.10.md) · [Interactive report](client/public/reports/outline-1.9-to-1.10/index.html).
+- Automatically smooth outlines and bridge small dips for cleaner pockets.
+- Add brush corrections, editable curves, section repair, symmetry and straightening.
+- Restart detection or switch methods without repeating photo setup; restore outlines and settings together with Undo.
+
+## 1.9.0 — 2026-11-12
+
+- Import closed SVG outlines as editable pockets with physical dimensions or a width override.
+- Calibration-sheet v3 recommends photographing tall objects from farther away and allows zoom, with unchanged markers and dimensions.
+
+## 1.8.3 — 2026-11-05
+
+- Describe wall conflicts correctly for raised or lowered pockets without tilt, and show one authoritative wall error instead of a duplicate layout warning. Invalid wall cuts still block export.
+
+## 1.8.2 — 2026-11-05
+
+- Place linked pocket copies in nearby clear space, avoiding existing pockets, finger access, and surface labels instead of stepping them out of the bin. If no clear position is found, keep the copy on its source and explain how to move it.
+
+## 1.8.1 — 2026-11-05
+
+- Keep a visible placement guide in Layout while raised or tilted pocket outlines update, with progress and unavailable-outline messages.
+
+## 1.8.0 — 2026-11-05
+
+- Warn when surface text or hardware-symbol strokes may disappear with a typical 0.4 mm nozzle. Select the affected label from the warning to adjust its font or size; exports remain available.
+
+## 1.7.3 — 2026-11-05
+
+- Add Bambu 3MF color compatibility and a Prusa color preview 3MF that automatically sets up filament slots and colors in PrusaSlicer 2.9.7 and 3.0 alpha12/alpha13. The Prusa preview loads a temporary printer setup; choose the actual printer before printing. Regular multi-color export retains separate named parts.
+
+## 1.7.2 — 2026-11-05
+
+- Fix "Raise the pocket" errors after moving an experimental group or rotating pockets about Z. Moving or turning pockets no longer changes their depth or elevation.
+
+## 1.7.1 — 2026-11-05
+
+- A label that doesn't fit no longer blanks the 3D preview: the bin still previews, the label is outlined in Layout and listed with a link to place it, and export waits until it is fixed. New text starts in a clear spot instead of over a pocket, and on lipped bins clear of the stacking lip's overhang.
+- Labels on sub-bin tabs follow their sub-bin when you change rows, columns or bin size. Labels whose tab disappears stay flagged until you restore that tab or move them, including after reopening a saved project. Fix the invisible "Retry preview" button.
+
+## 1.7.0 — 2026-11-05
+
+- Choose independent label-background colors, with adjustable material thickness, in the preview and multicolor 3MF exports. Existing labels keep their body color.
+
+## 1.6.1 — 2026-11-05
+
+- Warn before multi-color 3MF export about the Bambu Studio 2.9.1.70 color-import issue, with a link to the fix in progress.
 
 ## 1.6.0 — 2026-11-05
 
@@ -10,7 +86,7 @@
 - Add adjustable, recessed label tabs with front rims, raised text, and 18 hardware symbols from [GFLabel](https://github.com/ndevenish/gflabel), including support for slanted compartments and multicolor export.
 - Support taller bins up to 60U, automatic wall thickness, and experimental slanted walls with single-wall tilts and support wedges.
 - Add Wham Bam Systems ULTIM8-compatible fixtures with arbitrary millimeter dimensions, configurable peg bottoms, and 1:1 SVG alignment layouts.
-- Add manually drawn Trace contours and preserve photo layouts as separate editable pockets and holes.  This can be used to add multi-level pockets for things like a belt clip on a tape measure (example print forthcoming).
+- Add manually drawn Trace contours and preserve photo layouts as separate editable pockets and holes. This can be used to add multi-level pockets for things like a belt clip on a tape measure (see the [Craftsman sample](samples/craftsman-tape-measure/)).
 - Experimental groups move and rotate objects together while geometry-linked copies keep independent positions.
 - Improve tilted-pocket geometry and insertion clearance, plus floor/interior coloring in previews and multicolor 3MF exports.
 

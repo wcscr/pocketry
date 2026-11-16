@@ -869,18 +869,34 @@
         "sha256": "3e752abac3288365f6260b811c5f444186805a4d6fec774ec1b611e25b744382",
         "processing": "Migrated to the current project schema; renamed for the sample catalog; removed undo history, transform origins, and unused shapes. Placed pocket geometry, depths, label, and colors retained from the original project accompanying the 3MF export."
       },
-      "photos": [],
-      "photoStatus": "Printed-bin photographs pending; the two SVG placeholders are illustrations, not print evidence.",
-      "previews": [
+      "photos": [
         {
-          "file": "photos/printed-bin-loaded-placeholder.svg",
-          "sha256": "2d579c99a53bab0ce574898ce148e57b599422620181cc02459b8740e7b92987",
-          "processing": "Repository-authored SVG placeholder for a future printed-bin photograph; not print evidence."
+          "file": "photos/printed-bin-loaded.jpg",
+          "sourceFile": "20261116_084520.jpg",
+          "cropPixelsAfterOrientation": [520, 1080, 2390, 2940],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "2ec3636416e3bdd4321fde0eb32e8344366d8a7bf62eb3a80da11acbd98f9e89"
         },
         {
-          "file": "photos/printed-bin-pocket-placeholder.svg",
-          "sha256": "9b9225b51d32026953406d0cdfbf9ddd22325445f44e07fb463f5f94d58a61b9",
-          "processing": "Repository-authored SVG placeholder for a future printed-bin photograph; not print evidence."
+          "file": "photos/printed-bin-pocket.jpg",
+          "sourceFile": "20261116_084526.jpg",
+          "cropPixelsAfterOrientation": [390, 350, 2420, 2370],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "bb4b0c648168c3a0137abc38412e1f9327569c2c718fda90f773d10318d47c02"
+        },
+        {
+          "file": "photos/tape-measure-front.jpg",
+          "sourceFile": "20261116_084526.jpg",
+          "cropPixelsAfterOrientation": [570, 2390, 2390, 3980],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "bf775c8daeb317dbb449aaac3630852470c45976b75a089d6d3a3c16094e319f"
+        },
+        {
+          "file": "photos/tape-measure-clip.jpg",
+          "sourceFile": "20261116_084533.jpg",
+          "cropPixelsAfterOrientation": [510, 2140, 2380, 3970],
+          "processing": "EXIF orientation applied to pixels; converted from embedded DCI-P3 profile to sRGB; cropped; resized to at most 1200 px; quality-85 progressive RGB JPEG without EXIF, XMP, IPTC, ICC, or comments. No generative edits.",
+          "sha256": "a7ab793386acc57b03c79021c953dac0ec33c2a72099f84dd66ac3e0d4f0aa33"
         }
       ]
     }
