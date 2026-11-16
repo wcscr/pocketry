@@ -62,8 +62,9 @@ neither establishes physical fit or printing performance. The reported support
 warnings on the user's other designs remain unconfirmed until those exact
 artifacts are compared.
 
-PR #146 must remove its conditional solid cleanup when it is rebased onto this
-fix. Retaining that cleanup would reintroduce the precision feedback loop.
+Partial tilted-pocket openings use this shared native-solid to printable-mesh
+boundary. Adding a separate conditional cleanup would reintroduce the precision
+feedback loop.
 
 ## Local qualification (2026-10-08)
 
