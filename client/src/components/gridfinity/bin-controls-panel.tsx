@@ -2072,12 +2072,17 @@ export function BinControlsPanel({
                 <LabelTabSizeControls spec={spec} onChange={(patch, transient) =>
                   patchSpec({ labelTab: { ...spec.labelTab!, ...patch } }, transient)} />
                 <FeatureSwitch label="Snap-in labels"
-                  description="Cut retaining sockets into each shelf and save separately printable labels with this bin."
+                  description="Cut retaining sockets into each shelf and save separately printable labels with this bin. The retaining profile adapts Cullenect Labels v2 by Cullen J Webb (MIT)."
                   checked={!!spec.labelTab.snap}
                   onChange={enabled => patchSpec({ labelTab: { ...spec.labelTab!, snap: enabled
                     ? { widthMm: 22, clearanceMm: 0.25, labels: [], face: { mode: "auto", marginMm: 0.6,
                       widthMm: 24, heightMm: 13, thicknessMm: 0.4, textSizeMm: 3.2 } } : null } })} />
                 {spec.labelTab.snap && <div className="space-y-2 rounded-md border p-2.5" data-testid="snap-label-settings">
+                  <p className="text-xs text-muted-foreground">
+                    Retaining profile adapted from{" "}
+                    <a href="https://github.com/CullenJWebb/Cullenect-Labels" target="_blank" rel="noreferrer" className="underline underline-offset-2">Cullenect Labels v2</a>{" "}
+                    by Cullen J Webb · <a href="/NOTICE.txt" target="_blank" rel="noreferrer" className="underline underline-offset-2">MIT license</a>
+                  </p>
                   <div className="flex items-center justify-between gap-3">
                     <SettingLabel label="Latch width" htmlFor="snap-label-width" hint="Width of the retaining base and socket. Changing this changes the fit; the visible face has separate sizing below." />
                     <DraftNumberInput id="snap-label-width" className="h-8 w-20" aria-label="Snap label width in millimetres"

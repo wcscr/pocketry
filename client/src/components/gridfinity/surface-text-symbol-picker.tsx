@@ -5,6 +5,7 @@ import type { Ring } from "@shared/geometry/types";
 import { outlineBounds } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
@@ -27,6 +28,7 @@ export function SurfaceTextSymbolPicker({ symbol, rotationDeg, canRemove, id, on
   return <div className="space-y-1">
     <div className="flex items-center gap-2">
       <Label htmlFor={id} className="text-xs">Symbol</Label>
+      <HelpHint label="hardware symbol source">Hardware symbol outlines are adapted from GFLabel by Nicholas Devenish (BSD-3-Clause). Open the symbol list for the source and license links.</HelpHint>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild><Button id={id} role="combobox" aria-label="Hardware symbol" aria-expanded={open} variant="outline"
           className="h-8 min-w-0 flex-1 justify-between gap-2 px-2 font-normal [&_[data-symbol-preview]]:h-6 [&_[data-symbol-preview]]:w-9 [@media(pointer:coarse)]:min-h-11">
