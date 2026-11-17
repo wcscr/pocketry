@@ -448,7 +448,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         width: maxX - minX, height: maxY - minY },
     };
   }, [widthMm, lengthMm, placed, placedFingerHoles, footprintEditorPaddingMm]);
-  const fitLayout = () => layoutFit.outsideBin ? viewport.fitToRect(layoutFit.rect) : viewport.fit();
+  const fitLayout = () => layoutFit.outsideBin ? viewport.fitToRect(layoutFit.rect, { followResizes: true }) : viewport.fit();
   const seenPocketIds = useRef<Set<string>>(new Set());
   const fitNewPocket = useRef(false);
   useEffect(() => {
@@ -458,7 +458,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [placed]);
   useEffect(() => {
     if (!fitNewPocket.current || !containerSize.width || !containerSize.height) return;
-    if (layoutFit.outsideBin) viewport.fitToRect(layoutFit.rect);
+    if (layoutFit.outsideBin) viewport.fitToRect(layoutFit.rect, { followResizes: true });
     fitNewPocket.current = false;
   }, [layoutFit, containerSize.width, containerSize.height, viewport.fitToRect]);
 

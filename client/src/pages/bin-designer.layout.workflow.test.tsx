@@ -33,29 +33,45 @@ import * as ProjectPersistence from "@/lib/project/persist";
 
 describe("BinDesignerPage", () => {
 
-  it("fits an outlying pocket on arrival and when Fit layout is clicked", async () => {
+  it("fits an outlying pocket on arrival, after Fit, and after the pane shrinks", async () => {
+    const observers: { target: Element; callback: ResizeObserverCallback; observer: ResizeObserver }[] = [];
+    class SizableResizeObserver implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) { observers.push({ target, callback: this.callback, observer: this }); }
+      unobserve() {}
+      disconnect() {}
+    }
     const size = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       width: 600, height: 400, x: 0, y: 0, top: 0, left: 0, right: 600, bottom: 400, toJSON: () => ({}),
     });
     const shape = rectangularShape("outlying-shape", "Outlying pocket");
     const cutout = parseCutoutPlacement({ id: "outlying-pocket", shapeId: shape.id, position: { x: 140, y: 0 } });
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
-    const { container, unmount } = renderPage();
+    const { container, unmount } = renderPage({ resizeObserver: SizableResizeObserver });
     try {
       await flushHydration();
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
       const scene = container.querySelector<SVGGElement>('[data-testid="layout-canvas"] > g')!;
       const coords = () => scene.getAttribute("transform")!.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/)!.slice(1).map(Number);
-      const inView = () => {
+      const inView = (width: number, height: number) => {
         const [tx, ty, scale] = coords();
         expect(tx).toBeGreaterThanOrEqual(23);
-        expect(tx + 197 * scale).toBeLessThanOrEqual(577);
+        expect(tx + 197 * scale).toBeLessThanOrEqual(width - 23);
         expect(ty).toBeGreaterThanOrEqual(23);
-        expect(ty + 84 * scale).toBeLessThanOrEqual(377);
+        expect(ty + 84 * scale).toBeLessThanOrEqual(height - 23);
       };
-      inView();
+      inView(600, 400);
+      const viewport = scene.closest("div.touch-none.overflow-hidden")!;
+      const observed = observers.find(entry => entry.target === viewport)!;
+      const resize = (width: number, height: number) => React.act(() => observed.callback([{
+        target: viewport, borderBoxSize: [{ inlineSize: width, blockSize: height }],
+      } as unknown as ResizeObserverEntry], observed.observer));
+      resize(260, 180);
+      inView(260, 180);
       React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Fit layout to screen"]')!.click());
-      inView();
+      inView(260, 180);
+      resize(330, 220);
+      inView(330, 220);
     } finally { unmount(); size.mockRestore(); }
   });
 
