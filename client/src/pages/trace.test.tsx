@@ -513,7 +513,7 @@ describe("Trace detection workflow", () => {
     await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
     expect(current!.processing).toBe(true);
     await React.act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === "Start over")!.click());
-    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Clear trace and start over")!.click());
+    await React.act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find(button => button.textContent === "Clear trace for new photo")!.click());
     expect(current!.imageUrl).toBeNull();
     await React.act(async () => {
       finishDetection({ outline: exportOutline, rawOutline: exportOutline, svg: "<svg/>" });

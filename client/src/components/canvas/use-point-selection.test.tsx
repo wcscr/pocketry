@@ -42,6 +42,7 @@ it.each([false, true])("Shift-selects, toggles and drags a group once in its own
 it("box-selects a section, exposes simplification and deletes as one edit", () => {
   React.act(() => root.render(<Harness />)); pointer("pointerdown", -10, -10); pointer("pointermove", 105, 25); pointer("pointerup", 105, 25);
   expect(host.textContent).toContain("3 points selected"); expect(commit).not.toHaveBeenCalled();
+  expect(button("Delete selected points")).toBeDefined();
   React.act(() => button("Simplify section").click()); expect(smooth).toHaveBeenCalledWith({ ref: { shapeIndex: 0, ringIndex: -1 }, start: 0, end: 2 });
   React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true })));
   expect(commit).toHaveBeenCalledTimes(1); expect(saved[0].outer.map(a => a.point)).toEqual(initial[0].outer.slice(3).map(a => a.point));
@@ -58,6 +59,16 @@ it("uses the visible Select points toggle for touch and cancels a group drag on 
   expect(host.textContent).toContain("2 points selected"); pointer("pointerdown", 10, 10, false, 1, true); pointer("pointermove", 30, 25, false, 1, true);
   pointer("pointerdown", 90, 90, false, 2, true); pointer("pointerup", 30, 25, false, 1, true); pointer("pointerup", 90, 90, false, 2, true);
   expect(commit).not.toHaveBeenCalled(); expect(saved).toEqual(initial);
+});
+it("releases pointer focus after selecting points while preserving keyboard focus", () => {
+  React.act(() => root.render(<Harness />));
+  const select = button("Select points");
+  select.focus();
+  React.act(() => select.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 })));
+  expect(document.activeElement).not.toBe(select);
+  select.focus();
+  React.act(() => select.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 })));
+  expect(document.activeElement).toBe(select);
 });
 it.each(["Escape", "pointercancel", "lostpointercapture", "blur"])("cancels a draft on %s without history", kind => {
   React.act(() => root.render(<Harness />)); clickPoint(10, 10); clickPoint(50, 10); pointer("pointerdown", 10, 10); pointer("pointermove", 30, 30);

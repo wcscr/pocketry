@@ -101,7 +101,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               Holes remain separate objects in Bin: select one to move, resize, edit its contour, or remove it.
               New pockets default to <strong>To bin floor</strong>.{" "}
               Adjust the depth in Bin as needed before printable export.
-              Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. <strong>Start Over</strong> clears the trace after confirmation; pockets already added to Bin stay in the project.
+              Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. Choose <strong>New photo</strong> to trace another tool for this bin. The current trace clears after confirmation; pockets already added to Bin stay in the project.
             </p>
           </li>
           <li className="pl-1">

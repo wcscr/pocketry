@@ -33,6 +33,91 @@ import * as ProjectPersistence from "@/lib/project/persist";
 
 describe("BinDesignerPage", () => {
 
+  it("fits an outlying pocket after arrival, pane resize, and bin width edit", async () => {
+    const observers: { target: Element; callback: ResizeObserverCallback; observer: ResizeObserver }[] = [];
+    class SizableResizeObserver implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) { observers.push({ target, callback: this.callback, observer: this }); }
+      unobserve() {}
+      disconnect() {}
+    }
+    const size = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 600, height: 400, x: 0, y: 0, top: 0, left: 0, right: 600, bottom: 400, toJSON: () => ({}),
+    });
+    const shape = rectangularShape("outlying-shape", "Outlying pocket");
+    const cutout = parseCutoutPlacement({ id: "outlying-pocket", shapeId: shape.id, position: { x: 140, y: 0 } });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts: [cutout] });
+    const { container, unmount } = renderPage({ resizeObserver: SizableResizeObserver });
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      const scene = container.querySelector<SVGGElement>('[data-testid="layout-canvas"] > g')!;
+      const coords = () => scene.getAttribute("transform")!.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/)!.slice(1).map(Number);
+      const inView = (width: number, height: number) => {
+        const [tx, ty, scale] = coords();
+        expect(tx).toBeGreaterThanOrEqual(23);
+        expect(tx + 197 * scale).toBeLessThanOrEqual(width - 23);
+        expect(ty).toBeGreaterThanOrEqual(23);
+        expect(ty + 84 * scale).toBeLessThanOrEqual(height - 23);
+      };
+      inView(600, 400);
+      const viewport = scene.closest("div.touch-none.overflow-hidden")!;
+      const observed = observers.find(entry => entry.target === viewport)!;
+      const resize = (width: number, height: number) => React.act(() => observed.callback([{
+        target: viewport, borderBoxSize: [{ inlineSize: width, blockSize: height }],
+      } as unknown as ResizeObserverEntry], observed.observer));
+      resize(260, 180);
+      inView(260, 180);
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Fit layout to screen"]')!.click());
+      inView(260, 180);
+      resize(330, 220);
+      inView(330, 220);
+      openSettingsSection(container, "size");
+      const width = container.querySelector<HTMLInputElement>('[aria-label="Width in standard cells"]')!;
+      React.act(() => width.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(width, "3");
+        width.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => width.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      const resizedPocketVisible = (paneWidth: number) => {
+        const [tx, , scale] = coords();
+        expect(tx + 218 * scale).toBeLessThanOrEqual(paneWidth - 23);
+      };
+      resizedPocketVisible(330);
+      resize(270, 180);
+      resizedPocketVisible(270);
+    } finally { unmount(); size.mockRestore(); }
+  });
+
+  it("rotates the selected lower pocket when overlapping pockets share a grab point", async () => {
+    const shape = rectangularShape("stacked-shape", "Stacked pocket");
+    const cutouts = ["lower", "upper"].map(id => parseCutoutPlacement({ id, shapeId: shape.id, position: { x: 0, y: 0 } }));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="view-toggle-2d"]')!.click());
+      selectPocket(container, "lower");
+      React.act(() => container.querySelector<HTMLButtonElement>('[aria-label="Rotate selected objects"]')!.click());
+      const svg = container.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+      Object.defineProperty(svg.querySelector('g')!, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+      Object.defineProperties(svg, {
+        createSVGPoint: { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) },
+        setPointerCapture: { value: () => {} },
+      });
+      const pointer = (type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperty(event, 'pointerId', { value: 1 }); svg.dispatchEvent(event);
+      });
+      pointer("pointerdown", 50, 42); pointer("pointermove", 42, 34); pointer("pointerup", 42, 34);
+      const result = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
+      expect(result.find(item => item.id === "lower")!.rotationDeg).not.toBe(0);
+      expect(result.find(item => item.id === "upper")!.rotationDeg).toBe(0);
+    } finally { unmount(); }
+  });
+
   it.each([
     { layout: "standard", mobile: false },
     { layout: "workflow", mobile: false },
@@ -55,6 +140,8 @@ describe("BinDesignerPage", () => {
         React.act(() => batch.forEach((i, offset) => library.addShape(shapes[i], {mode:"mm",value:12+i}, undefined,
           {batchId:`photo-${batch[0]}`,center:{x:offset*200,y:0}})));
         await flushHydration();
+        const [currentSpec, , currentLayout] = vi.mocked(useBinGeometry).mock.lastCall!;
+        expect(validateLayout(currentSpec, currentLayout!.cutouts, new Map(shapes.map(shape => [shape.id, shape]))).filter(issue => issue.code === "cutout-overlap")).toEqual([]);
       }
       const current = () => vi.mocked(useBinGeometry).mock.lastCall!;
       const beforeSpec = current()[0], beforePockets = current()[2]!.cutouts;
@@ -875,6 +962,7 @@ it("keeps finger-access guidance beside the collapsed section title without togg
     const toggle = section.querySelector<HTMLButtonElement>('[data-panel-section-trigger]')!;
     const hint = section.querySelector<HTMLButtonElement>('[aria-label="About finger access"]')!;
     expect(hint.closest('[data-panel-section-header]')).toBe(toggle.parentElement);
+    expect(hint.parentElement?.previousElementSibling?.classList.contains('flex-1')).toBe(true);
     expect(toggle.contains(hint)).toBe(false);
     expect(section.dataset.state).toBe('closed');
     await React.act(async () => hint.click());

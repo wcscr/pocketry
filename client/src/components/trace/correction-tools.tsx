@@ -43,7 +43,7 @@ function CorrectionButton({ icon: Icon, label, hint, children, pressed, disabled
   pressed?: boolean; disabled?: boolean; className?: string; onClick: () => void;
 }) {
   return <Tooltip><TooltipTrigger asChild>
-    <span className="inline-flex" tabIndex={disabled ? 0 : undefined}>
+    <span className="pointer-events-auto inline-flex" tabIndex={disabled ? 0 : undefined}>
       <Button variant={pressed ? "secondary" : "ghost"} className={cn("h-11 gap-1.5 px-2", !children && "w-11 px-0", pressed && "ring-1 ring-current/30", className)}
         aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
         <Icon className="h-4 w-4" />{children}

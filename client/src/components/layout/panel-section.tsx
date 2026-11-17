@@ -156,10 +156,10 @@ export function PanelSection({
           {toneStyles && <span aria-hidden className={cn("pointer-events-none absolute inset-y-1.5 left-0 w-0.5 rounded-r-full", toneStyles.marker)} />}
           {Icon && <Icon className={cn("pointer-events-none relative h-4 w-4 shrink-0 text-muted-foreground", toneStyles?.icon)} />}
           <span aria-hidden className="pointer-events-none relative min-w-0 truncate">{title}</span>
+          <span className="pointer-events-none flex-1" />
           <span className="relative flex shrink-0 [@media(pointer:coarse)]:[&_button]:h-11 [@media(pointer:coarse)]:[&_button]:w-11">
             <HelpHint label={title.toLowerCase()}>{hint}</HelpHint>
           </span>
-          <span className="pointer-events-none flex-1" />
           {summary && <span className={cn("pointer-events-none relative max-w-24 shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground", toneStyles?.summary)}>{summary}</span>}
           <ChevronDown aria-hidden className="pointer-events-none relative h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 peer-data-[state=open]:rotate-180" />
         </div>

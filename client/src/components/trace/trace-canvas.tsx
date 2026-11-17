@@ -380,7 +380,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     onSmoothSection: curveEditor.fitSection,
     onRepairSection: curveEditor.repairSection,
     repairDisabledReason: store.editableCurves && (store.margin ?? 0) !== 0 ? "Set trace margin to zero to repair with editable curves. Use Bin clearance to adjust fit." : undefined,
-    onBlankClick: () => { desktopPoint.clear(); dispatch({ type: "SELECT_RING", selection: null }); },
+    onBlankClick: () => { desktopPoint.clear(); },
     onPinchStart: () => {
       mobileEditor.cancel();
       const drag = dragRef.current; dragRef.current = null;
@@ -480,7 +480,8 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
    *   right-click-remove target);
    * - a click beside a *different* contour switches the selection to it,
    *   mirroring the contour list in Tool Detection;
-   * - a click near an edge inserts a point; empty space only deselects.
+   * - a click near an edge inserts a point; empty space keeps the contour
+   *   selected so an accidental click does not hide every edit handle.
    */
   const handleContourClick = (image: Point): boolean => {
     if (!selection) return false;
@@ -501,7 +502,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
 
     if (!edge) {
       desktopPoint.clear();
-      dispatch({ type: "SELECT_RING", selection: null });
       return true;
     }
     const ring = getRing(outline, edge.ref);
@@ -1076,7 +1076,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
 
       {imageUrl && (
         <>
-          <CanvasToolbar position="top-left" className="max-md:flex-nowrap">
+          <CanvasToolbar position="top-left" className="pointer-events-none max-md:flex-nowrap [&_button]:pointer-events-auto">
             {correctionMode ? <CorrectionTools tool={correctionMode} busy={processing} hasMarks={store.detectionHints.length > 0}
               onTool={tool => { cancelStroke(); setCorrectionMode(tool); }} onClear={() => onCorrection?.([])}
               onDone={finishCorrection} /> : <>{isMobile ? <>
@@ -1149,8 +1149,8 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             />
           </CanvasToolbar>
 
-          {(curveEditor.controls || curveEditor.startButton) && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto">
-            {curveEditor.active ? curveEditor.controls : <div className="flex max-h-[60vh] max-w-xl flex-wrap items-center gap-2 overflow-y-auto rounded-lg border bg-background p-2 shadow-md" aria-label="Outline editing controls">
+          {(curveEditor.controls || curveEditor.startButton) && <div className="absolute bottom-16 left-2 right-2 z-30">
+            {curveEditor.active ? curveEditor.controls : <div className="flex max-w-xl flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border bg-background p-2 shadow-md [&>*]:shrink-0" aria-label="Outline editing controls">
               {curveEditor.startButton}
               <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Select two endpoints for Repair section and preview a line or curve. Space-drag pans; Done leaves editing. Edits apply immediately and can be undone.</HelpHint>
               {selection && getRing(outline, selection) && !isMobile && <ContourEditTools compact removeActive={mode === "remove"}
@@ -1258,7 +1258,10 @@ function ModeButton({
           aria-pressed={active}
           aria-label={label}
           disabled={disabled}
-          onClick={() => {
+          onClick={(event) => {
+            // A pointer-selected tool should leave Space available for panning;
+            // keyboard activation keeps focus for normal button access.
+            if (event.detail > 0) event.currentTarget.blur();
             if (hasPendingManualCalibration(trace) && mode !== "calibrate") dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
             dispatch({ type: "SET_MODE", mode }); onSelect?.();
           }}

@@ -26,6 +26,8 @@ export interface Point {
   y: number;
 }
 
+interface FitRect { x: number; y: number; width: number; height: number }
+
 /** The four measurements a fit needs. */
 export interface FitInput {
   /** Natural size of the scene, in content units (image pixels). */
@@ -76,9 +78,10 @@ export interface ViewportTransformApi {
   fit(): void;
   /**
    * Frame a rectangle given in content coordinates, padding included.
-   * Counts as deliberate framing: container resizes will not refit afterwards.
+   * Counts as deliberate framing by default. An automatic fit can follow size
+   * changes using the latest bounds until the user pans or zooms.
    */
-  fitToRect(rect: { x: number; y: number; width: number; height: number }): void;
+  fitToRect(rect: FitRect, options?: { followResizes?: boolean; getCurrentRect?: () => FitRect }): void;
   /** 1:1 pixels, centred. */
   resetZoom(): void;
   zoomBy(factor: number, anchorClient?: Point): void;
@@ -237,6 +240,19 @@ interface LiveOptions extends Required<FitInput> {
   panEnabled: boolean;
 }
 
+function computeRectFitTransform(rect: FitRect, options: LiveOptions): Transform | null {
+  if (!isPositiveFinite(rect.width) || !isPositiveFinite(rect.height) || !isFittable(options)) return null;
+  const availableWidth = Math.max(options.containerWidth - 2 * options.padding, 1);
+  const availableHeight = Math.max(options.containerHeight - 2 * options.padding, 1);
+  const requestedScale = Math.min(availableWidth / rect.width, availableHeight / rect.height);
+  const scale = Math.min(Math.max(requestedScale, options.minScale), Math.max(options.maxScale, options.minScale));
+  return {
+    scale,
+    translateX: options.containerWidth / 2 - scale * (rect.x + rect.width / 2),
+    translateY: options.containerHeight / 2 - scale * (rect.y + rect.height / 2),
+  };
+}
+
 /**
  * Pan/zoom state for a canvas viewport.
  *
@@ -310,6 +326,7 @@ export function useViewportTransform(
 
   /** Set once the user frames the view by hand; see the auto-fit effect. */
   const userAdjustedRef = React.useRef(false);
+  const resizeFitRectRef = React.useRef<(() => FitRect) | null>(null);
   const previousSizesRef = React.useRef({
     contentWidth: 0,
     contentHeight: 0,
@@ -335,6 +352,11 @@ export function useViewportTransform(
     };
     if (!contentChanged && !containerChanged) return;
 
+    if (resizeFitRectRef.current) {
+      const next = computeRectFitTransform(resizeFitRectRef.current(), live.current);
+      if (next) { commit(next); return; }
+      resizeFitRectRef.current = null;
+    }
     // A new image gets a fresh view, whatever the user did to the last one.
     if (contentChanged) {
       userAdjustedRef.current = false;
@@ -396,11 +418,12 @@ export function useViewportTransform(
   /** Zoom to `nextScale` keeping the content under `anchor` (container px) put. */
   const zoomAt = React.useCallback(
     (nextScale: number, anchor: Point) => {
-      userAdjustedRef.current = true;
       const current = transformRef.current;
       const scale = clampScale(nextScale);
       if (scale === current.scale) return;
       if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return;
+      resizeFitRectRef.current = null;
+      userAdjustedRef.current = true;
       // With c = t + p*s, the anchor stays fixed iff t' = a - (a - t) * (s'/s):
       // substituting gives c' = a(1 - r) + r*c, which is a when c is a.
       const ratio = scale / current.scale;
@@ -422,9 +445,10 @@ export function useViewportTransform(
    */
   const panBy = React.useCallback(
     (dx: number, dy: number) => {
-      userAdjustedRef.current = true;
       if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
       if (dx === 0 && dy === 0) return;
+      resizeFitRectRef.current = null;
+      userAdjustedRef.current = true;
       const current = transformRef.current;
       commit({
         scale: current.scale,
@@ -438,38 +462,26 @@ export function useViewportTransform(
   const fit = React.useCallback(() => {
     // Clearing the flag is half the point of the button: the user has asked for
     // the automatic framing back, so resizes should track it again.
+    resizeFitRectRef.current = null;
     userAdjustedRef.current = false;
     commit(computeFitTransform(live.current));
   }, [commit]);
 
   const fitToRect = React.useCallback(
-    (rect: { x: number; y: number; width: number; height: number }) => {
-      const options = live.current;
-      if (
-        !isPositiveFinite(rect.width) ||
-        !isPositiveFinite(rect.height) ||
-        !isFittable(options)
-      ) {
-        return;
-      }
-      // Like a manual zoom: the caller framed this region deliberately, so a
-      // container resize must not snap the view back to the full fit.
-      userAdjustedRef.current = true;
-      const availableWidth = Math.max(options.containerWidth - 2 * options.padding, 1);
-      const availableHeight = Math.max(options.containerHeight - 2 * options.padding, 1);
-      const scale = clampScale(
-        Math.min(availableWidth / rect.width, availableHeight / rect.height),
-      );
-      commit({
-        scale,
-        translateX: options.containerWidth / 2 - scale * (rect.x + rect.width / 2),
-        translateY: options.containerHeight / 2 - scale * (rect.y + rect.height / 2),
-      });
+    (rect: FitRect, options?: { followResizes?: boolean; getCurrentRect?: () => FitRect }) => {
+      const next = computeRectFitTransform(rect, live.current);
+      if (!next) return;
+      // Most callers frame deliberately. Layout supplies current bounds so its
+      // automatic fit can follow both pane and bin-size changes.
+      resizeFitRectRef.current = options?.followResizes ? options.getCurrentRect ?? (() => rect) : null;
+      userAdjustedRef.current = !options?.followResizes;
+      commit(next);
     },
-    [clampScale, commit],
+    [commit],
   );
 
   const resetZoom = React.useCallback(() => {
+    resizeFitRectRef.current = null;
     userAdjustedRef.current = true;
     const options = live.current;
     if (!isFittable(options)) {

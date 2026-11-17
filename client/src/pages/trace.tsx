@@ -462,8 +462,8 @@ function TraceWorkspace(): JSX.Element {
                 description: strip
                   ? `${summary}. Marker edge measurements differ by ${(solution.maxDeviation * 100).toFixed(1)}%. Small markers or camera tilt can cause this. Review the scale; for clearer markers, fill more of the photo with the tool and shoot straight down.`
                   : `${fallback}${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
-                variant: "destructive",
-                duration: 8000,
+                className: "border-amber-500/50 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-100",
+                duration: 5000,
               });
             } else if (fallback) {
               calibrationNotice.current = toast({ title: "Paper reference available", description: fallback });

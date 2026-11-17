@@ -1000,7 +1000,9 @@ describe("BinDesignerPage", () => {
       expect(fixed.getAttribute("aria-checked")).toBe("true");
       expect(fixed.disabled).toBe(true);
       openSettingsSection(container, "tool-cutouts");
-      React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-auto-arrange"]')!.click());
+      const arrange = container.querySelector<HTMLButtonElement>('[data-testid="button-auto-arrange"]')!;
+      expect(arrange.textContent).toContain("Arrange & rotate");
+      React.act(() => arrange.click());
       expect(projectToast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Does not fit", description: expect.stringContaining("bin size is fixed") }));
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].arbitrarySizeMm).toEqual({ width: 10, length: 10 });
       // Returning to a matching grid restores the prior user preference.

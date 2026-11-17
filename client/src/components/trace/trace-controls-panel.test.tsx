@@ -564,6 +564,7 @@ describe("TraceControlsPanel guided workflow", () => {
 
     expect(section("scale")?.dataset.state).toBe("open");
     expect(host.textContent).toContain("Scale detected from the sheet");
+    expect(host.textContent).toContain("put a measurement aid on the tool at the height you need to fit");
     expect(host.textContent).not.toContain("0.500 mm/px");
     expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Accuracy with thick objects")).toHaveLength(1);
     const accept = host.querySelector<HTMLButtonElement>(

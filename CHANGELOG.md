@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.12.4 — 2026-11-17
+
+- Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.
+- Frame pockets outside the bin in Layout, rotate an overlapping pocket selected from the object list, and clarify arrange and snap controls.
+
 ## 1.12.3 — 2026-11-16
 
 - Export surface-anchored tilted pockets whose floors cross the fill surface,

@@ -939,6 +939,40 @@ describe("fitToRect", () => {
     probe.unmount();
   });
 
+  it("follows resizes when requested until the user changes the view", () => {
+    const probe = mountViewport(PHOTO);
+    const rect = { x: 0, y: 0, width: 200, height: 200 };
+    probe.act(() => probe.api.fitToRect(rect, { followResizes: true }));
+    expect(probe.api.transform.scale).toBeCloseTo(1.26, 6);
+
+    probe.rerender({ containerWidth: 500, containerHeight: 400 });
+    expect(probe.api.transform.scale).toBeCloseTo(1.76, 6);
+    expectPoint(project(probe.api.transform, { x: 0, y: 0 }), { x: 74, y: 24 });
+    expectPoint(project(probe.api.transform, { x: 200, y: 200 }), { x: 426, y: 376 });
+
+    probe.act(() => probe.api.zoomBy(0.5));
+    const zoomed = probe.api.transform;
+    probe.rerender({ containerWidth: 300, containerHeight: 200 });
+    expect(probe.api.transform.scale).toBeCloseTo(zoomed.scale, 6);
+
+    probe.unmount();
+  });
+
+  it("uses current bounds when the followed content size changes", () => {
+    const probe = mountViewport(PHOTO);
+    let currentRect = { x: 0, y: 0, width: 900, height: 600 };
+    probe.act(() => probe.api.fitToRect(currentRect, {
+      followResizes: true, getCurrentRect: () => currentRect,
+    }));
+
+    currentRect = { x: 0, y: 0, width: 950, height: 600 };
+    probe.rerender({ contentWidth: 850 });
+    expect(probe.api.transform.scale).toBeCloseTo(352 / 950, 6);
+    expectPoint(project(probe.api.transform, { x: 950, y: 600 }), { x: 376, y: 150 + 300 * 352 / 950 });
+
+    probe.unmount();
+  });
+
   it("ignores degenerate rectangles", () => {
     const probe = mountViewport(PHOTO);
     const before = probe.api.transform;
