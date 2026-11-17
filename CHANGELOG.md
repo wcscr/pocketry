@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-- Keep selected contours editable after an empty click, make point-removal actions clearer, and label the next-photo action for multi-photo bins.
-- Keep outlying pockets in view when fitting Layout and let a selected pocket rotate despite another pocket overlapping it.
+## 1.12.4 — 2026-11-17
+
+- Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.
+- Frame pockets outside the bin in Layout, rotate an overlapping pocket selected from the object list, and clarify arrange and snap controls.
 
 ## 1.12.3 — 2026-11-16
 
