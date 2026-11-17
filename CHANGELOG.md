@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.13.0 — 2026-11-17
+
 - Add printable snap-in labels and retaining sockets to label tabs, with per-tab clearance and separate 3MF export.
 - Let each snap-in label face follow its assigned tab or use manual dimensions; keep the shelf recess configurable, including flush 0 mm tabs.
 
