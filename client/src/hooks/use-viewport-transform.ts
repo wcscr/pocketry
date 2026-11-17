@@ -78,10 +78,10 @@ export interface ViewportTransformApi {
   fit(): void;
   /**
    * Frame a rectangle given in content coordinates, padding included.
-   * Counts as deliberate framing by default. Opt in to following container
-   * resizes for an automatic fit; a later pan or zoom ends that behavior.
+   * Counts as deliberate framing by default. An automatic fit can follow size
+   * changes using the latest bounds until the user pans or zooms.
    */
-  fitToRect(rect: FitRect, options?: { followResizes?: boolean }): void;
+  fitToRect(rect: FitRect, options?: { followResizes?: boolean; getCurrentRect?: () => FitRect }): void;
   /** 1:1 pixels, centred. */
   resetZoom(): void;
   zoomBy(factor: number, anchorClient?: Point): void;
@@ -326,7 +326,7 @@ export function useViewportTransform(
 
   /** Set once the user frames the view by hand; see the auto-fit effect. */
   const userAdjustedRef = React.useRef(false);
-  const resizeFitRectRef = React.useRef<FitRect | null>(null);
+  const resizeFitRectRef = React.useRef<(() => FitRect) | null>(null);
   const previousSizesRef = React.useRef({
     contentWidth: 0,
     contentHeight: 0,
@@ -352,16 +352,15 @@ export function useViewportTransform(
     };
     if (!contentChanged && !containerChanged) return;
 
+    if (resizeFitRectRef.current) {
+      const next = computeRectFitTransform(resizeFitRectRef.current(), live.current);
+      if (next) { commit(next); return; }
+      resizeFitRectRef.current = null;
+    }
     // A new image gets a fresh view, whatever the user did to the last one.
     if (contentChanged) {
-      resizeFitRectRef.current = null;
       userAdjustedRef.current = false;
       commit(computeFitTransform(fitInput));
-      return;
-    }
-    if (resizeFitRectRef.current) {
-      const next = computeRectFitTransform(resizeFitRectRef.current, live.current);
-      if (next) commit(next);
       return;
     }
     if (!userAdjustedRef.current) {
@@ -469,12 +468,12 @@ export function useViewportTransform(
   }, [commit]);
 
   const fitToRect = React.useCallback(
-    (rect: FitRect, options?: { followResizes?: boolean }) => {
+    (rect: FitRect, options?: { followResizes?: boolean; getCurrentRect?: () => FitRect }) => {
       const next = computeRectFitTransform(rect, live.current);
       if (!next) return;
-      // Most callers frame deliberately. Layout's Fit action opts in to
-      // following pane resizes until the user pans or zooms.
-      resizeFitRectRef.current = options?.followResizes ? rect : null;
+      // Most callers frame deliberately. Layout supplies current bounds so its
+      // automatic fit can follow both pane and bin-size changes.
+      resizeFitRectRef.current = options?.followResizes ? options.getCurrentRect ?? (() => rect) : null;
       userAdjustedRef.current = !options?.followResizes;
       commit(next);
     },

@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -448,7 +449,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         width: maxX - minX, height: maxY - minY },
     };
   }, [widthMm, lengthMm, placed, placedFingerHoles, footprintEditorPaddingMm]);
-  const fitLayout = () => layoutFit.outsideBin ? viewport.fitToRect(layoutFit.rect, { followResizes: true }) : viewport.fit();
+  const layoutFitRef = useRef(layoutFit);
+  layoutFitRef.current = layoutFit;
+  const currentLayoutRect = useCallback(() => layoutFitRef.current.rect, []);
+  const fitLayout = () => layoutFit.outsideBin ? viewport.fitToRect(layoutFit.rect, { followResizes: true, getCurrentRect: currentLayoutRect }) : viewport.fit();
   const seenPocketIds = useRef<Set<string>>(new Set());
   const fitNewPocket = useRef(false);
   useEffect(() => {
@@ -458,9 +462,9 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [placed]);
   useEffect(() => {
     if (!fitNewPocket.current || !containerSize.width || !containerSize.height) return;
-    if (layoutFit.outsideBin) viewport.fitToRect(layoutFit.rect, { followResizes: true });
+    if (layoutFit.outsideBin) viewport.fitToRect(layoutFit.rect, { followResizes: true, getCurrentRect: currentLayoutRect });
     fitNewPocket.current = false;
-  }, [layoutFit, containerSize.width, containerSize.height, viewport.fitToRect]);
+  }, [layoutFit, containerSize.width, containerSize.height, viewport.fitToRect, currentLayoutRect]);
 
   const layoutIssues = useMemo(
     () => validateLayout(spec, cutouts, shapesById, fingerHoles),

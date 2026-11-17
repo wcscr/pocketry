@@ -33,7 +33,7 @@ import * as ProjectPersistence from "@/lib/project/persist";
 
 describe("BinDesignerPage", () => {
 
-  it("fits an outlying pocket on arrival, after Fit, and after the pane shrinks", async () => {
+  it("fits an outlying pocket after arrival, pane resize, and bin width edit", async () => {
     const observers: { target: Element; callback: ResizeObserverCallback; observer: ResizeObserver }[] = [];
     class SizableResizeObserver implements ResizeObserver {
       constructor(private readonly callback: ResizeObserverCallback) {}
@@ -72,6 +72,22 @@ describe("BinDesignerPage", () => {
       inView(260, 180);
       resize(330, 220);
       inView(330, 220);
+      openSettingsSection(container, "size");
+      const width = container.querySelector<HTMLInputElement>('[aria-label="Width in standard cells"]')!;
+      React.act(() => width.focus());
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(width, "3");
+        width.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      React.act(() => width.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].gridX).toBe(3);
+      const resizedPocketVisible = (paneWidth: number) => {
+        const [tx, , scale] = coords();
+        expect(tx + 218 * scale).toBeLessThanOrEqual(paneWidth - 23);
+      };
+      resizedPocketVisible(330);
+      resize(270, 180);
+      resizedPocketVisible(270);
     } finally { unmount(); size.mockRestore(); }
   });
 

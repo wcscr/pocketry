@@ -958,6 +958,21 @@ describe("fitToRect", () => {
     probe.unmount();
   });
 
+  it("uses current bounds when the followed content size changes", () => {
+    const probe = mountViewport(PHOTO);
+    let currentRect = { x: 0, y: 0, width: 900, height: 600 };
+    probe.act(() => probe.api.fitToRect(currentRect, {
+      followResizes: true, getCurrentRect: () => currentRect,
+    }));
+
+    currentRect = { x: 0, y: 0, width: 950, height: 600 };
+    probe.rerender({ contentWidth: 850 });
+    expect(probe.api.transform.scale).toBeCloseTo(352 / 950, 6);
+    expectPoint(project(probe.api.transform, { x: 950, y: 600 }), { x: 376, y: 150 + 300 * 352 / 950 });
+
+    probe.unmount();
+  });
+
   it("ignores degenerate rectangles", () => {
     const probe = mountViewport(PHOTO);
     const before = probe.api.transform;
