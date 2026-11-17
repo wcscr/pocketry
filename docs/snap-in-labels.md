@@ -1,9 +1,13 @@
 # Snap-in labels
 
+The retaining profile adapts [Cullenect Labels v2](https://github.com/CullenJWebb/Cullenect-Labels)
+by Cullen J Webb under the MIT license. The pinned source revision, copyright
+notice, and full license text are in [NOTICE](../NOTICE).
+
 Pocketry can cut retaining sockets into label tabs and export the bin and
 separate, flat-on-bed labels as 3MF objects. The latch is 11 mm tall and its
 width and total socket clearance are editable. Changing either affects fit.
-The 2 × 3 metric-bin PLA test retained labels at 0.20, 0.25, and 0.30 mm
+The 2 × 3 metric-bin PLA test retained Pocketry-native labels at 0.20, 0.25, and 0.30 mm
 total clearance; the reported fit varies by position and material, so these
 numbers are test results rather than a universal setting.
 
