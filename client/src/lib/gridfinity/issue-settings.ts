@@ -7,6 +7,9 @@ export function issueSettingsTarget(code: string): { id: string; label: string; 
       return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-depth" };
     case "label-tab-recess":
       return { id: "bin-settings-construction", label: "Edit label tab", focusId: "bin-label-tab-recess" };
+    case "snap-label-socket":
+    case "snap-label-text":
+      return { id: "bin-settings-construction", label: "Edit snap labels", focusId: "snap-label-width" };
     case "label-tab-edge-missing":
     case "label-tab-shadow":
     case "surface-text-needs-tab":

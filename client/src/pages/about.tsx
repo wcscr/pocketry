@@ -21,6 +21,12 @@ interface RelatedProject {
 
 const OPEN_SOURCE_PROJECTS: readonly RelatedProject[] = [
   {
+    name: "Cullenect Labels",
+    description: "Swappable label system whose v2 retaining profile Pocketry adapts for snap-in labels.",
+    badge: "MIT",
+    url: "https://github.com/CullenJWebb/Cullenect-Labels",
+  },
+  {
     name: "GFLabel",
     description: "Printable labels and the source of Pocketry’s bundled nut, bolt, washer, and drive symbols.",
     badge: "BSD-3-Clause",
@@ -353,6 +359,12 @@ export default function About(): JSX.Element {
                 <a href="https://github.com/ndevenish/gflabel" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">GFLabel</a>{" "}
                 by Nicholas Devenish, under the{" "}
                 <a href="/licenses/gflabel.txt" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">BSD-3-Clause license</a>.
+              </p>
+              <p>
+                Snap-in label retaining geometry adapts{" "}
+                <a href="https://github.com/CullenJWebb/Cullenect-Labels" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">Cullenect Labels v2</a>{" "}
+                by Cullen J Webb under MIT; the full license is in{" "}
+                <a href="/NOTICE.txt" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">NOTICE</a>.
               </p>
               <p>
                 Slanted bin walls were inspired by the{" "}

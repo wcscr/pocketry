@@ -1,6 +1,7 @@
 import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import { validateLayout, type ValidationIssue } from "@shared/gridfinity/validate";
 import { buildSurfaceTexts, type SurfaceTextPart } from "./surface-text";
+import { buildSnapLabels, buildSnapSockets, type SnapLabelPart } from "./snap-label";
 import { validateTiltedSolids } from "./validate-tilted-solids";
 import { validateRetainedMaterial } from "./validate-retained-material";
 import { validateInsertionPaths, type PocketInsertionPath } from "./validate-insertion-paths";
@@ -319,6 +320,7 @@ export function buildBinWithCutouts(
   /** Original bin and individual labels for multipart 3MF exports. */
   bodySolid: Manifold;
   textParts: SurfaceTextPart[];
+  snapLabelParts: SnapLabelPart[];
   cutoutReports: CutoutBuildReport[];
   validationIssues: ValidationIssue[];
 } {
@@ -359,6 +361,11 @@ export function buildBinWithCutouts(
     }
     validationIssues.push(...validateRetainedMaterial(kernel, solid, builtCutouts?.retainedGroups ?? [], layout.cutouts, layout.shapesById));
   }
+  const snapSockets = buildSnapSockets(kernel, spec, solid);
+  solid = snapSockets.body;
+  validationIssues.push(...snapSockets.issues);
+  const { parts: snapLabelParts, issues: snapLabelIssues } = buildSnapLabels(kernel, spec, solid);
+  validationIssues.push(...snapLabelIssues);
   const status = solid.status();
   if (status !== "NoError") {
     throw new Error(`buildBinWithCutouts: manifold reported ${status}`);
@@ -488,7 +495,7 @@ export function buildBinWithCutouts(
   if (textParts.length) solid = arena.track(Manifold.union([bodySolid, ...textParts.map(part => part.solid)]));
   if (layout) validationIssues.push(...validateInsertionPaths(kernel, solid, insertionPaths, layout.cutouts, layout.shapesById,
     textParts.map(part => part.solid)));
-  return { parts: base.parts, solid, bodySolid, textParts, materialParts, cutoutReports: reports, validationIssues };
+  return { parts: base.parts, solid, bodySolid, textParts, snapLabelParts, materialParts, cutoutReports: reports, validationIssues };
 }
 
 /**

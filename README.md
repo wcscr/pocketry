@@ -267,6 +267,10 @@ Surface labels include 18 hardware symbols adapted from
 then **Symbol** to pair one with wording or use it alone. See
 [symbol provenance and regeneration](docs/hardware-symbols.md).
 
+Snap-in label latches adapt [Cullenect Labels v2](https://github.com/CullenJWebb/Cullenect-Labels)
+by Cullen J Webb under MIT. See the [snap-in label guide](docs/snap-in-labels.md)
+and [NOTICE](NOTICE) for the pinned source and full license text.
+
 ## Contributors
 
 Pocketry is developed and maintained by Sugarcreek Research, LLC.

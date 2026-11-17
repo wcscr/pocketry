@@ -45,6 +45,54 @@ function style(container: HTMLElement, option: string): void {
   React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(element => element.textContent === option)!.click());
 }
 
+it("saves snap-label wording and per-shelf clearance with undo and reload", async () => {
+  const originalUrl = window.location.href;
+  window.history.replaceState(null, "", "/bin?layout=standard");
+  const original = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4, gridY: 4, gridPitch: "half",
+    heightUnits: 3, fill: "none", lip: "none", compartments: { rows: 2, columns: 3 },
+    labelTab: { wall: "south", scope: "compartments", width: "full", recessMm: 0.5, frontRim: true } });
+  vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original });
+  let page = renderPage();
+  const current = () => vi.mocked(useBinGeometry).mock.lastCall![0];
+  try {
+    await flushHydration(); openTabs(page.container, false);
+    React.act(() => page.container.querySelector<HTMLButtonElement>('[aria-label="Snap-in labels"]')!.click());
+    expect(current().labelTab?.snap).toMatchObject({ widthMm: 22, clearanceMm: 0.25, labels: [] });
+    expect(current().labelTab?.snap?.face).toMatchObject({ mode: "auto", marginMm: 0.6 });
+    const margin = page.container.querySelector<HTMLInputElement>("#snap-face-marginMm")!;
+    draft(margin, "0.8"); key(margin, "Enter");
+    expect(current().labelTab?.snap?.face?.marginMm).toBe(0.8);
+    clickBinHistory(page.container, "undo");
+    expect(current().labelTab?.snap?.face?.marginMm).toBe(0.6);
+    clickBinHistory(page.container, "redo");
+    const wording = page.container.querySelector<HTMLInputElement>("#snap-label-wording")!;
+    draft(wording, "M1.4x4, M1.7x4");
+    React.act(() => wording.blur());
+    expect(current().labelTab?.snap?.labels).toEqual(["M1.4x4", "M1.7x4"]);
+    const target = page.container.querySelector<HTMLButtonElement>('[aria-label="Tab for snap label 1"]')!;
+    React.act(() => target.focus());
+    React.act(() => target.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent === "r0c2")!.click());
+    expect(current().labelTab?.snap?.tabKeys?.[0]).toBe("r0c2");
+    const clearance = page.container.querySelector<HTMLInputElement>("#snap-clearance-r0c0")!;
+    draft(clearance, "0.3"); key(clearance, "Enter");
+    expect(current().labelTab?.snap?.clearanceByTab?.r0c0).toBe(0.3);
+    clickBinHistory(page.container, "undo");
+    expect(current().labelTab?.snap?.clearanceByTab?.r0c0).toBeUndefined();
+    clickBinHistory(page.container, "redo");
+    const saved = parseProjectDoc({ ...EMPTY_PROJECT, spec: current() })!;
+    page.unmount();
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(saved);
+    page = renderPage();
+    await flushHydration(); openTabs(page.container, false);
+    expect(page.container.querySelector<HTMLInputElement>("#snap-label-wording")!.value).toBe("M1.4x4, M1.7x4");
+    expect(current().labelTab?.snap?.clearanceByTab?.r0c0).toBe(0.3);
+    expect(current().labelTab?.snap?.face?.marginMm).toBe(0.8);
+    expect(current().labelTab?.snap?.tabKeys?.[0]).toBe("r0c2");
+  } finally { page.unmount(); window.history.replaceState(null, "", originalUrl); }
+});
+
 it.each(contexts)("enables tabs for every sub-bin, including dividers added later, in $layout (mobile: $mobile)", async ({ layout, mobile }) => {
   const originalUrl = window.location.href;
   window.history.replaceState(null, "", `/bin?layout=${layout}`);

@@ -95,6 +95,8 @@ export interface BuildBinResult {
   bodyMesh?: MeshData;
   /** One independent mesh and identifying label per text part. */
   textMeshes?: { label: SurfaceText; z: number; mesh: MeshData }[];
+  /** Separately printable snap labels, arranged flat beside one another. */
+  snapLabelMeshes?: { text: string; tabKey?: string; mesh: MeshData }[];
   /** Complete topology; preview normals are omitted when materialMeshes supplies the view. */
   mesh: MeshData;
   /** Non-overlapping bin material meshes; text always remains separate. */

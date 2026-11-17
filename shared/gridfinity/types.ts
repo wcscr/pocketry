@@ -149,6 +149,26 @@ export const binSpecSchema = z
         /** Exact boundary anchor for an irregular footprint; null keeps wall-based rectangle behavior. */
         edge: boundaryEdgeSchema.nullable().default(null),
         width: z.enum(["full", "center", "left", "right"]).default("full"),
+        /** Separately printed labels and their retaining sockets. Absent keeps an ordinary shelf. */
+        snap: z.object({
+          widthMm: z.number().finite().min(8).max(100),
+          clearanceMm: z.number().finite().min(0.05).max(0.5),
+          /** Optional fit-test clearances keyed by the stable shelf identity. */
+          clearanceByTab: z.record(z.string().regex(/^(outer|r\d{1,2}c\d{1,2})$/),
+            z.number().finite().min(0.05).max(0.5)).optional(),
+          labels: z.array(z.string().trim().min(1).max(40)).max(16),
+          /** The face sits above the proven latch; auto follows each assigned tab. */
+          face: z.object({
+            mode: z.enum(["auto", "manual"]),
+            marginMm: z.number().finite().min(0).max(5),
+            widthMm: z.number().finite().min(8).max(100),
+            heightMm: z.number().finite().min(6).max(40),
+            thicknessMm: z.number().finite().min(0.2).max(1.2),
+            textSizeMm: z.number().finite().min(1).max(8),
+          }).strict().optional(),
+          /** Parallel to labels; absent entries follow the tab list in order. */
+          tabKeys: z.array(z.string().regex(/^(outer|r\d{1,2}c\d{1,2})$/)).max(16).optional(),
+        }).strict().nullable().optional(),
       })
       .strict()
       .nullable()
