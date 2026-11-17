@@ -1,6 +1,8 @@
 import { parseProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
 import { serializeError } from "@/lib/worker/protocol";
+import { loadManifold } from "@/lib/manifold/runtime";
 import { loadCad } from "./runtime";
+import { createSectionKernel } from "./section-kernel";
 import { exportStepPackage } from "./package";
 import { buildCadBinMesh } from "./mesh-build";
 import type { BuildBinRequest } from "@/lib/gridfinity/worker-api";
@@ -18,7 +20,8 @@ self.addEventListener("message",(event:MessageEvent<{id:number;method:string;pay
       if(request.method==="step"){
         phase("Validating export snapshot");const project=parseProjectDoc(request.payload);
         if(!project)throw new Error("Invalid export snapshot");
-        value=await exportStepPackage(project as ProjectDoc,oc,phase);
+        // Pocket sections come from the print path's planar kernel; the modeler builds the solids.
+        value=await exportStepPackage(project as ProjectDoc,oc,phase,createSectionKernel(await loadManifold()));
       }else if(request.method==="buildBin")value=buildCadBinMesh(request.payload as BuildBinRequest,oc,phase);
       else throw new Error(`${request.method} is not available in the unified CAD investigation yet`);
       phase("Complete");

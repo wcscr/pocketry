@@ -1,5 +1,15 @@
 # Experimental STEP export for CAD editing
 
+**2026-11-17 update, dedicated STEP investigation only:** rounded pocket floors
+and mouths are now built by exact construction of the print path's rounding
+rule instead of the modeler's edge fillet, and traced pocket sections are
+fitted with lines and arcs. Both changes were approved by the maintainer that
+day and replace two earlier rules; see [Sections and rounding](#sections-and-rounding).
+Mouth rounding, which had been cutting a cove, now rounds the edge over as
+printed, and shallow curved finger access is built. Six of the sixteen sample
+project files now export a complete package, up from one; see the
+[2026-11-17 status](step-export-investigations.md#rounding-construction-update--2026-11-17).
+
 **2026-10-29 baseline:** both isolated approaches now include
 main `ee7eefa9`; local checks pass as recorded in the investigation report. Neither approach is selected or
 shipped. The October 15 unchanged Klein, DeWalt, and Caliper examples failed
@@ -22,7 +32,7 @@ In Export, choose **Save STEP CAD package**. The ZIP contains:
 | `design-objects.step` | Named bin blank, finite source objects, actual cutters, finger-access tools, and text bodies. Construction tools intentionally overlap. |
 | `design.pocketry.json` | The committed project snapshot, including retained history. |
 | `objects.json` | Stable IDs, names, roles, source references, assembly paths, transforms, links, status, and reconstruction order. |
-| `export-report.json` | Snapshot hash, engine/exporter versions, tolerances, timings, dimensions, topology, memory, and solid counts. |
+| `export-report.json` | Snapshot hash, engine/exporter versions, tolerances, timings, dimensions, topology, memory, and solid counts. When traced sections were fitted it gives the fit tolerance and largest deviation (`sectionFit`); when rounding was built exactly it gives the band and surface-check counts (`exactRounding`). |
 | `README.txt` | Import and reconstruction instructions. |
 
 STEP carries editable, named solids with their placement. Saved Pocketry
@@ -34,8 +44,9 @@ pocket retains its finite source body and an inactive cutter entry without a
 dummy solid. Duplicate and Unicode names remain distinct through stable IDs.
 
 The OCCT XCAF writer emits AP214 B-reps in millimetres. STEP construction never
-reads preview, STL, 3MF, or mesh data. Authored polygons retain their original
-line boundaries; basic circles and rectangles retain primitive provenance in
+reads preview, STL, 3MF, or mesh data. Traced polygon sections are fitted with
+lines and arcs as described under [Sections and rounding](#sections-and-rounding);
+basic circles and rectangles retain primitive provenance in
 schema 55, retaining main's schema 54 fields. Schema 36 was the earlier
 investigation format; refreshed migration and history regression tests pass.
 Nonuniformly scaled circles become ellipses. Contour revision removes
@@ -73,12 +84,56 @@ Grouped placement and broader material compatibility still require qualification
 These guards pass refreshed regression tests; browser and native application
 acceptance on the refreshed branches remains pending. Schema acceptance alone is not feature support.
 
-Rounding must use genuine Fillet operations and preserve the requested geometry.
-The sharp-only October 15 runs changed diagnostic copies explicitly; they are
-not a release mode or fallback. Normal exports must not disable rounding,
-simplify boundaries, lower a radius, or substitute a custom rounded solid to
-make an unsupported design export. Read the comparison before relying on either
-branch.
+## Sections and rounding
+
+These rules replace the earlier requirement that rounding use the modeler's
+Fillet operation on unmodified polygon boundaries. That requirement could not
+be met: a rolling-ball fillet does not exist where a pocket is narrower than
+twice the radius or a corner is tighter than it, which is the default case
+(1 mm corner rounding under a 2.8 mm floor radius).
+
+- **Rounding follows the print path's rule, exactly.** At height `h` above a
+  pocket floor of radius `r`, the section is inset by
+  `r - sqrt(r² - (r - h)²)`; narrow parts close up near the floor and tight
+  corners leave a crease. The export builds that surface from cylinders and
+  revolved arcs, one band per boundary line or arc
+  (`client/src/lib/cad/exact-rounding.ts`). It is not an approximation and it
+  is not the modeler's fillet. Sections with an elliptical boundary still use
+  the modeler's fillet.
+- **Traced sections are fitted with lines and arcs.** A traced pocket's section
+  (outline, clearance, corner rounding) is computed with the same planar
+  offsets as the print path and then fitted within 0.02 mm. The fitted
+  boundary never lies inside the print path's section, so a pocket is never
+  smaller than printed. The tolerance and the largest deviation are written to
+  `export-report.json`.
+- **Mouths are rounded over, as printed.** A top-edge radius rounds the bin's
+  edge over into the pocket: the cutter widens by the same inset as it nears
+  the surface. Until 2026-11-17 both investigations instead filleted a widened
+  prism, which cuts a concave cove of the same radius with a sharp edge above
+  and below it and removes several times the material. Native CAD acceptance
+  recorded before that date was made on the coved shape.
+- **Finger access follows the print path's profile.** A curved-bottom scoop
+  too shallow for a vertical shaft carries its rim in its own cross-section,
+  where the rim circle is tangent to the scoop circle; round holes revolve
+  that profile, slots with rounded ends sweep it along the slot, and
+  flat-ended slots stop it with end walls whose top edges are rounded over.
+  Above the surface a finger-access cutter is as wide as its rounded mouth.
+  A shallow flat-ended scoop with rounded plan corners is still rejected.
+- **Every rounded solid is checked, and failures stop the export.** Points
+  that must lie on the rounded surface are computed from the section alone and
+  measured against the finished solid, and the removed volume is compared with
+  the planar kernel's figure. A band that did not cut is cut again; if the
+  surface is still off, no package is produced. The 0.00001 mm boundary
+  tolerance ceiling is unchanged.
+- Normal exports still must not disable rounding or lower a radius to make an
+  unsupported design export. The sharp-only October 15 runs changed diagnostic
+  copies explicitly; they are not a release mode or fallback.
+
+The section step is the one place this export uses two kernels in one
+construction: Manifold (Clipper2) offsets the outline and OpenCascade builds
+every solid. The modeler's own planar offset failed on 6 of 23 fitted sample
+sections, and a section that differs from the print path's would defeat the
+purpose. See the kernel note in `CLAUDE.md`.
 
 ## Local execution and limits
 

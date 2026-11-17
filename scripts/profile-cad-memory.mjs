@@ -47,6 +47,10 @@ try {
   const { CadArena } = await load("client/src/lib/cad/arena.ts");
   const { CadContext } = await load("client/src/lib/cad/adapter.ts");
   const { exportStepPackage } = await load("client/src/lib/cad/package.ts");
+  // The worker hands the print path's planar kernel to the export; do the same here.
+  const { loadManifold } = await load("client/src/lib/manifold/runtime.ts");
+  const { createSectionKernel } = await load("client/src/lib/cad/section-kernel.ts");
+  const sections = flags.includes("--kernel-sections-only") ? undefined : createSectionKernel(await loadManifold());
   const original = parseProjectDoc(JSON.parse(source));
   assert(original, "Input must parse without geometry changes");
   const project = structuredClone(original);
@@ -155,7 +159,7 @@ try {
         job.meshes = { complete: meshRecord(result.mesh), body: result.bodyMesh && meshRecord(result.bodyMesh),
           text: result.textMeshes?.map(part => ({ id: part.label.id, ...meshRecord(part.mesh) })) };
       } else {
-        const result = await exportStepPackage(project, oc, progress);
+        const result = await exportStepPackage(project, oc, progress, sections);
         job.report = result.report;
         if (i === 0) for (const [name, data] of Object.entries({ "cad.zip": result.bytes, ...unzipSync(result.bytes) })) writeFileSync(join(output, name), data);
       }

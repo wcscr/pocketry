@@ -1,5 +1,7 @@
 import type { TopoDS_Face } from "replicad-opencascadejs";
 import { CadContext, type CadShape, type CadProfile } from "./adapter";
+import { roundBottomExact } from "./exact-rounding";
+import { readSectionRegions, sectionSlab } from "./section-chain";
 
 function baseFaces(c: CadContext, solid: CadShape): TopoDS_Face[] {
   return c.subshapes(solid,"face").filter(f=>{const face=c.own(c.oc.TopoDS.Face(f)),surface=c.own(new c.oc.BRepAdaptor_Surface(face,true));if(surface.GetType()!==c.oc.GeomAbs_SurfaceType.GeomAbs_Plane)return false;const plane=c.own(surface.Plane()),axis=c.own(plane.Axis()),normal=c.own(axis.Direction()),location=c.own(plane.Location());return Math.abs(location.Z())<1e-8&&Math.abs(Math.abs(normal.Z())-1)<1e-10;})
@@ -51,15 +53,55 @@ export function extrudeSection(c: CadContext, section: CadShape, bottom: number,
   return pieces.reduce((a,b)=>c.boolean("fuse",a,b,"extruded islands"));
 }
 
+/**
+ * The pocket's planar section as a 1 mm slab on z = 0: the authored outline
+ * with clearance, then corner rounding applied as an opening.
+ *
+ * Traced (polygon) outlines take the same planar offsets as the print path and
+ * come back fitted with lines and arcs when a section kernel is available; see
+ * `section-kernel.ts`. Analytic profiles, and every profile without that
+ * kernel, are offset by the solid modeler.
+ */
 export function pocketSection(c: CadContext, profiles: readonly CadProfile[], clearance: number, cornerRadius: number): CadShape {
+  if (c.sections && profiles.every(profile => profile.kind === "polygon")) {
+    const outline = profiles.map(profile => profile.kind === "polygon" ? { outer: profile.outer, holes: profile.holes } : { outer: [], holes: [] });
+    const fitted = c.sections.pocketSection(outline, clearance, cornerRadius);
+    if (!fitted) throw new Error("Profile offset collapsed: clearance and corner rounding leave no pocket section");
+    c.maxSectionDeviationMm = Math.max(c.maxSectionDeviationMm, fitted.maxDeviationMm);
+    c.fittedSectionElements += fitted.elements;
+    c.guard("fitted pocket section");
+    return sectionSlab(c, fitted.regions);
+  }
   let section=profiles.map(profile=>c.extrude(profile,0,1)).reduce((a,b)=>c.boolean("fuse",a,b,"authored outlines"));
   section=offsetSection(c,section,clearance);
   if (cornerRadius>0) section=offsetSection(c,offsetSection(c,section,-cornerRadius),cornerRadius);
   return section;
 }
 
-/** Round only the perimeter before a split trim, so its seam remains sharp. */
+/** Relative and absolute slack when a rounded solid is held against the planar kernel's figure. */
+const ROUNDING_VOLUME_RELATIVE = 0.005;
+const ROUNDING_VOLUME_ABSOLUTE_MM3 = 0.05;
+
+/**
+ * Rounds the floor of an upright extrusion whose base is at `bottom`. Round
+ * only the perimeter before a split trim, so its seam remains sharp.
+ *
+ * With a section kernel, a base made of lines and circles is rounded by exact
+ * construction of the print path's rule (`exact-rounding.ts`) and the removed
+ * volume is cross-checked against the planar kernel. Anything else, such as
+ * an elliptical base, keeps the modeler's edge fillet.
+ */
 export function roundPocketBottom(c: CadContext, source: CadShape, bottom: number, radius: number, operation = "pocket bottom rounding"): CadShape {
+  if (!radius) return source;
+  const regions = c.sections ? readSectionRegions(c, source, bottom) : null;
+  if (c.sections && regions?.length) {
+    const rounded = roundBottomExact(c, source, regions, bottom, radius, operation, c.rounding);
+    const removed = c.volume(source) - c.volume(rounded), expected = c.sections.roundingVolume(regions, radius);
+    if (Math.abs(removed - expected) > ROUNDING_VOLUME_ABSOLUTE_MM3 + ROUNDING_VOLUME_RELATIVE * expected) {
+      throw new Error(`${operation}: rounded volume differs from the section rule (${removed.toFixed(3)} mm³ removed, ${expected.toFixed(3)} mm³ expected)`);
+    }
+    return rounded;
+  }
   const edges=c.subshapes(source,"edge").filter(edge=>{const b=c.bounds(edge);return Math.abs(b.min.z-bottom)<=0.000001&&Math.abs(b.max.z-bottom)<=0.000001;});
   return c.fillet(source,radius,edges,operation);
 }

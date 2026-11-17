@@ -3,6 +3,8 @@ import type { Vec3 } from "@shared/gridfinity/object-pose";
 import { CadContext, type CadShape } from "./adapter";
 import type { CadPocket } from "./model";
 import { pocketSection, extrudeSection, offsetSection, roundPocketBottom } from "./profile-operations";
+import { roundMouthExact } from "./exact-rounding";
+import { readSectionRegions } from "./section-chain";
 import { cadInsertionEnvelope } from "./insertion";
 
 export function halfSpace(c: CadContext, normal: Vec3, point: Vec3): CadShape {
@@ -43,13 +45,40 @@ export function planarSection(c: CadContext, shape: CadShape, z: number): CadSha
   throw new Error("Mouth intersection with the bin surface failed");
 }
 
-export function mouthFlare(c:CadContext,cutter:CadShape,fillZ:number,top:number,radius:number):CadShape {
+/**
+ * Rounds the bin's top edge over into a pocket or finger-access mouth: the
+ * print path's top-edge rule, in which the cutter widens by the rounding inset
+ * as it nears the surface (see `exact-rounding.ts`).
+ *
+ * A mouth bounded by lines and circles is built exactly. Any other mouth (an
+ * ellipse, say) gets the same round-over from the modeler's fillet on a ring
+ * of material around it.
+ */
+export function mouthFlare(c:CadContext,cutter:CadShape,fillZ:number,_top:number,radius:number):CadShape {
   if(!radius)return cutter;
   const mouth=planarSection(c,cutter,fillZ);
   if(!mouth)return cutter; // Submerged finite objects have no surface mouth.
-  const expanded=offsetSection(c,mouth,radius);
-  const flare=roundPocketBottom(c,extrudeSection(c,expanded,fillZ-radius,Math.max(top,fillZ+radius)),fillZ-radius,radius,"pocket mouth rounding");
-  return c.boolean("fuse",cutter,flare,"pocket mouth rounding");
+  const regions=readSectionRegions(c,mouth);
+  if(regions?.length)return roundMouthExact(c,cutter,regions,fillZ,radius,"pocket mouth rounding",c.rounding);
+  return c.scope(()=>{
+    // A ring of bin material two radii wide and deep around the mouth, its inner top edge filleted.
+    const outer=extrudeSection(c,offsetSection(c,mouth,2*radius),fillZ-2*radius,fillZ);
+    const ring=c.boolean("cut",outer,extrudeSection(c,mouth,fillZ-2*radius-1,fillZ+1),"pocket mouth rounding: material ring");
+    const wall=c.move(mouth,{x:0,y:0,z:fillZ-0.5});
+    const edges=c.subshapes(ring,"edge").filter(edge=>{
+      const b=c.bounds(edge);
+      if(Math.abs(b.min.z-fillZ)>0.000001||Math.abs(b.max.z-fillZ)>0.000001)return false;
+      // Inner edges lie on the mouth's own wall; the ring's outer edges are two radii away.
+      const curve=c.own(new c.oc.BRepAdaptor_Curve(c.own(c.oc.TopoDS.Edge(edge))));
+      const middle=c.own(curve.Value((curve.FirstParameter()+curve.LastParameter())/2));
+      const vertex=c.own(c.own(new c.oc.BRepBuilderAPI_MakeVertex(c.point(middle.X(),middle.Y(),fillZ))).Vertex());
+      return c.own(new c.oc.BRepExtrema_DistShapeShape(vertex,wall)).Value()<radius/2;
+    });
+    if(!edges.length)throw new Error("pocket mouth rounding: no mouth edge to round");
+    const rounded=c.fillet(ring,radius,edges,"pocket mouth rounding");
+    const removed=c.boolean("cut",ring,rounded,"pocket mouth rounding: rounded-over edge");
+    return c.boolean("fuse",cutter,removed,"pocket mouth rounding");
+  },result=>[result]);
 }
 
 export interface CadPocketBodies { source:CadShape; cutter?:CadShape; status:"active"|"inactive"; reason?:string; floorBand?:CadShape }
@@ -59,9 +88,20 @@ export function buildCadPocket(c:CadContext,p:CadPocket,fillZ:number,binTop:numb
   const section=pocketSection(c,p.profiles,p.clearanceMm,p.cornerRoundMm);
   const localTop=p.rigid?0:fillZ;
   const shallow=p.sourceBottoms.reduce((best,v,i)=>v>p.sourceBottoms[best]?i:best,0);
+  // Rounding is the costly step. Build one rounded column per distinct floor
+  // and radius, tall enough for the extended cutter, and clip the seat from it.
+  const columnTop=p.rigid?localTop:Math.max(localTop,binTop+1);
+  const columns=new Map<string,CadShape>();
+  const roundedColumn=(bottom:number,radius:number):CadShape=>{
+    const key=`${bottom}:${radius}`;
+    let column=columns.get(key);
+    if(!column){column=roundPocketBottom(c,extrudeSection(c,section,bottom,columnTop),bottom,radius);columns.set(key,column);}
+    return column;
+  };
   const localSeats=p.sourceBottoms.map((bottom,i)=>{
     const radius=Math.min(p.bottomFilletMm,p.depths[i]/2);
-    let shape=roundPocketBottom(c,extrudeSection(c,section,bottom,localTop),bottom,radius);
+    const column=roundedColumn(bottom,radius);
+    let shape=columnTop>localTop?clipBelow(c,column,localTop,`${p.name}: seat height`):column;
     // The shallow source extends across the opening; the deep seat is trimmed.
     if(p.split&&i!==shallow)shape=splitSeat(c,shape,p,i);
     return shape;
@@ -87,7 +127,8 @@ export function buildCadPocket(c:CadContext,p:CadPocket,fillZ:number,binTop:numb
       cutter=cadInsertionEnvelope(c,posed,{x:p.insertion.x*distance,y:p.insertion.y*distance,z:p.insertion.z*distance});
     }else if(p.rigid)cutter=pose(localSeat);
     else {
-      const extended=roundPocketBottom(c,extrudeSection(c,section,p.sourceBottoms[i],binTop+1),p.sourceBottoms[i],Math.min(p.bottomFilletMm,p.depths[i]/2));
+      const column=roundedColumn(p.sourceBottoms[i],Math.min(p.bottomFilletMm,p.depths[i]/2));
+      const extended=columnTop>binTop+1?clipBelow(c,column,binTop+1,`${p.name}: cutter height`):column;
       cutter=pose(p.split&&i!==shallow?splitSeat(c,extended,p,i):extended);
     }
     const floor=p.floors[i];

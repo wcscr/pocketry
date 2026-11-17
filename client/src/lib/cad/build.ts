@@ -55,7 +55,13 @@ export function buildCadDesign(c:CadContext,design:CadDesign,materials:CadMateri
   for(const hole of design.fingerHoles) {
     const name=hole.name??`Finger access ${hole.id}`;progress(`Building ${name}`);
     try {
-      const {cutter:shape,floorBand}=buildCadFingerAccess(c,hole,design.dimensions.fillZ,design.dimensions.topZ,materials.floorThicknessMm);
+      // Finger access is built from analytic circles and rounded rectangles, which the
+      // modeler offsets and fillets directly; fitted sections are for traced pockets.
+      const sections=c.sections;c.sections=undefined;
+      let access:ReturnType<typeof buildCadFingerAccess>;
+      try{access=buildCadFingerAccess(c,hole,design.dimensions.fillZ,design.dimensions.topZ,materials.floorThicknessMm);}
+      finally{c.sections=sections;}
+      const {cutter:shape,floorBand}=access;
       if(floorBand)floorRegions.push(floorBand);
       add({id:`finger:${hole.id}`,sourceId:hole.id,name,role:"finger-access-tool",status:"active",shape,designLink:hole.designLink});
       body=c.boolean("cut",body,shape,`${name}: subtract finger-access tool`,true);

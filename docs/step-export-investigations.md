@@ -1,5 +1,65 @@
 # STEP export investigations — review gate
 
+## Rounding construction update — 2026-11-17
+
+Applies to the dedicated STEP investigation (A) only. Measured locally with
+Node 22.23.4 on a branch from `0deecf91`. Nothing here is a browser,
+interactive CAD, slicer, or print result; the only CAD application check is
+the headless FreeCAD read in the table below.
+
+The October 15 fillet failures were not a tuning problem. Probes showed the
+modeler's edge fillet failing on real traced pockets at every radius down to
+0.4 mm, and on any pocket narrower than twice the radius. On the unchanged
+branch, 1 of the 16 sample project files exported (Mini Socket Set, which has
+no rounding).
+
+Pocket floors and mouths are now built by exact construction of the print
+path's rounding rule, on sections fitted with lines and arcs; see
+[step-export.md](step-export.md#sections-and-rounding). The maintainer approved
+replacing the "genuine Fillet operations" and "no fitting" rules, and using
+Manifold's planar offsets for sections, on 2026-11-17.
+
+| Check | Result |
+| --- | --- |
+| Exact floor rounding against closed-form volumes (tight corners, wide corners, a slot narrower than twice the radius, a sharp inside corner, a hole) | Match to 0.001 mm³; boundary tolerance within the 0.00001 mm ceiling |
+| Exact mouth rounding against closed-form volumes (sharp corners, rounded corners, an island) | Match to 0.001 mm³ |
+| Finger access against the print path's own mesh (shallow and deep; round, rounded-end and flat-ended) | Within 0.2% in all ten cases |
+| The six shared fixtures through the new path | All build and validate |
+| Sample project files that export a complete package | 6 of 16, up from 1 |
+| Those exports reopened headless in FreeCAD 1.1.4 | Five rounded bins read as valid closed solids; tight bounds equal the exporter's dimensions |
+
+**Mouth rounding was inverted.** Both investigations rounded a mouth by
+filleting a widened prism, which cuts a concave cove with a sharp edge above
+and below it. The print path rounds the bin's edge over. On a 20 mm square
+pocket with a 2 mm radius the cove removes 251 mm³ where the round-over
+removes 69 mm³. Mouths now follow the print path; native CAD acceptance
+recorded before this date was made on the coved shape.
+
+**Shallow curved finger access is built.** It was rejected before. Its rim is
+part of the scoop's own profile, as the print path defines it. A shallow
+flat-ended scoop with rounded plan corners is still rejected.
+
+The ten sample files that do not yet export:
+
+- Six still fail inside pocket rounding (Mouldline remover, Ryobi cutter,
+  Stapler, Wiha drivers, Wire strippers, Wolfbox kit). Where a traced corner
+  tighter than the radius is fitted as several arcs with nearly coincident
+  axes, the modeler's Booleans lose precision and the export stops at the
+  tolerance ceiling. Corners between two straight edges are recovered as one
+  arc and do not have this problem.
+- Three exceed the tolerance ceiling while building or subtracting a
+  finger-access tool (Bessey and Gerber together, Caliper storage, Klein).
+- DeWalt reaches the 512 MiB guard in its text support footprint.
+
+Complete exports took 12 to 56 s of wall time in Node, the longest being Wiha
+40 mm with four pockets; modeling stays inside the 120 s limit but is slow.
+
+The FreeCAD check is a headless read of the STEP files, not the interactive
+import or editing workflow, and nothing here was opened in Fusion.
+
+Probe scripts and sweep logs are in the primary checkout under
+`outputs/step-rounding-spike-2026-11-17/`.
+
 ## Baseline refresh — 2026-10-29
 
 **Both approaches remain experimental; neither is selected or shipped. Both

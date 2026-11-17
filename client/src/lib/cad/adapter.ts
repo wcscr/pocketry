@@ -2,6 +2,8 @@ import type { OpenCascadeInstance, TopoDS_Shape, TopoDS_Face, TopoDS_Edge, TopoD
 import type { Point } from "@shared/geometry/types";
 import type { Vec3 } from "@shared/gridfinity/object-pose";
 import { CadArena, type NativeHandle } from "./arena";
+import type { ExactRoundingStats } from "./exact-rounding";
+import type { SectionKernel } from "./section-kernel";
 
 export const CAD_TOLERANCE_MM = 0.000001;
 export const CAD_BOOLEAN_RETRY_MM = 0.00001;
@@ -22,6 +24,18 @@ export class CadContext {
   maxNativeToleranceMm = 0;
   maxTopologyOccurrences = 0;
   authoredProfileSegments = 0;
+  /**
+   * Planar kernel for pocket sections. When present, traced pockets get
+   * sections fitted with lines and arcs and line/arc sections are rounded by
+   * exact construction instead of the kernel's edge fillet.
+   */
+  sections?: SectionKernel;
+  /** Largest distance between a fitted section and the print path's section. */
+  maxSectionDeviationMm = 0;
+  /** Lines and arcs across all fitted sections. */
+  fittedSectionElements = 0;
+  /** Totals over every exact rounding in this context, for the export report. */
+  readonly rounding: ExactRoundingStats = { bands: 0, recut: 0, witnesses: 0, maxWitnessErrorMm: 0 };
   constructor(readonly oc: OpenCascadeInstance, readonly checkpoint: (operation: string) => void = () => {}) {}
   own<T extends { delete(): void }>(value: T): T { return this.currentArena.own(value); }
   /** Only for an owned intermediate that is no longer part of any output. */

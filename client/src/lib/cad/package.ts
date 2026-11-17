@@ -5,25 +5,40 @@ import { CAD_ENGINE_VERSION, type OpenCascadeInstance } from "./runtime";
 import { resolveCadDesign, CAD_LIMITS } from "./model";
 import { buildCadDesign } from "./build";
 import { writeCadStep } from "./step";
+import type { ExactRoundingStats } from "./exact-rounding";
+import { SECTION_FIT_TOLERANCE_MM, type SectionKernel } from "./section-kernel";
 
-export const CAD_EXPORTER_VERSION = "pocketry-cad-investigation-2";
+export const CAD_EXPORTER_VERSION = "pocketry-cad-investigation-3";
 export interface StepExportReport {
   snapshotSha256:string;exporterVersion:string;engineVersion:string;units:"mm";
   modelingToleranceMm:number;booleanRetryToleranceMm:number;booleanRetries:number;
   maxNativeBoundaryToleranceMm:number;maxTopologyOccurrences:number;
   peakWasmMemoryBytes:number;modelingMs:number;totalMs:number;dimensions:ReturnType<typeof resolveCadDesign>["dimensions"];
   solidCounts:{bin:number;designObjects:number};objects:Record<string,unknown>[];warnings:string[];
+  /**
+   * Present when traced pocket sections were fitted with lines and arcs. The
+   * fitted boundary never lies inside the print path's section and is at most
+   * `maxDeviationMm` outside it.
+   */
+  sectionFit?:{toleranceMm:number;maxDeviationMm:number;elements:number};
+  /** Present when floor or mouth rounding was built by exact construction. */
+  exactRounding?:ExactRoundingStats;
 }
 export interface StepPackageResult {bytes:Uint8Array;report:StepExportReport}
 
-/** Runtime is injected so the same package path runs in a worker and acceptance tests. */
-export async function exportStepPackage(snapshot:ProjectDoc,oc:OpenCascadeInstance,progress:(phase:string)=>void=()=>{}):Promise<StepPackageResult> {
+/**
+ * Runtime is injected so the same package path runs in a worker and acceptance tests.
+ * `sections` is the planar kernel for pocket sections; without it traced pockets
+ * keep the modeler's own offsets and edge fillets.
+ */
+export async function exportStepPackage(snapshot:ProjectDoc,oc:OpenCascadeInstance,progress:(phase:string)=>void=()=>{},sections?:SectionKernel):Promise<StepPackageResult> {
   const started=performance.now();
   const project=parseProjectDoc(structuredClone(snapshot));if(!project)throw new Error("The export snapshot is not a valid Pocketry project");
   const json=JSON.stringify(serializeProjectDoc(project));
   const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",strToU8(json))),b=>b.toString(16).padStart(2,"0")).join("");
   const design=resolveCadDesign(project),modelStarted=performance.now();
   const c=new CadContext(oc,operation=>{if(performance.now()-modelStarted>CAD_LIMITS.modelingMs)throw new Error(`${operation}: modeling exceeded 120 seconds`);});
+  c.sections=sections;
   try {
     const built=buildCadDesign(c,design,{},progress),modelingMs=performance.now()-modelStarted;
     progress("Writing finished-bin STEP");const bin=writeCadStep(c,built.finished,project.name??"Pocketry bin");
@@ -36,12 +51,14 @@ export async function exportStepPackage(snapshot:ProjectDoc,oc:OpenCascadeInstan
       maxNativeBoundaryToleranceMm:c.maxNativeToleranceMm,maxTopologyOccurrences:c.maxTopologyOccurrences,
       peakWasmMemoryBytes:c.peakMemoryBytes,modelingMs,totalMs:performance.now()-started,dimensions:design.dimensions,
       solidCounts:{bin:built.finished.reduce((n,b)=>n+c.subshapes(b.shape,"solid").length,0),designObjects:bodies.reduce((n,b)=>n+c.subshapes(b.shape,"solid").length,0)},objects,
-      warnings:["Experimental CAD investigation; native feature history is not included.","The 512 MiB between-operation memory guard cannot prevent a browser from terminating a native allocation."]};
+      warnings:["Experimental CAD investigation; native feature history is not included.","The 512 MiB between-operation memory guard cannot prevent a browser from terminating a native allocation."],
+      ...(c.fittedSectionElements?{sectionFit:{toleranceMm:SECTION_FIT_TOLERANCE_MM,maxDeviationMm:c.maxSectionDeviationMm,elements:c.fittedSectionElements}}:{}),
+      ...(c.rounding.bands?{exactRounding:{...c.rounding}}:{})};
     progress("Packaging project and reports");
     const bytes=zipSync({"bin.step":bin,"design-objects.step":objectsStep,"design.pocketry.json":strToU8(json),
       "objects.json":strToU8(JSON.stringify({version:1,snapshotSha256:hash,objects,reconstructionOrder:objects.filter(o=>o.role!=="pocket-source").map(o=>o.id)},null,2)),
       "export-report.json":strToU8(JSON.stringify(report,null,2)),
-      "README.txt":strToU8("Pocketry CAD investigation\n\nImport bin.step for finished solids, or design-objects.step for named construction bodies. Units are millimetres.\nDesign objects intentionally overlap. Begin with Bin blank; subtract active pocket and finger-access cutters in objects.json order; add text bodies last.\nMove or edit an original pocket-source body independently from its derived cutter. Insertion cutters must be rebuilt if the source changes. Inactive cutters have no STEP solid.\nDuplicate names remain distinct by stable IDs. All geometry is in world coordinates; transforms describe placement provenance.\nNative FreeCAD or Fusion sketches, constraints and feature history are not preserved. Import design.pocketry.json into Pocketry for the editable source and retained history.\nThe snapshot hash and engine versions are in export-report.json.\n")});
+      "README.txt":strToU8("Pocketry CAD investigation\n\nImport bin.step for finished solids, or design-objects.step for named construction bodies. Units are millimetres.\nDesign objects intentionally overlap. Begin with Bin blank; subtract active pocket and finger-access cutters in objects.json order; add text bodies last.\nMove or edit an original pocket-source body independently from its derived cutter. Insertion cutters must be rebuilt if the source changes. Inactive cutters have no STEP solid.\nDuplicate names remain distinct by stable IDs. All geometry is in world coordinates; transforms describe placement provenance.\nTraced pocket outlines are fitted with lines and arcs; export-report.json gives the tolerance and the largest deviation, which is always outward. Rounded pocket floors follow the same rule as the printed part.\nNative FreeCAD or Fusion sketches, constraints and feature history are not preserved. Import design.pocketry.json into Pocketry for the editable source and retained history.\nThe snapshot hash and engine versions are in export-report.json.\n")});
     return {bytes,report};
   }finally{c.dispose();}
 }
