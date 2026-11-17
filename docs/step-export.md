@@ -6,7 +6,7 @@ rule instead of the modeler's edge fillet, and traced pocket sections are
 fitted with lines and arcs. Both changes were approved by the maintainer that
 day and replace two earlier rules; see [Sections and rounding](#sections-and-rounding).
 Mouth rounding, which had been cutting a cove, now rounds the edge over as
-printed, and shallow curved finger access is built. Six of the sixteen sample
+printed, and shallow curved finger access is built. Eight of the sixteen sample
 project files now export a complete package, up from one; see the
 [2026-11-17 status](step-export-investigations.md#rounding-construction-update--2026-11-17).
 
@@ -125,6 +125,13 @@ twice the radius or a corner is tighter than it, which is the default case
   the planar kernel's figure. A band that did not cut is cut again; if the
   surface is still off, no package is produced. The 0.00001 mm boundary
   tolerance ceiling is unchanged.
+- **A rounding the modeler rejects is started again in another band order.**
+  Whether the modeler accepts a set of bands depends on the order they are
+  applied in. There are seven fixed orders, tried in turn from the unrounded
+  solid, and every attempt is held to the same checks and the same ceiling. A
+  memory or time limit stops the export instead of starting another attempt.
+  `export-report.json` counts the roundings that needed another order
+  (`exactRounding.reordered`).
 - Normal exports still must not disable rounding or lower a radius to make an
   unsupported design export. The sharp-only October 15 runs changed diagnostic
   copies explicitly; they are not a release mode or fallback.

@@ -1,6 +1,7 @@
 import type { TopoDS_Face } from "replicad-opencascadejs";
 
 import {
+  elementLength,
   leftNormal,
   reverseChain,
   startTangent,
@@ -82,6 +83,8 @@ type NotchPoint = readonly [number, number];
 export interface ExactRoundingStats {
   /** Band tools applied, including inside-corner bands. */
   bands: number;
+  /** Roundings the modeler only got through with the bands in a different order. */
+  reordered?: number;
   /** Bands that had to be applied a second time before the surface checked out. */
   recut: number;
   /** Surface points checked against the finished solid. */
@@ -106,6 +109,60 @@ interface Band {
   ring: number;
   element: number;
   corner: boolean;
+  /** Length of wall the band runs along; zero for a corner fan. */
+  length: number;
+  /** A band that reaches its own axis: an arc tighter than the radius, or a corner fan. */
+  tight: boolean;
+}
+
+/**
+ * The order in which bands are applied. Every order describes the same solid;
+ * they differ only in which intermediate shapes the modeler has to get through.
+ */
+export type BandOrder =
+  | "boundary"
+  | "lines-first"
+  | "tight-first"
+  | "tight-last"
+  | "reversed"
+  | "alternate"
+  | "halfway";
+
+/**
+ * Orders tried in turn. Whether the modeler's Booleans hold their precision
+ * through a few dozen cuts depends on the order, and not predictably: the same
+ * section can pass in one order at one floor height and fail in it at another.
+ * A different order is a fresh attempt at the same solid, and every attempt is
+ * held to the same checks, so the first that passes is as good as any.
+ */
+const BAND_ORDERS: readonly BandOrder[] = ["boundary", "lines-first", "tight-last", "tight-first", "reversed", "alternate", "halfway"];
+
+/** Limits that end the whole export; trying another order would not help. */
+const isResourceLimit = (error: unknown): boolean =>
+  error instanceof Error && /modeling exceeded|memory reached|cancel/i.test(error.message);
+
+function inOrder(bands: readonly Band[], order: BandOrder): Band[] {
+  const boundary = bands.slice();
+  switch (order) {
+    case "boundary":
+      return boundary;
+    case "reversed":
+      return boundary.reverse();
+    case "lines-first":
+      // Long straight walls first, then everything that curves, tightest last.
+      return boundary.sort((p, q) => Number(p.tight) - Number(q.tight) || q.length - p.length);
+    case "tight-first":
+      return boundary.sort((p, q) => Number(q.tight) - Number(p.tight));
+    case "tight-last":
+      return boundary.sort((p, q) => Number(p.tight) - Number(q.tight));
+    case "alternate":
+      // Every other band first, so no band meets a freshly cut neighbor on both sides.
+      return [...boundary.filter((_, index) => index % 2 === 0), ...boundary.filter((_, index) => index % 2 === 1)];
+    case "halfway": {
+      const start = boundary.length >> 1;
+      return [...boundary.slice(start), ...boundary.slice(0, start)];
+    }
+  }
 }
 
 /**
@@ -275,10 +332,11 @@ function ringBands(c: CadContext, banded: BandedRing, ring: number, frame: Round
   const bands: Band[] = [];
   banded.chain.forEach((element, index) => {
     const tool = element.kind === "line" ? lineBand(c, element, frame) : arcBand(c, element, frame);
-    bands.push({ tool, ring, element: index, corner: false });
+    const tight = element.kind === "arc" && element.sweep > 0 && element.radius <= frame.radius + 1e-9;
+    bands.push({ tool, ring, element: index, corner: false, length: elementLength(element), tight });
   });
   for (const corner of banded.corners) {
-    bands.push({ tool: cornerBand(c, corner, frame), ring, element: corner.element, corner: true });
+    bands.push({ tool: cornerBand(c, corner, frame), ring, element: corner.element, corner: true, length: 0, tight: true });
   }
   return bands;
 }
@@ -307,8 +365,11 @@ function distanceToSurface(c: CadContext, solid: CadShape, x: number, y: number,
  * overlaps, and a volume check cannot see one missing sliver. So the result is
  * checked against points that must lie on the rounded surface, computed from
  * the chains alone. Bands whose points are off are applied again; if any are
- * still off the operation fails rather than return a solid that only looks
+ * still off the attempt fails rather than return a solid that only looks
  * right.
+ *
+ * Without an explicit `order` the orders in {@link BAND_ORDERS} are tried in
+ * turn and the first attempt that passes every check is returned.
  */
 function applyBands(
   c: CadContext,
@@ -318,16 +379,49 @@ function applyBands(
   apply: "cut" | "fuse",
   operation: string,
   stats?: ExactRoundingStats,
+  order?: BandOrder,
+): CadShape {
+  if (order) return applyBandsInOrder(c, start, ringsByRegion, frame, apply, operation, stats, order);
+  let first: unknown;
+  // An abandoned attempt must not leave its figures in the export report.
+  const accepted = { tolerance: c.maxNativeToleranceMm, occurrences: c.maxTopologyOccurrences, retries: c.retries };
+  for (const [attempt, candidate] of BAND_ORDERS.entries()) {
+    try {
+      const result = applyBandsInOrder(c, start, ringsByRegion, frame, apply, operation, stats, candidate);
+      if (attempt > 0 && stats) stats.reordered = (stats.reordered ?? 0) + 1;
+      return result;
+    } catch (error) {
+      c.maxNativeToleranceMm = accepted.tolerance;
+      c.maxTopologyOccurrences = accepted.occurrences;
+      c.retries = accepted.retries;
+      if (isResourceLimit(error)) throw error;
+      first ??= error;
+    }
+  }
+  const reason = first instanceof Error ? first.message : String(first);
+  throw new Error(`${reason} (no band order succeeded; first failure shown)`);
+}
+
+/** One attempt at {@link applyBands}, with the bands in the given order. */
+function applyBandsInOrder(
+  c: CadContext,
+  start: CadShape,
+  ringsByRegion: readonly BandedRing[][],
+  frame: RoundingFrame,
+  apply: "cut" | "fuse",
+  operation: string,
+  stats: ExactRoundingStats | undefined,
+  order: BandOrder,
 ): CadShape {
   return c.scope(
     () => {
       // Rings are numbered across regions so a witness can name its band.
-      const bands: Band[] = [];
+      const boundaryBands: Band[] = [];
       const witnesses: SurfaceWitness[] = [];
       let ringOffset = 0;
       for (const rings of ringsByRegion) {
         rings.forEach((banded, index) => {
-          bands.push(...ringBands(c, banded, ringOffset + index, frame));
+          boundaryBands.push(...ringBands(c, banded, ringOffset + index, frame));
         });
         const chains = rings.map((banded) => banded.chain);
         const corners = rings.map((banded) => banded.corners);
@@ -336,6 +430,7 @@ function applyBands(
         }
         ringOffset += rings.length;
       }
+      const bands = inOrder(boundaryBands, order);
       const invalid = bands.filter((band) => !c.valid(band.tool)).length;
       if (invalid) {
         throw new Error(`${operation}: ${invalid} of ${bands.length} rounding bands are not valid solids`);
@@ -403,6 +498,7 @@ export function roundBottomExact(
   radius: number,
   operation: string,
   stats?: ExactRoundingStats,
+  order?: BandOrder,
 ): CadShape {
   if (!(radius > 0)) return prism;
   return applyBands(
@@ -413,6 +509,7 @@ export function roundBottomExact(
     "cut",
     operation,
     stats,
+    order,
   );
 }
 
@@ -436,6 +533,7 @@ export function roundMouthExact(
   radius: number,
   operation: string,
   stats?: ExactRoundingStats,
+  order?: BandOrder,
 ): CadShape {
   if (!(radius > 0)) return cutter;
   // Reversed, each boundary has the bin's material on its left.
@@ -450,6 +548,7 @@ export function roundMouthExact(
     "fuse",
     operation,
     stats,
+    order,
   );
 }
 

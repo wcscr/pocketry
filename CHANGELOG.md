@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Experimental STEP investigation: rounded pocket floors and mouths now follow the printed rounding rule exactly, on traced sections fitted with lines and arcs (0.02 mm, never smaller than printed, reported per export). Mouths are rounded over instead of coved, and shallow curved finger access is built. Six of sixteen sample projects export a complete package, up from one.
+- Experimental STEP investigation: rounded pocket floors and mouths now follow the printed rounding rule exactly, on traced sections fitted with lines and arcs (0.02 mm, never smaller than printed, reported per export). Mouths are rounded over instead of coved, and shallow curved finger access is built. Eight of sixteen sample projects export a complete package, up from one.
 
 - Fix native CAD cleanup in both experimental investigations without changing modeled geometry; retain the 512 MiB guard. Complex authored bottom fillets remain an unresolved export gate.
 

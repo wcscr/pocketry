@@ -161,6 +161,27 @@ describe("exact floor rounding", () => {
     expect(result.kinds).toEqual(new Set(["plane", "cylinder", "torus"]));
   }, 60_000);
 
+  it.each(["boundary", "lines-first", "tight-first", "tight-last", "reversed", "alternate", "halfway"] as const)(
+    "builds the same solid with the bands applied in %s order",
+    (order) => {
+      const c = new CadContext(oc);
+      try {
+        const regions: SectionRegion[] = [{ outer: roundedRectangle(30, 20, 1), holes: [] }];
+        const prism = extrudeSection(c, sectionSlab(c, regions), -DEPTH, 0);
+        const rounded = roundBottomExact(c, prism, regions, -DEPTH, 2.8, "ordered rounding", undefined, order);
+        const expected = removedByRule(
+          (inset) => (30 - 2 * inset) * (20 - 2 * inset) - (4 - Math.PI) * Math.max(1 - inset, 0) ** 2,
+          2.8,
+        );
+        expect(c.valid(rounded)).toBe(true);
+        expect(c.volume(prism) - c.volume(rounded)).toBeCloseTo(expected, 3);
+      } finally {
+        c.dispose();
+      }
+    },
+    60_000,
+  );
+
   it("keeps the kernel's boundary tolerance within the export ceiling", () => {
     const result = round([{ outer: roundedRectangle(30, 30, 1), holes: [] }], 2.8);
     expect(result.maxTolerance).toBeLessThanOrEqual(0.00001);

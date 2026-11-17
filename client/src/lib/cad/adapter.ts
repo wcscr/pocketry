@@ -35,7 +35,7 @@ export class CadContext {
   /** Lines and arcs across all fitted sections. */
   fittedSectionElements = 0;
   /** Totals over every exact rounding in this context, for the export report. */
-  readonly rounding: ExactRoundingStats = { bands: 0, recut: 0, witnesses: 0, maxWitnessErrorMm: 0 };
+  readonly rounding: ExactRoundingStats = { bands: 0, reordered: 0, recut: 0, witnesses: 0, maxWitnessErrorMm: 0 };
   constructor(readonly oc: OpenCascadeInstance, readonly checkpoint: (operation: string) => void = () => {}) {}
   own<T extends { delete(): void }>(value: T): T { return this.currentArena.own(value); }
   /** Only for an owned intermediate that is no longer part of any output. */
@@ -173,7 +173,7 @@ export class CadContext {
   }
   /** Native modeling can increase boundary tolerances internally. Reject
    * results exceeding the documented retry ceiling instead of healing them. */
-  inspectTopology(shape: CadShape): void {
+  inspectTopology(shape: CadShape, operation?: string): void {
     let count = 0, tolerance = 0;
     for (const kind of ["face", "edge", "vertex"] as const) {
       const explorer = new this.oc.TopExp_Explorer(shape, this.oc.TopAbs_ShapeEnum[kind === "face" ? "TopAbs_FACE" : kind === "edge" ? "TopAbs_EDGE" : "TopAbs_VERTEX"]);
@@ -189,7 +189,7 @@ export class CadContext {
     }
     this.maxNativeToleranceMm = Math.max(this.maxNativeToleranceMm, tolerance);
     this.maxTopologyOccurrences = Math.max(this.maxTopologyOccurrences, count);
-    if (tolerance > CAD_BOOLEAN_RETRY_MM) throw new Error(`Native boundary tolerance ${tolerance} mm exceeds 0.00001 mm; no geometry repair was applied`);
+    if (tolerance > CAD_BOOLEAN_RETRY_MM) throw new Error(`${operation ? `${operation}: ` : ""}Native boundary tolerance ${tolerance} mm exceeds 0.00001 mm; no geometry repair was applied`);
   }
   valid(shape: CadShape, allowEmpty = false): boolean {
     return this.scoped(() => {
@@ -220,7 +220,7 @@ export class CadContext {
       return builder.IsDone() && !builder.HasErrors() ? this.own(builder.Shape()) : undefined;
       }, shape => shape ? [shape] : []);
       if (result) {
-        if (this.valid(result,allowEmpty)) { this.inspectTopology(result); if (tolerance === CAD_BOOLEAN_RETRY_MM) this.retries++; this.guard(operation); return result; }
+        if (this.valid(result,allowEmpty)) { this.inspectTopology(result,operation); if (tolerance === CAD_BOOLEAN_RETRY_MM) this.retries++; this.guard(operation); return result; }
         this.drop(result);
       }
     }
@@ -239,7 +239,7 @@ export class CadContext {
     if (!builder.IsDone()) throw new Error(`${operation}: the requested ${radius} mm rounding failed`);
     const result = this.own(builder.Shape());
     if (!this.valid(result)) throw new Error(`${operation}: rounding produced an invalid solid`);
-    this.inspectTopology(result);
+    this.inspectTopology(result,operation);
     this.guard(operation);
     return result;
     }, true);

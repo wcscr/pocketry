@@ -25,8 +25,9 @@ Manifold's planar offsets for sections, on 2026-11-17.
 | Exact mouth rounding against closed-form volumes (sharp corners, rounded corners, an island) | Match to 0.001 mm³ |
 | Finger access against the print path's own mesh (shallow and deep; round, rounded-end and flat-ended) | Within 0.2% in all ten cases |
 | The six shared fixtures through the new path | All build and validate |
-| Sample project files that export a complete package | 6 of 16, up from 1 |
-| Those exports reopened headless in FreeCAD 1.1.4 | Five rounded bins read as valid closed solids; tight bounds equal the exporter's dimensions |
+| The 50 floor and mouth roundings in the sample files, one pocket at a time | 45 build |
+| Sample project files that export a complete package | 8 of 16, up from 1 |
+| Those exports reopened headless in FreeCAD 1.1.4 | Seven rounded bins read as valid closed solids; tight bounds equal the exporter's dimensions |
 
 **Mouth rounding was inverted.** Both investigations rounded a mouth by
 filleting a widened prism, which cuts a concave cove with a sharp edge above
@@ -39,19 +40,36 @@ recorded before this date was made on the coved shape.
 part of the scoop's own profile, as the print path defines it. A shallow
 flat-ended scoop with rounded plan corners is still rejected.
 
-The ten sample files that do not yet export:
+**Rounding depends on the order of its bands.** The modeler accepts or rejects
+the same set of bands depending on the order they are applied in. A rounding
+it rejects is therefore started again from the unrounded solid in another of
+seven fixed orders, each attempt held to the same surface and volume checks
+and the same tolerance ceiling. Mouldline remover and Stapler export this way,
+with one reordered rounding each.
 
-- Six still fail inside pocket rounding (Mouldline remover, Ryobi cutter,
-  Stapler, Wiha drivers, Wire strippers, Wolfbox kit). Where a traced corner
-  tighter than the radius is fitted as several arcs with nearly coincident
-  axes, the modeler's Booleans lose precision and the export stops at the
-  tolerance ceiling. Corners between two straight edges are recovered as one
-  arc and do not have this problem.
-- Three exceed the tolerance ceiling while building or subtracting a
-  finger-access tool (Bessey and Gerber together, Caliper storage, Klein).
+The eight sample files that do not yet export:
+
+- Four fail inside pocket rounding. Ryobi cutter (two floors), Wire strippers
+  and Wolfbox kit (two floors) stop at the same band in every order. The
+  cause is local: a traced corner tighter than the radius fitted as several
+  arcs whose axes lie about 0.0001 mm apart, or an arc whose radius nearly
+  equals the rounding radius. Corners between two straight edges are recovered
+  as one arc and do not have this problem. Wiha drivers fails one mouth
+  rounding in the whole-design export, although the same mouth builds when the
+  pocket is taken on its own.
+- Three exceed the tolerance ceiling while subtracting a finger-access tool
+  from the bin (Bessey and Gerber together, Caliper storage, Klein).
 - DeWalt reaches the 512 MiB guard in its text support footprint.
 
-Complete exports took 12 to 56 s of wall time in Node, the longest being Wiha
+Changing the outline fit did not help the five floors. Variations measured
+over the same 50 roundings (a minimum blend length, balanced spans, merged
+collinear lines, a preferred blend radius, sharp convex corners, single-arc
+spans) built at most the committed fit's 45, and several built fewer, with
+the same five floors failing each time, so the fit is unchanged. Raising the tolerance
+ceiling to 0.0001 and 0.001 mm in a diagnostic run did not make them build
+either; the ceiling is unchanged.
+
+Complete exports took 2 to 59 s of wall time in Node, the longest being Wiha
 40 mm with four pockets; modeling stays inside the 120 s limit but is slow.
 
 The FreeCAD check is a headless read of the STEP files, not the interactive
