@@ -1,6 +1,7 @@
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
+import { labelTabSurfaces } from "@shared/gridfinity/label-tab-surfaces";
 import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
 import { effectiveBottomFilletRadiusMm } from "@shared/gridfinity/bottom-fillet";
 import { SettingsGroup } from "@/components/layout/settings-group";
@@ -72,6 +73,19 @@ import { Ultim8Link } from "@/components/ui/ultim8-link";
 import { FillHeightControl } from "./fill-height-control";
 import { SurfaceTextControls, SurfaceTextProperties } from "./surface-text-controls";
 import { Type } from "lucide-react";
+
+/** Keep commas editable while the user types; commit the saved label list on blur. */
+function SnapLabelWording({ value, onCommit }: { value: string[]; onCommit: (labels: string[]) => void }) {
+  const [draft, setDraft] = useState(value.join(", "));
+  useEffect(() => setDraft(value.join(", ")), [value]);
+  return <div className="space-y-1">
+    <Label htmlFor="snap-label-wording" className="text-xs">Printable labels</Label>
+    <Input id="snap-label-wording" aria-label="Snap label wording" value={draft}
+      placeholder="M1.4x4, M1.7x4" onChange={event => setDraft(event.target.value)}
+      onBlur={() => onCommit(draft.split(",").map(text => text.trim()).filter(Boolean).slice(0, 16))} />
+    <p className="text-xs text-muted-foreground">Separate labels with commas. Each is assigned to a tab below.</p>
+  </div>;
+}
 
 import {
   DEFAULT_OBLONG_DEEP_SCOOP_LENGTH_MM,
@@ -227,6 +241,7 @@ export interface BinControlsPanelProps {
   previewIsDraft?: boolean;
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => void;
+  onExportSnapLabels: () => void;
   onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
@@ -299,6 +314,7 @@ export function BinControlsPanel({
   previewIsDraft = false,
   exporting,
   onExport,
+  onExportSnapLabels,
   onExportFitCheck,
   onExportSurfaceFitCheck,
   onExportLayout,
@@ -2055,6 +2071,88 @@ export function BinControlsPanel({
                 </div>
                 <LabelTabSizeControls spec={spec} onChange={(patch, transient) =>
                   patchSpec({ labelTab: { ...spec.labelTab!, ...patch } }, transient)} />
+                <FeatureSwitch label="Snap-in labels"
+                  description="Cut retaining sockets into each shelf and save separately printable labels with this bin."
+                  checked={!!spec.labelTab.snap}
+                  onChange={enabled => patchSpec({ labelTab: { ...spec.labelTab!, snap: enabled
+                    ? { widthMm: 22, clearanceMm: 0.25, labels: [], face: { mode: "auto", marginMm: 0.6,
+                      widthMm: 24, heightMm: 13, thicknessMm: 0.4, textSizeMm: 3.2 } } : null } })} />
+                {spec.labelTab.snap && <div className="space-y-2 rounded-md border p-2.5" data-testid="snap-label-settings">
+                  <div className="flex items-center justify-between gap-3">
+                    <SettingLabel label="Latch width" htmlFor="snap-label-width" hint="Width of the retaining base and socket. Changing this changes the fit; the visible face has separate sizing below." />
+                    <DraftNumberInput id="snap-label-width" className="h-8 w-20" aria-label="Snap label width in millimetres"
+                      value={spec.labelTab.snap.widthMm} min={8} max={100} step={0.5}
+                      onValueChange={widthMm => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, widthMm } } }, true)}
+                      onValueCommit={widthMm => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, widthMm } } })} />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <SettingLabel label="Total clearance" htmlFor="snap-label-clearance" hint="Added to both socket dimensions. Start at 0.25 mm and adjust after a physical fit test." />
+                    <DraftNumberInput id="snap-label-clearance" className="h-8 w-20" aria-label="Snap label total clearance in millimetres"
+                      value={spec.labelTab.snap.clearanceMm} min={0.05} max={0.5} step={0.05}
+                      onValueChange={clearanceMm => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, clearanceMm } } }, true)}
+                      onValueCommit={clearanceMm => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, clearanceMm } } })} />
+                  </div>
+                  <SnapLabelWording value={spec.labelTab.snap.labels} onCommit={labels =>
+                    patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, labels } } })} />
+                  <FeatureSwitch label="Expanded face" description="Cover the usable area of each tab without changing the latch and socket fit. Existing projects without this setting keep their original flat labels."
+                    checked={!!spec.labelTab.snap.face} onChange={enabled => patchSpec({ labelTab: { ...spec.labelTab!, snap: {
+                      ...spec.labelTab!.snap!, face: enabled ? { mode: "auto", marginMm: 0.6, widthMm: 24,
+                        heightMm: 13, thicknessMm: 0.4, textSizeMm: 3.2 } : undefined } } })} />
+                  {spec.labelTab.snap.face && <div className="space-y-2 rounded-md border p-2.5">
+                    <div className="flex items-center gap-2">
+                      <SettingLabel label="Face size" hint="Auto follows the assigned tab outline. Manual uses one chosen width and height on every tab." />
+                      <Select value={spec.labelTab.snap.face.mode} onValueChange={mode => patchSpec({ labelTab: {
+                        ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, face: { ...spec.labelTab!.snap!.face!, mode: mode as "auto" | "manual" } } } })}>
+                        <SelectTrigger aria-label="Snap face size mode" className="h-8 w-28"><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="auto">Auto</SelectItem><SelectItem value="manual">Manual</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                    {([[
+                      "marginMm", "Edge margin", 0, 5, 0.1,
+                    ], ["thicknessMm", "Face thickness", 0.2, 1.2, 0.1],
+                    ["textSizeMm", "Text size", 1, 8, 0.1],
+                    ...(spec.labelTab.snap.face.mode === "manual" ? [
+                      ["widthMm", "Face width", 8, 100, 0.5], ["heightMm", "Face height", 6, 40, 0.5],
+                    ] : [])] as ["marginMm" | "thicknessMm" | "textSizeMm" | "widthMm" | "heightMm", string, number, number, number][]).map(([field, label, min, max, step]) =>
+                      <div key={field} className="flex items-center justify-between gap-3">
+                        <SettingLabel label={label} htmlFor={`snap-face-${field}`} />
+                        <DraftNumberInput id={`snap-face-${field}`} className="h-8 w-20" aria-label={`Snap ${label.toLowerCase()} in millimetres`}
+                          value={spec.labelTab!.snap!.face![field]} min={min} max={max} step={step}
+                          onValueChange={value => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!,
+                            face: { ...spec.labelTab!.snap!.face!, [field]: value } } } }, true)}
+                          onValueCommit={value => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!,
+                            face: { ...spec.labelTab!.snap!.face!, [field]: value } } } })} />
+                      </div>)}
+                  </div>}
+                  {spec.labelTab.snap.labels.map((text, index) => {
+                    const surfaces = labelTabSurfaces(spec);
+                    return <div key={index} className="flex items-center justify-between gap-3">
+                      <SettingLabel label={`Label ${index + 1}: ${text}`} hint="Choose the tab this label's face must fit." />
+                      <Select value={spec.labelTab!.snap!.tabKeys?.[index] ?? surfaces[index % surfaces.length]?.key ?? ""}
+                        onValueChange={tabKey => {
+                          const tabKeys = spec.labelTab!.snap!.labels.map((_, i) =>
+                            spec.labelTab!.snap!.tabKeys?.[i] ?? surfaces[i % surfaces.length]?.key ?? "outer");
+                          tabKeys[index] = tabKey;
+                          patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!, tabKeys } } });
+                        }}>
+                        <SelectTrigger aria-label={`Tab for snap label ${index + 1}`} className="h-8 w-28"><SelectValue /></SelectTrigger>
+                        <SelectContent>{surfaces.map(surface => <SelectItem key={surface.key} value={surface.key}>{surface.key}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>;
+                  })}
+                  {labelTabSurfaces(spec).map(surface => <div key={surface.key} className="flex items-center justify-between gap-3">
+                    <SettingLabel label={`Socket ${surface.key}`} htmlFor={`snap-clearance-${surface.key}`}
+                      hint="Override this shelf's total clearance for a fit test." />
+                    <DraftNumberInput id={`snap-clearance-${surface.key}`} className="h-8 w-20"
+                      aria-label={`Socket ${surface.key} total clearance in millimetres`}
+                      value={spec.labelTab!.snap!.clearanceByTab?.[surface.key] ?? spec.labelTab!.snap!.clearanceMm}
+                      min={0.05} max={0.5} step={0.05}
+                      onValueChange={clearanceMm => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!,
+                        clearanceByTab: { ...spec.labelTab!.snap!.clearanceByTab, [surface.key]: clearanceMm } } } }, true)}
+                      onValueCommit={clearanceMm => patchSpec({ labelTab: { ...spec.labelTab!, snap: { ...spec.labelTab!.snap!,
+                        clearanceByTab: { ...spec.labelTab!.snap!.clearanceByTab, [surface.key]: clearanceMm } } } })} />
+                  </div>)}
+                </div>}
                 <div className="flex items-center gap-2">
                   <SettingLabel label="Apply to" className="shrink-0 whitespace-nowrap" hint="Repeat tabs inside each sub-bin, following the wall slant. Tab depth is capped at half the compartment. Solid fill uses the outer-wall tab." />
                   <Select value={spec.labelTab.scope ?? "outer"} disabled={spec.fill !== "none"}
@@ -2544,6 +2642,10 @@ export function BinControlsPanel({
               </Button>
             </div>
           </div>
+          {!!spec.labelTab?.snap?.labels.length && <Button variant="outline" className="w-full"
+            disabled={exporting || hasErrors} onClick={onExportSnapLabels} data-testid="button-export-snap-labels">
+            <Download className="h-4 w-4" />Save snap labels 3MF
+          </Button>}
 
           {(cutouts.length > 0 || spec.pegBottom) && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">

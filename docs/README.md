@@ -38,7 +38,8 @@ and internal refactors usually need no changelog entry.
   persistence, exports, and physical-verification boundaries. Its legacy filename
   is retained for existing links; it is not a roadmap.
 - [Grid pitch](grid-pitch.md), [compartments and label tabs](bin-compartments.md),
-  [bottom edge fillets](bottom-edge-fillet.md), and [slanted walls](slanted-walls-prototype.md).
+  [snap-in labels](snap-in-labels.md), [bottom edge fillets](bottom-edge-fillet.md),
+  and [slanted walls](slanted-walls-prototype.md).
 - [Pocket selection and transforms](pocket-tilt.md), [rotation and elevation](pocket-rotation.md),
   [insertion clearance](pocket-insertion-paths.md), and [split pockets](split-pockets.md).
 - [Hardware symbols and label surfaces](hardware-symbols.md).

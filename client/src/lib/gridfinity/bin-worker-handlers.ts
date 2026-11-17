@@ -148,7 +148,7 @@ export function createBinWorkerHandlers(
         const errors = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles).filter(issue => issue.severity === "error");
         if (errors.length) throw new Error(errors.map(issue => issue.message).join("\n"));
       }
-      const { solid, bodySolid: binSolid, textParts, materialParts, cutoutReports, validationIssues } = buildBinWithCutouts(
+      const { solid, bodySolid: binSolid, textParts, snapLabelParts, materialParts, cutoutReports, validationIssues } = buildBinWithCutouts(
         kernel,
         spec,
         layout,
@@ -240,8 +240,27 @@ export function createBinWorkerHandlers(
         : undefined;
       context.progress(0.9);
 
+      // Auto faces can have different widths and asymmetric clipped outlines.
+      let nextLabelX = 0;
+      const labelPositions = snapLabelParts.map(part => {
+        const box = part.solid.boundingBox();
+        const x = nextLabelX - box.min[0];
+        nextLabelX += box.max[0] - box.min[0] + 5;
+        return x;
+      });
+      const labelCenterX = (nextLabelX - 5) / 2;
+
       const value: BuildBinResult = {
         mesh,
+        ...(payload.exportTopology && snapLabelParts.length ? {
+          snapLabelMeshes: snapLabelParts.map((part, index) => ({
+            text: part.text,
+            tabKey: part.tabKey,
+            mesh: extractPrintableMeshData(kernel, arena.track(part.solid.translate([
+              labelPositions[index] - labelCenterX, 0, 0,
+            ]))),
+          })),
+        } : {}),
         ...(textParts.length ? {
           ...(payload.exportTopology || !materialMeshes ? {
             bodyMesh: extractPart(payload.exportTopology ? binSolid : displayedPart(binSolid)),
@@ -264,7 +283,8 @@ export function createBinWorkerHandlers(
         validationIssues,
       };
       const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
-      for (const extra of [value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? [])]) {
+      for (const extra of [value.bodyMesh, ...(value.textMeshes?.map(part => part.mesh) ?? []),
+        ...(value.snapLabelMeshes?.map(part => part.mesh) ?? [])]) {
         if (extra) {
           transfer.push(extra.positions.buffer, extra.indices.buffer);
           if (extra.normals) transfer.push(extra.normals.buffer);

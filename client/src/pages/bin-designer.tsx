@@ -1180,6 +1180,27 @@ function BinDesignerWorkspace(): JSX.Element {
     ],
   );
 
+  const handleExportSnapLabels = useCallback(async () => {
+    setExporting(true);
+    try {
+      const result = await buildOnce(EXPORT_QUALITY);
+      const labels = result.snapLabelMeshes ?? [];
+      if (!labels.length) throw new Error("Add printable snap labels in Construction first.");
+      const project = prepareProjectExport(exportProjectDoc, currentProjectName, "snap-labels");
+      const bytes = writeThreeMf(labels.map((part, index) => ({
+        name: `Snap label ${index + 1}${part.tabKey ? ` (${part.tabKey})` : ""}: ${part.text}`, mesh: part.mesh,
+        material: { name: "Snap label", displayColor: binColor as `#${string}` },
+      })), { title: "Pocketry snap-in labels" });
+      downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project, false);
+      toast({ title: "Saved", description: `Exported ${labels.length} separate snap-in label${labels.length === 1 ? "" : "s"} as 3MF.` });
+    } catch (cause) {
+      if (!(cause instanceof WorkerCancelledError)) toast({ title: "Export failed",
+        description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }, [buildOnce, exportProjectDoc, currentProjectName, binColor, toast]);
+
   const handleExportFitCheck = useCallback(
     async (cutoutId: string, depthMm: number, includeProject: boolean) => {
       const cutout = exportProjectDoc.cutouts.find((candidate) => candidate.id === cutoutId);
@@ -1319,6 +1340,7 @@ function BinDesignerWorkspace(): JSX.Element {
           previewIsDraft={previewIsDraft}
           exporting={exporting}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
+          onExportSnapLabels={() => void handleExportSnapLabels()}
           onExportFitCheck={(cutoutId, depthMm, includeProject) =>
             void handleExportFitCheck(cutoutId, depthMm, includeProject)
           }

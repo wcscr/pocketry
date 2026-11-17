@@ -61,7 +61,7 @@ describe("parseProjectDoc", () => {
     const legacy = { ...VALID, schemaVersion: 60, spec,
       shapes: withCurves ? [{ ...VALID.shapes[0], curvesMm: curves }] : VALID.shapes };
     const restored = parseProjectDoc(legacy)!;
-    expect(restored.schemaVersion).toBe(61);
+    expect(restored.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(restored.spec.surfaceTexts[0].orphanedTab).toEqual(spec.surfaceTexts[0].orphanedTab);
     expect(restored.shapes[0].curvesMm).toEqual(withCurves ? curves : undefined);
     expect(restored.shapes[0].outlineMm).toEqual(withCurves ? sampleCurves(curves) : VALID.shapes[0].outlineMm);

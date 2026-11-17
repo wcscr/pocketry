@@ -35,9 +35,9 @@ from the finished bin. Label tabs can stay on the selected outer wall or repeat 
 The Label tab switch enables full-width tabs with Apply to set to Each sub-bin,
 including when dividers are added later. Saved tabs keep their existing placement;
 older tabs without a saved placement still use the outer wall. The Label tabs group contains
-Front rim, Recess, Style, Tab depth, partial-tab width, Apply to, and On wall.
+Front rim, Recess, Style, Tab depth, partial-tab width, Snap-in labels, Apply to, and On wall.
 Recess accepts 0–10 mm and defaults to
-0.5 mm for newly enabled tabs; zero is flush. Outer tabs use the wall top as
+0.5 mm for newly enabled tabs; zero places the shelf flush with its wall or divider. Outer tabs use the wall top as
 their reference, repeated tabs use the divider top, with or without a stacking
 lip. Wall/divider heights stay unchanged. Text follows the shelf vertically and
 keeps its offset from the shelf center on slanted bins. New lettering defaults
@@ -47,6 +47,9 @@ lettering can extend above the walls. Shallow
 tabs reduce depth to retain support; a recess that leaves no room above the floor
 blocks export. Schema 56 retains this setting in projects and undo history;
 older saved designs without a recess remain flush.
+Snap-in labels add a retaining socket to each usable tab and export as separate
+3MF objects. Their optional larger faces can follow each assigned tab or use
+manual dimensions; see [snap-in labels](snap-in-labels.md) for fit and face controls.
 Tab depth accepts 1–15.85 mm inward from the mounting wall. Center, left, and
 right styles also accept 1–42 mm width along the wall; full width follows the
 available wall and retains the chosen width for switching back. Short bins and
