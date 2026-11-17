@@ -2130,7 +2130,7 @@ export function BinControlsPanel({
           <div className="grid grid-cols-2 gap-1">
             <AddPocketMenu className="min-w-0 gap-1 px-1.5" />
             <Button variant="outline" size="sm" className="min-w-0 gap-1 px-1.5" onClick={onAutoArrange} disabled={cutouts.length === 0 || [...cutouts, ...fingerHoles].some(object => object.placementGroup)} title={[...cutouts, ...fingerHoles].some(object => object.placementGroup) ? "Ungroup objects before auto-arranging" : undefined} data-testid="button-auto-arrange">
-              <LayoutGrid className="h-4 w-4" />Auto-arrange
+              <LayoutGrid className="h-4 w-4" />Arrange &amp; rotate
             </Button>
           </div>
           {!inspector && !selectedCutout && (

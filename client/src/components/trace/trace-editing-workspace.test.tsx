@@ -83,14 +83,14 @@ afterEach(() => {
 });
 
 describe("trace workflow and properties", () => {
-  it.each([true, false])("offers a guarded Start Over as the final workflow action (workflow=%s)", async enabled => {
+  it.each([true, false])("offers a guarded New photo as the final workflow action (workflow=%s)", async enabled => {
     await act(() => root.render(<TooltipProvider><ShapeLibraryProvider><TraceProvider><Harness enabled={enabled} /></TraceProvider></ShapeLibraryProvider></TooltipProvider>));
     expect(button("button-start-over").disabled).toBe(true);
     await finishTrace();
     expect(button("button-start-over").closest('[data-testid="desktop-workspace-controls"]')).not.toBeNull();
     expect(button("button-start-over").closest('#trace-settings-source, #objects-panel')).toBeNull();
     expect(button("button-start-over").disabled).toBe(false);
-    expect(button("button-start-over").textContent).toBe("Start Over");
+    expect(button("button-start-over").textContent).toBe("New photo");
     expect(button("button-start-over").getAttribute("data-property-tone")).toBe("rose");
     expect(button("button-start-over").closest('[class*="shrink-0 border-t"]')).toBeNull();
     if (enabled) {
@@ -106,7 +106,7 @@ describe("trace workflow and properties", () => {
     await act(() => dialogButton("Keep working").click());
     expect(trace).toMatchObject(before);
     await act(() => button("button-start-over").click());
-    await act(() => dialogButton("Clear trace and start over").click());
+    await act(() => dialogButton("Clear trace for new photo").click());
     expect(trace.imageUrl).toBeNull();
     expect(trace.calibration).toBeNull();
     expect(trace.region).toBeNull();

@@ -139,7 +139,7 @@ describe("Mobile trace progression", () => {
     React.act(() => dialogButton("Keep working").click());
     expect(trace.outline).toBe(outline);
     React.act(() => button("Start over").click());
-    React.act(() => dialogButton("Clear trace and start over").click());
+    React.act(() => dialogButton("Clear trace for new photo").click());
     expect(startOver).toHaveBeenCalledOnce();
     expect(trace.imageUrl).toBeNull();
     expect(trace.outline).toEqual([]);

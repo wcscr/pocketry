@@ -1366,11 +1366,14 @@ describe("desktop point focus", () => {
       pointer('pointermove', 12, 12);
       pointer('pointerup', 12, 12);
       expect(host.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
+      expect(host.querySelector('[aria-label="Erase points by clicking"]')).not.toBeNull();
+      expect(host.querySelector('[aria-label="Outline editing controls"]')?.className).toContain("flex-nowrap");
       expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
       expect(trace!.history.index).toBe(historyIndex);
       expect(trace!.outline).toEqual(edited);
       pointer('pointerdown', 200, 200); pointer('pointerup', 200, 200);
-      expect(trace!.selection).toBeNull();
+      expect(trace!.selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
+      expect(host.querySelector('[data-vertex]')).not.toBeNull();
       expect(trace!.outline).toEqual(edited);
       expect(trace!.history.index).toBe(historyIndex);
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } }));

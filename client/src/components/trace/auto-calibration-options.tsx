@@ -41,6 +41,9 @@ export function AutoCalibrationOptions({ onSetManually, onApplyPerspective, onDe
         {paper ? "Paper and measurement aid detected" : source === "strip" ? "Scale detected from the reference strip" : "Scale detected from the sheet"}
         {hasPerspective && <HelpHint label="perspective correction">Correction starts cropped to the paper. Use Show full photo beside the canvas for larger tools.</HelpHint>}
       </div>
+      {!paper && source !== "strip" && <p className="text-xs text-amber-900 dark:text-amber-100">
+        For a thick tool, put a measurement aid on the tool at the height you need to fit, then retake the photo for a more accurate scale.
+      </p>}
       {hasPerspective ? paper ? (
         <Button size="sm" className={actionClass} disabled={processing}
           data-testid="button-correct-perspective-aid-scale"

@@ -24,9 +24,9 @@ export function ContourEditTools({
       : "flex items-center gap-2 rounded-md border bg-background/95 p-1 pl-3 shadow-sm backdrop-blur"}>
       <span className="text-xs font-medium whitespace-nowrap">{selectionLabel}</span>
       <Button type="button" size="sm" variant={removeActive ? "destructive" : "outline"}
-        className={compact ? "h-9 gap-1 px-1.5 text-xs" : "h-11 gap-2 px-3"} aria-label="Remove vertices" aria-pressed={removeActive} onClick={() => onChange(!removeActive)}>
+        className={compact ? "h-9 gap-1 px-1.5 text-xs" : "h-11 gap-2 px-3"} aria-label="Erase points by clicking" aria-pressed={removeActive} onClick={() => onChange(!removeActive)}>
         <Minus className="h-4 w-4" aria-hidden="true" />
-        Remove
+        Erase point
       </Button>
       {onDeletePoint && <Button type="button" size="sm" variant="outline"
         className="h-11 gap-2 px-3" disabled={!canDeletePoint} onClick={onDeletePoint}>

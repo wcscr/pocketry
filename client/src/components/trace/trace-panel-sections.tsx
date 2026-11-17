@@ -22,7 +22,7 @@ export function TracePanelSections({ children, onStartOver }: { children: ReactN
   const restart = <button type="button" data-testid="button-start-over" data-property-tone="rose"
     className="property-heading flex min-h-14 w-full items-center gap-2 border-b border-l-2 px-3 py-2 text-left text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
     disabled={!trace.imageSize.width} onClick={onStartOver}>
-    <RotateCcw className="h-5 w-5 shrink-0" aria-hidden />Start Over
+    <RotateCcw className="h-5 w-5 shrink-0" aria-hidden />New photo
   </button>;
   if (!inspector) return <PanelBody className="[overflow-anchor:none]">
     {sections.map(child => child.props.disabled ? cloneElement(child, { children: null }) : child)}
