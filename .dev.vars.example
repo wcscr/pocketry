@@ -6,4 +6,5 @@ TURNSTILE_HOSTNAMES=pocketry.xyz
 FEEDBACK_ACCOUNT_ID=83f2f573b101abdbbd8300b84c2cdbe9
 FEEDBACK_EMAIL_TOKEN=
 FEEDBACK_FROM=contact@pocketry.xyz
-FEEDBACK_TO=contact@pocketry.xyz
+# Set to the actual verified Email Routing destination address, not its public alias.
+FEEDBACK_TO=

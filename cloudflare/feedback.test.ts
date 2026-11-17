@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { handleFeedback, type FeedbackEnv } from "./feedback";
-import worker from "./worker";
 import { onRequest } from "../functions/api/feedback";
 
 const env = {
@@ -33,25 +32,27 @@ describe("committed Pages deployment settings", () => {
     vars: FeedbackEnv;
     env: { preview: { vars: FeedbackEnv } };
   };
-  const secrets = { TURNSTILE_SECRET_KEY: "test-secret", FEEDBACK_EMAIL_TOKEN: "test-email-token" };
+  const secrets = { TURNSTILE_SECRET_KEY: "test-secret", FEEDBACK_EMAIL_TOKEN: "test-email-token", FEEDBACK_TO: "verified@example.com" };
 
   it("opts into Pages configuration instead of an ignored Workers config", () => {
     expect(config.pages_build_output_dir).toBe("./dist/public");
     expect(config).not.toHaveProperty("main");
     expect(config).not.toHaveProperty("assets");
+    expect(config.vars).not.toHaveProperty("FEEDBACK_TO");
+    expect(config.env.preview.vars).not.toHaveProperty("FEEDBACK_TO");
   });
 
   it.each([
     { environment: "production", vars: config.vars, hostname: "pocketry.xyz" },
     { environment: "preview", vars: config.env.preview.vars, hostname: "codex-private-feedback.pocketry.pages.dev" },
-  ])("needs only the two dashboard secrets in $environment", async ({ vars, hostname }) => {
+  ])("needs the three dashboard secrets in $environment", async ({ vars, hostname }) => {
     const configured = { ...vars, ...secrets };
     const endpoint = `https://${hostname}/api/feedback`;
     const get = await onRequest({ request: new Request(endpoint), env: configured });
     expect(get.status).toBe(200);
     expect(await get.json()).toEqual({ siteKey: "0x4AAAAAAFEX5UTaSUHC-qpj" });
     fetchMock.mockResolvedValueOnce(Response.json({ success: true, hostname, action: "feedback" }));
-    fetchMock.mockResolvedValueOnce(Response.json({ success: true, result: { delivered: [vars.FEEDBACK_TO], queued: [], permanent_bounces: [] } }));
+    fetchMock.mockResolvedValueOnce(Response.json({ success: true, result: { delivered: [secrets.FEEDBACK_TO], queued: [], permanent_bounces: [] } }));
     const post = new Request(endpoint, {
       method: "POST", headers: { Origin: `https://${hostname}`, "Content-Type": "application/json" }, body: JSON.stringify(submission),
     });
@@ -209,12 +210,8 @@ describe("private feedback", () => {
     expect(await response.text()).not.toContain("private token");
   });
 
-  it("routes Pages and Workers feedback while leaving static assets available", async () => {
+  it("routes Pages feedback through the function", async () => {
     const get = new Request("https://pocketry.example/api/feedback");
-    const assets = vi.fn().mockResolvedValue(new Response("static app"));
     expect((await onRequest({ request: get, env })).status).toBe(200);
-    expect((await worker.fetch(get, { ...env, ASSETS: { fetch: assets } })).status).toBe(200);
-    expect(assets).not.toHaveBeenCalled();
-    expect(await (await worker.fetch(new Request("https://pocketry.example/bin"), { ASSETS: { fetch: assets } })).text()).toBe("static app");
   });
 });

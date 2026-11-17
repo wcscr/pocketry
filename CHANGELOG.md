@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.13.0 — 2026-11-17
+
 - Add private, account-free problem reports and suggestions with an optional reply address.
 
 ## 1.12.3 — 2026-11-16

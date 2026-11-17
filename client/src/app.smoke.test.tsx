@@ -123,7 +123,7 @@ describe("App", () => {
     act(() => toggle.click());
     expect(localStorage.getItem("pocketry:experimental-features")).toBe("true");
   });
-  it.each(["desktop", "mobile"])("offers email and GitHub feedback from the %s header", mode => {
+  it.each(["desktop", "mobile"])("offers private, email, and GitHub feedback from the %s header", mode => {
     const matchMedia = window.matchMedia;
     vi.stubGlobal("matchMedia", (query: string) => ({
       ...matchMedia(query),
@@ -141,6 +141,8 @@ describe("App", () => {
     expect(trigger!.parentElement?.classList.contains("hidden")).toBe(false);
     act(() => trigger!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     const menu = document.querySelector('[role="menu"]');
+    expect(menu?.textContent).toContain("Report a problem privately");
+    expect(menu?.textContent).toContain("Make a suggestion privately");
     const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:feedback@pocketry.xyz"]');
     expect(email?.textContent).toContain("Email feedback@pocketry.xyz");
     const github = menu?.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]');

@@ -70,7 +70,7 @@ async function readBody(request: Request): Promise<string | null> {
   }
 }
 
-/** Shared by Pages Functions and Workers Static Assets; no Express server needed. */
+/** Handles Pages Function requests without an Express server. */
 export async function handleFeedback(request: Request, env: FeedbackEnv): Promise<Response> {
   if (request.method !== "GET" && request.method !== "POST") {
     const response = json(405, { error: "Method not allowed." });
