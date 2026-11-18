@@ -1159,7 +1159,13 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onLostPointerCapture={event => { if (event.pointerId === correctionPointer.current) cancelStroke(); if (hold.current?.id === event.pointerId) cancelHold(); pointSelection.lostCapture(event); curveEditor.lostCapture(event); }}
+          onLostPointerCapture={event => {
+            if (event.pointerId === correctionPointer.current) cancelStroke();
+            if (hold.current?.id === event.pointerId) cancelHold();
+            pointSelection.lostCapture(event);
+            curveEditor.lostCapture(event);
+            directEditor.lostCapture(event);
+          }}
           onPointerLeave={() => {
             setBrushPoint(null);
             setHoveredVertexIndex(null);

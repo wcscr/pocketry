@@ -57,8 +57,16 @@ export function useMobileContourEditor(options: {
   cancelRef.current = cancel;
   useEffect(() => {
     const resized = () => cancelRef.current();
+    const blurred = () => {
+      cancelRef.current();
+      pointers.current.clear();
+    };
     window.addEventListener("resize", resized);
-    return () => window.removeEventListener("resize", resized);
+    window.addEventListener("blur", blurred);
+    return () => {
+      window.removeEventListener("resize", resized);
+      window.removeEventListener("blur", blurred);
+    };
   }, []);
   useEffect(() => {
     if (!options.enabled) {
@@ -177,6 +185,12 @@ export function useMobileContourEditor(options: {
     options.viewport.onPointerUp(event);
     return true;
   };
+  const lostCapture = (event: PointerEvent<SVGSVGElement>) => {
+    // A child can lose implicit touch capture when this SVG takes ownership.
+    if (event.target !== event.currentTarget || !pointers.current.delete(event.pointerId)) return;
+    if (gesture.current?.id === event.pointerId) cancel();
+    options.viewport.onPointerCancel(event);
+  };
   const selectedRing = selectedPoint && getRing(options.outline, selectedPoint.ref);
   const canRemove = !!selectedRing && selectedRing.length > 3;
   const removeSelected = () => {
@@ -184,6 +198,6 @@ export function useMobileContourEditor(options: {
     options.onCommit(setRing(options.outline, selectedPoint.ref, selectedRing.filter((_, index) => index !== selectedPoint.index)), "Remove contour node", options.outline);
     setSelectedPoint(null);
   };
-  return { down, move, end, activePoint, selectedPoint, canRemove, removeSelected,
+  return { down, move, end, lostCapture, activePoint, selectedPoint, canRemove, removeSelected,
     cancel: () => { cancel(); pointers.current.clear(); } };
 }

@@ -363,6 +363,30 @@ describe("direct Trace contour edits", () => {
     expect(trace.outline[0].outer[0]).toEqual({ x: 34, y: 37 });
   });
 
+  it.each(["blur", "lostpointercapture"])("rolls back a drag on %s and accepts the next finger", interruption => {
+    const original = trace.outline, history = trace.history;
+    const transform = () => svg.querySelector("g[transform]")!.getAttribute("transform");
+    const view = transform();
+    pointer("pointerdown", 10, 10, svg, "touch");
+    pointer("pointermove", 35, 36, svg, "touch");
+    // A descendant can lose implicit touch capture when the canvas takes it.
+    pointer("lostpointercapture", 35, 36, svg.querySelector("[data-vertex]")!, "touch");
+    pointer("lostpointercapture", 35, 36, svg, "touch", 2);
+    expect(trace.outline[0].outer[0]).toEqual({ x: 35, y: 36 });
+    if (interruption === "blur") React.act(() => window.dispatchEvent(new Event("blur")));
+    else pointer("lostpointercapture", 35, 36, svg, "touch");
+    // The previous pointer may never deliver an up to the canvas.
+    pointer("pointermove", 42, 43, svg, "touch");
+    expect(trace.outline).toEqual(original);
+    expect(trace.history).toBe(history);
+    pointer("pointerdown", 10, 10, svg, "touch", 3);
+    pointer("pointermove", 31, 32, svg, "touch", 3);
+    pointer("pointerup", 31, 32, svg, "touch", 3);
+    expect(trace.outline[0].outer[0]).toEqual({ x: 31, y: 32 });
+    expect(trace.history.index).toBe(history.index + 1);
+    expect(transform()).toBe(view);
+  });
+
   it.each(["mouse", "touch"])("removes only the targeted coincident curve anchor with %s", pointerType => {
     React.act(() => {
       trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
