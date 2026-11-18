@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-- Trace a new outline edge in one stroke, including recesses between handles. Correct also supports adjustable brush width, filled loops, and group point edits.
+## 1.13.0 — 2026-11-17
 
-- Simplification works on editable curves after hand edits and sensitivity changes. Undo restores the original curve handles.
-
-- Edit outlines directly on the photo. Smaller point markers reveal the edge, and advanced tools stay tucked away beside or below the photo.
+- Edit outline points directly on the photo or select and move several together in Correct.
+- Trace a recess or bridge a gap with one Edge brush stroke. Adjust the brush width in pixels or close a loop to fill an area.
+- Adjust simplification on editable curves after hand edits and sensitivity changes. Undo restores the original curve handles.
 
 ## 1.12.4 — 2026-11-17
 
