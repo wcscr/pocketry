@@ -319,6 +319,46 @@ describe("direct Trace contour edits", () => {
     expect(button()).toBeUndefined();
   });
 
+  it.each(["pointermove", "pointerup", "mixed batch"])("keeps safe erasures when %s hits a corner protecting a hole", last => {
+    const outer = [10, 40, 60, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
+    const hole = [{ x: 73, y: 19 }, { x: 73, y: 27 }, { x: 81, y: 27 }, { x: 81, y: 19 }];
+    const source = [{ outer, holes: [hole] }];
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: source }));
+    setExperimentalTools(true);
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    const history = trace.history;
+    const rendered = () => svg.querySelector('[data-testid="detected-contour-stroke"]')!.getAttribute("d");
+    let safe: string | null;
+    if (last === "mixed batch") {
+      // The brush crosses the protected corner first and both removable points in one event.
+      pointer("pointerdown", 115, 10);
+      pointer("pointermove", 40, 10);
+      safe = rendered();
+      expect(trace.history).toBe(history);
+      pointer("pointerup", 40, 10);
+    } else {
+      pointer("pointerdown", 40, 10);
+      pointer("pointermove", 60, 10);
+      safe = rendered();
+      expect(trace.history).toBe(history);
+      if (last === "pointermove") {
+        pointer("pointermove", 90, 10);
+        expect(rendered()).toBe(safe);
+      }
+      pointer("pointerup", 90, 10);
+    }
+    expect(rendered()).toBe(safe);
+    expect(trace.outline).toEqual([{ outer: [outer[0], ...outer.slice(3)], holes: [hole] }]);
+    expect(trace.history.index).toBe(history.index + 1);
+    // Retrying just the blocked point cannot create an empty edit.
+    pointer("pointerdown", 90, 10); pointer("pointerup", 90, 10);
+    expect(trace.history.index).toBe(history.index + 1);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(source);
+    React.act(() => trace.redo());
+    expect(rendered()).toBe(safe);
+  });
+
   it("locks a stroke to one ring and updates every pocket that shares the erased hole", () => {
     const hole = [{ x: 25, y: 35 }, { x: 25, y: 65 }, { x: 65, y: 65 }, { x: 65, y: 35 }, { x: 45, y: 35 }];
     const outer = [{ x: 10, y: 28 }, { x: 45, y: 28 }, { x: 90, y: 28 }, { x: 90, y: 90 }, { x: 10, y: 90 }];

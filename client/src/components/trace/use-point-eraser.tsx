@@ -49,12 +49,12 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
       cancel();
     };
   }, [enabled, source, revision, scale, cancel]);
-  useEffect(() => setError(""), [enabled, source]);
+  useEffect(() => setError(""), [enabled]);
 
   const anchors = useMemo(() => enabled ? curvePoints(source).map(ref => ({
     ref, p: curveRing(source, ref)![ref.index].point,
   })) : [], [enabled, source]);
-  const sweep = (current: Stroke, to: Point) => {
+  const sweep = (current: Stroke, to: Point, pending: Map<number, CurvePointRef>) => {
     const from = current.last, dx = to.x - from.x, dy = to.y - from.y;
     current.last = to;
     const hits = [];
@@ -69,23 +69,54 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
     for (const { ref } of hits) {
       current.ring ??= ref;
       if (!sameRingRef(current.ring, ref)) continue;
-      if (current.removed.size >= curveRing(source, ref)!.length - 3) break;
-      current.removed.set(ref.index, ref);
+      pending.set(ref.index, ref);
     }
   };
-  // Coalesced pointer samples can hit many anchors in one frame. Rebuild the
-  // polygon only once per delivered event, and only if the hit set changed.
-  const previewStroke = (current: Stroke, before: number) => {
-    if (current.removed.size === before) return;
-    try {
-      let anchors = deleteCurvePoints(source, [...current.removed.values()]);
-      if (current.ring && current.ring.ringIndex >= 0) anchors = syncCurveHoleEdits(outline, source, anchors);
-      const polygon = sampleCurves(anchors, tolerance);
-      current.draft = anchors;
-      setDraft({ anchors, polygon });
-    } catch {
-      cancel();
-      setError("This stroke could not be applied. Try erasing fewer points.");
+  // Preview only geometry that can actually be committed. Most events need one
+  // check. If a batch crosses a hole or collapses a ring, isolate safe hits
+  // without throwing away points already erased earlier in the stroke.
+  const applyHits = (current: Stroke, pending: Map<number, CurvePointRef>) => {
+    if (!pending.size || !current.ring) return;
+    const { shapeIndex, ringIndex } = current.ring;
+    const capacity = curveRing(source, current.ring)!.length - 3;
+    const owners: RingRef[] = [];
+    if (ringIndex < 0) owners.push(current.ring);
+    else {
+      const key = traceRingKey(outline[shapeIndex].holes[ringIndex]);
+      outline.forEach((s, i) => s.holes.forEach((hole, j) => {
+        if (traceRingKey(hole) === key) owners.push({ shapeIndex: i, ringIndex: j });
+      }));
+    }
+    let attempts = 0, work = 0;
+    const budget = () => {
+      if (++work > 5_000_000) throw new Error("Contour validation budget exceeded.");
+    };
+    const apply = (hits: CurvePointRef[]) => {
+      if (++attempts > 12 || work > 5_000_000 || current.removed.size >= capacity) return;
+      const added = hits.slice(0, capacity - current.removed.size);
+      for (const ref of added) current.removed.set(ref.index, ref);
+      try {
+        let anchors = deleteCurvePoints(source, [...current.removed.values()]);
+        if (ringIndex >= 0) anchors = syncCurveHoleEdits(outline, source, anchors);
+        for (const owner of owners) {
+          validateFittedContour([source[owner.shapeIndex]], [anchors[owner.shapeIndex]],
+            { shapeIndex: 0, ringIndex: owner.ringIndex }, tolerance, budget);
+        }
+        const polygon = sampleCurves(anchors, tolerance);
+        current.draft = anchors;
+        setDraft({ anchors, polygon });
+      } catch {
+        for (const ref of added) current.removed.delete(ref.index);
+        if (hits.length === 1 || work > 5_000_000) return;
+        const mid = Math.ceil(hits.length / 2);
+        apply(hits.slice(0, mid));
+        apply(hits.slice(mid));
+      }
+    };
+    const before = current.removed.size;
+    apply([...pending.values()]);
+    if (current.removed.size - before < pending.size) {
+      setError("Some points were kept to preserve a valid contour.");
     }
   };
   const down = (e: CanvasEvent, pan: boolean) => {
@@ -99,8 +130,9 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
     stroke.current = current;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     setCursor(p);
-    sweep(current, p);
-    previewStroke(current, 0);
+    const pending = new Map<number, CurvePointRef>();
+    sweep(current, p, pending);
+    applyHits(current, pending);
   };
   const move = (e: CanvasEvent) => {
     viewport.onPointerMove(e);
@@ -108,45 +140,24 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
     setCursor(p);
     const current = stroke.current;
     if (!current || current.id !== e.pointerId || !p) return;
-    const before = current.removed.size;
+    const pending = new Map<number, CurvePointRef>();
     for (const sample of e.nativeEvent.getCoalescedEvents?.() ?? []) {
       const position = fromClient(sample.clientX, sample.clientY);
-      if (position) sweep(current, position);
+      if (position) sweep(current, position, pending);
     }
-    sweep(current, p);
-    previewStroke(current, before);
+    sweep(current, p, pending);
+    applyHits(current, pending);
   };
   const end = (e: CanvasEvent) => {
     const current = stroke.current;
     if (current && current.id === e.pointerId && e.type === "pointerup") {
       const p = fromClient(e.clientX, e.clientY);
-      const before = current.removed.size;
-      if (p) sweep(current, p);
-      previewStroke(current, before);
-      if (current === stroke.current && current.draft && current.ring) {
-        // Pocket outlines may overlap. A shared hole must still fit every
-        // pocket that references it after the stroke.
-        const { shapeIndex, ringIndex } = current.ring;
-        const edited = current.draft;
-        let work = 0;
-        const validateRing = (owner: number, ring: number) => {
-          validateFittedContour([source[owner]], [edited[owner]], { shapeIndex: 0, ringIndex: ring }, tolerance, () => {
-            if (++work > 5_000_000) throw new Error("Contour validation budget exceeded.");
-          });
-        };
-        try {
-          if (ringIndex < 0) validateRing(shapeIndex, ringIndex);
-          else {
-            const sharedKey = traceRingKey(outline[shapeIndex].holes[ringIndex]);
-            outline.forEach((s, i) => s.holes.forEach((hole, j) => {
-              if (traceRingKey(hole) === sharedKey) validateRing(i, j);
-            }));
-          }
-          onCommit(current.draft);
-        } catch {
-          setError("This stroke would leave an invalid or overly complex contour. Try erasing fewer points.");
-        }
+      if (p && (p.x !== current.last.x || p.y !== current.last.y)) {
+        const pending = new Map<number, CurvePointRef>();
+        sweep(current, p, pending);
+        applyHits(current, pending);
       }
+      if (current.draft) onCommit(current.draft);
     }
     if (current?.id === e.pointerId) cancel();
     viewport.onPointerUp(e);
