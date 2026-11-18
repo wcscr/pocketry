@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { distanceToSegment, signedArea } from "./rings";
-import { thinEditingOutline, thinEditingRing } from "./edit-point-spacing";
+import { collapseStraightRuns, thinEditingOutline, thinEditingRing } from "./edit-point-spacing";
 import type { Ring } from "./types";
 
 const ring = (pairs: number[][]): Ring => pairs.map(([x, y]) => ({ x, y }));
@@ -33,5 +33,49 @@ describe("point spacing on detected polygons", () => {
     expect(result.length).toBeGreaterThan(12);
     for (const p of source) expect(Math.min(...result.map((a, i) => distanceToSegment(p, a, result[(i+1)%result.length])))).toBeLessThanOrEqual(.1);
     expect(thinEditingRing(source, .1, .1)).toBe(source);
+  });
+});
+
+describe("straight runs on a point outline", () => {
+  const asOutline = (outer: Ring) => [{ outer, holes: [] }];
+
+  it("bridges the whole run across the ring seam at the allowed deviation, independent of spacing", () => {
+    const edge = ring([[0,0],[8,.2],[16,-.2],[24,.2],[32,0],[32,12],[0,12]]);
+    for (const ordered of [edge, [...edge].reverse()]) for (let start = 0; start < edge.length; start++) {
+      const source = asOutline(ordered.slice(start).concat(ordered.slice(0, start)));
+      const spaced = thinEditingOutline(source, 4, .1);
+      expect(spaced).toBe(source);
+      const result = collapseStraightRuns(source, spaced, .2)[0].outer;
+      expect(result).toHaveLength(4);
+      expect(result).toEqual(source[0].outer.filter(p => p.y === 0 || p.y === 12));
+      expect(collapseStraightRuns(source, spaced, .199)[0].outer.length).toBeGreaterThan(4);
+    }
+  });
+
+  it("checks pre-spacing samples against their own final edge, including points already removed", () => {
+    const outer = ring([[0,0],[6,.18],[7,.27],[8,.18],[18,0],[18,10],[0,10]]);
+    const source = asOutline(outer);
+    // A legal spacing pass can omit the peak, which is 0.09 from its local edge.
+    const spaced = asOutline(outer.filter(p => p !== outer[2]));
+    expect(distanceToSegment(outer[2], outer[1], outer[3])).toBeLessThan(.1);
+    const result = collapseStraightRuns(source, spaced, .2)[0].outer;
+    expect(result.length).toBeGreaterThan(4);
+    expect(result.every(p => spaced[0].outer.includes(p))).toBe(true);
+    for (let i = 0; i < result.length; i++) {
+      const a = result[i], b = result[(i + 1) % result.length];
+      for (let j = outer.indexOf(a); outer[j] !== b; j = (j + 1) % outer.length)
+        expect(distanceToSegment(outer[j], a, b)).toBeLessThanOrEqual(.2);
+    }
+  });
+
+  it("preserves a short notch and a reversing tip, and simplifies holes in their own winding", () => {
+    const outer = ring([[0,0],[10,0],[10,.08],[10.06,.08],[10.06,0],[20,0],[26,-.05],[20,1],[20,10],[0,10]]);
+    const hole = ring([[2,2],[2,8],[14,8],[14,2],[8,2.1]]);
+    const source = [{ outer, holes: [hole] }];
+    const [result] = collapseStraightRuns(source, thinEditingOutline(source, 4, .1), .2);
+    for (const vertex of outer.slice(1,5).concat(outer[6])) expect(result.outer).toContain(vertex);
+    expect(result.holes[0]).toEqual(hole.slice(0,-1));
+    expect(signedArea(result.holes[0])).toBeLessThan(0);
+    expect(collapseStraightRuns(source, source, 0)).toBe(source);
   });
 });

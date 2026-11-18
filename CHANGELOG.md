@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- New Trace point outlines use fewer points along straight and gently curved edges while retaining closely spaced corners.
-- Experimental outline editing includes a point eraser. Hold and drag over points on one contour, then release to apply each stroke as one undoable edit.
+- New Trace point outlines replace nearly straight runs with one edge when all intervening vertices are within 0.20 mm of that edge. Sharp corners stay available for editing.
+- Experimental outline editing includes a point eraser. Hold and drag over points on one contour. Points needed to preserve the contour stay visible, and release commits the deletions shown in the preview as one undoable edit.
 
 ## 1.12.5 — 2026-11-18
 
