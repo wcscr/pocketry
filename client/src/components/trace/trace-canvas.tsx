@@ -559,6 +559,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     mousePickRadius: !advancedEditing ? PICK_RADIUS_PX : undefined,
     preferredRing: selection,
     selectionKey: store.sourceRevision,
+    historyRevision: history,
     toLocal: point => toImage(point.x, point.y),
     getScreenProjection: () => {
       const matrix = sceneRef.current?.getScreenCTM();
@@ -567,16 +568,18 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     },
     viewport: viewport.handlers,
     onSelect: ref => dispatch({ type: "SELECT_RING", selection: ref }),
-    onPreview: next => dispatch({ type: "OUTLINE_DRAGGING", outline: next }),
-    onCancel: original => dispatch({ type: "OUTLINE_DRAGGING", outline: original }),
-    onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", outline: next, label }),
+    // Each direct drag frame replaces one ring in the pointer-down outline.
+    // Resolve shared holes against that same source through preview and release.
+    onPreview: (next, original) => dispatch({ type: "OUTLINE_DRAGGING", outline: next, gesture: { outline: original, history } }),
+    onCancel: original => dispatch({ type: "OUTLINE_DRAGGING", outline: original, gesture: { outline: original, history } }),
+    onCommit: (next, label, original) => dispatch({ type: "OUTLINE_COMMITTED", outline: next, label, gesture: { outline: original, history } }),
   });
   const focusedPoint = directPointEditing ? directEditor.selectedPoint : desktopPoint.selectedPoint;
   const magnifiedPoint = directPointEditing ? directEditor.activePoint : desktopPoint.activePoint;
 
   const touchInput = useRef(false);
-  const removePointAt = (clientX: number, clientY: number) => {
-    if (curveEditor.active) { curveEditor.removePointAt(clientX, clientY); return; }
+  const removePointAt = (clientX: number, clientY: number, target: EventTarget) => {
+    if (curveEditor.active) { curveEditor.removePointAt(clientX, clientY, target); return; }
     const image = toImage(clientX, clientY);
     if (!image) return;
     const radius = touchInput.current ? 18 / viewport.transform.scale : pickRadius;
@@ -605,7 +608,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       window.removeEventListener("resize", cancelHold);
     };
   }, []);
-  useEffect(() => cancelHold, [outline, editing, advancedEditing, curveEditor.active, processing, viewport.transform.scale]);
+  useEffect(() => cancelHold, [outline, history, editing, advancedEditing, curveEditor.active, processing, viewport.transform.scale]);
 
   const brushPointAt = (clientX: number, clientY: number) => {
     const point = toImage(clientX, clientY);
@@ -645,12 +648,12 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       return;
     }
     if (editing && !advancedEditing && !processing && touchInput.current && event.isPrimary) {
-      const { clientX: x, clientY: y, pointerId: id } = event;
+      const { clientX: x, clientY: y, pointerId: id, target } = event;
       const anchor = (event.target as Element).closest('[data-curve-kind="point"]');
       if (!curveEditor.active || anchor) {
         hold.current = { id, x, y, timer: window.setTimeout(() => {
           hold.current = null;
-          removePointAt(x, y);
+          removePointAt(x, y, target);
         }, 600) };
       }
     }
@@ -1021,7 +1024,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     if (mode === "edit" || mode === "remove") {
       event.preventDefault();
       if (processing) return;
-      removePointAt(event.clientX, event.clientY);
+      removePointAt(event.clientX, event.clientY, event.target);
       return;
     }
     const image = toImage(event.clientX, event.clientY);

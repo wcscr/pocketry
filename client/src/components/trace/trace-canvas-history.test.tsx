@@ -3,7 +3,7 @@ import * as React from "react";
 import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
 import { setExperimentalTools } from "./trace-experimental.test-support";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Outline } from "@shared/geometry/types";
 import { mmPerPixel } from "@shared/geometry/scale";
@@ -243,6 +243,155 @@ afterEach(() => {
   setExperimentalTools(false);
   vi.unstubAllGlobals();
   document.body.replaceChildren();
+});
+
+describe("direct Trace contour edits", () => {
+  let trace: TraceStore;
+  let svg: SVGSVGElement;
+  let cleanup: () => void;
+
+  beforeEach(async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("innerWidth", 1440);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    function Probe() { trace = useTrace(); return null; }
+    cleanup = () => { React.act(() => root.unmount()); restore(); };
+    await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider>
+      <TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
+    svg = host.querySelector('[data-testid="trace-source-image"]')!.closest("svg")!;
+    Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+  });
+  afterEach(() => { cleanup(); vi.useRealTimers(); });
+
+  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1) {
+    React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperties(event, {
+        pointerType: { value: pointerType }, pointerId: { value: id }, isPrimary: { value: true },
+      });
+      target.dispatchEvent(event);
+    });
+  }
+
+  it.each([0, 1])("moves and cancels a shared hole from pocket %i", shapeIndex => {
+    const hole = [{ x: 35, y: 35 }, { x: 35, y: 65 }, { x: 65, y: 65 }, { x: 65, y: 35 }];
+    const innerPocket = detected[0].outer.map(p => ({ x: p.x * .8 + 10, y: p.y * .8 + 10 }));
+    const independentHole = hole.map(p => ({ x: p.x / 10 + 20, y: p.y / 10 + 20 }));
+    const original = [{ outer: detected[0].outer, holes: [hole, independentHole] },
+      { outer: innerPocket, holes: [[...hole.slice(2), ...hole.slice(0, 2)]] }];
+    React.act(() => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original, label: "Add shared hole" });
+      trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex, ringIndex: 0 } });
+    });
+    const start = trace.history;
+    pointer("pointerdown", 35, 35);
+    for (const x of [45, 50]) {
+      pointer("pointermove", x, 38);
+      for (const pocket of trace.outline) expect(pocket.holes[0]).toContainEqual({ x, y: 38 });
+      expect(trace.history).toBe(start);
+    }
+    const preview = trace.outline;
+    pointer("pointerup", 50, 38);
+    expect(trace.outline).toEqual(preview);
+    expect(trace.outline[0].holes[1]).toEqual(independentHole);
+    expect(trace.history.index).toBe(start.index + 1);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(original);
+    React.act(() => trace.redo());
+    expect(trace.outline).toEqual(preview);
+    const committed = trace.history;
+    pointer("pointerdown", 50, 38); pointer("pointermove", 60, 44); pointer("pointercancel", 60, 44);
+    expect(trace.outline).toEqual(preview);
+    expect(trace.history).toBe(committed);
+  });
+
+  it.each(["undo", "redo", "jump"] as const)("discards a held drag across %s and preserves its destination", action => {
+    const before = trace.history.index;
+    pointer("pointerdown", 50, 10); pointer("pointerup", 50, 10);
+    const added = trace.history.index;
+    expect(added).toBe(before + 1);
+    if (action === "redo") React.act(() => trace.undo());
+    pointer("pointerdown", 10, 10); pointer("pointermove", 29, 30);
+    expect(trace.outline[0].outer[0]).toEqual({ x: 29, y: 30 });
+    React.act(() => {
+      if (action === "jump") trace.dispatch({ type: "JUMP_TO_HISTORY", index: before - 1 });
+      else window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: action === "redo" }));
+    });
+    const destination = trace.history;
+    expect(destination.index).toBe(action === "jump" ? before - 1 : action === "undo" ? before : added);
+    const restored = destination.stack[destination.index].outline;
+    pointer("pointermove", 34, 32); pointer("pointerup", 34, 32);
+    expect(trace.outline).toBe(restored);
+    expect(trace.history).toBe(destination);
+    // A new gesture at the restored position still works.
+    pointer("pointerdown", 10, 10); pointer("pointermove", 23, 24); pointer("pointerup", 23, 24);
+    expect(trace.outline[0].outer[0]).toEqual({ x: 23, y: 24 });
+  });
+
+  it.each(["pointerup", "pointercancel"])("rejects a stale %s batched with Undo", type => {
+    const before = trace.history;
+    pointer("pointerdown", 10, 10); pointer("pointermove", 28, 29);
+    React.act(() => {
+      trace.undo();
+      pointer(type, 28, 29);
+    });
+    expect(trace.history.stack).toBe(before.stack);
+    expect(trace.history.index).toBe(before.index - 1);
+    expect(trace.outline).toBe(before.stack[before.index - 1].outline);
+  });
+
+  it("accepts the next finger after Undo restores curves during a touch drag", () => {
+    React.act(() => {
+      trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(detected), label: "Create curves" });
+      trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: false });
+    });
+    pointer("pointerdown", 10, 10, svg, "touch"); pointer("pointermove", 35, 35, svg, "touch");
+    React.act(() => trace.undo());
+    expect(trace.curves).toBeDefined();
+    pointer("pointerup", 35, 35, svg, "touch");
+    React.act(() => trace.redo());
+    expect(trace.curves).toBeUndefined();
+    pointer("pointerdown", 10, 10, svg, "touch", 2);
+    pointer("pointermove", 34, 37, svg, "touch", 2);
+    pointer("pointerup", 34, 37, svg, "touch", 2);
+    expect(trace.outline[0].outer[0]).toEqual({ x: 34, y: 37 });
+  });
+
+  it.each(["mouse", "touch"])("removes only the targeted coincident curve anchor with %s", pointerType => {
+    React.act(() => {
+      trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+    });
+    const lower = trace.outline[1].outer;
+    const upper = trace.outline[2].outer;
+    expect(upper).toEqual(lower);
+    const before = trace.history;
+    const remove = () => {
+      const anchor = svg.querySelector<SVGCircleElement>('[data-curve-kind="point"][data-curve-shape="2"][data-curve-index="0"]')!;
+      const x = Number(anchor.getAttribute("cx")), y = Number(anchor.getAttribute("cy"));
+      if (pointerType === "touch") {
+        pointer("pointerdown", x, y, anchor, "touch");
+        React.act(() => { vi.advanceTimersByTime(700); });
+        pointer("pointerup", x, y, svg, "touch");
+      }
+      React.act(() => anchor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: x, clientY: y })));
+    };
+    vi.useFakeTimers();
+    remove();
+    expect(trace.curves![1].outer.map(a => a.point)).toEqual(lower);
+    expect(trace.curves![2].outer.map(a => a.point)).toEqual(upper.slice(1));
+    remove(); // A triangle cannot lose a point, even with another square underneath.
+    expect(trace.history.index).toBe(before.index + 1);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(before.stack[before.index].outline);
+  });
 });
 
 describe("TraceCanvas edit history", () => {

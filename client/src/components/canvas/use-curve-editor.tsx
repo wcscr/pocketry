@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import type { ViewportPointerHandlers } from "@/hooks/use-viewport-transform";
 import { useCurveFitting } from "./use-curve-fitting";
 import { usePointSelection } from "./use-point-selection";
-import { curvePoints, type selectedCurveSection } from "@shared/geometry/curve-point-selection";
+import { curvePoints, type CurvePointRef, type selectedCurveSection } from "@shared/geometry/curve-point-selection";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useOutlineRepair, type RepairSection } from "./use-outline-repair";
 
@@ -37,6 +37,9 @@ interface Options {
   onFrameRepair?: (points: Point[]) => void;
 }
 const identity = (p: Point) => p;
+function curvePointRef(hit: SVGElement): CurvePointRef {
+  return { shapeIndex: Number(hit.dataset.curveShape), ringIndex: Number(hit.dataset.curveRing), index: Number(hit.dataset.curveIndex) };
+}
 function handlePosition(ring: CurveRing, index: number, side: "in" | "out"): Point {
   if (side === "out") return curveControls(ring, index)[1];
   return curveControls(ring, (index + ring.length - 1) % ring.length)[2];
@@ -120,8 +123,8 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     if (!hit) return true;
     const q = fromClient(e.clientX, e.clientY); if (!q) return true;
     e.preventDefault(); e.stopPropagation();
-    const picked: Target = { kind: hit.dataset.curveKind as Target["kind"], index: Number(hit.dataset.curveIndex) };
-    const pickedRef = { shapeIndex: Number(hit.dataset.curveShape), ringIndex: Number(hit.dataset.curveRing) };
+    const { index, ...pickedRef } = curvePointRef(hit);
+    const picked: Target = { kind: hit.dataset.curveKind as Target["kind"], index };
     const pickedRing = curveRing(base, pickedRef); if (!pickedRing) return true;
     if (fitting.open) { if (picked.kind === "point") fitting.pick(pickedRef, picked.index); return true; }
     setRef(pickedRef); setTarget(picked);
@@ -178,14 +181,23 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     } else setDraft(null);
     return true;
   };
-  const removePointAt = (clientX: number, clientY: number) => {
-    if (previewOpen) return;
+  const nearestAnchor = (clientX: number, clientY: number) => {
     const p = fromClient(clientX, clientY); if (!p) return;
-    let hit: ReturnType<typeof curvePoints>[number] | undefined, distance = 12 / Math.max(scale, 1e-6);
-    for (const ref of curvePoints(base)) { const q = curveRing(base, ref)![ref.index].point, d = Math.hypot(p.x - q.x, p.y - q.y);
-      if (d < distance) { hit = ref; distance = d; }
+    let hit: CurvePointRef | undefined;
+    let radius = 12 / Math.max(scale, 1e-6);
+    for (const ref of curvePoints(base)) {
+      const anchor = curveRing(base, ref)![ref.index].point;
+      const distance = Math.hypot(p.x - anchor.x, p.y - anchor.y);
+      if (distance < radius) { hit = ref; radius = distance; }
     }
-    if (hit && curveRing(base, hit)!.length > 3) {
+    return hit;
+  };
+  const removePointAt = (clientX: number, clientY: number, target: EventTarget) => {
+    if (previewOpen) return;
+    const anchor = target instanceof Element && target.closest<SVGElement>('[data-curve-kind="point"]');
+    const hit = anchor ? curvePointRef(anchor) : nearestAnchor(clientX, clientY);
+    const ring = hit && curveRing(base, hit);
+    if (hit && ring && ring.length > 3 && ring[hit.index]) {
       cancel(); points.clear(); setRef({ shapeIndex: hit.shapeIndex, ringIndex: hit.ringIndex });
       commit(editCurves(base, hit, { kind: "delete", index: hit.index }), "Remove contour node");
       setTarget({ kind: "point", index: 0 });
@@ -194,7 +206,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
   const contextMenu = (event: ReactMouseEvent<SVGSVGElement>): boolean => {
     if (!active) return false;
     event.preventDefault();
-    removePointAt(event.clientX, event.clientY);
+    removePointAt(event.clientX, event.clientY, event.target);
     return true;
   };
   const inv = 1 / Math.max(scale, 1e-6);

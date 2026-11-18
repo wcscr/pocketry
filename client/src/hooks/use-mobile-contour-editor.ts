@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import type { Outline, Point, RingRef } from "@shared/geometry/types";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
 import { getRing, sameRingRef, setRing } from "@/lib/geometry/outline";
@@ -21,14 +21,16 @@ export function useMobileContourEditor(options: {
   mousePickRadius?: number;
   /** Clear point selection when the source photo or selected pocket changes. */
   selectionKey?: string | number | null;
+  /** Replacing committed history supersedes a pending gesture, including its rollback. */
+  historyRevision?: object;
   toLocal: (point: Point) => Point | null;
   /** Capture the SVG matrix once per gesture, rather than once per vertex. */
   getScreenProjection: () => (point: Point) => Point;
   viewport: ViewportPointerHandlers;
   onSelect?: (ref: RingRef) => void;
-  onPreview: (outline: Outline) => void;
+  onPreview: (outline: Outline, original: Outline) => void;
   onCancel: (outline: Outline) => void;
-  onCommit: (outline: Outline, label: string) => void;
+  onCommit: (outline: Outline, label: string, original: Outline) => void;
 }) {
   const pointers = useRef(new Set<number>());
   const gesture = useRef<Gesture | null>(null);
@@ -43,6 +45,14 @@ export function useMobileContourEditor(options: {
     gesture.current = null;
     setActivePoint(null);
   };
+  useLayoutEffect(() => {
+    if (!gesture.current) return;
+    // History already installed the destination outline. Drop the draft without
+    // restoring its old source; pointer-up still finishes the viewport gesture.
+    gesture.current = null;
+    setSelectedPoint(null);
+    setActivePoint(null);
+  }, [options.historyRevision]);
   const cancelRef = useRef(cancel);
   cancelRef.current = cancel;
   useEffect(() => {
@@ -51,7 +61,12 @@ export function useMobileContourEditor(options: {
     return () => window.removeEventListener("resize", resized);
   }, []);
   useEffect(() => {
-    if (!options.enabled) { cancel(); setSelectedPoint(null); }
+    if (!options.enabled) {
+      cancel();
+      // Another editor may receive the release after a tool or source change.
+      pointers.current.clear();
+      setSelectedPoint(null);
+    }
     // Tool exits cancel the provisional edit; normal preview renders retain it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.enabled]);
@@ -138,7 +153,7 @@ export function useMobileContourEditor(options: {
     const next = [...ring]; next[current.index] = nextPoint;
     current.preview = setRing(current.outline, current.ref, next);
     current.moved = true;
-    options.onPreview(current.preview);
+    options.onPreview(current.preview, current.outline);
     setSelectedPoint({ ref: current.ref, index: current.index, point: nextPoint });
     setActivePoint(nextPoint);
     return true;
@@ -150,10 +165,10 @@ export function useMobileContourEditor(options: {
     else if (current?.id === event.pointerId) {
       const ring = getRing(current.outline, current.ref);
       const tap = Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) <= current.slop;
-      if (current.kind === "vertex" && current.moved) options.onCommit(current.preview, "Move contour node");
+      if (current.kind === "vertex" && current.moved) options.onCommit(current.preview, "Move contour node", current.outline);
       else if (ring && tap && current.kind === "edge") {
         const next = [...ring]; next.splice(current.index, 0, current.localStart);
-        options.onCommit(setRing(current.outline, current.ref, next), "Add contour node");
+        options.onCommit(setRing(current.outline, current.ref, next), "Add contour node", current.outline);
         setSelectedPoint({ ref: current.ref, index: current.index, point: current.localStart });
       }
       gesture.current = null;
@@ -166,7 +181,7 @@ export function useMobileContourEditor(options: {
   const canRemove = !!selectedRing && selectedRing.length > 3;
   const removeSelected = () => {
     if (!options.enabled || !selectedPoint || !selectedRing || !canRemove || pointers.current.size) return;
-    options.onCommit(setRing(options.outline, selectedPoint.ref, selectedRing.filter((_, index) => index !== selectedPoint.index)), "Remove contour node");
+    options.onCommit(setRing(options.outline, selectedPoint.ref, selectedRing.filter((_, index) => index !== selectedPoint.index)), "Remove contour node", options.outline);
     setSelectedPoint(null);
   };
   return { down, move, end, activePoint, selectedPoint, canRemove, removeSelected,

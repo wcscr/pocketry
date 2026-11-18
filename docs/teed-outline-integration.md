@@ -65,8 +65,9 @@ were tested separately.
 Choose **Edit outline** to adjust the contour over the photo. Drag a point to
 move it, click an edge to add a point, or right-click a point to remove it.
 With **Editable curves** on, select a point and drag its handles to shape the adjacent edges. The controls wrap to fit the canvas. On phones and short windows,
-the editor uses the full screen until you choose **Done**. Undo restores the
-previous contour. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
+the editor uses the full screen until you choose **Done**. Moving a point on a hole
+updates every pocket that shares it. In standard point editing, using Undo or
+Redo during a drag ends the drag and restores the chosen history entry. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
 
 Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
