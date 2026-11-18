@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.12.5 — 2026-11-18
+
 - Recognize a calibration sheet whose printed markers have thin light streaks, instead of reporting it as incomplete or rejecting its geometry.
 
 ## 1.12.4 — 2026-11-17
