@@ -90,17 +90,18 @@ loses its colorless outer end, as it does in the general recovery, and keeps
 the colored stretch.
 
 One faint line that crosses two tools at a slope is released at both ends, but
-its middle stretch reaches no side. A stretch that stays on the straight course
-between two released contacts, and is all that joins two wide, color-supported
-pieces, is removed as well, so the two tools are not traced as one outline. If
-a tool's own thin bright neck happens to lie on such a course, the neck is
-removed and the tool comes out in two pieces; nothing else is taken.
+its middle stretch reaches no side. A stretch without color support that stays
+on the straight course between two released contacts, and joins two wide,
+color-supported pieces, is removed as well, so the two tools are not traced as
+one outline. If a tool's own thin bright neck happens to lie on such a course,
+the neck is removed and the tool comes out in two pieces; nothing else is taken.
 
 Two limits remain. A faint line that crosses a gap in a single tool at a slope,
 such as a crease in the paper, keeps the paper it closes in: that paper cannot
 be told from a bright metal part. And a line that joins two tools is recognized
-only by its two released ends, so a bent line, or one that ends at the second
-tool, still joins them.
+only by its two released ends and removed only where it has no color support,
+so a bent line, one that ends at the second tool, or one that picks up color
+between the tools still joins them.
 
 One area-averaged retry still runs when automatic reconstruction leaves more
 than 5% of the seeded material uncovered. It costs a second inference and is

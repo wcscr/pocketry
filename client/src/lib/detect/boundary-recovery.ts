@@ -136,18 +136,20 @@ const BODY_RADIUS = 2;
  * stretch and everything behind it.
  *
  * One line that crosses two tools is released at both ends, but its middle
- * stretch reaches no side. A stretch that stays on the straight course between
- * two released contacts, carries no long run of color, and is all that joins two
- * wide, color-supported pieces is taken out as well, so the tools are not traced
- * as one outline. Only that stretch goes: the general recovery would separate
- * the tools too, but at the cost of every part without color support.
+ * stretch reaches no side. A stretch without color support that stays on the
+ * straight course between two released contacts, and is all that joins two
+ * wide, color-supported pieces, is taken out as well, so the tools are not
+ * traced as one outline. Only that stretch goes: the general recovery would
+ * separate the tools too, but at the cost of every part without color support.
  *
  * Returns `undefined`, leaving the case to the general recovery, when:
  * - a body does span the selection: the tool is clipped, or an enclosure is false;
  * - two released lines reach opposite sides at the same height or in the same
  *   column: that is one printed line crossing the selection, which can close
  *   paper in with the tool, and the general recovery takes the paper out;
- * - the mask still meets two opposite sides afterward, by a line with color support.
+ * - the mask still meets two opposite sides afterward, by a line with color
+ *   support or one whose color lies at the side: a thin colored part the
+ *   selection cuts.
  */
 function releaseThinContacts(mask: Uint8Array, seeds: Uint8Array, width: number, height: number): { mask: Uint8Array; removed: number; lostSeeds: number } | undefined {
   const body = morph(morph(mask, width, height, BODY_RADIUS, false), width, height, BODY_RADIUS, true);
@@ -203,15 +205,16 @@ function releaseThinContacts(mask: Uint8Array, seeds: Uint8Array, width: number,
   const released = Uint8Array.from(mask, (v, i) => v && !gone[i] ? 1 : 0);
   if (oppositeClipping(released, width, height)) return undefined;
 
-  // Stretches of line that stay, without those that carry a long run of color.
+  // Stretches of line that stay. One with color support is tool material, whatever its course.
   const stay = labelMaskComponents(Uint8Array.from(thin, (v, i) => v && !gone[i] ? 1 : 0), width, height);
-  const stretches: number[][] = stay.sizes.map(() => []), hasColor = new Uint8Array(stay.sizes.length);
+  const stretches: number[][] = stay.sizes.map(() => []), seeded = new Uint32Array(stay.sizes.length), hasColor = new Uint8Array(stay.sizes.length);
   for (let i = 0; i < mask.length; i++) {
     const id = stay.labels[i];
     if (!id) continue;
-    stretches[id].push(i);
+    stretches[id].push(i); seeded[id] += seeds[i];
     if (colored[i]) hasColor[id] = 1;
   }
+  for (let id = 1; id < stretches.length; id++) if (seeded[id] >= Math.max(1, stretches[id].length * .07)) hasColor[id] = 1;
   // Which of them lie wholly on the straight course between two released contacts on different sides.
   const onCourse = new Uint8Array(stay.sizes.length);
   for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
@@ -242,7 +245,25 @@ function releaseThinContacts(mask: Uint8Array, seeds: Uint8Array, width: number,
     }
     const tools = new Uint32Array(joined.sizes.length);
     for (let id = 1; id < apart.sizes.length; id++) if (wide[id] && color[id] >= Math.max(3, apart.sizes[id] * .07)) tools[piece[id]]++;
-    for (let i = 0; i < released.length; i++) if (onCourse[stay.labels[i]] && tools[joined.labels[i]] > 1) { released[i] = 0; gone[i] = 1; }
+    // In such a piece, a stretch that touches two of the parts is a join; one that hangs from a single part stays.
+    for (let id = 1; id < stretches.length; id++) {
+      const pixels = stretches[id];
+      if (!onCourse[id] || tools[joined.labels[pixels[0]]] < 2) continue;
+      let first = 0, joins = false;
+      for (const i of pixels) {
+        const x = i % width, y = Math.floor(i / width);
+        for (let dy = -1; dy <= 1 && !joins; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+          const part = apart.labels[yy * width + xx];
+          if (!part) continue;
+          if (!first) first = part;
+          else if (part !== first) { joins = true; break; }
+        }
+        if (joins) break;
+      }
+      if (joins) for (const i of pixels) { released[i] = 0; gone[i] = 1; }
+    }
   }
   let removed = 0, lostSeeds = 0;
   for (let i = 0; i < mask.length; i++) if (gone[i]) { removed++; lostSeeds += seeds[i]; }

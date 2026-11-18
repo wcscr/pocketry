@@ -122,14 +122,13 @@ describe("clipped learned-boundary recovery", () => {
     }
   }
 
-  it.each([0, 6])("takes out the stretch of a sloped line that joins two tools, %s seed pixels on it", onLine => {
+  it("takes out the stretch of a sloped line that joins two tools", () => {
     // The line's ends are released as thin contacts, but its middle stretch reaches no side and would stay
-    // between the tools, tracing them as one outline. A few seed pixels on that stretch change nothing.
+    // between the tools, tracing them as one outline.
     const f = fixture(); rectangle(f, 8, 14, 26, 50); rectangle(f, 38, 14, 56, 50); slopedAcross(f, 36);
-    for (let x = 30; x < 30 + onLine; x++) f.seeds[Math.round(36 - 6 * x / (width - 1)) * width + x] = 1;
     expect(maskFromEdges(f.edges, width, height, f.seeds).reason).toBe("selection-too-tight");
     const result = run(f);
-    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact" });
+    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact", lostSupportedPixels: 0 });
     expect(result.mask[20 * width + 17]).toBe(1);
     expect(result.mask[20 * width + 47]).toBe(1);
     // The two tools are separate pieces, with nothing left of the line between them or at the sides.
@@ -138,6 +137,41 @@ describe("clipped learned-boundary recovery", () => {
     for (let y = 26; y <= 42; y++) expect(result.mask[y * width + 32]).toBe(0);
     expect(result.mask[36 * width + 2]).toBe(0);
     expect(result.mask[31 * width + 61]).toBe(0);
+  });
+
+  /** Two tools 128 px apart in frame, crossed by a 2 px line from the left side to the right side that rises 8 px. */
+  function twoToolsCrossed() {
+    const w = 128, h = 128, edges = new Float32Array(w * h), seeds = new Uint8Array(w * h);
+    for (const [x0, x1] of [[20, 50], [78, 108]]) for (let y = 30; y <= 100; y++) for (let x = x0; x <= x1; x++) {
+      if (x === x0 || x === x1 || y === 30 || y === 100) edges[y * w + x] = .95;
+      else seeds[y * w + x] = 1;
+    }
+    for (let x = 0; x < w; x++) { const y = Math.round(68 - 8 * x / (w - 1)); edges[y * w + x] = edges[(y + 1) * w + x] = .95; }
+    return { w, h, edges, seeds };
+  }
+
+  it("takes only the join when another thin part lies on a released line's course", () => {
+    // A stroke from the first tool to the top side, and a thin part of that tool that happens to point from
+    // the left contact toward it. The thin part hangs from one tool only, so it is not what joins the two.
+    const { w, h, edges, seeds } = twoToolsCrossed();
+    for (let y = 0; y <= 30; y++) edges[y * w + 45] = .95;
+    const course = (y: number) => Math.round(45 * (68.5 - y) / 68.5);
+    for (let y = 12; y <= 30; y++) edges[y * w + course(y)] = edges[y * w + course(y) + 1] = .95;
+    expect(maskFromEdges(edges, w, h, seeds).reason).toBe("selection-too-tight");
+    const result = recoverClippedBoundary(edges, w, h, seeds);
+    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact" });
+    const pieces = labelMaskComponents(result.mask, w, h);
+    expect(pieces.labels[50 * w + 35]).not.toBe(pieces.labels[50 * w + 93]);
+    expect(pieces.labels[16 * w + course(16)]).toBe(pieces.labels[50 * w + 35]);
+  });
+
+  it("leaves a stretch with color support in place, even between two tools", () => {
+    // Color on the middle stretch makes it tool material: nothing with color support is removed here.
+    const { w, h, edges, seeds } = twoToolsCrossed();
+    for (let x = 56; x <= 72; x++) seeds[Math.round(68 - 8 * x / (w - 1)) * w + x] = 1;
+    const result = recoverClippedBoundary(edges, w, h, seeds);
+    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact", lostSupportedPixels: 0 });
+    for (let x = 56; x <= 72; x++) expect(result.mask[Math.round(68 - 8 * x / (w - 1)) * w + x]).toBe(1);
   });
 
   it("keeps one tool whole when a thin bright neck joins its two colored parts", () => {
