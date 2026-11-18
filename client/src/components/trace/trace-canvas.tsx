@@ -1,6 +1,4 @@
 import { outlineToPathData } from "@/lib/export/svg";
-import { CorrectButton, CorrectionTools, type CorrectionTool } from "./correction-tools";
-import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { pointInRing } from "@shared/geometry/rings";
@@ -79,7 +77,6 @@ export interface TraceCanvasProps {
   /** Incremented by the persistent review notice to focus the estimated area. */
   estimatedEdgeFocusRequest?: number;
   onReprocess: (region?: Rect) => void;
-  onCorrection?: (hints: DetectionHint[]) => void;
   /** Rendered when no image is loaded. */
   emptyState?: React.ReactNode;
 }
@@ -101,7 +98,7 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   const menu = useContourContextMenu();
   if (!menu) return <ContourMenuProvider><TraceCanvas {...props} /></ContourMenuProvider>;
   return (
-    <CanvasViewport>
+    <CanvasViewport className="trace-canvas">
       {/*
         Scene and floating toolbars both live in `children` rather than being
         split across the `overlays` slot, because both need the same viewport
@@ -114,36 +111,11 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   );
 }
 
-function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
+function TraceStage({ onReprocess, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
   const detectedReview = store.detectedOutlineReview;
   const detectedPreview = detectedReview.preview;
-  const [correctionMode, setCorrectionMode] = useState<CorrectionTool | null>(null);
-  const correctionStroke = useRef<DetectionHint | null>(null);
-  const correctionPointer = useRef<number | null>(null);
-  const [strokePreview, setStrokePreview] = useState<DetectionHint | null>(null);
-  const [brushPoint, setBrushPoint] = useState<Point | null>(null);
-  const cancelStroke = () => { correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null); setBrushPoint(null); };
-  const finishCorrection = () => { setCorrectionMode(null); cancelStroke(); };
-  const manualEdits = !!store.history.stack[store.history.index]?.hasManualEdits;
-  const correctionUnavailable = store.processing ? "Wait for detection to finish."
-    : manualEdits ? "Undo manual outline edits before correcting detection."
-      : store.pendingAutoCalibration || hasPendingManualCalibration(store) || store.mode === "perspective" ? "Finish calibration before correcting detection." : undefined;
-  useEffect(finishCorrection, [store.sourceRevision, store.region]);
-  useEffect(() => { if (store.mode !== "pan" || manualEdits || detectedReview.showing) finishCorrection(); }, [store.mode, manualEdits, detectedReview.showing]);
-  useEffect(() => { if (store.processing) cancelStroke(); }, [store.processing]);
-  useEffect(cancelStroke, [store.history]);
-  useEffect(() => {
-    if (!correctionMode) return;
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || !canHandleCanvasShortcut(event)) return;
-      event.preventDefault(); event.stopPropagation();
-      finishCorrection();
-    };
-    document.addEventListener("keydown", escape, true);
-    return () => document.removeEventListener("keydown", escape, true);
-  }, [correctionMode]);
   const isMobile = useIsMobile();
   const sceneId = useId();
   const {
@@ -185,7 +157,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       (mode !== "calibrate" && hasCalibrationEndpoints(draftCalibration))
     );
   const measurementMmPerPx = mmPerPixel(calibration);
-  const brushRadius = Math.max(.5, .3 / (measurementMmPerPx ?? .3));
   const imageCrop = store.perspectiveCorrection?.showFullPhoto ? null : store.perspectiveCorrection?.paperBounds ?? null;
 
   const handleRulerLengthCommit = useCallback(
@@ -212,7 +183,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     containerHeight: containerSize.height,
     // Fit the whole photo between the touch toolbars on compact canvases.
     padding: containerSize.width < 768 ? Math.min(64, containerSize.width / 5, containerSize.height / 5) : 24,
-    panEnabled: mode === "navigate" || correctionMode === "pan",
+    panEnabled: mode === "navigate",
   });
   useRulerInputFraming(isMobile, draftCalibration ?? calibration, containerSize, viewport);
 
@@ -340,7 +311,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     // Only a new user request starts work. Later source changes dismiss the
     // preview through the fitting hook; they must never restart it implicitly.
     if (outlineCleanupRequest && outlineCleanupRequest.sourceRevision === store.sourceRevision && cleanupAvailable && (mode === "pan" || mode === "navigate")) {
-      finishCorrection();
       cleanup.start("reconstruct");
     }
   }, [outlineCleanupRequest]);
@@ -548,18 +518,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       viewport.handlers.onPointerDown(event, { pan: true });
       return;
     }
-    if (correctionMode && (correctionMode === "pan" || viewport.isSpaceHeld || event.shiftKey || event.button === 1)) {
-      viewport.handlers.onPointerDown(event, { pan: true }); return;
-    }
-    if (correctionMode && event.button === 0) {
-      if (correctionUnavailable || correctionStroke.current) return;
-      const p = toImage(event.clientX, event.clientY);
-      if (!p || !region || p.x < region.x || p.y < region.y || p.x > region.x + region.width || p.y > region.y + region.height) return;
-      const hint: DetectionHint = { kind: correctionMode, points: [p], radius: brushRadius };
-      correctionPointer.current = event.pointerId;
-      correctionStroke.current = hint; setStrokePreview(hint);
-      event.currentTarget.setPointerCapture(event.pointerId); return;
-    }
     if (pointSelection.down(event)) return;
     if (curveEditor.down(event)) return;
     if (mobileEditor.down(event)) return;
@@ -738,20 +696,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (correctionMode) {
-      const p = toImage(event.clientX, event.clientY);
-      setBrushPoint(p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height ? p : null);
-    }
-    const hint = correctionStroke.current;
-    if (hint) {
-      if (event.pointerId !== correctionPointer.current) return;
-      const p = toImage(event.clientX, event.clientY), last = hint.points[hint.points.length - 1];
-      if (p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height && hint.points.length < 4096 && Math.hypot(p.x-last.x,p.y-last.y) >= hint.radius/2) {
-        const next = { ...hint, points: [...hint.points, p] }; correctionStroke.current = next; setStrokePreview(next);
-      }
-      return;
-    }
-    if (correctionMode) { viewport.handlers.onPointerMove(event); return; }
     if (pointSelection.move(event)) return;
     if (curveEditor.move(event)) return;
     if (mobileEditor.move(event)) return;
@@ -850,15 +794,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   };
 
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
-    const hint = correctionStroke.current;
-    if (hint) {
-      if (event.pointerId !== correctionPointer.current) return;
-      correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null);
-      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-      if (event.type === "pointerup") onCorrection?.([...store.detectionHints, hint]);
-      return;
-    }
-    if (correctionMode) { viewport.handlers.onPointerUp(event); return; }
     if (pointSelection.end(event)) return;
     if (curveEditor.end(event)) return;
     if (mobileEditor.end(event)) return;
@@ -913,7 +848,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   };
 
   const handleContextMenu = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (detectedReview.showing || correctionMode) { event.preventDefault(); return; }
+    if (detectedReview.showing) { event.preventDefault(); return; }
     if (usesNativeEditingMenu(event.target)) return;
     if (curveEditor.contextMenu(event)) return;
     if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
@@ -958,7 +893,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
 
   const cursor = useMemo(() => {
     if (viewport.isPanning) return "grabbing";
-    if (correctionMode) return correctionMode === "pan" || viewport.isSpaceHeld || shiftHeld ? "grab" : processing ? "wait" : "crosshair";
     // Shift selects nodes during editing; Space and the hand tool still pan.
     if (viewport.isSpaceHeld || mode === "navigate" || shiftHeld && mode !== "edit" && mode !== "remove") return "grab";
     // Promise the grab before the drag, too.
@@ -972,7 +906,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       return "crosshair";
     }
     return "default";
-  }, [mode, correctionMode, processing, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex]);
+  }, [mode, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex]);
 
   // No wrapper element of its own: CanvasViewport already provides the
   // positioned, clipped, full-size box these children lay out against.
@@ -1002,7 +936,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
           transform={viewport.transform}
           outline={cleanup.open || detectedPreview ? [] : outline}
           estimatedEdgeRegions={store.estimatedEdgeRegions}
-          selection={detectedReview.showing || correctionMode ? null : selection}
+          selection={detectedReview.showing ? null : selection}
           region={region}
           regionActive={mode === "region"}
           calibration={
@@ -1047,21 +981,13 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
               <path d={outlineToPathData(detectedPreview)} fill="none" stroke="white" strokeWidth={5} vectorEffect="non-scaling-stroke" />
               <path d={outlineToPathData(detectedPreview)} fill="none" stroke="#10b981" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
             </g>}{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
-            {correctionMode && [...store.detectionHints, ...(strokePreview ? [strokePreview] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
-              points={h.points.concat(h.points.length === 1 ? h.points : []).map(p => `${p.x},${p.y}`).join(" ")}
-              fill="none" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={.7} pointerEvents="none" />)}
-            {correctionMode && correctionMode !== "pan" && brushPoint && !processing && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld &&
-              <circle data-testid="correction-brush" cx={brushPoint.x} cy={brushPoint.y} r={brushRadius}
-                fill={correctionMode === "tool" ? "#16a34a33" : "#dc262633"} stroke={correctionMode === "tool" ? "#16a34a" : "#dc2626"}
-                strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
           </>}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onLostPointerCapture={event => { if (event.pointerId === correctionPointer.current) cancelStroke(); pointSelection.lostCapture(event); curveEditor.lostCapture(event); }}
+          onLostPointerCapture={event => { pointSelection.lostCapture(event); curveEditor.lostCapture(event); }}
           onPointerLeave={() => {
-            setBrushPoint(null);
             setHoveredVertexIndex(null);
             setMeasurementPointer(null);
             setPerspectivePointer(null);
@@ -1077,9 +1003,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       {imageUrl && (
         <>
           <CanvasToolbar position="top-left" className="pointer-events-none max-md:flex-nowrap [&_button]:pointer-events-auto">
-            {correctionMode ? <CorrectionTools tool={correctionMode} busy={processing} hasMarks={store.detectionHints.length > 0}
-              onTool={tool => { cancelStroke(); setCorrectionMode(tool); }} onClear={() => onCorrection?.([])}
-              onDone={finishCorrection} /> : <>{isMobile ? <>
+            {isMobile ? <>
               <ModeButton mode="navigate" icon={Hand} label="Pan photo" />
               {mode === "measure" ? <ModeButton mode="measure" icon={Ruler} label="Measure distance" />
                 : !calibration || mode === "calibrate" || mode === "perspective" ? <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
@@ -1105,11 +1029,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
               <ModeButton mode="calibrate" icon={Scaling} label="Set scale" />
               <ModeButton mode="measure" icon={Ruler} label="Measure distance" disabled={measurementMmPerPx === null} />
             </>}
-            {onCorrection && region && <CorrectButton unavailable={correctionUnavailable} hasMarks={store.detectionHints.length > 0}
-              onClick={() => { detectedReview.close(); cleanup.dismiss(); dispatch({ type: "SET_MODE", mode: "pan" }); setCorrectionMode("tool"); }} />}
-            </>}
           </CanvasToolbar>
-          {correctionMode && <span className="sr-only" role="status">{correctionMode === "tool" ? "Add missing tool material" : correctionMode === "paper" ? "Remove unwanted background" : "Pan photo"}. Strokes update the outline automatically.</span>}
 
           <ContourMagnifier sceneId={sceneId} canvasWidth={containerSize.width} canvasHeight={containerSize.height} compact={isMobile}
             point={magnifiedPoint ? {
@@ -1117,7 +1037,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
               y: viewport.transform.translateY + magnifiedPoint.y * viewport.transform.scale,
             } : null} />
 
-          <CanvasToolbar position="top-right" className="max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
+          <CanvasToolbar position="top-right" className="trace-history-tools max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
             {/* Always present: outline edits can happen in any pointing mode,
                 and a hidden undo reads as "there is no undo". */}
             <IconButton
@@ -1149,8 +1069,8 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             />
           </CanvasToolbar>
 
-          {(curveEditor.controls || curveEditor.startButton) && <div className="absolute bottom-16 left-2 right-2 z-30">
-            {curveEditor.active ? curveEditor.controls : <div className="flex max-w-xl flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border bg-background p-2 shadow-md [&>*]:shrink-0" aria-label="Outline editing controls">
+          {(curveEditor.controls || curveEditor.startButton) && <div className="trace-outline-tools pointer-events-none absolute inset-2 z-30 flex flex-col items-start justify-end [&>*]:pointer-events-auto">
+            {curveEditor.active ? curveEditor.controls : <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-background p-2 shadow-md" aria-label="Outline editing controls">
               {curveEditor.startButton}
               <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Select two endpoints for Repair section and preview a line or curve. Space-drag pans; Done leaves editing. Edits apply immediately and can be undone.</HelpHint>
               {selection && getRing(outline, selection) && !isMobile && <ContourEditTools compact removeActive={mode === "remove"}
@@ -1198,7 +1118,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
                 </>
               )}
             </span>
-            <span className={cn("hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground", !correctionMode && "md:inline")}>
+            <span className="hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground md:inline">
               {mode === "measure"
                 ? !measurement
                   ? "Click the first measurement point"

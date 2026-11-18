@@ -1,4 +1,3 @@
-import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
 import { useLocation } from "wouter";
@@ -205,7 +204,6 @@ function TraceWorkspace(): JSX.Element {
 
   const runDetection = useCallback(async (settings?: {
     editableCurves?: boolean;
-    hints?: DetectionHint[];
     sensitivity: number;
     includeInteriorHoles: boolean;
     boundary?: "auto" | "color" | "teed";
@@ -239,7 +237,6 @@ function TraceWorkspace(): JSX.Element {
       const candidateFrame = requestedBoundary !== "color" ? await getToolDetectionFrame(region, controller.signal) : null;
       const initialPixels = candidateFrame?.imageData ?? getImageData(region);
       if (!initialPixels || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision || controller.signal.aborted) return;
-      const hints = requestedRegion || settings?.restart ? [] : settings?.hints ?? store.detectionHints;
       // Re-read the current photo, including any rotation/perspective warp.
       // This also works after draft recovery or choosing a manual/paper scale;
       // the carrier footprint is independent of the accepted scale ruler.
@@ -290,7 +287,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
-          boundary, hints,
+          boundary,
           signal: controller.signal,
           occlusions,
           sensitivity: detectionSettings.sensitivity,
@@ -311,10 +308,10 @@ function TraceWorkspace(): JSX.Element {
         autoSimplification: result.autoSimplification,
         refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
-        detectionHints: hints,
+        detectionHints: [],
         settings: detectionSettings,
         label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
-          : settings?.hints ? settings.hints.length ? "Correct outline" : "Clear corrections" : undefined,
+          : undefined,
         svg: result.svg,
         region,
       });
@@ -348,7 +345,6 @@ function TraceWorkspace(): JSX.Element {
     store.includeInteriorHoles,
     store.boundaryMethod,
     store.editableCurves,
-    store.detectionHints,
     store.perspectiveCorrection,
     store.imageRotation,
     store.imageAlignment,
@@ -878,7 +874,6 @@ function TraceWorkspace(): JSX.Element {
                   outlineCleanupRequest={outlineCleanupRequest}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
-                  onCorrection={hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints })}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                       <div className="w-full max-w-2xl self-center">

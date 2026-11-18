@@ -79,12 +79,12 @@ In **Trace**, open the original photo and accept **Correct perspective & use
 scale** for the sheet or **Correct perspective & use aid scale** for a detected
 aid. Otherwise, **Set scale** from a known distance. Check a real dimension,
 then box the tool with **Region → Set region**. Use the default **Tool edges ·
-white sheet** on light paper or **Color contrast** on other backgrounds. Fix
-the outline with **Correct → Add/Remove** or **Edit outline**, then choose
-**Add to Bin**.
+white sheet** on light paper or **Color contrast** on other backgrounds. Choose
+**Edit outline** to drag points or add a point on an edge. When the contour
+follows the tool, choose **Add to Bin**.
 [Detailed tracing guidance](docs/teed-outline-integration.md).
 
-![The Wolfbox body traced from its original calibration-sheet photo, with current Tool edges and outline controls](docs/images/trace-outline.jpg)
+![Edit outline shows editable points around the Wolfbox body on its calibration-sheet photo](docs/images/trace-outline.jpg)
 
 ### 2. Arrange the pockets
 

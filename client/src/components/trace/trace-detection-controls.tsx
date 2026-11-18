@@ -68,9 +68,10 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     // Only protect adjustments the fresh method would actually discard.
     const discardsSettings = sensitivity !== initialTraceState.sensitivity ||
       tolerancePx !== initialTraceState.tolerancePx || trace.smoothing !== initialTraceState.smoothing ||
-      trace.detectionHints.length > 0 || settings.includeInteriorHoles !== includeInteriorHoles;
+      settings.includeInteriorHoles !== includeInteriorHoles;
     const confirmRestart = settings.restart && trace.outline.length > 0 && (!switchingMethod || discardsSettings);
-    if (confirmRestart || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
+    // Older drafts may have brush edits that fresh detection replaces.
+    if (confirmRestart || trace.detectionHints.length > 0 || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
     else apply(settings);
   };
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };
@@ -148,7 +149,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     </div>}
     <div className="flex items-center gap-1 border-t pt-3"><Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing || !trace.imageUrl || !trace.region}
       onClick={() => restart()}><RotateCcw className="h-4 w-4" />Restart outline detection</Button>
-      <HelpHint label="restarting outline detection">Start over from the selected photo region when you want a fresh outline. Resets detection adjustments and corrections while keeping the photo, scale, and region. Undo restores the previous outline.</HelpHint>
+      <HelpHint label="restarting outline detection">Start over from the selected photo region when you want a fresh outline. Resets detection settings while keeping the photo, scale, and region. Undo restores the previous outline.</HelpHint>
     </div>
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
@@ -158,7 +159,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
           <DialogDescription>{switchingForHoles
             ? "Color contrast is needed to detect holes. This replaces your outline and edits; Undo restores them."
             : pendingDetection?.restart
-            ? `Start again from the photo inside the selected region. This replaces the outline and tool/paper corrections, resets Sensitivity to Auto and Simplification to ${initialTraceState.tolerancePx.toFixed(1)} px. Your photo, calibration, region and margin stay in place. Undo restores the previous outline and settings.`
+            ? `Start again from the photo inside the selected region. This replaces your outline and edits, resets Sensitivity to Auto and sets Simplification to ${initialTraceState.tolerancePx.toFixed(1)} px. Your photo, calibration, region and margin stay in place. Undo restores the previous outline and settings.`
             : "This replaces manual contour edits with a fresh detection. Undo restores your edited outline."}</DialogDescription>
         </DialogHeader>
         <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>{switchingForHoles ? "Switch and include holes" : pendingDetection?.restart

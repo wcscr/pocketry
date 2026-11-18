@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove the Correct brushes from Trace. Edit outline now fits its point and curve controls to the canvas without scrolling.
+
 ## 1.12.4 — 2026-11-17
 
 - Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.

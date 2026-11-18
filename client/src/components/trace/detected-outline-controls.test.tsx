@@ -26,7 +26,7 @@ const region = { x: 0, y: 0, width: 100, height: 100 };
 let root: Root, host: HTMLDivElement, trace: TraceStore;
 const button = (name: string) => [...host.querySelectorAll<HTMLButtonElement>('button')].find(el => el.textContent === name)!;
 const reviewSwitch = () => host.querySelector<HTMLButtonElement>('[data-testid="detected-outline-controls"] [role="switch"]')!;
-function Harness() { trace = useTrace(); return <TooltipProvider><TraceDetectionControls onReprocess={() => {}} /><TraceCanvas onReprocess={() => {}} onCorrection={() => {}} /></TooltipProvider>; }
+function Harness() { trace = useTrace(); return <TooltipProvider><TraceDetectionControls onReprocess={() => {}} /><TraceCanvas onReprocess={() => {}} /></TooltipProvider>; }
 async function click(element: HTMLElement) { await React.act(async () => element.click()); }
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -65,17 +65,14 @@ it("compares the earlier contour without changing history or the saved outline",
   expect(trace.history).toBe(history);
 });
 
-it("keeps correction drawing and detected-outline review mutually exclusive", async () => {
-  const correct = () => host.querySelector<HTMLButtonElement>('[aria-label="Correct"]')!;
-  await click(correct());
-  expect(host.querySelector('[aria-label="Correction tools"]')).not.toBeNull();
+it("opens point editing from detected-outline review and keeps the accepted contour", async () => {
+  const before = trace.history;
   await click(reviewSwitch());
-  expect(trace.detectedOutlineReview.showing).toBe(true);
-  expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
-  await click(correct());
+  await click(host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!);
   expect(trace.detectedOutlineReview.showing).toBe(false);
-  expect(host.querySelector('[aria-label="Correction tools"]')).not.toBeNull();
+  expect(trace.mode).toBe("edit");
   expect(trace.outline).toEqual(fitted);
+  expect(trace.history).toBe(before);
 });
 
 it("uses detected points in one undoable step and restores fitted curves and smoothing metadata", async () => {

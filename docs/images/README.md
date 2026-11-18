@@ -1,21 +1,21 @@
 # Tutorial images
 
 The [README tutorial](../../README.md#basic-process) uses current editor captures
-and explicitly labeled original print/slicer photographs. UI captures were
-refreshed on November 15, 2026 against `main` at `a627ee6b` (Pocketry 1.12.0),
-with this Help refresh, before the 1.12.1 version bump. No generated imagery or retouching was
-used. Screenshots record app output; they do not establish physical fit.
+and explicitly labeled original print/slicer photographs. The Bin captures are from November 15, 2026 at
+`a627ee6b` (Pocketry 1.12.0). The Trace capture was refreshed on November 18,
+2026 from the Edit outline update based on `79164b08`. No generated imagery or
+retouching was used. Screenshots record app output; they do not establish physical fit.
 
 ## Current editor captures
 
-These JPEGs were captured directly from the local app in the desktop in-app
-browser. The responsive layout can put properties on the right or in one panel,
+The Trace screenshot was captured in Chrome at 1440 × 900. The Bin screenshots
+were captured in the desktop in-app browser. The responsive layout can put properties on the right or in one panel,
 depending on available width and the saved editor layout. Use the named controls
 rather than a fixed screen position. No application state was injected.
 
 | Image | How to reproduce |
 | --- | --- |
-| `trace-outline.jpg` | Open the original Wolfbox body photo, accept **Correct perspective & use scale**, draw a region around the tool, and wait for default detection. Keep **Tool edges · white sheet**, holes off, Editable curves off, and Margin zero. |
+| `trace-outline.jpg` | Open the original Wolfbox body photo, accept **Correct perspective & use scale**, draw a region around the tool, and wait for default detection. Choose **Edit outline** to show the contour points and editing controls. |
 | `bin-layout.jpg` | **Open Sample Projects → Wolfbox MF70 Airduster Kit**, then **Layout → Bin size**. The saved sample is 4 × 4 cells and 6.5u high, with four pockets and two finger-access features. |
 | `ruler-check.jpg` | Select the Wolfbox body pocket in Layout, expand **Size & scale**, enable **Measure between contours**, and click its upper/lower contour. This capture measures 145.30 mm between the chosen endpoints; total pocket length is 145.57 mm. |
 | `export-3mf.jpg` | Open that sample, then **Export → Save 3MF**. Capture the format choices without exporting or changing the design. |
@@ -32,11 +32,11 @@ SHA-256: `613d60ac92db52c7ef31db5acaf46b1c59d65434d259a4677a2780278f97b3aa`.
 The original remains outside the repository; its identity also appears in the
 [release capture plan](../../client/public/reports/outline-1.9-to-1.10/capture-plan.json).
 
-Ordered actions: open the original file → wait for marker detection → accept
-**Correct perspective & use scale** → drag a tool region → wait for detection
-and automatic cleanup → capture the Outline panel. Only afterward, open
-**Manual detection settings** to confirm Sensitivity **auto** and Simplification
-**1.2 px**, without changing either. No correction marks or point edits were used.
+Open the original file, wait for marker detection, accept **Correct perspective
+& use scale**, draw the region, wait for automatic cleanup, and choose **Edit
+outline**. The capture shows the points before the first manual edit. The
+saved settings were Tool edges, Sensitivity Auto, Simplification 1.2 px,
+smoothing 1, holes off, Editable curves off, and Margin zero.
 
 Corrected image: **1008 × 1346 px**, scale **0.250 mm/px**. The selected region,
 read from the rendered region rectangle, is `(351.9500, 365.3251)` with width

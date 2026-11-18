@@ -1008,7 +1008,8 @@ describe("Trace detection workflow", () => {
     expect(current.sensitivity).toBe(97); expect(current.tolerancePx).toBe(3); expect(current.smoothing).toBe(2); expect(current.boundaryMethod).toBe("teed");
     expect(getImageDataMock).toHaveBeenLastCalledWith(before.region);
     expect(processImageMock.mock.lastCall![1]).toMatchObject({ margin: 1, calibration: before.calibration,
-      region: { originalRegion: before.region, isCropped: true }, detect: { boundary: action === "switch" ? "color" : "teed", sensitivity: 128, tolerancePx: 1.2, smoothing: 1, hints: [] } });
+      region: { originalRegion: before.region, isCropped: true }, detect: { boundary: action === "switch" ? "color" : "teed", sensitivity: 128, tolerancePx: 1.2, smoothing: 1 } });
+    expect(processImageMock.mock.lastCall![1].detect.hints ?? []).toEqual([]);
     if (action === "failure") {
       await React.act(async () => fail(new Error("Detection failed")));
       expect(current.outline).toBe(before.outline); expect(current.history).toBe(before.history);
@@ -1029,6 +1030,29 @@ describe("Trace detection workflow", () => {
     }
     expect(current.processing).toBe(false); expect(current.imageUrl).toBe(before.imageUrl);
     expect(current.calibration).toBe(before.calibration); expect(current.region).toBe(before.region); expect(current.margin).toBe(1);
+  });
+
+  it("re-detects a legacy trace without replaying brush marks and can undo to its saved contour", async () => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe() { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    const region = { x: 10, y: 20, width: 300, height: 200 };
+    React.act(() => {
+      current.dispatch({ type: "SET_REGION", region });
+      current.dispatch({ type: "DETECTED", imageUrl: current.imageUrl, region, outline: exportOutline, rawOutline: exportOutline,
+        detectionHints: [{ kind: "paper", points: [{ x: 25, y: 25 }], radius: 4 }], svg: "" });
+    });
+    const draft = traceDraftSnapshot(current)!;
+    React.act(() => current.dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+    expect(current.outline).toEqual(exportOutline);
+    const saved = current;
+    expect(saved.detectionHints).toHaveLength(1);
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="run-detection"]')!.click());
+    expect(processImageMock.mock.lastCall![1].detect.hints ?? []).toEqual([]);
+    expect(current.detectionHints).toEqual([]);
+    React.act(() => current.undo());
+    expect(current.outline).toEqual(saved.outline);
+    expect(current.detectionHints).toEqual(saved.detectionHints);
   });
 
   it("uses original-photo crop pixels for the default tool-edge detection", async () => {
