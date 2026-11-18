@@ -1,7 +1,11 @@
 # Changelog
 
+## Unreleased
+
 ## 1.12.6 — 2026-11-18
 
+- New Trace point outlines replace nearly straight runs with one edge when all intervening vertices are within 0.30 mm of that edge by default. Adjust this tolerance in App settings → Advanced settings. Sharp corners stay available for editing. A rejected edge no longer restores points already removed elsewhere.
+- Experimental outline editing includes a point eraser. Hold and drag over points on one contour. Points needed to preserve the contour stay visible, and release commits the deletions shown in the preview as one undoable edit.
 - Recognize a calibration sheet whose printed markers have thin light streaks, instead of reporting it as incomplete or rejecting its geometry.
 
 ## 1.12.5 — 2026-11-18

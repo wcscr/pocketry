@@ -1,8 +1,10 @@
+import { DEFAULT_STRAIGHT_RUN_TOLERANCE_MM, straightRunToleranceMm, type StraightRunToleranceMm } from "@shared/geometry/edit-point-spacing";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
 
 export const EXPERIMENTAL_FEATURES_KEY = "pocketry:experimental-features";
 export const SELECTION_INSPECTOR_KEY = "pocketry:selection-inspector";
+export const STRAIGHT_RUN_TOLERANCE_KEY = "pocketry:straight-run-tolerance-mm";
 export const EDITOR_LAYOUT_KEY = "pocketry:editor-layout";
 export type EditorLayout = "standard" | "workflow";
 export const EDITOR_LAYOUTS = [
@@ -24,11 +26,18 @@ function readPreference(key = EXPERIMENTAL_FEATURES_KEY): boolean {
   catch { return false; }
 }
 
+function readStraightRunTolerance(): StraightRunToleranceMm {
+  try { return straightRunToleranceMm(window.localStorage.getItem(STRAIGHT_RUN_TOLERANCE_KEY)); }
+  catch { return DEFAULT_STRAIGHT_RUN_TOLERANCE_MM; }
+}
+
 const ExperimentalFeaturesContext = createContext({
   enabled: false,
   setEnabled: (_enabled: boolean) => {},
   editorLayout: "standard" as EditorLayout,
   setEditorLayout: (_layout: EditorLayout) => {},
+  straightRunTolerance: DEFAULT_STRAIGHT_RUN_TOLERANCE_MM as StraightRunToleranceMm,
+  setStraightRunTolerance: (_value: StraightRunToleranceMm) => {},
   inspectorEnabled: false,
   settingsOpen: false,
   setSettingsOpen: (_open: boolean) => {},
@@ -48,6 +57,7 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
   const [implicitLayout] = useState<EditorLayout>(() => window.innerWidth >= 1100 && window.innerHeight >= 600 ? "workflow" : "standard");
   const [editorLayout, setLayoutValue] = useState<EditorLayout>(() => requestedLayout ?? readLayout(implicitLayout));
   const inspectorEnabled = editorLayout === "workflow";
+  const [straightRunTolerance, setToleranceValue] = useState(readStraightRunTolerance);
   const [enabled, setValue] = useState(readPreference);
   const enabledRef = useRef(enabled);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -57,6 +67,13 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
     setValue(value);
     try {
       window.localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, String(value));
+      setPersistenceUnavailable(false);
+    } catch { setPersistenceUnavailable(true); }
+  }, []);
+  const setStraightRunTolerance = useCallback((value: StraightRunToleranceMm) => {
+    setToleranceValue(value);
+    try {
+      window.localStorage.setItem(STRAIGHT_RUN_TOLERANCE_KEY, String(value));
       setPersistenceUnavailable(false);
     } catch { setPersistenceUnavailable(true); }
   }, []);
@@ -84,6 +101,7 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
         enabledRef.current = readPreference();
         setValue(enabledRef.current);
       }
+      if (event.key === STRAIGHT_RUN_TOLERANCE_KEY || event.key === null) setToleranceValue(readStraightRunTolerance());
       if (event.key === EDITOR_LAYOUT_KEY || event.key === null) {
         setLayoutValue(readLayout(implicitLayout));
       }
@@ -91,7 +109,7 @@ export function ExperimentalFeaturesProvider({ children }: { children: ReactNode
     window.addEventListener("storage", sync);
     return () => window.removeEventListener("storage", sync);
   }, [implicitLayout]);
-  return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, inspectorEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
+  return <ExperimentalFeaturesContext.Provider value={{ enabled, setEnabled, editorLayout, setEditorLayout, straightRunTolerance, setStraightRunTolerance, inspectorEnabled, settingsOpen, setSettingsOpen, persistenceUnavailable }}>
     {children}
   </ExperimentalFeaturesContext.Provider>;
 }

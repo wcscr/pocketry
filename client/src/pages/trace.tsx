@@ -109,7 +109,7 @@ function TraceWorkspace(): JSX.Element {
   const [, navigate] = useLocation();
   const { panelOpen, setPanelOpen, setSampleLibraryRequested } = usePanelState();
   const isMobile = useIsMobile();
-  const { enabled: advancedEditing, inspectorEnabled } = useExperimentalFeatures();
+  const { enabled: advancedEditing, inspectorEnabled, straightRunTolerance } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
@@ -289,6 +289,7 @@ function TraceWorkspace(): JSX.Element {
       const sheetInk = rectifiedSheetInkRegions(store.perspectiveCorrection, store.imageRotation === 0 && !store.imageAlignment, wholeSheet);
       const result = await processImage(imageData, {
         autoCleanup: true,
+        straightRunToleranceMm: straightRunTolerance,
         smoothBoundary: true,
         sheetInk,
         editableCurves: settings?.editableCurves ?? store.editableCurves,
@@ -358,6 +359,7 @@ function TraceWorkspace(): JSX.Element {
     store.includeInteriorHoles,
     store.boundaryMethod,
     advancedEditing,
+    straightRunTolerance,
     store.detectionHints,
     store.editableCurves,
     store.perspectiveCorrection,

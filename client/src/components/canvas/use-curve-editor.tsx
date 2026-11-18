@@ -32,6 +32,7 @@ interface Options {
   startHint?: string;
   onDone?: () => void;
   allowCurves?: boolean;
+  pointEraser?: React.ReactNode;
   /** Expose selection, edge bending, fitting, and repair controls. */
   advancedTools?: boolean;
   onFrameRepair?: (points: Point[]) => void;
@@ -49,7 +50,7 @@ function handlePosition(ring: CurveRing, index: number, side: "in" | "out"): Poi
  * cancel, selection and pointer clicks never create source revisions. */
 export function useCurveEditor({ outline, curves, allowOutlineSimplification, enabled, contextKey, scale, tolerance,
   fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone, allowCurves = true, advancedTools = true,
-  fitUnitsPerUnit = 1, fitUnit = "mm", onFrameRepair }: Options) {
+  fitUnitsPerUnit = 1, fitUnit = "mm", onFrameRepair, pointEraser }: Options) {
   const [started, setStarted] = useState(false);
   const [ref, setRef] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
   const [target, setTarget] = useState<Target>({ kind: "edge", index: 0 });
@@ -251,6 +252,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
   const controls = advancedTools && active && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
     <div className="curve-editor-heading flex w-full flex-wrap items-center gap-2"><span className="text-sm font-medium">{repair.open ? "Edit outline" : fitting.open ? "Smooth outline" : "Edit outline · Bend edges"}</span>
       <HelpHint label="curve editing">Click an edge to add a point. Right-click a point to delete it. Drag edges to bend them into curves, points to move them, or handles to shape a curve. Shift-click adds points; drag empty space for a selection box. Select two endpoints for Repair section and preview a line or curve. Use Select points without a keyboard. Space-drag pans. Edits apply immediately; Undo restores them.</HelpHint>
+      {!previewOpen && pointEraser}
       {!curves && <Button size="sm" variant="outline" onClick={() => { cancel(); points.clear(); setStarted(false); }}>Points</Button>}
       {onDone && <Button size="sm" variant="secondary" onClick={onDone}>Done</Button>}</div>
     <select aria-label="Curve contour" disabled={previewOpen} className="h-9 max-w-40 rounded border bg-background px-1 text-xs" value={`${ringRef.shapeIndex}:${ringRef.ringIndex}`}
