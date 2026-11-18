@@ -135,6 +135,25 @@ describe("useOutlineRefinement", () => {
     } finally { mounted.unmount(); }
   });
 
+  it("keeps the requested detail when shallow pocket crossings move along both boundaries", async () => {
+    const ellipse = (x: number, y: number, phase: number) => ({
+      outer: Array.from({length: 24}, (_, i) => {
+        const t = 2 * Math.PI * i / 24 + phase;
+        return { x: x + 50 * Math.cos(t), y: y + 65 * Math.sin(t) };
+      }), holes: [],
+    });
+    const source = curvesFromOutline([ellipse(100, 100, 0), ellipse(198, 106, .05)]);
+    const mounted = mountHook(async outline => outline), {store} = mounted;
+    try {
+      React.act(() => store().dispatch({type:"CURVES_COMMITTED", curves:source, label:"Edit pockets"}));
+      await React.act(async () => store().dispatch({type:"SET_TOLERANCE", tolerancePx:2}));
+      expect(store().tolerancePx).toBe(2);
+      expect(store().curves!.map(shape => shape.outer.length)).toEqual([4, 4]);
+      React.act(() => store().undo());
+      expect(store().curves).toEqual(source);
+    } finally { mounted.unmount(); }
+  });
+
   it("cancels pending manual refinement when a fresh detection takes over", async () => {
     let finish!: (outline: Outline) => void;
     const refiner = vi.fn<OutlineRefiner>(() => new Promise(resolve => { finish = resolve; }));

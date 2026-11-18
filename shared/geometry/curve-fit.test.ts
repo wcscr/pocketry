@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { curveFitRange, fitContour } from "./curve-fit";
+import { curveFitRange, fitContour, validateFittedContour } from "./curve-fit";
 import { curveControls, curvesFromOutline, evaluateCurve, mapCurves, sampleCurveRing, type CurveRing } from "./curves";
 import { distanceToSegment, pointInRing, signedArea } from "./rings";
 import type { Point } from "./types";
@@ -103,5 +103,33 @@ describe("explicit contour fitting", () => {
     expect(center).toBeDefined();
     source[0].holes.push(circle(0.01, 12).reverse().map(p => ({ point: { x: p.x + center.x, y: p.y + center.y } })));
     expect(() => fitContour(source, ref, { kind: "auto" }, 0.5)).toThrow(/cross|hole/);
+  });
+});
+
+describe("authored pocket contacts during simplification", () => {
+  const pocket = [{x:0,y:0}, {x:20,y:0}, {x:100,y:0}, {x:100,y:100}, {x:0,y:100}];
+  const pair = (other: Point[], outer = pocket) => curvesFromOutline([{outer, holes:[]}, {outer:other, holes:[]}]);
+  const validate = (before: ReturnType<typeof pair>, after: ReturnType<typeof pair>) =>
+    validateFittedContour(before, after, ref, 2, () => {}, 2);
+
+  it("recognizes the same crossing at a vertex and in the middle of a fitted edge", () => {
+    const neighbor = [{x:20,y:-10}, {x:45,y:-10}, {x:45,y:8}, {x:20,y:8}];
+    expect(() => validate(pair(neighbor), pair(neighbor, [pocket[0], ...pocket.slice(2)]))).not.toThrow();
+  });
+
+  it("rejects a lost or added crossing pair, including at a previously touching vertex", () => {
+    const tip = (y: number) => pair([{x:40,y:-10}, {x:60,y:-10}, {x:50,y}]);
+    for (const y of [-1, 0]) {
+      expect(() => validate(tip(y), tip(1))).toThrow(/cross/);
+      expect(() => validate(tip(1), tip(y))).toThrow(/cross/);
+    }
+  });
+
+  it("rejects moving a pair of crossings to a different lobe", () => {
+    const lobes = (left: number, right: number) => pair([
+      {x:10,y:-15}, {x:90,y:-15}, {x:90,y:-6}, {x:73,y:-6}, {x:70,y:right},
+      {x:67,y:-6}, {x:28,y:-6}, {x:25,y:left}, {x:22,y:-6}, {x:10,y:-6},
+    ]);
+    expect(() => validate(lobes(.5, -.5), lobes(-.5, .5))).toThrow(/cross/);
   });
 });

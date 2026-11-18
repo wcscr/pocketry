@@ -23,6 +23,7 @@ import {
 import {
   useCallback,
   useId,
+  useLayoutEffect,
   useEffect,
   useMemo,
   useRef,
@@ -82,6 +83,7 @@ interface EdgeReview {
   side: number;
   fill?: DetectionHint;
   previewFill: boolean;
+  edgeError?: string;
 }
 
 function insideRect(point: Point, rect: Rect): boolean {
@@ -96,6 +98,7 @@ export interface TraceCanvasProps {
   estimatedEdgeFocusRequest?: number;
   onReprocess: (region?: Rect) => void;
   onCorrection?: (hints: DetectionHint[]) => void;
+  onBrushReviewChange?: (pending: boolean) => void;
   /** Rendered when no image is loaded. */
   emptyState?: React.ReactNode;
 }
@@ -128,7 +131,7 @@ export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   );
 }
 
-function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps & { editHost: HTMLDivElement | null }): JSX.Element {
+function TraceStage({ editHost, onReprocess, onCorrection, onBrushReviewChange, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps & { editHost: HTMLDivElement | null }): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
   const detectedReview = store.detectedOutlineReview;
@@ -173,7 +176,6 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
     else cancelStroke();
   }, [correcting, store.sourceRevision, store.region, detectedReview.showing]);
   useEffect(() => { if (store.processing) cancelStroke(); }, [store.processing]);
-  useEffect(cancelStroke, [store.history]);
   useEffect(() => {
     if (!correctionMode) return;
     const escape = (event: KeyboardEvent) => {
@@ -258,6 +260,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
   useRulerInputFraming(isMobile, draftCalibration ?? calibration, containerSize, viewport);
 
   const { fit, fitToRect } = viewport;
+  useEffect(cancelStroke, [store.history, imageCrop]);
   const fitVisiblePhoto = useCallback(() => imageCrop ? fitToRect(imageCrop) : fit(), [imageCrop, fit, fitToRect]);
   const viewportReady = containerSize.width > 0 && containerSize.height > 0;
   useEffect(() => { if (viewportReady) fitVisiblePhoto(); }, [fitVisiblePhoto, viewportReady, imageSize.width, imageSize.height]);
@@ -360,16 +363,24 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
   const cleanupSource = useMemo(() => store.curves ?? curvesFromOutline(outline), [store.curves, outline]);
   const review = edgeReview?.source === cleanupSource && correctionMode === "tool" && !processing ? edgeReview : null;
+  const reviewingBrush = !!review;
+  useLayoutEffect(() => {
+    if (!reviewingBrush) return;
+    onBrushReviewChange?.(true);
+    return () => onBrushReviewChange?.(false);
+  }, [reviewingBrush, onBrushReviewChange]);
   const reviewedCurves = review && !review.previewFill ? review.options[review.side] : null;
   const reviewOutline = useMemo(() => reviewedCurves && sampleCurves(reviewedCurves,
     CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? .1)), [reviewedCurves, calibration]);
   const visibleStroke = review?.previewFill ? review.fill : strokePreview;
   const edgePreview = outline.length && strokePreview?.kind === "tool" && !strokePreview.fill ? strokePreview : null;
-  const joins = useMemo(() => edgePreview ? redrawAttachments(cleanupSource, edgePreview.points, viewport.transform.scale, edgePreview.radius) : undefined,
-    [edgePreview, cleanupSource, viewport.transform.scale]);
+  const onVisiblePhoto = useCallback((p: Point) => insideRect(p, {x: 0, y: 0, ...imageSize}) &&
+    (!imageCrop || insideRect(p, imageCrop)), [imageSize, imageCrop]);
+  const joins = useMemo(() => edgePreview ? redrawAttachments(cleanupSource, edgePreview.points, viewport.transform.scale, edgePreview.radius, onVisiblePhoto) : undefined,
+    [edgePreview, cleanupSource, viewport.transform.scale, onVisiblePhoto]);
   const brushStart = edgePreview?.points[0] ?? (!review && correctionMode === "tool" && !strokePreview ? brushPoint : null);
-  const startJoin = useMemo(() => brushStart ? findBrushJoin(cleanupSource, brushStart, brushRadius) : undefined,
-    [cleanupSource, brushStart, brushRadius]);
+  const startJoin = useMemo(() => brushStart ? findBrushJoin(cleanupSource, brushStart, brushRadius, onVisiblePhoto) : undefined,
+    [cleanupSource, brushStart, brushRadius, onVisiblePhoto]);
   const cleanupAvailable = !detectedReview.showing && !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
   // Existing native curves remain authoritative after Undo or draft recovery,
   // even when the preference for future detections is point mode.
@@ -823,12 +834,12 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
     viewport.handlers.onPointerDown(event);
   };
 
-  // Direct edge edits can reach any part of the photo. Evidence for photo detection belongs to the region.
+  // Keep brush input in the same visible frame as the clipped scene.
   const drawingEdge = correctionBrush === "tool" && outline.length > 0;
   const brushPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
     const point = toImage(event.clientX, event.clientY);
-    const bounds = drawingEdge ? { x: 0, y: 0, ...imageSize } : region;
-    return point && bounds && insideRect(point, bounds) ? point : null;
+    if (!point || !onVisiblePhoto(point)) return null;
+    return drawingEdge || (region && insideRect(point, region)) ? point : null;
   };
   const extendStroke = (hint: DetectionHint, p: Point | null, minDistance: number): DetectionHint | null => {
     if (!p) {
@@ -982,13 +993,22 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
         const completed = extendStroke(hint, brushPosition(event), 0);
         if (!completed) return;
         if (!drawingEdge) { submitMark(completed); return; }
+        const ends = redrawAttachments(cleanupSource, completed.points, viewport.transform.scale, completed.radius, onVisiblePhoto);
+        if (!ends) {
+          if (completed.fill) submitMark(completed);
+          else setEdgeMessage("Start and finish near two different places on the same visible edge.");
+          return;
+        }
         try {
-          const options = redrawEdgeOptions(cleanupSource, completed.points, viewport.transform.scale, completed.radius);
+          const options = redrawEdgeOptions(cleanupSource, completed.points, viewport.transform.scale, completed.radius, ends);
           setEdgeReview({ source: cleanupSource, options, side: 0,
             fill: completed.fill ? completed : undefined, previewFill: !!completed.fill });
         } catch (error) {
-          if (completed.fill) submitMark(completed);
-          else setEdgeMessage(error instanceof Error ? error.message : "Try tracing a shorter section.");
+          const reason = error instanceof Error ? error.message : "Try tracing a shorter section.";
+          if (!completed.fill) setEdgeMessage(reason);
+          else {
+            setEdgeReview({ source: cleanupSource, options: [], side: 0, previewFill: true, fill: completed, edgeError: reason });
+          }
         }
       }
       return;
@@ -1254,11 +1274,11 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
             hasOutline={outline.length > 0} edgeUnavailable={edgeUnavailable} brushWidth={brushWidth} onWidth={setBrushWidth}
             addFeedback={strokePreview?.fill ? "Release to finish the green loop." : joins ? "Release to preview the new edge." : edgeMessage || (correctionMode === "tool" ? addFeedback : undefined)}
             review={review && <div className="space-y-2 px-1 pb-2">
-              <p role="status" className="text-xs">{review.previewFill ? "Fill the green loop, or preview it as a new edge."
-                : "The purple shading shows the pocket this edge will create."}</p>
+              <p role="status" className="text-xs">{review.edgeError ?? (review.previewFill ? "Fill the green loop, or preview it as a new edge."
+                : "The purple shading shows the pocket this edge will create.")}</p>
               <div className="flex flex-wrap gap-1.5">
                 <Button size="sm" onClick={applyReview}>{review.previewFill ? "Fill loop" : "Apply edge"}</Button>
-                {review.fill && <Button size="sm" variant="outline" onClick={() => setEdgeReview({ ...review, previewFill: !review.previewFill })}>
+                {review.fill && review.options.length > 0 && <Button size="sm" variant="outline" onClick={() => setEdgeReview({ ...review, previewFill: !review.previewFill })}>
                   {review.previewFill ? "Preview edge" : "Preview fill"}</Button>}
                 {!review.previewFill && review.options.length > 1 && <Button size="sm" variant="outline"
                   onClick={() => setEdgeReview({ ...review, side: 1 - review.side })}>Other side</Button>}

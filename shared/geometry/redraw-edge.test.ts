@@ -99,6 +99,12 @@ describe("edge brush", () => {
     expect(redrawEdge(source, line, 2, 48 / 4)[0].outer.map(a => a.point)).toContainEqual(line[1]);
   });
 
+  it("never snaps a visible stroke to a hidden edge beyond the paper crop", () => {
+    const stroke = [point(91, 32), point(76, 48), point(91, 67)];
+    expect(redrawAttachments(source, stroke, 1, 12)).toBeDefined();
+    expect(redrawAttachments(source, stroke, 1, 12, p => p.x <= 95)).toBeUndefined();
+  });
+
   it("rejects distant joins and self-crossings without changing the outline", () => {
     expect(() => redrawEdge(source, [point(49, 50), point(52, 55)], 2, 6)).toThrow("Start and finish");
     expect(() => redrawEdge(source, [point(0, 30), point(70, 65), point(70, 30), point(0, 65)], 1, 12)).toThrow();

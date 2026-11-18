@@ -73,12 +73,15 @@ outline. For a recess between handles, trace down one side and back up the other
 in a single stroke. To include the gap instead, draw the edge across its mouth.
 The brush starts at 24 screen pixels. Adjust **Brush width** for a wider target
 or zoom in for finer placement. A manual edge can extend beyond the detection box
-anywhere on the photo. Release to preview the pocket in purple. **Other side**
-switches which part of the original outline is kept when both sides are valid.
+anywhere on the visible photo. Choose **Show full photo** to work outside the paper crop.
+Release to preview the pocket in purple. **Other side** switches which part of the
+original outline is kept when both sides are valid.
 Choose **Apply edge** to save one undoable edit, or **Cancel** to keep the original.
+Finish this choice before exporting or adding the pocket to a bin.
 
 To include a whole area, close a loop inside the detection box. If the loop also
-joins the outline in two places, choose **Fill loop** or **Preview edge**.
+joins the outline in two places, choose **Fill loop** or **Preview edge**. If the traced
+edge crosses itself, choose **Fill loop** to keep the fill or **Cancel** to redraw.
 **Remove area** marks unwanted background for detection. A region with no outline
 starts in **Add area**. Purple shading shows the pocket. Photo detection is
 available before manual edits; **Edge brush** can redraw successive sections of

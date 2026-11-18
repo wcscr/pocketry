@@ -1618,15 +1618,18 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
   vi.stubGlobal("ResizeObserver",NoopResizeObserver);
   vi.stubGlobal("matchMedia",()=>({matches:pointerType==="touch",addEventListener(){},removeEventListener(){}}));
   const restoreCoordinates=installIdentitySvgCoordinates(),host=document.createElement("div");document.body.append(host);
-  const root=createRoot(host),correct=vi.fn();let trace:TraceStore;
+  const root=createRoot(host),correct=vi.fn(),reviewChanged=vi.fn();let trace:TraceStore;
   function Probe():null {trace=useTrace();return null;}
   try {
-    await React.act(async()=>root.render(<TraceProvider><Probe/><TooltipProvider><TraceCanvas onReprocess={()=>{}} onCorrection={correct}/></TooltipProvider></TraceProvider>));
+    await React.act(async()=>root.render(<TraceProvider><Probe/><TooltipProvider><TraceCanvas onReprocess={()=>{}} onCorrection={correct} onBrushReviewChange={reviewChanged}/></TooltipProvider></TraceProvider>));
     React.act(()=>{
       trace!.dispatch({type:"SOURCE_LOADED",imageUrl:"data:image/png;base64,AA==",fileName:"tool"});
       trace!.dispatch({type:"SOURCE_READY",imageSize:{width:160,height:160}});
+      trace!.dispatch({type:"PERSPECTIVE_APPLIED", sourceImageUrl:"data:image/png;base64,AA==", imageUrl:"corrected",
+        imageSize:{width:160,height:160}, paper:"a4", source:"template", calibration:{startX:0,startY:0,endX:100,endY:0,lengthMm:100},
+        paperBounds:{x:0,y:0,width:102,height:102}});
       trace!.dispatch({type:"SET_REGION",region:{x:0,y:0,width:100,height:100}});
-      trace!.dispatch({type:"DETECTED",imageUrl:"data:image/png;base64,AA==",outline:detected,rawOutline:detected,svg:"",region:null});
+      trace!.dispatch({type:"DETECTED",imageUrl:"corrected",outline:detected,rawOutline:detected,svg:"",region:null});
     });
     const button=host.querySelector<HTMLButtonElement>('[aria-label="Correct"]')!;
     await React.act(async()=>button.click());
@@ -1700,7 +1703,11 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
     React.act(()=>trace!.redo());
     expect(trace!.outline).toEqual(firstEdge);
     React.act(()=>trace!.undo());
-    // A manual boundary follows the pointer beyond the detection box, within the photo.
+    // The same stroke can reach into the margin only when the full photo is visible.
+    pointer("pointerdown",90,24); pointer("pointermove",115,46); pointer("pointerup",90,73);
+    expect(host.textContent).toContain("canceled at the photo boundary");
+    expect(trace!.outline).toEqual(detected);
+    React.act(() => trace!.dispatch({type:"SET_SHOW_FULL_PHOTO",show:true}));
     pointer("pointerdown",90,24); pointer("pointermove",97,30); pointer("pointermove",115,46);
     pointer("pointermove",97,67); pointer("pointerup",90,73); action("Apply edge");
     expect(Math.max(...trace!.outline[0].outer.map(p => p.x))).toBe(115);
@@ -1713,6 +1720,21 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
       pointer("pointerdown",30,90); pointer("pointermove",32,64); pointer("pointermove",56,46);
       pointer("pointermove",72,69); pointer("pointermove",59,81); pointer("pointerup",35,90);
     };
+    const crossedLoop = () => {
+      pointer("pointerdown",30,90); pointer("pointermove",32,64); pointer("pointermove",60,45);
+      pointer("pointermove",50,45); pointer("pointermove",60,54); pointer("pointermove",72,69); pointer("pointerup",35,90);
+    };
+    crossedLoop();
+    expect(correct).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("cross");
+    expect(host.textContent).not.toContain("Preview edge");
+    expect(reviewChanged).toHaveBeenLastCalledWith(true);
+    action("Cancel");
+    expect(reviewChanged).toHaveBeenLastCalledWith(false);
+    expect(trace!.history.index).toBe(historyIndex);
+    crossedLoop(); action("Fill loop");
+    expect(correct.mock.lastCall![0][0]).toMatchObject({fill:true});
+    correct.mockClear();
     nearLoop();
     expect(correct).not.toHaveBeenCalled();
     expect(trace!.history.index).toBe(historyIndex);

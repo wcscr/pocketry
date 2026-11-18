@@ -114,6 +114,7 @@ function TraceWorkspace(): JSX.Element {
   const editingOnPhone = isMobile && (store.mode === "correct" || (store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove")));
   const [mobileEditDock, setMobileEditDock] = useState<HTMLDivElement | null>(null);
   useEffect(() => { if (editingOnPhone) setPanelOpen(false); }, [editingOnPhone, setPanelOpen]);
+  const [brushReviewPending, setBrushReviewPending] = useState(false);
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const [outlineCleanupRequest, setOutlineCleanupRequest] = useState<{ id: number; sourceRevision: number }>();
@@ -744,7 +745,17 @@ function TraceWorkspace(): JSX.Element {
     }
   };
 
+  const finishBrushFirst = () => {
+    if (!brushReviewPending) return false;
+    showCanvas();
+    toast({ title: "Finish the outline correction", description: "Confirm or cancel the brush preview before continuing." });
+    return true;
+  };
+  const requestAddToBin = () => {
+    if (!finishBrushFirst()) handoff.addToBin();
+  };
   const requestExport = () => {
+    if (finishBrushFirst()) return;
     if (hasPendingManualCalibration(store) || store.pendingAutoCalibration) {
       openSettings("trace-settings-scale");
       return;
@@ -819,7 +830,7 @@ function TraceWorkspace(): JSX.Element {
         panelTitle="Trace controls"
         mobileActionsLayout="landscape-side"
         mobileActions={editingOnPhone ? <div ref={setMobileEditDock} data-mobile-expanded="true" /> : <MobileTraceActions
-          onAddToBin={handoff.addToBin}
+          onAddToBin={requestAddToBin}
           onExport={requestExport}
           addToBinReady={handoff.ready}
           addToBinHint={<TraceHandoffOptions handoff={handoff} />}
@@ -832,7 +843,7 @@ function TraceWorkspace(): JSX.Element {
         />}
         panel={
           <TraceControlsPanel
-            handoff={handoff}
+            handoff={{ ...handoff, addToBin: requestAddToBin }}
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
@@ -882,6 +893,7 @@ function TraceWorkspace(): JSX.Element {
                   outlineCleanupRequest={outlineCleanupRequest}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
+                  onBrushReviewChange={setBrushReviewPending}
                   onCorrection={hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints })}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">

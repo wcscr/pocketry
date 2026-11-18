@@ -124,15 +124,19 @@ vi.mock("@/components/trace/trace-canvas", () => ({
     emptyState,
     onReprocess,
     estimatedEdgeFocusRequest = 0,
+    onBrushReviewChange,
   }: {
     emptyState?: React.ReactNode;
     onReprocess: (region?: Rect) => void;
     estimatedEdgeFocusRequest?: number;
+    onBrushReviewChange: (pending: boolean) => void;
   }) => {
     const { dispatch, imageUrl } = useTrace();
     return (
     <>
       {!imageUrl && emptyState}
+      <button onClick={() => onBrushReviewChange(true)}>Preview brush edit</button>
+      <button onClick={() => onBrushReviewChange(false)}>Finish brush edit</button>
       <output data-testid="estimated-focus-request">{estimatedEdgeFocusRequest}</output>
       <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
@@ -862,6 +866,22 @@ describe("Trace detection workflow", () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider persist><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider>));
     await React.act(async () => new Promise(resolve => setTimeout(resolve, 250)));
     expect(host.querySelector('[data-testid="trace-save-error"]')?.textContent).toContain("Keep this page open");
+  });
+
+  it("waits for a pending brush choice before exporting or sending a pocket to Bin", async () => {
+    let library!: ReturnType<typeof useShapeLibrary>;
+    function Probe() { library = useShapeLibrary(); return null; }
+    await React.act(async () => root.render(<ShapeLibraryProvider><PanelProvider><TraceProvider><Probe /><SeedExportOutline format="svg" /><TracePage /></TraceProvider></PanelProvider></ShapeLibraryProvider>));
+    const click = (text: string) => React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === text)!.click());
+    click("Preview brush edit");
+    click("Export trace");
+    expect(document.querySelector('[data-testid="button-confirm-export"]')).toBeNull();
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="controls-add-to-bin"]')!.click());
+    expect(library.shapes).toHaveLength(0);
+    expect(downloadBlob).not.toHaveBeenCalled();
+    click("Finish brush edit");
+    click("Export trace");
+    expect(document.querySelector('[data-testid="button-confirm-export"]')).not.toBeNull();
   });
 
   it("cancels Trace export without building or downloading", async () => {

@@ -8,7 +8,7 @@ interface Attachment extends RingRef { position: number; distance: number; point
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** Find the closest point along an edge, including the middle of a long straight or cubic span. */
-export function findBrushJoin(source: CurveOutline, p: Point, radius: number): Attachment | undefined {
+export function findBrushJoin(source: CurveOutline, p: Point, radius: number, visible?: (point: Point) => boolean): Attachment | undefined {
   const reach = radius * 2;
   let best: Attachment | undefined;
   for (const [shapeIndex, shape] of source.entries()) {
@@ -27,7 +27,7 @@ export function findBrushJoin(source: CurveOutline, p: Point, radius: number): A
           const t = (j - 1 + u) / steps;
           const point = evaluateCurve(cubic, t);
           const d = distance(p, point);
-          if (d <= reach && (!best || d < best.distance)) best = { shapeIndex, ringIndex: r - 1, position: (i + t) % ring.length, distance: d, point };
+          if (d <= reach && (!best || d < best.distance) && (!visible || visible(point))) best = { shapeIndex, ringIndex: r - 1, position: (i + t) % ring.length, distance: d, point };
           a = b;
         }
       }
@@ -37,12 +37,12 @@ export function findBrushJoin(source: CurveOutline, p: Point, radius: number): A
 }
 
 /** Both ends must join distinct places on the same contour, within one brush diameter. */
-export function redrawAttachments(source: CurveOutline, stroke: Point[], scale: number, radius: number) {
+export function redrawAttachments(source: CurveOutline, stroke: Point[], scale: number, radius: number, visible?: (point: Point) => boolean) {
   if (stroke.length < 2) return;
   const a = stroke[0], b = stroke[stroke.length - 1], span = distance(a, b);
   // Ignore click jitter, but let a deliberate long recess join even at a subpixel opening.
   if (span * scale < 3 && !stroke.some(point => distance(a, point) * scale >= 3)) return;
-  const start = findBrushJoin(source, a, radius), end = findBrushJoin(source, b, radius);
+  const start = findBrushJoin(source, a, radius, visible), end = findBrushJoin(source, b, radius, visible);
   if (!start || !end || start.shapeIndex !== end.shapeIndex ||
       start.ringIndex !== end.ringIndex || distance(start.point, end.point) * scale < 1e-6) return;
   return { start, end };
@@ -65,8 +65,8 @@ function splitAt(ring: CurveRing, position: number): number {
 
 /** Return the valid sides of a redraw in preview order. Only the chosen ring (including
  * other references to a shared hole) changes. Committing a preview is the caller's decision. */
-export function redrawEdgeOptions(source: CurveOutline, stroke: Point[], scale: number, radius: number): CurveOutline[] {
-  const ends = redrawAttachments(source, stroke, scale, radius);
+export function redrawEdgeOptions(source: CurveOutline, stroke: Point[], scale: number, radius: number,
+  ends = redrawAttachments(source, stroke, scale, radius)): CurveOutline[] {
   if (!ends) throw new Error("Start and finish near two different places on the same edge.");
   const { start, end } = ends;
   const ring = curveRing(source, start)!.map(a => ({ ...a }));
