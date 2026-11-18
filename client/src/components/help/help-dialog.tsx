@@ -79,11 +79,10 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             <p className="mt-1 text-muted-foreground">
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
               and amber estimated edges. In <strong>Correct</strong>, pick points or drag a box around them, then drag the selection to move it.
-              Choose <strong>Add area</strong> to brush in missing material or <strong>Remove area</strong> to brush away background.
-              To include a gap between handles, circle it with <strong>Add area</strong> and overlap both handles.
-              Release when the loop fills green. Purple shading shows the pocket.
-              Each stroke re-detects and can be undone; <strong>Done</strong> keeps the corrections.
-              Undo manual outline edits before returning to brush corrections.
+              With <strong>Edge brush</strong>, trace from one place on the outline to another. Follow the inside edges of the handles
+              in a single stroke to create a recess, or draw across the gap to include it. The green line shows the new edge.
+              Adjust <strong>Brush width</strong> in pixels. Circle a region to fill it or use <strong>Remove area</strong> to mark background.
+              Purple shading shows the pocket. Undo reverses a stroke and <strong>Done</strong> keeps your work.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
               With Tool edges selected, confirm switching to <strong>Color contrast</strong>{" "}
               and re-detecting the outline; <strong>Automatic</strong> selects Color contrast for holes.

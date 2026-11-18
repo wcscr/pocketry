@@ -80,8 +80,8 @@ scale** for the sheet or **Correct perspective & use aid scale** for a detected
 aid. Otherwise, **Set scale** from a known distance. Check a real dimension,
 then box the tool with **Region → Set region**. Use the default **Tool edges ·
 white sheet** on light paper or **Color contrast** on other backgrounds. Open
-**Correct** to brush in missing material, brush away background, or move a group
-of outline points. Use **Edit outline** for individual point edits. When the
+**Correct** and use **Edge brush** to trace a new boundary between two places on the outline.
+You can also circle an area to include it, remove background, or move selected points. Use **Edit outline** for individual point edits. When the
 outline follows the tool, choose **Add to Bin**.
 [Detailed tracing guidance](docs/teed-outline-integration.md).
 

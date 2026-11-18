@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Correct outlines by moving selected points or brushing areas in and out. Circle a gap with Add area to include its interior in the pocket.
+- Trace a new outline edge in one stroke, including recesses between handles. Correct also supports adjustable brush width, filled loops, and group point edits.
 
 - Edit outlines directly on the photo. Smaller point markers reveal the edge, and advanced tools stay tucked away beside or below the photo.
 

@@ -67,13 +67,18 @@ in **Select points**. Click or tap points to toggle them, or drag a box to selec
 group. Drag a selected point to move the group. Clear and delete actions appear
 with a selection. These edits can be undone.
 
-Choose **Add area** to brush over missing tool material in green or **Remove area**
-to brush over unwanted background in red. Purple shading shows what the pocket includes.
-To include the space between two handles, draw an Add area loop that overlaps both
-handles. When the green interior appears, release to fill it. Each completed stroke updates detection
-with the current settings and creates one Undo step. A region without an outline
-starts with **Add area**. After manual geometry edits, Undo those edits to enable
-brush detection again. Selecting points alone keeps both brushes available.
+Choose **Edge brush** and trace from one place near the purple outline to another.
+The thin green line is the new boundary. The two dots show where it will join the
+outline. For a recess between handles, trace down one side and back up the other
+in a single stroke. To include the gap instead, draw the edge across its mouth.
+The brush starts at 24 screen pixels. Adjust **Brush width** for a wider target
+or zoom in for finer placement. Each redraw has its own Undo step.
+
+To include a whole area, close a loop and release when its interior turns green.
+**Remove area** marks unwanted background for detection. A region with no outline
+starts in **Add area**. Purple shading shows the pocket. Photo detection is
+available before manual edits; **Edge brush** can redraw successive sections of
+a manually edited outline.
 
 Use the hand tool or Space-drag to pan. **Clear marks** appears when brush marks
 exist and re-detects without them. **Done** leaves the corrections in place.

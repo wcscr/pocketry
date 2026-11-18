@@ -7,6 +7,6 @@ export interface DetectionHint { kind: "tool" | "paper"; points: Point[]; radius
 export function closesAddLoop(hint: DetectionHint, scale: number): boolean {
   if (hint.kind !== "tool" || hint.points.length < 3) return false;
   const first = hint.points[0], last = hint.points[hint.points.length - 1];
-  const snap = Math.max(2 * hint.radius, 8 / scale);
+  const snap = 8 / scale;
   return Math.hypot(last.x - first.x, last.y - first.y) <= snap && ringArea(hint.points) > snap * snap;
 }
