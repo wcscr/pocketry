@@ -1,5 +1,5 @@
 import { validateDetectionHints } from "./detect/hint-validation";
-import { collapseStraightRuns, thinEditingOutline } from "@shared/geometry/edit-point-spacing";
+import { simplifyEditingPoints } from "./detect/simplify-editing-points";
 import { validDetectionGeometry } from "./detect/boundary-validation";
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
@@ -393,14 +393,11 @@ export async function processImage(
   if (options.autoCleanup && !options.editableCurves && outline.length) {
     const spacing = workingMmPerPixel ? 4 / workingMmPerPixel : 16;
     const detailPx = detectionOptions.tolerancePx! * workingPerDetectPixel;
-    const deviation = Math.min(workingMmPerPixel ? .1 / workingMmPerPixel : .5, detailPx);
-    const spaced = thinEditingOutline(outline, spacing, deviation);
-    const straightLimit = Math.min(workingMmPerPixel ? .2 / workingMmPerPixel : 1, detailPx);
-    const straight = collapseStraightRuns(outline, spaced, straightLimit);
-    const acceptable = (candidate: Outline) => honoursMarks(candidate) && validDetectionGeometry(material, candidate,
-      detectionOptions.inwardTolerancePx! * workingPerDetectPixel, detectionOptions.outwardTolerancePx! * workingPerDetectPixel);
-    if (straight !== spaced && acceptable(straight)) outline = straight;
-    else if (spaced !== outline && acceptable(spaced)) outline = spaced;
+    const step = workingMmPerPixel ? .1 / workingMmPerPixel : .5;
+    const straightRunLevels = 2;
+    outline = simplifyEditingPoints(outline, spacing, step, detailPx, straightRunLevels, candidate =>
+      honoursMarks(candidate) && validDetectionGeometry(material, candidate,
+        detectionOptions.inwardTolerancePx! * workingPerDetectPixel, detectionOptions.outwardTolerancePx! * workingPerDetectPixel));
   }
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {

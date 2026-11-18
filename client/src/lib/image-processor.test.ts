@@ -8,7 +8,8 @@ import { curvesFromOutline, mapCurves, sampleCurves } from "@shared/geometry/cur
 import * as metrics from "@shared/geometry/contour-metrics";
 import { distanceToOutlineBoundary, sampleRing } from "@shared/geometry/contour-metrics";
 
-import type { ImageLike } from "./detect/types";
+import { DETECT_DEFAULTS, type ImageLike } from "./detect/types";
+import { validDetectionGeometry } from "./detect/boundary-validation";
 import { convexHullForTest, polygonArea } from "./geometry/fixtures";
 import { outlineArea, outlineBounds, pointInOutline } from "./geometry/outline";
 import {
@@ -292,8 +293,10 @@ describe("processImage", () => {
       expect(result.autoSimplification).toBeUndefined();
       const fitted = sampleCurves(invoke.mock.calls[0][0].source, .25);
       expect(result.refinementBase).toEqual(fitted);
-      // On this circle, the detection guard retains the finer spacing at the boundary.
-      expect(result.outline).toEqual(thinEditingOutline(fitted, 16, .5));
+      const spaced = thinEditingOutline(fitted, 16, .5);
+      expect(result.outline[0].outer.length).toBeLessThan(spaced[0].outer.length);
+      expect(result.outline[0].outer.every(p => spaced[0].outer.some(q => q.x === p.x && q.y === p.y))).toBe(true);
+      expect(validDetectionGeometry(detected.rawOutline, result.outline, DETECT_DEFAULTS.tolerancePx, 4)).toBe(true);
       expect(result.rawOutline).toEqual(detected.rawOutline);
     } finally { invoke.mockRestore(); }
   });
