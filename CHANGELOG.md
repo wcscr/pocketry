@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recognize a calibration sheet whose printed markers have thin light streaks, instead of reporting it as incomplete or rejecting its geometry.
+
 ## 1.12.4 — 2026-11-17
 
 - Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.

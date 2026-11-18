@@ -6,8 +6,12 @@ import { loadOpenCV } from "@/lib/opencv";
 
 import {
   detectCalibrationSheet,
+  detectPocketryTemplateMarkers,
   detectReferenceStripMarkers,
+  detectStreakedTemplateMarkers,
   hasArucoSupport,
+  TEMPLATE_DICTIONARY,
+  type ArucoDetection,
 } from "./detect";
 import {
   MAX_TEMPLATE_REPROJECTION_RMS_MM,
@@ -160,8 +164,43 @@ function calibrateStrip(
   return null;
 }
 
-function runSheetCalibration(cv: any, image: ImageData): Exclude<AutoCalibrationResult, { kind: "calibrated-strip" | "invalid-strip" | "unsupported" }> {
-  const detection = detectCalibrationSheet(cv, image);
+type SheetCalibrationResult = Exclude<
+  AutoCalibrationResult,
+  { kind: "calibrated-strip" | "invalid-strip" | "unsupported" }
+>;
+
+/**
+ * Paper-sheet calibration, with one second look for a streaked print.
+ *
+ * Thin light print streaks across the markers can hide one or put an edge in
+ * the wrong place, so a sheet that is plainly in the photo fails as incomplete
+ * or as the wrong geometry. When the first pass saw at least one Pocketry
+ * marker but no valid sheet, detection runs once more with those streaks
+ * filled. The second result replaces the first only if it is a complete sheet
+ * that passes the same geometry checks; otherwise the first verdict stands.
+ * Photos without any Pocketry marker, the common case, never pay for it.
+ */
+function runSheetCalibration(cv: any, image: ImageData): SheetCalibrationResult {
+  const firstPass = detectPocketryTemplateMarkers(cv, image);
+  const direct = calibrateDetectedSheet(
+    cv,
+    detectCalibrationSheet(cv, image, firstPass),
+  );
+  if (direct.kind === "calibrated" || firstPass.length === 0) return direct;
+
+  const recovered = calibrateDetectedSheet(cv, {
+    markers: detectStreakedTemplateMarkers(cv, image, firstPass),
+    family: TEMPLATE_DICTIONARY,
+    isTemplate: true,
+  });
+  return recovered.kind === "calibrated" ? recovered : direct;
+}
+
+/** Identifies and validates a sheet from one detection pass's markers. */
+function calibrateDetectedSheet(
+  cv: any,
+  detection: ArucoDetection | null,
+): SheetCalibrationResult {
   if (!detection) return { kind: "no-markers" };
   const markerIds = detection.markers
     .map((marker) => marker.id)
