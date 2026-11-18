@@ -15,7 +15,7 @@ rather than a fixed screen position. No application state was injected.
 
 | Image | How to reproduce |
 | --- | --- |
-| `trace-outline.jpg` | Open the original Wolfbox body photo, accept **Correct perspective & use scale**, draw a region around the tool, and wait for default detection. Choose **Edit outline** to show the contour points and editing controls. |
+| `trace-outline.jpg` | Open the original Wolfbox body photo, accept **Correct perspective & use scale**, draw a region around the tool, and wait for default detection. Choose **Edit outline** with experimental features off to show the contour points and standard editing controls. |
 | `bin-layout.jpg` | **Open Sample Projects → Wolfbox MF70 Airduster Kit**, then **Layout → Bin size**. The saved sample is 4 × 4 cells and 6.5u high, with four pockets and two finger-access features. |
 | `ruler-check.jpg` | Select the Wolfbox body pocket in Layout, expand **Size & scale**, enable **Measure between contours**, and click its upper/lower contour. This capture measures 145.30 mm between the chosen endpoints; total pocket length is 145.57 mm. |
 | `export-3mf.jpg` | Open that sample, then **Export → Save 3MF**. Capture the format choices without exporting or changing the design. |

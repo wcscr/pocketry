@@ -14,9 +14,7 @@ source-edge fitting stage.
 
 New sessions default to **Tool edges · white sheet**. Automatic background
 selection and Color contrast remain available; saved drafts retain their method.
-Sensitivity, point simplification, optional **Smooth outline**, and the
-**Detected outline** comparison are under **Manual detection settings**, below
-the contour list. **Editable curves** sits below the main outline actions.
+Sensitivity and the **Detected outline** comparison are under **Manual detection settings**, below the contour list. Turning on experimental features adds point simplification and **Smooth outline**. **Editable curves** sits below the main outline actions.
 See [the control guide](teed-outline-integration.md) for current interaction details.
 
 The automatic detector still receives Claude's copy with inferred sheet ink

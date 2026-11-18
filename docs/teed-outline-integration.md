@@ -63,8 +63,8 @@ were tested separately.
 ## Editing
 
 Choose **Edit outline** to adjust the contour over the photo. Drag a point to
-move it, click an edge to add a point, or select a point and choose **Delete
-point**. The controls wrap to fit the canvas. On phones and short windows,
+move it, click an edge to add a point, or right-click a point to remove it.
+With **Editable curves** on, select a point and drag its handles to shape the adjacent edges. The controls wrap to fit the canvas. On phones and short windows,
 the editor uses the full screen until you choose **Done**. Undo restores the
 previous contour. Older drafts open with their saved outlines and edit history. A fresh detection starts from the photo and
 ignores brush marks saved by earlier versions.
@@ -83,11 +83,9 @@ outline and settings unchanged; Undo restores them after successful detection.
 **Automatic** uses Color contrast when holes are enabled. Help icons beside the main
 actions explain their purpose on hover, keyboard focus, or tap. **Add manual
 contour** can trace an inner feature for a different pocket depth in Bin.
-**Import outline from file** loads an SVG, and **Move & rotate outline** adjusts
-contours over the fixed photo.
+**Import outline from file** loads an SVG. Enable experimental features in **App settings** to move and rotate entire contours, use symmetry, or clean up several contours at once.
 
-**Manual detection settings**, below the contour list, contains sensitivity,
-point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
+**Manual detection settings**, below the contour list, contains sensitivity and the detected-outline comparison. Turning on experimental features adds point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
 A checkmark indicates smoothing already applied during detection or a previous
 Apply; Apply is disabled. A dash marks a preview that would make no change.
@@ -142,8 +140,7 @@ outline or re-detect and replace edits; Undo can restore the previous source. De
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
-right-click a point to delete it. Shift-click or box-select multiple points;
-**Select points** also works without a keyboard. **Repair section** replaces a
+right-click a point to delete it. With experimental features on, Shift-click or box-select multiple points. **Select points** also works without a keyboard. **Repair section** replaces a
 selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,

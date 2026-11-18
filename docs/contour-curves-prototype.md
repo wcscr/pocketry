@@ -9,10 +9,10 @@ lines and rounded sections, producing points sampled from the fitted curves. Ena
 existing detection asks whether to keep that outline or re-detect from the photo
 and replace edits. Undo restores the previous outline. The switch enables native
 curves for re-detection or the next adjustment; it does not discard current edits
-without that choice. Detection and cleanup form one Undo step.
+without that choice. In the standard **Edit outline** tool, select a point to see its handles and drag a handle to shape the edge. A straight edge stays straight until you move a handle. Detection and cleanup form one Undo step.
 
 Default detection includes bounded smoothing after line and curve reconstruction.
-Under **Manual detection settings**, **Smooth outline** prepares an optional
+With experimental features enabled in **App settings**, **Manual detection settings → Smooth outline** prepares an optional
 preview of the current outline, including manual edits. **Original / Preview**
 compares it with the accepted outline. Apply saves one Undo step; Cancel or Escape
 keeps the outline. Sensitivity and the point simplification slider share this section.
@@ -43,8 +43,7 @@ restores any native curve handles. An already-used contour shows a checkmark and
 disables replacement. Hover/focus hints explain the controls without extra copy.
 Escape dismisses the preview. It cannot restore material segmentation missed.
 
-Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
-upright Bin pocket. Tilted/profile pockets retain their editing restriction.
+The following advanced controls are available in Trace with experimental features on. Choose **Edit outline → Bend edges** for edge bending. In Bin, choose **Edit contour → Bend edges** on an upright pocket. Tilted/profile pockets retain their editing restriction.
 
 - Drag an edge to bend it, an anchor to move it with its handles, or a handle to
   shape the curve. Click an edge to add a point; right-click an anchor to delete.

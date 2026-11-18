@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 
@@ -33,6 +34,7 @@ const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
 export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
@@ -82,8 +84,8 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
     ? "Keep this region or drag a new box around the tool." : "Drag a box around the whole tool to detect its outline.";
   else if (trace.mode === "navigate") guidance = "Drag to pan. Pinch or use + / − to zoom.";
   else if ((trace.mode === "edit" || trace.mode === "remove") && !trace.selection) guidance = "Tap a contour to select it for editing.";
-  else if (trace.mode === "edit" || trace.mode === "remove") guidance = "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom.";
-  else if (calibration && trace.outline.length) guidance = "Choose Adjust to refine the outline, or Edit contours to move points.";
+  else if (trace.mode === "edit" || trace.mode === "remove") guidance = advancedEditing ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom." : "Tap an edge to add a point. Drag to move. Touch and hold a point to remove it.";
+  else if (calibration && trace.outline.length) guidance = "Choose Adjust to refine the outline, or Edit outline to move points.";
   else if (calibration && hasRegion) guidance = "No outline found. Adjust sensitivity or go back to redraw the region.";
   else if (calibration) guidance = "Select the tool's region to detect its outline.";
 

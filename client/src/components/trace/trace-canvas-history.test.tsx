@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import * as React from "react";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
+import { setExperimentalTools } from "./trace-experimental.test-support";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -11,12 +13,16 @@ import { curvesFromOutline, CURVE_TOLERANCE_MM, normalizeCurves, sampleCurves } 
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { TraceCanvas } from "./trace-canvas";
+import { TraceCanvas as TraceCanvasComponent } from "./trace-canvas";
 import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { traceDraftSnapshot } from "@/lib/trace-draft";
 import { traceDraftSchema } from "@shared/trace-draft";
 import { projectFromTrace } from "@/lib/project/trace-export";
 import { parseProjectDoc } from "@shared/gridfinity/project";
+
+function TraceCanvas(props: React.ComponentProps<typeof TraceCanvasComponent>) {
+  return <ExperimentalFeaturesProvider><TraceCanvasComponent {...props} /></ExperimentalFeaturesProvider>;
+}
 
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
@@ -232,6 +238,7 @@ function installIdentitySvgCoordinates(): () => void {
 }
 
 afterEach(() => {
+  setExperimentalTools(false);
   vi.unstubAllGlobals();
   document.body.replaceChildren();
 });
@@ -296,7 +303,7 @@ describe("TraceCanvas edit history", () => {
       Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
       const pointer = (type: string, x: number, y: number) => React.act(() => {
         const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
-        Object.defineProperties(event, { pointerType: { value: pointerType }, pointerId: { value: 1 } });
+        Object.defineProperties(event, { pointerType: { value: pointerType }, pointerId: { value: 1 }, isPrimary: { value: true } });
         svg.dispatchEvent(event);
       });
       pointer("pointerdown", 300, 275); pointer("pointerup", 300, 275);
@@ -321,10 +328,90 @@ describe("TraceCanvas edit history", () => {
       pointer("pointerdown", 275, 275); pointer("pointermove", 255, 255); pointer("pointerup", 255, 255);
       expect(trace!.outline[2].outer[0]).toEqual({ x: 255, y: 255 });
       expect(trace!.outline[1].outer).toEqual(square);
+      expect(host.querySelector('[aria-label="Outline editing controls"]')?.querySelectorAll("button")).toHaveLength(1);
+      expect(host.querySelector('[data-testid="selected-outline-point"]')).toBeNull();
+      React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete" })));
+      expect(trace!.outline[2].outer).toHaveLength(5);
+      const contextMenu = () => React.act(() => svg.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 255, clientY: 255 })));
+      if (mobile) {
+        vi.useFakeTimers();
+        try {
+          pointer("pointerdown", 255, 255); pointer("pointercancel", 255, 255);
+          React.act(() => { vi.advanceTimersByTime(700); });
+          expect(trace!.outline[2].outer).toHaveLength(5);
+          pointer("pointerdown", 255, 255);
+          React.act(() => { vi.advanceTimersByTime(700); });
+          pointer("pointerup", 255, 255);
+        } finally { vi.useRealTimers(); }
+      }
+      // A native touch context menu may follow the hold. It must not delete twice.
+      contextMenu();
+      expect(trace!.outline[2].outer).toHaveLength(4);
+      React.act(() => trace!.undo());
+      expect(trace!.outline[2].outer[0]).toEqual({ x: 255, y: 255 });
+    } finally { React.act(() => root.unmount()); restoreCoordinates(); }
+  });
+
+  it("edits curve handles in standard mode and preserves them across the experimental switch", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    const restoreCoordinates = installIdentitySvgCoordinates();
+    const host = document.createElement("div"); document.body.append(host);
+    const root = createRoot(host);
+    let trace!: TraceStore;
+    function Probe() { trace = useTrace(); return null; }
+    const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y });
+      Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } });
+      target.dispatchEvent(event);
+    });
+    try {
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      React.act(() => {
+        trace.dispatch({ type: "OUTLINE_COMMITTED", outline: detected });
+        trace.dispatch({ type: "SET_MODE", mode: "edit" });
+      });
+      expect(host.querySelector('[data-testid="curve-control-handle"]')).toBeNull();
+      React.act(() => trace.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }));
+      const history = trace.history;
+      const point = host.querySelector('[data-curve-kind="point"][data-curve-index="0"]')!;
+      const svg = point.closest("svg")!;
+      pointer(point, "pointerdown", 10, 10); pointer(svg, "pointerup", 10, 10);
+      expect(trace.history).toBe(history);
+      expect(host.querySelectorAll('[data-testid="curve-control-handle"]')).toHaveLength(2);
+      expect(host.querySelector('[data-testid="curve-editor-controls"]')).toBeNull();
+      const handle = host.querySelector('[data-curve-kind="out"]')!;
+      const x = Number(handle.getAttribute("cx"));
+      pointer(handle, "pointerdown", x, 10); pointer(svg, "pointermove", x, 16); pointer(svg, "pointerup", x, 16);
+      expect(trace.curves?.[0].outer[0].out).toEqual({ x, y: 16 });
+      const curves = trace.curves;
+      const straightEdge = host.querySelector('[data-curve-kind="edge"][data-curve-index="1"]')!;
+      pointer(straightEdge, "pointerdown", 90, 50); pointer(svg, "pointerup", 90, 50);
+      const split = trace.curves!;
+      expect(split[0].outer).toHaveLength(5);
+      expect(split[0].outer[0].out).toEqual({ x, y: 16 });
+      React.act(() => svg.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 90, clientY: 50 })));
+      expect(trace.curves?.[0].outer).toHaveLength(4);
+      React.act(() => trace.undo()); expect(trace.curves).toEqual(split);
+      React.act(() => trace.undo()); expect(trace.curves).toEqual(curves);
+      const restored = trace.curves;
+      const edge = host.querySelector('[data-curve-kind="edge"]')!;
+      pointer(edge, "pointerdown", 50, 13); pointer(svg, "pointermove", 50, 27); pointer(svg, "pointerup", 50, 27);
+      expect(trace.curves).toBe(restored);
+      setExperimentalTools(true);
+      expect(host.querySelector('[data-testid="curve-editor-controls"]')).not.toBeNull();
+      setExperimentalTools(false);
+      expect(host.querySelector('[data-testid="curve-editor-controls"]')).toBeNull();
+      expect(trace.curves).toBe(restored);
+      expect(trace.history.index).toBe(history.index + 1);
+      React.act(() => trace.undo());
+      expect(trace.curves).toBeUndefined(); expect(trace.outline).toEqual(detected);
     } finally { React.act(() => root.unmount()); restoreCoordinates(); }
   });
 
   it.each(["auto", "range", "reconstruct", "reconstruct-edited"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -372,6 +459,7 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); }
   });
   it.each([false, true])("uses one Auto preview without compounding legacy presets, including recovery and edits (curves=%s)", async editableCurves => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
@@ -430,6 +518,7 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); }
   });
   it.each([false, true])("auto simplifies the current native curve source (future detections use curves=%s)", async editableCurves => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
@@ -454,6 +543,7 @@ describe("TraceCanvas edit history", () => {
   });
   it.each([{ editable: false, mode: "Line" }, { editable: false, mode: "Smooth curve" }, { editable: true, mode: "Line" }, { editable: true, mode: "Smooth curve" }])(
     "previews and repairs a selected section with calibration and one undo: $mode, editable $editable", async ({ editable, mode }) => {
+      setExperimentalTools(true);
       vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
       vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
       const restore = installIdentitySvgCoordinates(), host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
@@ -484,6 +574,7 @@ describe("TraceCanvas edit history", () => {
       } finally { React.act(() => root.unmount()); host.remove(); restore(); }
     });
   it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -1339,6 +1430,7 @@ describe("desktop point focus", () => {
   });
 
   it("focuses and deletes points in Edit contours", async () => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("innerWidth", 1440);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -1431,6 +1523,7 @@ describe("desktop point focus", () => {
 
 describe("touch-accessible trace tools", () => {
   it("uses mobile point tools, shows a magnifier, and gives pinch priority over a point drag", async () => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("innerWidth", 390);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -1480,6 +1573,7 @@ describe("touch-accessible trace tools", () => {
   });
 
   it("removes points by tapping, preserves a minimum triangle, and supports undo", async () => {
+    setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -1521,6 +1615,12 @@ describe("touch-accessible trace tools", () => {
       React.act(() => buttons[0].click());
       expect(trace!.mode).toBe("edit");
       expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
+      React.act(() => buttons[0].click());
+      expect(trace!.mode).toBe("remove");
+      setExperimentalTools(false);
+      expect(trace!.mode).toBe("edit");
+      expect(trace!.outline).toEqual(edited);
+      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
       expect(trace!.selection).not.toBeNull();
       expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();

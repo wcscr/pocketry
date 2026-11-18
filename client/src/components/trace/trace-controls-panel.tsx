@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
@@ -130,6 +131,7 @@ export function TraceControlsPanel({
 }: TraceControlsPanelProps): JSX.Element {
   const store = useTrace();
   const [restartRevision, setRestartRevision] = useState<number | null>(null);
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const inspector = useTraceInspector();
   const showSection = inspector?.showSection;
   const onCanvasInteraction = () => { inspector?.showCanvas(); onCanvasInteractionProp?.(); };
@@ -887,7 +889,7 @@ export function TraceControlsPanel({
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
           <TraceDetectionControls onReprocess={onReprocess} outlineActions={<>
-          {hasOutline && <TraceSymmetryTool />}
+          {advancedEditing && hasOutline && <TraceSymmetryTool />}
           <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" className="min-w-0 flex-1"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}
@@ -898,7 +900,7 @@ export function TraceControlsPanel({
           <HelpHint label="adding a manual contour">Start a contour you can trace by hand. Use it for a missed shape or a feature inside an existing contour, such as a belt clip, that needs a different pocket depth in Bin.</HelpHint>
           </div>
           <TraceOutlineImport onImported={onCanvasInteraction} />
-          {hasOutline && <TraceContourPositionTool />}
+          {advancedEditing && hasOutline && <TraceContourPositionTool />}
           <div className="flex items-center gap-1">
           <Button variant={store.mode === "edit" || store.mode === "remove" ? "secondary" : "outline"}
             size="sm" className="min-w-0 flex-1" disabled={!hasOutline || processing}
@@ -907,7 +909,7 @@ export function TraceControlsPanel({
             data-testid="button-edit-contour">
             <Spline className="h-4 w-4" />Edit outline
           </Button>
-          <HelpHint label="editing the outline">Move, add, or remove outline points to fix a missed edge or refine a small feature. With Editable curves enabled, use curve handles to adjust rounded edges.</HelpHint>
+          <HelpHint label="editing the outline">Click an edge to add a point, drag a point to move it, or right-click a point to remove it.</HelpHint>
           </div>
 
           <div className="border-t pt-3"><TraceCurveSettings onReprocess={onReprocess} /></div>
@@ -922,7 +924,7 @@ export function TraceControlsPanel({
             <RingList />
           </div>
           </>}>
-          {onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
+          {advancedEditing && onSmoothOutline && <div className="space-y-1.5 border-t pt-3">
             <div className="flex items-center gap-1"><Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={!!outlineCleanupUnavailable(store) || reviewingScale}
               data-testid="button-smooth-outline" onClick={() => { store.detectedOutlineReview.close(); onSmoothOutline(); onCanvasInteraction(); }}>
               <Spline className="h-4 w-4" />Smooth outline

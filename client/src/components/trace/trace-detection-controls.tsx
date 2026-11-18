@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { DetectedOutlineControls } from "./detected-outline-controls";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
@@ -29,6 +30,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
   /** Editing and contour controls precede the final restart action. */
   outlineActions?: ReactNode;
 }) {
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const [manualOpen, setManualOpen] = useState(false);
   const manualId = useId();
@@ -86,7 +88,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
   };
 
   const tuning = <>
-<div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
+    <div className={compact && advancedEditing ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
       <LabelledSlider id={compact ? "mobile-sensitivity" : "sensitivity"} label="Sensitivity"
         // Stored values are threshold bias; invert only the control so existing traces retain their settings.
         value={128 - (draftSensitivity ?? sensitivity)} min={-127} max={128} step={1}
@@ -97,14 +99,14 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         hint={compact ? undefined : trace.boundaryMethod !== "color"
           ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto. Higher includes more of the image. Updates on release and asks before replacing edits."
           : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
-      <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
+      {advancedEditing && <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
         disabled={processing || !!trace.curves} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
-        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
+        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />}
     </div>
     {children}
     <DetectedOutlineControls />
-    {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
+    {compact && advancedEditing && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
 
@@ -143,7 +145,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         <Settings2 className="h-4 w-4" />Manual detection settings
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
       </Button>
-      <HelpHint label="manual detection settings">Adjust sensitivity, point simplification, or smoothing when the automatic outline needs extra cleanup. Most traces won't need these settings.</HelpHint>
+      <HelpHint label="manual detection settings">Adjust sensitivity or compare the detected outline with the current contour.</HelpHint>
       </div>
       <div id={manualId} hidden={!manualOpen} className="space-y-3 rounded-md border p-3">{tuning}</div>
     </div>}

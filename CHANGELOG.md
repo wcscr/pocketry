@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Remove the Correct brushes from Trace. Edit outline now fits its point and curve controls to the canvas without scrolling.
+- Remove the Correct brushes from Trace. Edit outline now fits its controls without scrolling. Click an edge to add a point, drag a point to move it, or right-click to remove it. Editable curves adds draggable handles. Multi-select, section repair, smoothing, and contour transforms require experimental features.
 
 ## 1.12.4 — 2026-11-17
 

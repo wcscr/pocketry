@@ -17,6 +17,8 @@ export function useMobileContourEditor(options: {
   outline: Outline;
   /** Break coincident hit ties in favour of the actively selected contour. */
   preferredRing?: RingRef | null;
+  /** Mouse precision when this gesture handler also owns desktop point editing. */
+  mousePickRadius?: number;
   /** Clear point selection when the source photo or selected pocket changes. */
   selectionKey?: string | number | null;
   toLocal: (point: Point) => Point | null;
@@ -80,11 +82,13 @@ export function useMobileContourEditor(options: {
     const displayed = options.outline.map(shape => ({
       outer: shape.outer.map(project), holes: shape.holes.map(ring => ring.map(project)),
     }));
-    let vertex = nearestVertex(displayed, screen, 18);
-    let edge = nearestEdge(displayed, screen, 14);
+    const mouseRadius = event.pointerType === "mouse" ? options.mousePickRadius : undefined;
+    const vertexRadius = mouseRadius ?? 18, edgeRadius = mouseRadius ?? 14;
+    let vertex = nearestVertex(displayed, screen, vertexRadius);
+    let edge = nearestEdge(displayed, screen, edgeRadius);
     if (options.preferredRing) {
-      const preferredVertex = nearestVertex(displayed, screen, 18, options.preferredRing);
-      const preferredEdge = nearestEdge(displayed, screen, 14, options.preferredRing);
+      const preferredVertex = nearestVertex(displayed, screen, vertexRadius, options.preferredRing);
+      const preferredEdge = nearestEdge(displayed, screen, edgeRadius, options.preferredRing);
       if (preferredVertex && (!vertex || preferredVertex.distance <= vertex.distance)) vertex = preferredVertex;
       if (preferredEdge && (!edge || preferredEdge.distance <= edge.distance)) edge = preferredEdge;
     }
