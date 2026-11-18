@@ -1845,7 +1845,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onLostPointerCapture={event => { basicPocket.cancel(); curveEditor.lostCapture(event); }}
+        onLostPointerCapture={event => { basicPocket.cancel(); curveEditor.lostCapture(event); mobileEditor.lostCapture(event); }}
         onContextMenu={handleContextMenu}
       >
         <g

@@ -3,7 +3,7 @@
 This integration starts from `claude/outline-detection-pathologies` at
 `5aefd804`. It keeps the same dark-on-paper segmentation, TEED inference, and
 fallback decisions, and adds geometric preservation checks, source-photo
-sampling, and explicit user corrections. Four later changes are described
+sampling, and an experimental solver for user-supplied marks. Four later changes are described
 where they apply below: the sheet layout is read from the photo, paper no longer
 reaches into a tool through a narrow gap, the default smoothing fills dips
 without multiplying points, and small dips are bridged with a straight line
@@ -14,26 +14,15 @@ source-edge fitting stage.
 
 New sessions default to **Tool edges · white sheet**. Automatic background
 selection and Color contrast remain available; saved drafts retain their method.
-Sensitivity, point simplification, optional **Smooth outline**, and the
-**Detected outline** comparison are under **Manual detection settings**, below
-the contour list. **Editable curves** sits below the main outline actions.
+Sensitivity and the **Detected outline** comparison are under **Manual detection settings**, below the contour list. Turning on experimental features adds point simplification and **Smooth outline**. **Editable curves** sits below the main outline actions.
 See [the control guide](teed-outline-integration.md) for current interaction details.
 
 The automatic detector still receives Claude's copy with inferred sheet ink
-removed. It preserves the original input separately. **Correct → Add** or
-**Remove** supplies local tool/paper hard seeds to a bounded region solve using that
-original appearance. Tool marks permit additions; paper marks permit removals.
-Unmarked distant pixels retain the automatic proposal. Marks are checked again
-against the final contour before clearance. An unsatisfied mark produces an error
-and leaves the previous contour intact.
-
-The correction controls support mouse/touch strokes, cancellation of an unfinished
-stroke, Undo of a completed stroke, and **Clear correction marks**. **Done** hides
-marks while retaining their effect; each completed stroke re-detects. Undo manual contour edits before correcting a
-detection. Marks survive draft recovery and photo rotation; a new selected region
-clears them. Appearance alone still cannot distinguish all shadows, reflections,
-printing, or transparent parts. A stroke is an explicit constraint, not proof
-that the surrounding inferred boundary is correct.
+removed. It preserves the original input separately. In Trace, users adjust
+the result with **Edit outline**. The experimental **Correct** brushes can supply tool and paper marks. Standard re-detection starts from the photo.
+The diagnostic evaluator can still supply tool and paper marks to the
+experimental solver with `--hints`. It uses the original pixels around each
+mark and checks the result against the final contour before clearance.
 
 Sheet-print removal knows both printed layouts. v2 and v3 sheets share markers
 and dimensions but print different text in different places. After perspective
@@ -42,9 +31,8 @@ text in the stretches that only one layout prints; removal then uses that
 layout's areas alone. When the photo does not settle it (a tool covers those
 stretches, or the print is too faint), the areas of both layouts are used.
 Removal can still erase a short dark object wholly inside a text area or an
-object crossing a solid marker area. Correction can recover such material from
-the retained pixels, but automatic detection is still subject to those
-limitations.
+object crossing a solid marker area. Use **Edit outline** to restore the
+missing edge over the photo.
 
 In the ruled area, removal follows the 100 mm bar and its ticks through a
 shadow. A handle's shadow is as dark as a gray handle, so the bar inside it was
@@ -105,7 +93,7 @@ silhouette traced without smoothing. It is never shown; smoothing,
 simplification, and final curve cleanup are all checked against it. The
 **detected outline** is that silhouette after the bounded outward smoothing that
 removes pixel stair-steps. Compare and restore show it, and manual detail
-settings start from it, so neither brings the stair-steps back. With correction
+settings start from it, so neither brings the stair-steps back. In diagnostic runs with correction
 marks, the detected outline falls back to the material reference if smoothing
 would carry it across a mark.
 
@@ -123,7 +111,7 @@ reject a result they cannot certify within it.
 When a refinement is rejected, the fallbacks are tried in order: a conservative
 simplification without smoothing, the smoothed detected outline, and only then
 the material reference. Specks below the size limits are dropped in every case,
-except a small part the user marked as tool or a small hole marked as paper.
+except in diagnostic runs where a mark identifies a small tool part or hole.
 These checks protect detected material; they cannot recover material
 segmentation already missed. User clearance is applied afterward.
 
@@ -131,8 +119,8 @@ The default polish after cleanup (up to 0.2 mm) moves the boundary outward to
 fill dips and allows a quarter of that inward, so it rounds a ripple without
 shaving the tool. Its result is thinned again within the remaining allowance,
 which keeps the point count close to the cleaned outline's instead of tripling
-it. If the polish would cross a correction mark, the app keeps the detected
-outline and says so.
+it. In diagnostic runs, the detector keeps the detected outline if polishing
+would cross a correction mark.
 
 Before that polish, **outward straightening**
 (`shared/geometry/outline-straightening.ts`) replaces small dips with the

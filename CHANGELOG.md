@@ -5,6 +5,11 @@
 - Keep bright metal parts in a Tool edges trace when a stray line of sheet printing or shadow reaches the region's edge; such traces no longer fall back to Color contrast and lose the part.
 - Remove the calibration sheet's 100 mm bar where a tool's shadow lies across it, so long pieces of the bar no longer stay attached to the outline.
 
+## 1.12.5 — 2026-11-18
+
+- Simplify Trace’s Edit outline controls and keep them visible without scrolling. Click an edge to add a point, drag a point to move it, or right-click to remove it. Turn on Editable curves to shape an edge with handles.
+- Move Correct brushes, multi-select, section repair, manual smoothing, and contour transforms behind the experimental features switch. Find Correct under Manual detection settings or the mobile Adjust tray.
+
 ## 1.12.4 — 2026-11-17
 
 - Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.

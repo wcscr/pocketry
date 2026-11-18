@@ -1,7 +1,9 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { DetectedOutlineControls } from "./detected-outline-controls";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-import { ChevronDown, RotateCcw, Settings2 } from "lucide-react";
+import { correctionUnavailable } from "./correction-tools";
+import { Brush, ChevronDown, RotateCcw, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,13 +24,15 @@ export interface DetectionSettings {
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
-export function TraceDetectionControls({ onReprocess, compact = false, children, outlineActions }: {
+export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact = false, children, outlineActions }: {
   onReprocess: (settings: DetectionSettings) => void;
+  onCorrectOutline?: () => void;
   compact?: boolean;
   children?: ReactNode;
   /** Editing and contour controls precede the final restart action. */
   outlineActions?: ReactNode;
 }) {
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const [manualOpen, setManualOpen] = useState(false);
   const manualId = useId();
@@ -70,7 +74,8 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
       tolerancePx !== initialTraceState.tolerancePx || trace.smoothing !== initialTraceState.smoothing ||
       trace.detectionHints.length > 0 || settings.includeInteriorHoles !== includeInteriorHoles;
     const confirmRestart = settings.restart && trace.outline.length > 0 && (!switchingMethod || discardsSettings);
-    if (confirmRestart || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
+    // Standard re-detection discards brush marks. Experimental tuning reuses them.
+    if (confirmRestart || (!advancedEditing && trace.detectionHints.length > 0) || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
     else apply(settings);
   };
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };
@@ -84,8 +89,9 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     } else request({ sensitivity, includeInteriorHoles: include });
   };
 
+  const brushDisabled = correctionUnavailable(trace);
   const tuning = <>
-<div className={compact ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
+    <div className={compact && advancedEditing ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
       <LabelledSlider id={compact ? "mobile-sensitivity" : "sensitivity"} label="Sensitivity"
         // Stored values are threshold bias; invert only the control so existing traces retain their settings.
         value={128 - (draftSensitivity ?? sensitivity)} min={-127} max={128} step={1}
@@ -96,14 +102,20 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         hint={compact ? undefined : trace.boundaryMethod !== "color"
           ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto. Higher includes more of the image. Updates on release and asks before replacing edits."
           : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
-      <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
+      {advancedEditing && <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
         value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
         disabled={processing || !!trace.curves} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
-        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
+        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />}
     </div>
     {children}
+    {advancedEditing && onCorrectOutline && trace.region && <div className="flex items-center gap-1">
+      <Button variant="outline" size="sm" className="min-w-0 flex-1" onClick={onCorrectOutline} disabled={!!brushDisabled}>
+        <Brush className="h-4 w-4" />Correct
+      </Button>
+      <HelpHint label="experimental correction brushes">{brushDisabled ?? "Mark missing tool material with Add or unwanted background with Remove. Each stroke reruns detection and can be undone."}</HelpHint>
+    </div>}
     <DetectedOutlineControls />
-    {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
+    {compact && advancedEditing && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
 
@@ -142,13 +154,13 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         <Settings2 className="h-4 w-4" />Manual detection settings
         <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
       </Button>
-      <HelpHint label="manual detection settings">Adjust sensitivity, point simplification, or smoothing when the automatic outline needs extra cleanup. Most traces won't need these settings.</HelpHint>
+      <HelpHint label="manual detection settings">Adjust sensitivity or compare the detected outline with the current contour.</HelpHint>
       </div>
       <div id={manualId} hidden={!manualOpen} className="space-y-3 rounded-md border p-3">{tuning}</div>
     </div>}
     <div className="flex items-center gap-1 border-t pt-3"><Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing || !trace.imageUrl || !trace.region}
       onClick={() => restart()}><RotateCcw className="h-4 w-4" />Restart outline detection</Button>
-      <HelpHint label="restarting outline detection">Start over from the selected photo region when you want a fresh outline. Resets detection adjustments and corrections while keeping the photo, scale, and region. Undo restores the previous outline.</HelpHint>
+      <HelpHint label="restarting outline detection">Start over from the selected photo region when you want a fresh outline. Resets detection settings while keeping the photo, scale, and region. Undo restores the previous outline.</HelpHint>
     </div>
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
@@ -158,7 +170,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
           <DialogDescription>{switchingForHoles
             ? "Color contrast is needed to detect holes. This replaces your outline and edits; Undo restores them."
             : pendingDetection?.restart
-            ? `Start again from the photo inside the selected region. This replaces the outline and tool/paper corrections, resets Sensitivity to Auto and Simplification to ${initialTraceState.tolerancePx.toFixed(1)} px. Your photo, calibration, region and margin stay in place. Undo restores the previous outline and settings.`
+            ? `Start again from the photo inside the selected region. This replaces your outline and edits, resets Sensitivity to Auto and sets Simplification to ${initialTraceState.tolerancePx.toFixed(1)} px. Your photo, calibration, region and margin stay in place. Undo restores the previous outline and settings.`
             : "This replaces manual contour edits with a fresh detection. Undo restores your edited outline."}</DialogDescription>
         </DialogHeader>
         <Button onClick={() => { if (pendingDetection) apply(pendingDetection); }}>{switchingForHoles ? "Switch and include holes" : pendingDetection?.restart

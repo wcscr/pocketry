@@ -265,6 +265,9 @@ export const initialTraceState: TraceState = {
 export type TraceRefinementSettings = Pick<TraceState,
   "tolerancePx" | "smoothing" | "margin" | "calibration" | "calibrationSource" | "rulerLengthMm" | "rulerLengthInput">;
 
+/** Pointer previews, commits, and rollback all belong to the same history snapshot. */
+type ContourGestureSource = { outline: Outline; history: TraceState["history"] };
+
 export type TraceAction =
   | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string; autoSimplification?: AppliedOutlineSimplification }
   | { type: "SET_EDITABLE_CURVES"; enabled: boolean }
@@ -305,7 +308,7 @@ export type TraceAction =
   /** A committed edit: pushes onto the undo stack. */
   | { type: "USE_DETECTED_OUTLINE"; outline: Outline;
       expected: Pick<TraceState, "outline" | "rawOutline" | "calibration" | "margin" | "region" | "sourceRevision"> }
-  | { type: "OUTLINE_COMMITTED"; outline: Outline; label?: string; autoSimplification?: AppliedOutlineSimplification }
+  | { type: "OUTLINE_COMMITTED"; outline: Outline; gesture?: ContourGestureSource; label?: string; autoSimplification?: AppliedOutlineSimplification }
   /** Start a manually traced outer contour with four editable corners. */
   | { type: "ADD_CONTOUR" }
   /** Rings already placed in working-image pixels, taken beside the current outline or instead of it. */
@@ -316,7 +319,7 @@ export type TraceAction =
   /** An offset of the current edited contour and its physical setting. */
   | { type: "MARGIN_COMMITTED"; outline: Outline; margin: Margin }
   /** A mid-drag update: previews without touching the committed history. */
-  | { type: "OUTLINE_DRAGGING"; outline: Outline }
+  | { type: "OUTLINE_DRAGGING"; outline: Outline; gesture?: ContourGestureSource }
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "JUMP_TO_HISTORY"; index: number }
@@ -547,6 +550,9 @@ function retainedEditSelection(state: TraceState, outline: Outline): RingRef | n
 }
 
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
+  // A pointer event can be queued in the same render as Undo or a new source.
+  if ((action.type === "OUTLINE_DRAGGING" || action.type === "OUTLINE_COMMITTED") &&
+      action.gesture && action.gesture.history !== state.history) return state;
   // Polygon-only reshaping cannot silently bake editable curve sources. These
   // controls are disabled in the prototype; also reject stale async results.
   if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING", "SET_TOLERANCE"].includes(action.type)) return state;
@@ -883,7 +889,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     }
 
     case "OUTLINE_COMMITTED": {
-      const outline = syncHoleEdit(state.outline, action.outline, state.selection);
+      const outline = syncHoleEdit(action.gesture?.outline ?? state.outline, action.outline, state.selection);
       const current = state.history.stack[state.history.index];
       if (current?.outline === outline) return state;
       // Ring-list deletion keeps the exact surviving curve sources. Other
@@ -950,7 +956,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       };
 
     case "OUTLINE_DRAGGING":
-      return { ...state, outline: syncHoleEdit(state.outline, action.outline, state.selection) };
+      return { ...state, outline: syncHoleEdit(action.gesture?.outline ?? state.outline, action.outline, state.selection) };
 
     case "UNDO": {
       if (state.history.index <= 0) return state;
