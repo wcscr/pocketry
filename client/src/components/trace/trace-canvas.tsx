@@ -1,6 +1,6 @@
 import { outlineToPathData } from "@/lib/export/svg";
 import { CorrectButton, CorrectionPanButton, CorrectionTools, type CorrectionTool } from "./correction-tools";
-import type { DetectionHint } from "@shared/geometry/detection-hints";
+import { closesAddLoop, type DetectionHint } from "@shared/geometry/detection-hints";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { pointInRing } from "@shared/geometry/rings";
@@ -134,12 +134,14 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
   const correctingPoints = correctionMode === "points";
   const correctionBrush = correctionMode === "tool" || correctionMode === "paper" ? correctionMode : null;
   const correctionStroke = useRef<DetectionHint | null>(null);
+  const submittedStroke = useRef<DetectionHint | null>(null);
   const correctionPointer = useRef<number | null>(null);
   const [strokePreview, setStrokePreview] = useState<DetectionHint | null>(null);
   const [brushPoint, setBrushPoint] = useState<Point | null>(null);
   const cancelStroke = () => { correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null); setBrushPoint(null); };
   const finishCorrection = () => {
     cancelStroke();
+    submittedStroke.current = null;
     if (correcting) store.dispatch({ type: "SET_MODE", mode: "pan" });
   };
   const correctionUnavailable = store.processing ? "Wait for detection to finish."
@@ -342,6 +344,13 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
   // even when the preference for future detections is point mode.
   const cleanupUsesCurves = store.editableCurves || !!store.curves;
   const cleanupEntry = store.history.stack[store.history.index];
+  const acceptedAdd = submittedStroke.current?.kind === "tool" && submittedStroke.current === store.detectionHints.at(-1);
+  const addFeedback = useMemo(() => {
+    if (!acceptedAdd) return undefined;
+    const previous = history.stack[history.index - 1]?.outline;
+    return previous && JSON.stringify(previous) === JSON.stringify(outline)
+      ? "This area was already included in the pocket." : "Your mark is included in the pocket.";
+  }, [acceptedAdd, history, outline]);
   const appliedSimplification = useMemo(() => cleanupEntry?.autoSimplification &&
     (cleanupEntry.outline === outline || JSON.stringify(cleanupEntry.outline) === JSON.stringify(outline))
     ? cleanupEntry.autoSimplification : undefined, [cleanupEntry, outline]);
@@ -594,9 +603,10 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
     }
     if (correctionBrush && event.button === 0) {
       if (correctionUnavailable || brushUnavailable || correctionStroke.current) return;
-      const p = toImage(event.clientX, event.clientY);
-      if (!p || !region || p.x < region.x || p.y < region.y || p.x > region.x + region.width || p.y > region.y + region.height) return;
+      const p = brushPosition(event);
+      if (!p) return;
       const hint: DetectionHint = { kind: correctionBrush, points: [p], radius: brushRadius };
+      submittedStroke.current = null;
       correctionPointer.current = event.pointerId;
       correctionStroke.current = hint; setStrokePreview(hint);
       event.currentTarget.setPointerCapture(event.pointerId); return;
@@ -782,18 +792,26 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
     viewport.handlers.onPointerDown(event);
   };
 
+  const brushPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const p = toImage(event.clientX, event.clientY);
+    return p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height ? p : null;
+  };
+  const extendStroke = (hint: DetectionHint, p: Point | null, minDistance: number): DetectionHint => {
+    if (!p || hint.points.length >= 4096) return hint;
+    const last = hint.points[hint.points.length - 1], distance = Math.hypot(p.x - last.x, p.y - last.y);
+    if (!distance || distance < minDistance) return hint;
+    const next: DetectionHint = { kind: hint.kind, radius: hint.radius, points: [...hint.points, p] };
+    if (closesAddLoop(next, viewport.transform.scale)) next.fill = true;
+    return next;
+  };
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (correctionBrush) {
-      const p = toImage(event.clientX, event.clientY);
-      setBrushPoint(p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height ? p : null);
-    }
+    const brush = correctionBrush ? brushPosition(event) : null;
+    if (correctionBrush) setBrushPoint(brush);
     const hint = correctionStroke.current;
     if (hint) {
       if (event.pointerId !== correctionPointer.current) return;
-      const p = toImage(event.clientX, event.clientY), last = hint.points[hint.points.length - 1];
-      if (p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height && hint.points.length < 4096 && Math.hypot(p.x-last.x,p.y-last.y) >= hint.radius/2) {
-        const next = { ...hint, points: [...hint.points, p] }; correctionStroke.current = next; setStrokePreview(next);
-      }
+      const next = extendStroke(hint, brush, hint.radius / 2);
+      correctionStroke.current = next; setStrokePreview(next);
       return;
     }
     if (pointSelection.move(event)) return;
@@ -900,7 +918,12 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
       if (event.pointerId !== correctionPointer.current) return;
       correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null);
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-      if (event.type === "pointerup") onCorrection?.([...store.detectionHints, hint]);
+      if (event.type === "pointerup") {
+        // Pointer-up can land back at the start without a final pointer-move (especially on touch).
+        const completed = extendStroke(hint, brushPosition(event), 0);
+        submittedStroke.current = completed;
+        onCorrection?.([...store.detectionHints, completed]);
+      }
       return;
     }
     if (pointSelection.end(event)) return;
@@ -1046,6 +1069,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
           imageAlignment={store.imageAlignment}
           imageCrop={imageCrop}
           transform={viewport.transform}
+          highlightPocket={!!correctionBrush}
           outline={cleanup.open || detectedPreview ? [] : outline}
           estimatedEdgeRegions={store.estimatedEdgeRegions}
           selection={detectedReview.showing || correctionMode ? null : selection}
@@ -1093,8 +1117,8 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
               <path d={outlineToPathData(detectedPreview)} fill="none" stroke="#10b981" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
             </g>}{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
             {correctionMode && [...store.detectionHints, ...(strokePreview ? [strokePreview] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
-              points={h.points.concat(h.points.length === 1 ? h.points : []).map(p => `${p.x},${p.y}`).join(" ")}
-              fill="none" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={.7} pointerEvents="none" />)}
+              points={(h.fill || h.points.length === 1 ? [...h.points, h.points[0]] : h.points).map(p => `${p.x},${p.y}`).join(" ")}
+              fill={h.fill ? "#16a34a" : "none"} fillOpacity={.28} fillRule="evenodd" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={.7} pointerEvents="none" />)}
             {correctionBrush && brushPoint && !processing && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld &&
               <circle data-testid="correction-brush" cx={brushPoint.x} cy={brushPoint.y} r={brushRadius}
                 fill={correctionMode === "tool" ? "#16a34a33" : "#dc262633"} stroke={correctionMode === "tool" ? "#16a34a" : "#dc2626"}
@@ -1158,6 +1182,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
             </>}
           </CanvasToolbar>
           {editHost && correctionMode && createPortal(<CorrectionTools tool={correctionMode} busy={processing}
+            addFeedback={addFeedback}
             pointUnavailable={pointUnavailable} brushUnavailable={brushUnavailable} hasMarks={store.detectionHints.length > 0}
             onTool={tool => { cancelStroke(); setCorrectionTool(tool); }} onClear={() => onCorrection?.([])}
             onDone={finishCorrection}>

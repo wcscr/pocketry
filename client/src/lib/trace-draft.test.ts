@@ -30,7 +30,7 @@ beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 describe("browser-local Trace recovery", () => {
   it("recovers a correction session with its marks and the ordinary canvas tool", () => {
     const trace = calibrated();
-    const hints = [{ kind: "tool" as const, points: [{ x: 10, y: 20 }], radius: 2 }];
+    const hints = [{ kind: "tool" as const, points: [{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 30, y: 40 }], radius: 2, fill: true as const }];
     const snapshot = traceDraftSnapshot({ ...trace, mode: "correct", detectionHints: hints })!;
     const recovered = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: traceDraftSchema.parse(snapshot) });
     expect(recovered.mode).toBe("pan");

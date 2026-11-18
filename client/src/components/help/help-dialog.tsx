@@ -80,6 +80,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
               and amber estimated edges. In <strong>Correct</strong>, pick points or drag a box around them, then drag the selection to move it.
               Choose <strong>Add area</strong> to brush in missing material or <strong>Remove area</strong> to brush away background.
+              To include a gap between handles, circle it with <strong>Add area</strong> and overlap both handles.
+              Release when the loop fills green. Purple shading shows the pocket.
               Each stroke re-detects and can be undone; <strong>Done</strong> keeps the corrections.
               Undo manual outline edits before returning to brush corrections.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.

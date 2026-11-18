@@ -9,6 +9,7 @@ export type CorrectionTool = "points" | "tool" | "paper" | "pan";
 interface CorrectionToolsProps {
   tool: CorrectionTool;
   busy: boolean;
+  addFeedback?: string;
   pointUnavailable?: string;
   brushUnavailable?: string;
   hasMarks: boolean;
@@ -19,10 +20,10 @@ interface CorrectionToolsProps {
 }
 
 /** Keep point selection and the two detection brushes in the same correction session. */
-export function CorrectionTools({ tool, busy, pointUnavailable, brushUnavailable, hasMarks, onTool, onClear, onDone, children }: CorrectionToolsProps) {
+export function CorrectionTools({ tool, busy, addFeedback, pointUnavailable, brushUnavailable, hasMarks, onTool, onClear, onDone, children }: CorrectionToolsProps) {
   const guidance: Record<CorrectionTool, string> = {
     points: "Pick points or drag a box around them. Drag a selected point to move the group.",
-    tool: "Brush over missing tool material to add it to the outline.",
+    tool: "Purple shows the pocket. Brush to add material, or draw a loop to fill a gap.",
     paper: "Brush over unwanted background to remove it from the outline.",
     pan: "Drag to move the photo.",
   };
@@ -41,7 +42,9 @@ export function CorrectionTools({ tool, busy, pointUnavailable, brushUnavailable
         className={tool === "paper" ? "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200" : undefined}
         hint={brushUnavailable ?? guidance.paper} onClick={() => onTool("paper")}>Remove area</CorrectionButton>
     </div>
-    <p className="px-1 py-1 text-xs leading-relaxed text-muted-foreground" role="status">{busy ? "Updating the outline…" : guidance[tool]}</p>
+    <p className="px-1 py-1 text-xs leading-relaxed text-muted-foreground" role="status">
+      {busy ? "Updating the outline…" : tool === "tool" && addFeedback ? `${addFeedback} Purple shows the full pocket area.` : guidance[tool]}
+    </p>
     {brushUnavailable && <p className="px-1 pb-1 text-xs text-muted-foreground">{brushUnavailable}</p>}
     <div className="flex flex-wrap items-center gap-1.5 empty:hidden">{children}</div>
     {hasMarks && <CorrectionButton icon={Trash2} label="Clear correction marks" disabled={busy || !!brushUnavailable}

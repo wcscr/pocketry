@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Correct outlines by selecting and moving points together, or switch directly to an Add area or Remove area brush.
+- Correct outlines by moving selected points or brushing areas in and out. Circle a gap with Add area to include its interior in the pocket.
 
 - Edit outlines directly on the photo. Smaller point markers reveal the edge, and advanced tools stay tucked away beside or below the photo.
 

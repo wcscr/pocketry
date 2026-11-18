@@ -42,6 +42,8 @@ export interface TraceSceneProps {
   imageCrop?: Rect | null;
   transform: SceneTransform;
   outline: Outline;
+  /** Make the area handed off to Bin visible while brushing. */
+  highlightPocket?: boolean;
   estimatedEdgeRegions?: readonly Ring[];
   selection: RingRef | null;
   region: Rect | null;
@@ -136,6 +138,7 @@ export function TraceScene({
   imageCrop = null,
   transform,
   outline,
+  highlightPocket = false,
   estimatedEdgeRegions = [],
   selection,
   region,
@@ -222,7 +225,7 @@ export function TraceScene({
             {outline.flatMap(part => part.holes).map((ring, index) => <path key={index} d={ringToPath(ring)} fill="black" />)}
           </mask></defs>
           <path d={outlineToPathData(outline.map(part => ({ ...part, holes: [] })))} fillRule="nonzero"
-            mask={`url(#${sceneId}-holes)`} className="fill-fuchsia-500/10"
+            mask={`url(#${sceneId}-holes)`} className={highlightPocket ? "fill-fuchsia-500/25" : "fill-fuchsia-500/10"}
             style={{ opacity: busy ? 0.4 : 1, transition: "opacity 120ms" }} data-testid="detected-contour-fill" />
         </>}
 

@@ -68,7 +68,9 @@ group. Drag a selected point to move the group. Clear and delete actions appear
 with a selection. These edits can be undone.
 
 Choose **Add area** to brush over missing tool material in green or **Remove area**
-to brush over unwanted background in red. Each completed stroke updates detection
+to brush over unwanted background in red. Purple shading shows what the pocket includes.
+To include the space between two handles, draw an Add area loop that overlaps both
+handles. When the green interior appears, release to fill it. Each completed stroke updates detection
 with the current settings and creates one Undo step. A region without an outline
 starts with **Add area**. After manual geometry edits, Undo those edits to enable
 brush detection again. Selecting points alone keeps both brushes available.

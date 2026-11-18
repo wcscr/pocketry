@@ -28,6 +28,16 @@ it("rejects excessive correction work before solving", () => {
   const points=Array.from({length:4096},(_,i)=>({x:i%2?0:40,y:i%2?0:40}));
   expect(()=>buildRegionEvidence(image,field,Array.from({length:4},()=>({kind:"tool" as const,points,radius:2})))).toThrow(/complex/);
 });
+it("fills the concave loop in the score field's coordinates and detects conflicting marks inside", () => {
+  const shifted = { ...field, offsetX: 200, offsetY: 50, scale: .5, scaleY: .25 };
+  const xy = (x: number, y: number) => ({ x: x / shifted.scale + shifted.offsetX, y: y / shifted.scaleY + shifted.offsetY });
+  const loop = { kind: "tool" as const, fill: true as const, radius: 1,
+    points: [xy(3, 3), xy(35, 3), xy(35, 12), xy(14, 12), xy(14, 34), xy(3, 34)] };
+  const result = solveRegionEvidence(shifted, buildRegionEvidence(image, shifted, [loop]));
+  expect(result.score[24*40+8]).toBeGreaterThanOrEqual(128);
+  expect(result.score[24*40+24]).toBeLessThan(128);
+  expect(() => buildRegionEvidence(image, shifted, [loop, { kind: "paper", points: [xy(8, 24)], radius: 1 }])).toThrow(/overlap/);
+});
 it("include-only corrections never delete existing material, and exclude-only never add it",()=>{
   const score=Uint8Array.from(field.score,(_,i)=>i%40<20?255:0), original={...field,score};
   for(const kind of ["tool","paper"] as const){

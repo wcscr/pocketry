@@ -8,3 +8,10 @@ it("rejects a lost stroke middle even if both endpoints survived",()=>{
 it("rejects paper marks filled by outside-only hole removal",()=>{
  expect(()=>validateDetectionHints(outline,[{kind:"paper",points:[{x:5,y:5}],radius:1}])).toThrow(/paper stroke/);
 });
+it("rejects a hole left inside an Add loop even when the entire brush line is included", () => {
+  const square = (low: number, high: number) => [{ x: low, y: low }, { x: high, y: low }, { x: high, y: high }, { x: low, y: high }];
+  const shape = [{ outer: square(0, 50), holes: [square(20, 25).reverse()] }];
+  const hint = { kind: "tool" as const, points: square(10, 40), radius: 1 };
+  expect(() => validateDetectionHints(shape, [hint])).not.toThrow();
+  expect(() => validateDetectionHints(shape, [{ ...hint, fill: true }])).toThrow(/fill the entire loop/);
+});
