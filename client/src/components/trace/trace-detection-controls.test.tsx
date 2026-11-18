@@ -1,4 +1,6 @@
 import * as React from "react";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
+import { setExperimentalTools } from "./trace-experimental.test-support";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { initialTraceState, TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
@@ -12,7 +14,11 @@ class NoopResizeObserver implements ResizeObserver {
   disconnect() {}
 }
 
-afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => {
+  setExperimentalTools(false);
+  vi.unstubAllGlobals();
+  document.body.replaceChildren();
+});
 
 it("makes editable curves discoverable and opt-in, with undoable conversion and recovery", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -193,8 +199,10 @@ it.each([false, true])("names point reduction consistently in drawer and compact
   const root = createRoot(host);
   try {
     await React.act(async () => {
-      root.render(<TraceProvider><TraceDetectionControls compact={compact} onReprocess={() => {}} /></TraceProvider>);
+      root.render(<ExperimentalFeaturesProvider><TraceProvider><TraceDetectionControls compact={compact} onReprocess={() => {}} /></TraceProvider></ExperimentalFeaturesProvider>);
     });
+    expect(host.querySelector('[aria-label="Simplification"]')).toBeNull();
+    setExperimentalTools(true);
     const slider = host.querySelector(`[id="${compact ? "mobile-detail" : "detail"}"]`);
     expect(slider?.getAttribute("aria-label")).toBe("Simplification");
     expect(host.textContent).not.toContain("Higher values use fewer points and may omit small features");

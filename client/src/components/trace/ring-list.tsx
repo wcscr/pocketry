@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { Circle, Square, Trash2 } from "lucide-react";
@@ -31,6 +32,7 @@ export function RingList(): JSX.Element {
 }
 
 function RingListContent(): JSX.Element {
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const openMenu = useContourContextMenu();
   const { outline, curves, selection, calibration, region, processing, sourceRevision, dispatch } = useTrace();
   const [changingRole, setChangingRole] = useState(false);
@@ -196,7 +198,7 @@ function RingListContent(): JSX.Element {
     </ul>
       <p className="text-xs text-muted-foreground">Pocket cuts material. Hole keeps material inside a pocket; crossing its edge makes a notch.</p>
       {roleError && <p role="alert" className="text-xs text-destructive">{roleError}</p>}
-      <div className="flex items-center gap-1">
+      {advancedEditing && <div className="flex items-center gap-1">
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
           <Button size="sm" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 py-1.5 leading-tight" aria-label="Remove all holes" disabled={!outline.some((shape) => shape.holes.length)}
             onClick={() => { dispatch({ type: "OUTLINE_COMMITTED", outline: outline.map((shape) => ({ ...shape, holes: [] })), label: "Remove all interior holes" }); dispatch({ type: "SELECT_RING", selection: null }); }}>
@@ -208,7 +210,7 @@ function RingListContent(): JSX.Element {
           </Button>
         </div>
         <HelpHint label="contour cleanup">Remove all holes fills interior openings. Specks are separate shapes smaller than 2 mm². Removal can be undone.</HelpHint>
-      </div>
+      </div>}
     </div>
   );
 }

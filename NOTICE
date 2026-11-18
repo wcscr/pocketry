@@ -157,9 +157,9 @@ respective ownership.
 README screenshots — project-owned documentation
 ================================================================================
 
-`docs/images/trace-outline.jpg` was captured on 2026-10-08 from Pocketry's
-current default Workflow + properties layout in headless Chrome at 1600 x 1000.
-It demonstrates a fresh trace of the project's original air-duster photograph.
+`docs/images/trace-outline.jpg` was captured on 2026-11-18 from Pocketry's
+Workflow + properties layout in headless Chrome at 1440 x 900. It shows the
+standard Edit outline controls on a fresh trace of the original Wolfbox air-duster photograph.
 
 `docs/images/bin-layout.jpg` and `docs/images/ruler-check.jpg` were captured in
 the same UI after importing the exact contributor-supplied printed-bin project:

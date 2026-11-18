@@ -1,5 +1,5 @@
 import { distanceToSegment } from "@shared/geometry/rings";
-import type { DetectionHint } from "@shared/geometry/detection-hints";
+import { MAX_DETECTION_HINTS, MAX_HINT_POINTS, type DetectionHint } from "@shared/geometry/detection-hints";
 import { scoreFromEdgeMask } from "./edge-mask";
 import type { ImageLike, ScoreField } from "./types";
 
@@ -11,7 +11,7 @@ export function buildRegionEvidence(
 ): RegionEvidence {
   const { width, height, scale, offsetX, offsetY } = field;
   const scaleY = field.scaleY ?? scale, count = width * height;
-  if (count > 4_194_304 || hints.length > 100 || !(scale > 0) || !(scaleY > 0)) {
+  if (count > 4_194_304 || hints.length > MAX_DETECTION_HINTS || !(scale > 0) || !(scaleY > 0)) {
     throw new Error("Detection correction is too large");
   }
   const proposal = Uint8Array.from(field.score, v => v >= field.iso ? 1 : 0);
@@ -27,7 +27,7 @@ export function buildRegionEvidence(
   // A work budget also bounds imported or very long, overlapping scribbles.
   let remaining = 20_000_000;
   for (const hint of hints) {
-    if (!Number.isFinite(hint.radius) || hint.radius <= 0 || hint.points.length < 1 || hint.points.length > 4096 ||
+    if (!Number.isFinite(hint.radius) || hint.radius <= 0 || hint.points.length < 1 || hint.points.length > MAX_HINT_POINTS ||
       hint.points.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error("Invalid correction mark");
     // A sub-pixel stroke must still seed at least one model pixel.
     const radius = Math.max(hint.radius, .51 * Math.hypot(1 / scale, 1 / scaleY));

@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
@@ -46,6 +47,7 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
   onImported?: () => void;
 }): JSX.Element {
   const { dispatch, outline, curves, margin, imageSize, calibration, region, perspectiveCorrection } = useTrace();
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const keyboard = useKeyboardViewport();
   const [svgText, setSvgText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -146,8 +148,9 @@ function TraceOutlineImportDialog({ blocked, onClose, onImported }: {
             ? "It matches this photo, so its contours keep their positions."
             : placed.fit
               ? `It will be placed at true size, turned ${placed.fit.degrees.toFixed(1)}° to fit the current outline (typical gap ${mmPerPx !== null
-                ? `${(placed.fit.typicalGapPx * mmPerPx).toFixed(2)} mm` : `${placed.fit.typicalGapPx.toFixed(1)} px`}). Move & rotate outline adjusts it afterward.`
-              : `It will be placed at true size in the center of the ${region ? "region" : "photo"}. Move & rotate outline adjusts it afterward.`}
+                ? `${(placed.fit.typicalGapPx * mmPerPx).toFixed(2)} mm` : `${placed.fit.typicalGapPx.toFixed(1)} px`}).`
+              : `It will be placed at true size in the center of the ${region ? "region" : "photo"}.`}
+              {advancedEditing && placed.placement !== "photo" && " Move & rotate outline adjusts it afterward."}
         </p>}
         {placed?.crossesItself && <p role="status" className="text-xs text-amber-700 dark:text-amber-300" data-testid="import-outline-crossing">
           This outline crosses or touches itself. It is imported as drawn; repair it with Edit outline.
