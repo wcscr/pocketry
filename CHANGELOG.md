@@ -5,8 +5,8 @@
 ## 1.13.0 — 2026-11-17
 
 - Edit outline points directly on the photo or select and move several together in Correct.
-- Trace a recess or bridge a gap with one Edge brush stroke. Adjust the brush width in pixels or close a loop to fill an area.
-- Adjust simplification on editable curves after hand edits and sensitivity changes. Undo restores the original curve handles.
+- Trace a recess or bridge a gap with an adjustable Edge brush. Preview the pocket, switch sides, or fill a closed loop.
+- Adjust simplification on editable curves, including overlapping pockets, after hand edits and sensitivity changes. Undo restores the original curve handles.
 
 ## 1.12.4 — 2026-11-17
 

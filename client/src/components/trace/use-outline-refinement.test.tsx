@@ -112,6 +112,29 @@ describe("useOutlineRefinement", () => {
     } finally { mounted.unmount(); }
   });
 
+  it("simplifies overlapping native pockets and keeps their shared hole and Undo intact", async () => {
+    const mounted = mountHook(async outline => outline), { store } = mounted;
+    const rect = (x: number, y: number, size: number) => [
+      {x,y}, {x:x+size/2,y}, {x:x+size,y}, {x:x+size,y:y+size/2},
+      {x:x+size,y:y+size}, {x:x+size/2,y:y+size}, {x,y:y+size}, {x,y:y+size/2},
+    ];
+    const hole = rect(55, 35, 15).reverse();
+    const source = curvesFromOutline([{outer:rect(0,0,100),holes:[hole]},
+      {outer:rect(30,10,85),holes:[[...hole.slice(1),hole[0]]]}]);
+    try {
+      React.act(() => store().dispatch({type:"CURVES_COMMITTED",curves:source,label:"Edit overlapping pockets"}));
+      const original = store().curves;
+      await React.act(async () => store().dispatch({type:"SET_TOLERANCE",tolerancePx:3}));
+      expect(store().tolerancePx).toBe(3);
+      expect(store().curves!).toHaveLength(2);
+      expect(store().curves![0].outer.length).toBeLessThan(8);
+      expect(store().curves![0].holes[0].length).toBeLessThan(8);
+      expect(store().curves![1].holes[0]).toBe(store().curves![0].holes[0]);
+      React.act(() => store().undo());
+      expect(store().curves).toEqual(original);
+    } finally { mounted.unmount(); }
+  });
+
   it("cancels pending manual refinement when a fresh detection takes over", async () => {
     let finish!: (outline: Outline) => void;
     const refiner = vi.fn<OutlineRefiner>(() => new Promise(resolve => { finish = resolve; }));

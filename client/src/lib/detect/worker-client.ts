@@ -1,3 +1,5 @@
+import type { CurveDetailRequest } from "@shared/geometry/refine-curve-detail";
+import type { CurveOutline } from "@shared/geometry/curves";
 import type { ReprojectionRequest } from "./reproject";
 import { createWorkerClient, type WorkerClient } from "../worker/client";
 import { WorkerCancelledError, type MessageEndpoint } from "../worker/protocol";
@@ -53,6 +55,9 @@ export function createDetectionClient(spawn: () => MessageEndpoint) {
         return { payload: { image: { width: image.width, height: image.height, data }, options: wireOptions }, transfer: [data.buffer] };
       }, signal);
     },
+    refineCurves(payload: CurveDetailRequest, signal?: AbortSignal): Promise<CurveOutline> {
+      return invoke("refineCurves", () => ({ payload }), signal);
+    },
     reconstruct(payload: ReconstructionRequest, signal?: AbortSignal): Promise<ReconstructionResult> {
       return invoke("reconstruct", () => ({ payload }), signal);
     },
@@ -76,6 +81,7 @@ const detector = createDetectionClient(() =>
 
 export const detectInWorker = detector.detect;
 
+export const refineCurvesInWorker = detector.refineCurves;
 export const reconstructInWorker = detector.reconstruct;
 export const simplifyInWorker = detector.simplify;
 export const symmetryInWorker = detector.symmetry;

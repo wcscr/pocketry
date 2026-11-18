@@ -80,8 +80,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
               and amber estimated edges. In <strong>Correct</strong>, pick points or drag a box around them, then drag the selection to move it.
               With <strong>Edge brush</strong>, trace from one place on the outline to another. Follow the inside edges of the handles
-              in a single stroke to create a recess, or draw across the gap to include it. The green line shows the new edge.
-              Adjust <strong>Brush width</strong> in pixels. Circle a region to fill it or use <strong>Remove area</strong> to mark background.
+              in a single stroke to create a recess, or draw across the gap to include it. Release to preview the pocket. Use <strong>Other side</strong> to switch sides, then <strong>Apply edge</strong> to save.
+              Adjust <strong>Brush width</strong> in pixels. Circle an area to fill it. If the loop also joins two edges, choose <strong>Fill loop</strong> or <strong>Preview edge</strong>. Use <strong>Remove area</strong> to mark background.
               Purple shading shows the pocket. Undo reverses a stroke and <strong>Done</strong> keeps your work.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
               With Tool edges selected, confirm switching to <strong>Color contrast</strong>{" "}

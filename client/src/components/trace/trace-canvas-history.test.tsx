@@ -1624,7 +1624,7 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
     await React.act(async()=>root.render(<TraceProvider><Probe/><TooltipProvider><TraceCanvas onReprocess={()=>{}} onCorrection={correct}/></TooltipProvider></TraceProvider>));
     React.act(()=>{
       trace!.dispatch({type:"SOURCE_LOADED",imageUrl:"data:image/png;base64,AA==",fileName:"tool"});
-      trace!.dispatch({type:"SOURCE_READY",imageSize:{width:100,height:100}});
+      trace!.dispatch({type:"SOURCE_READY",imageSize:{width:160,height:160}});
       trace!.dispatch({type:"SET_REGION",region:{x:0,y:0,width:100,height:100}});
       trace!.dispatch({type:"DETECTED",imageUrl:"data:image/png;base64,AA==",outline:detected,rawOutline:detected,svg:"",region:null});
     });
@@ -1639,6 +1639,11 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
       const event=new MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y});
       Object.defineProperties(event,{pointerType:{value:pointerType},pointerId:{value:id}});svg.dispatchEvent(event);
     });
+    const action = (name: string) => {
+      const button = Array.from(host.querySelectorAll("button")).find(b => b.textContent === name);
+      expect(button, name).toBeDefined();
+      React.act(() => button!.click());
+    };
     expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(4);
     const historyIndex = trace!.history.index;
     for (const x of [10, 90]) { pointer("pointerdown",x,10); pointer("pointerup",x,10); }
@@ -1670,11 +1675,23 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
     expect(host.querySelector('[data-testid="edge-joins"]')).not.toBeNull();
     expect(host.querySelector('[data-testid="correction-brush"]')?.getAttribute("r")).toBe("16");
     pointer("pointerup",88,75);
+    expect(trace!.history.index).toBe(historyIndex);
+    const contourPath = () => host.querySelector('[data-testid="detected-contour-stroke"]')!.getAttribute("d");
+    const proposed = contourPath();
+    pointer("pointerdown",40,40); pointer("pointermove",45,50); pointer("pointerup",45,50);
+    expect(contourPath()).toBe(proposed);
+    expect(trace!.history.index).toBe(historyIndex);
+    action("Other side");
+    expect(contourPath()).not.toBe(proposed);
+    action("Other side");
+    expect(contourPath()).toBe(proposed);
+    action("Apply edge");
     expect(trace!.outline[0].outer).toContainEqual({x:70,y:45});
     expect(trace!.history.index).toBe(historyIndex+1);
     expect(correct).not.toHaveBeenCalled();
     const firstEdge = trace!.outline;
     pointer("pointerdown",10,20); pointer("pointermove",25,45); pointer("pointerup",10,75);
+    action("Apply edge");
     expect(trace!.outline[0].outer).toContainEqual({x:25,y:45});
     React.act(()=>trace!.undo());
     expect(trace!.outline).toEqual(firstEdge);
@@ -1683,6 +1700,27 @@ it.each(["mouse", "touch"])("selects points and applies correction brushes with 
     React.act(()=>trace!.redo());
     expect(trace!.outline).toEqual(firstEdge);
     React.act(()=>trace!.undo());
+    // A manual boundary follows the pointer beyond the detection box, within the photo.
+    pointer("pointerdown",90,24); pointer("pointermove",97,30); pointer("pointermove",115,46);
+    pointer("pointermove",97,67); pointer("pointerup",90,73); action("Apply edge");
+    expect(Math.max(...trace!.outline[0].outer.map(p => p.x))).toBe(115);
+    React.act(() => trace!.undo());
+    pointer("pointerdown",90,24); pointer("pointermove",97,30); pointer("pointermove",165,46);
+    pointer("pointermove",97,67); pointer("pointerup",90,73);
+    expect(trace!.outline).toEqual(detected);
+    expect(host.textContent).toContain("canceled at the photo boundary");
+    const nearLoop = () => {
+      pointer("pointerdown",30,90); pointer("pointermove",32,64); pointer("pointermove",56,46);
+      pointer("pointermove",72,69); pointer("pointermove",59,81); pointer("pointerup",35,90);
+    };
+    nearLoop();
+    expect(correct).not.toHaveBeenCalled();
+    expect(trace!.history.index).toBe(historyIndex);
+    action("Preview edge"); action("Cancel");
+    expect(trace!.outline).toEqual(detected);
+    nearLoop(); action("Fill loop");
+    expect(correct.mock.lastCall![0][0]).toMatchObject({fill:true, kind:"tool"});
+    correct.mockClear();
     pointer("pointerdown",20,20); pointer("pointermove",60,20); pointer("pointermove",60,60); pointer("pointermove",20,60); pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledWith([{kind:"tool",points:[{x:20,y:20},{x:60,y:20},{x:60,y:60},{x:20,y:60},{x:20,y:20}],radius:16,fill:true}]);
     pointer("pointerdown",20,20);pointer("pointermove",30,30);pointer("pointercancel",30,30);

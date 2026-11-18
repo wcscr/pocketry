@@ -1,16 +1,9 @@
-import { ensureOrientation } from "@shared/geometry/rings";
+import { ensureOrientation, traceRingKey } from "@shared/geometry/rings";
 import { getRing, removeRing } from "./outline";
 import type { Outline, Ring, RingRef } from "@shared/geometry/types";
 import type { CurveOutline, CurveRing } from "@shared/geometry/curves";
 
-/** A canonical cyclic ring key, independent of winding and starting vertex. */
-export function traceRingKey(ring: Ring): string {
-  const points = ring.map(p => `${p.x},${p.y}`);
-  const start = points.reduce((best, p, i) => p < points[best] ? i : best, 0);
-  const forward = points.map((_, i) => points[(start + i) % points.length]).join(";");
-  const reverse = points.map((_, i) => points[(start - i + points.length) % points.length]).join(";");
-  return forward < reverse ? forward : reverse;
-}
+export { traceRingKey } from "@shared/geometry/rings";
 
 /** A hole shared by overlapping pockets is one authored contour. Infer changed
  * references too: box/Shift selection does not necessarily select a ring. */

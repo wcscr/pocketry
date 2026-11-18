@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { curvesFromOutline, curveControls, evaluateCurve } from "./curves";
-import { redrawEdge } from "./redraw-edge";
-import { signedArea } from "./rings";
+import { redrawAttachments, redrawEdgeOptions } from "./redraw-edge";
+import { pointInRing, signedArea } from "./rings";
 
+const redrawEdge = (...args: Parameters<typeof redrawEdgeOptions>) => redrawEdgeOptions(...args)[0];
 const point = (x: number, y: number) => ({ x, y });
 const square = [point(0, 0), point(100, 0), point(100, 100), point(0, 100)];
 const source = curvesFromOutline([{ outer: square, holes: [] }]);
@@ -15,6 +16,42 @@ describe("edge brush", () => {
     const ring = forward[0].outer.map(a => a.point);
     for (const p of [...square, ...u]) expect(ring.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 1e-8)).toBe(true);
     expect(signedArea(ring)).toBeLessThan(signedArea(square));
+  });
+
+  it("distinguishes precise loop closure from tracing back to a nearby edge point", () => {
+    const trace = [point(45, 100), point(35, 80), point(55, 70)];
+    expect(redrawAttachments(source, [...trace, point(45, 100)], 1, 12)).toBeUndefined();
+    expect(redrawAttachments(source, [...trace, point(45.5, 100)], 1, 12)).toBeDefined();
+    expect(redrawAttachments(source, [trace[0], point(45.5, 100)], 1, 12)).toBeUndefined();
+  });
+
+  it("previews both sides of a wide recess and keeps the handles by default in either direction", () => {
+    const gap = [point(5, 100), point(5, 10), point(95, 10), point(95, 100)];
+    for (const stroke of [gap, [...gap].reverse()]) {
+      const [pocket, plug] = redrawEdgeOptions(source, stroke, 1, 12).map(curves => curves[0].outer.map(a => a.point));
+      expect(signedArea(pocket)).toBeCloseTo(1900);
+      expect(pointInRing(pocket, point(2, 55))).toBe(true);
+      expect(pointInRing(pocket, point(50, 55))).toBe(false);
+      expect(signedArea(plug)).toBeCloseTo(8100);
+    }
+  });
+
+  it("preserves existing pocket intersections and rejects fresh ones", () => {
+    const other = [point(70, 30), point(110, 30), point(110, 70), point(70, 70)];
+    const pair = curvesFromOutline([{ outer: square, holes: [] }, { outer: other, holes: [] }]);
+    const options = redrawEdgeOptions(pair, [point(0, 70), point(7, 55), point(0, 40)], 1, 12);
+    expect(options).toHaveLength(1);
+    expect(options[0][1]).toBe(pair[1]);
+    expect(() => redrawEdgeOptions(pair, [point(0, 70), point(85, 55), point(0, 40)], 1, 12)).toThrow("cross");
+  });
+
+  it("previews a shared exclusion on all of its pockets", () => {
+    const hole = [point(43, 30), point(43, 60), point(60, 60), point(60, 30)];
+    const other = square.map(p => point(p.x + 20, p.y));
+    const pair = curvesFromOutline([{ outer: square, holes: [hole] }, { outer: other, holes: [[...hole.slice(1), hole[0]]] }]);
+    const [result] = redrawEdgeOptions(pair, [point(43, 35), point(47, 45), point(43, 55)], 1, 12);
+    expect(result[0].holes[0]).toBe(result[1].holes[0]);
+    expect(result[0].holes[0].map(a => a.point)).toContainEqual(point(47, 45));
   });
 
   it("adds material across an existing concavity and preserves other rings", () => {

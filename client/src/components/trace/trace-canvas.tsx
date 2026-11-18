@@ -1,7 +1,7 @@
 import { outlineToPathData } from "@/lib/export/svg";
 import { CorrectButton, EdgeBrushGuide, CorrectionPanButton, CorrectionTools, type CorrectionTool } from "./correction-tools";
 import { closesAddLoop, type DetectionHint } from "@shared/geometry/detection-hints";
-import { findBrushJoin, redrawAttachments, redrawEdge } from "@shared/geometry/redraw-edge";
+import { findBrushJoin, redrawAttachments, redrawEdgeOptions } from "@shared/geometry/redraw-edge";
 import { ContourMenuProvider, useContourContextMenu } from "./contour-context-menu";
 import { contextMenuPoint, usesNativeEditingMenu } from "@/components/ui/pointer-context-menu";
 import { pointInRing } from "@shared/geometry/rings";
@@ -54,7 +54,7 @@ import { OutlinePointPanel, type OutlinePointTool } from "./outline-point-panel"
 import { useCurveEditor } from "@/components/canvas/use-curve-editor";
 import { useCurveFitting } from "@/components/canvas/use-curve-fitting";
 import { usePointSelection } from "@/components/canvas/use-point-selection";
-import { CURVE_TOLERANCE_MM, curvesFromOutline } from "@shared/geometry/curves";
+import { CURVE_TOLERANCE_MM, curvesFromOutline, sampleCurves, type CurveOutline } from "@shared/geometry/curves";
 import { outlineCleanupUnavailable } from "./outline-cleanup";
 import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { useViewportTransform } from "@/hooks/use-viewport-transform";
@@ -75,6 +75,18 @@ import { TraceScene } from "./trace-scene";
 
 /** Grab radius in *screen* pixels; divided by scale at use. */
 const PICK_RADIUS_PX = 10;
+
+interface EdgeReview {
+  source: CurveOutline;
+  options: CurveOutline[];
+  side: number;
+  fill?: DetectionHint;
+  previewFill: boolean;
+}
+
+function insideRect(point: Point, rect: Rect): boolean {
+  return point.x >= rect.x && point.y >= rect.y && point.x <= rect.x + rect.width && point.y <= rect.y + rect.height;
+}
 
 export interface TraceCanvasProps {
   /** Reuse the phone action tray while editing so the photo keeps its available height. */
@@ -143,8 +155,9 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
   const [brushWidth, setBrushWidth] = useState(24);
   const [edgeMessage, setEdgeMessage] = useState("");
   const [strokePreview, setStrokePreview] = useState<DetectionHint | null>(null);
+  const [edgeReview, setEdgeReview] = useState<EdgeReview | null>(null);
   const [brushPoint, setBrushPoint] = useState<Point | null>(null);
-  const cancelStroke = () => { setEdgeMessage(""); correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null); setBrushPoint(null); };
+  const cancelStroke = () => { setEdgeReview(null); setEdgeMessage(""); correctionStroke.current = null; correctionPointer.current = null; setStrokePreview(null); setBrushPoint(null); };
   const finishCorrection = () => {
     cancelStroke();
     submittedStroke.current = null;
@@ -166,11 +179,12 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || !canHandleCanvasShortcut(event)) return;
       event.preventDefault(); event.stopPropagation();
-      finishCorrection();
+      if (edgeReview) cancelStroke();
+      else finishCorrection();
     };
     document.addEventListener("keydown", escape, true);
     return () => document.removeEventListener("keydown", escape, true);
-  }, [correctionMode]);
+  }, [correctionMode, edgeReview]);
   const isMobile = useIsMobile();
   const sceneId = useId();
   const {
@@ -345,10 +359,15 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
 
   const pickRadius = PICK_RADIUS_PX / Math.max(viewport.transform.scale, 1e-6);
   const cleanupSource = useMemo(() => store.curves ?? curvesFromOutline(outline), [store.curves, outline]);
+  const review = edgeReview?.source === cleanupSource && correctionMode === "tool" && !processing ? edgeReview : null;
+  const reviewedCurves = review && !review.previewFill ? review.options[review.side] : null;
+  const reviewOutline = useMemo(() => reviewedCurves && sampleCurves(reviewedCurves,
+    CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? .1)), [reviewedCurves, calibration]);
+  const visibleStroke = review?.previewFill ? review.fill : strokePreview;
   const edgePreview = outline.length && strokePreview?.kind === "tool" && !strokePreview.fill ? strokePreview : null;
   const joins = useMemo(() => edgePreview ? redrawAttachments(cleanupSource, edgePreview.points, viewport.transform.scale, edgePreview.radius) : undefined,
     [edgePreview, cleanupSource, viewport.transform.scale]);
-  const brushStart = edgePreview?.points[0] ?? (correctionMode === "tool" && !strokePreview ? brushPoint : null);
+  const brushStart = edgePreview?.points[0] ?? (!review && correctionMode === "tool" && !strokePreview ? brushPoint : null);
   const startJoin = useMemo(() => brushStart ? findBrushJoin(cleanupSource, brushStart, brushRadius) : undefined,
     [cleanupSource, brushStart, brushRadius]);
   const cleanupAvailable = !detectedReview.showing && !outlineCleanupUnavailable(store) && !hasPendingManualCalibration(store) && !store.pendingAutoCalibration;
@@ -602,7 +621,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
   const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (detectedReview.showing) {
+    if (detectedReview.showing || review) {
       viewport.handlers.onPointerDown(event, { pan: true });
       return;
     }
@@ -804,25 +823,48 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
     viewport.handlers.onPointerDown(event);
   };
 
+  // Direct edge edits can reach any part of the photo. Evidence for photo detection belongs to the region.
+  const drawingEdge = correctionBrush === "tool" && outline.length > 0;
   const brushPosition = (event: ReactPointerEvent<SVGSVGElement>) => {
-    const p = toImage(event.clientX, event.clientY);
-    return p && region && p.x >= region.x && p.y >= region.y && p.x <= region.x + region.width && p.y <= region.y + region.height ? p : null;
+    const point = toImage(event.clientX, event.clientY);
+    const bounds = drawingEdge ? { x: 0, y: 0, ...imageSize } : region;
+    return point && bounds && insideRect(point, bounds) ? point : null;
   };
-  const extendStroke = (hint: DetectionHint, p: Point | null, minDistance: number): DetectionHint => {
-    if (!p || hint.points.length >= 4096) return hint;
+  const extendStroke = (hint: DetectionHint, p: Point | null, minDistance: number): DetectionHint | null => {
+    if (!p) {
+      cancelStroke();
+      setEdgeMessage(drawingEdge ? "Stroke canceled at the photo boundary. Keep the stroke on the photo."
+        : "Stroke canceled at the detection box. Keep the mark inside the box.");
+      return null;
+    }
     const last = hint.points[hint.points.length - 1], distance = Math.hypot(p.x - last.x, p.y - last.y);
     if (!distance || distance < minDistance) return hint;
-    const next: DetectionHint = { kind: hint.kind, radius: hint.radius, points: [...hint.points, p] };
-    if (!manualEdits && closesAddLoop(next, viewport.transform.scale)) {
-      // A narrow U can finish close to its start while joining two distinct places on the outline.
-      const tips = redrawAttachments(cleanupSource, next.points, viewport.transform.scale, next.radius);
-      if (!tips) next.fill = true;
+    if (hint.points.length >= 4096) {
+      cancelStroke(); setEdgeMessage("Stroke too long. Trace a shorter section.");
+      return null;
     }
+    const next: DetectionHint = { kind: hint.kind, radius: hint.radius, points: [...hint.points, p] };
+    if (!manualEdits && closesAddLoop(next, viewport.transform.scale) && region && next.points.every(q => insideRect(q, region))) next.fill = true;
     return next;
+  };
+  const submitMark = (hint: DetectionHint) => {
+    setEdgeReview(null);
+    submittedStroke.current = hint;
+    onCorrection?.([...store.detectionHints, hint]);
+  };
+  const applyReview = () => {
+    if (!review) return;
+    if (review.previewFill && review.fill) { submitMark(review.fill); return; }
+    const next = review.options[review.side], label = "Redraw outline edge";
+    if (store.curves) dispatch({ type: "CURVES_COMMITTED", curves: next, label });
+    else dispatch({ type: "OUTLINE_COMMITTED", label, outline: next.map(shape => ({
+      outer: shape.outer.map(a => a.point), holes: shape.holes.map(ring => ring.map(a => a.point)),
+    })) });
+    cancelStroke();
   };
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const brush = correctionBrush ? brushPosition(event) : null;
-    if (correctionBrush) setBrushPoint(brush);
+    if (correctionBrush && !review) setBrushPoint(brush);
     const hint = correctionStroke.current;
     if (hint) {
       if (event.pointerId !== correctionPointer.current) return;
@@ -938,18 +980,15 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
       if (event.type === "pointerup") {
         // Pointer-up can land back at the start without a final pointer-move (especially on touch).
         const completed = extendStroke(hint, brushPosition(event), 0);
-        if (completed.kind === "tool" && outline.length && !completed.fill) {
-          try {
-            const next = redrawEdge(cleanupSource, completed.points, viewport.transform.scale, completed.radius);
-            const label = "Redraw outline edge";
-            if (store.curves) dispatch({ type: "CURVES_COMMITTED", curves: next, label });
-            else dispatch({ type: "OUTLINE_COMMITTED", label, outline: next.map(shape => ({
-              outer: shape.outer.map(a => a.point), holes: shape.holes.map(ring => ring.map(a => a.point)),
-            })) });
-          } catch (error) { setEdgeMessage(error instanceof Error ? error.message : "Try tracing a shorter section."); }
-        } else {
-          submittedStroke.current = completed;
-          onCorrection?.([...store.detectionHints, completed]);
+        if (!completed) return;
+        if (!drawingEdge) { submitMark(completed); return; }
+        try {
+          const options = redrawEdgeOptions(cleanupSource, completed.points, viewport.transform.scale, completed.radius);
+          setEdgeReview({ source: cleanupSource, options, side: 0,
+            fill: completed.fill ? completed : undefined, previewFill: !!completed.fill });
+        } catch (error) {
+          if (completed.fill) submitMark(completed);
+          else setEdgeMessage(error instanceof Error ? error.message : "Try tracing a shorter section.");
         }
       }
       return;
@@ -1054,7 +1093,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
 
   const cursor = useMemo(() => {
     if (viewport.isPanning) return "grabbing";
-    if (correctionMode) return correctionMode === "pan" || viewport.isSpaceHeld || (shiftHeld && !!correctionBrush) ? "grab" : processing ? "wait" : "crosshair";
+    if (correctionMode) return review || correctionMode === "pan" || viewport.isSpaceHeld || (shiftHeld && !!correctionBrush) ? "grab" : processing ? "wait" : "crosshair";
     // Shift selects nodes during editing; Space and the hand tool still pan.
     if (viewport.isSpaceHeld || mode === "navigate" || shiftHeld && mode !== "edit" && mode !== "remove") return "grab";
     if (mode === "remove" || pointSelection.selectMode) return "crosshair";
@@ -1069,7 +1108,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
       return "crosshair";
     }
     return "default";
-  }, [mode, correctionMode, correctionBrush, processing, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex, pointSelection.selectMode]);
+  }, [mode, correctionMode, correctionBrush, review, processing, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex, pointSelection.selectMode]);
 
   // No wrapper element of its own: CanvasViewport already provides the
   // positioned, clipped, full-size box these children lay out against.
@@ -1098,7 +1137,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
           imageCrop={imageCrop}
           transform={viewport.transform}
           highlightPocket={!!correctionBrush}
-          outline={cleanup.open || detectedPreview ? [] : outline}
+          outline={cleanup.open || detectedPreview ? [] : reviewOutline ?? outline}
           estimatedEdgeRegions={store.estimatedEdgeRegions}
           selection={detectedReview.showing || correctionMode ? null : selection}
           region={region}
@@ -1144,12 +1183,12 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
               <path d={outlineToPathData(detectedPreview)} fill="none" stroke="white" strokeWidth={5} vectorEffect="non-scaling-stroke" />
               <path d={outlineToPathData(detectedPreview)} fill="none" stroke="#10b981" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
             </g>}{curveEditor.overlay}{pointSelection.overlay}{cleanup.overlay}
-            {correctionMode && [...store.detectionHints, ...(strokePreview ? [strokePreview] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
+            {correctionMode && [...store.detectionHints, ...(visibleStroke ? [visibleStroke] : [])].map((h, i) => <polyline key={`hint-${i}`} data-testid="detection-hint"
               points={(h.fill || h.points.length === 1 ? [...h.points, h.points[0]] : h.points).map(p => `${p.x},${p.y}`).join(" ")}
               fill={h.fill ? "#16a34a" : "none"} fillOpacity={.28} fillRule="evenodd" stroke={h.kind === "tool" ? "#16a34a" : "#dc2626"} strokeWidth={h.radius*2} strokeLinecap="round" strokeLinejoin="round" opacity={h === edgePreview ? .24 : .7} pointerEvents="none" />)}
-            {correctionMode === "tool" && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld && !processing &&
+            {!review && correctionMode === "tool" && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld && !processing &&
               <EdgeBrushGuide stroke={edgePreview?.points} start={startJoin?.point} end={joins?.end.point} scale={viewport.transform.scale} />}
-            {correctionBrush && brushPoint && !processing && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld &&
+            {!review && correctionBrush && brushPoint && !processing && !viewport.isPanning && !viewport.isSpaceHeld && !shiftHeld &&
               <circle data-testid="correction-brush" cx={brushPoint.x} cy={brushPoint.y} r={brushRadius}
                 fill={correctionMode === "tool" ? "#16a34a33" : "#dc262633"} stroke={correctionMode === "tool" ? "#16a34a" : "#dc2626"}
                 strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
@@ -1176,7 +1215,7 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
       {imageUrl && (
         <>
           <CanvasToolbar position="top-left" className="pointer-events-none max-md:flex-nowrap [&_button]:pointer-events-auto">
-            {correcting ? <CorrectionPanButton pressed={correctionMode === "pan"}
+            {correcting ? !review && <CorrectionPanButton pressed={correctionMode === "pan"}
               onClick={() => {
                 cancelStroke();
                 if (correctionMode === "pan") setCorrectionTool(previousCorrectionTool.current);
@@ -1213,7 +1252,19 @@ function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimated
           </CanvasToolbar>
           {editHost && correctionMode && createPortal(<CorrectionTools tool={correctionMode} busy={processing}
             hasOutline={outline.length > 0} edgeUnavailable={edgeUnavailable} brushWidth={brushWidth} onWidth={setBrushWidth}
-            addFeedback={strokePreview?.fill ? "Release to fill the green loop." : joins ? "Release to join the purple outline at the two dots." : edgeMessage || addFeedback}
+            addFeedback={strokePreview?.fill ? "Release to finish the green loop." : joins ? "Release to preview the new edge." : edgeMessage || (correctionMode === "tool" ? addFeedback : undefined)}
+            review={review && <div className="space-y-2 px-1 pb-2">
+              <p role="status" className="text-xs">{review.previewFill ? "Fill the green loop, or preview it as a new edge."
+                : "The purple shading shows the pocket this edge will create."}</p>
+              <div className="flex flex-wrap gap-1.5">
+                <Button size="sm" onClick={applyReview}>{review.previewFill ? "Fill loop" : "Apply edge"}</Button>
+                {review.fill && <Button size="sm" variant="outline" onClick={() => setEdgeReview({ ...review, previewFill: !review.previewFill })}>
+                  {review.previewFill ? "Preview edge" : "Preview fill"}</Button>}
+                {!review.previewFill && review.options.length > 1 && <Button size="sm" variant="outline"
+                  onClick={() => setEdgeReview({ ...review, side: 1 - review.side })}>Other side</Button>}
+                <Button size="sm" variant="ghost" onClick={cancelStroke}>Cancel</Button>
+              </div>
+            </div>}
             pointUnavailable={pointUnavailable} brushUnavailable={brushUnavailable} hasMarks={store.detectionHints.length > 0}
             onTool={tool => { cancelStroke(); setCorrectionTool(tool); }} onClear={() => onCorrection?.([])}
             onDone={finishCorrection}>

@@ -1,7 +1,7 @@
 import { curveFitRange, validateFittedContour } from "./curve-fit";
 import { simplifyOpen } from "./contour-simplification";
-import { curveControls, curveRing, evaluateCurve, splitCurve, type CurveAnchor, type CurveOutline, type CurveRing } from "./curves";
-import { ringArea } from "./rings";
+import { curveControls, curveRing, evaluateCurve, sampleCurveRing, splitCurve, type CurveAnchor, type CurveOutline, type CurveRing } from "./curves";
+import { distanceToSegment, ringArea, traceRingKey } from "./rings";
 import type { Point, RingRef } from "./types";
 
 interface Attachment extends RingRef { position: number; distance: number; point: Point }
@@ -40,10 +40,11 @@ export function findBrushJoin(source: CurveOutline, p: Point, radius: number): A
 export function redrawAttachments(source: CurveOutline, stroke: Point[], scale: number, radius: number) {
   if (stroke.length < 2) return;
   const a = stroke[0], b = stroke[stroke.length - 1], span = distance(a, b);
-  if (span * scale < 3) return;
+  // Ignore click jitter, but let a deliberate long recess join even at a subpixel opening.
+  if (span * scale < 3 && !stroke.some(point => distance(a, point) * scale >= 3)) return;
   const start = findBrushJoin(source, a, radius), end = findBrushJoin(source, b, radius);
   if (!start || !end || start.shapeIndex !== end.shapeIndex ||
-      start.ringIndex !== end.ringIndex || distance(start.point, end.point) * scale < 2) return;
+      start.ringIndex !== end.ringIndex || distance(start.point, end.point) * scale < 1e-6) return;
   return { start, end };
 }
 
@@ -62,8 +63,9 @@ function splitAt(ring: CurveRing, position: number): number {
   return i + 1;
 }
 
-/** Replace a local arc with the drawn line. All geometry outside the two joins stays on its original path. */
-export function redrawEdge(source: CurveOutline, stroke: Point[], scale: number, radius: number): CurveOutline {
+/** Return the valid sides of a redraw in preview order. Only the chosen ring (including
+ * other references to a shared hole) changes. Committing a preview is the caller's decision. */
+export function redrawEdgeOptions(source: CurveOutline, stroke: Point[], scale: number, radius: number): CurveOutline[] {
   const ends = redrawAttachments(source, stroke, scale, radius);
   if (!ends) throw new Error("Start and finish near two different places on the same edge.");
   const { start, end } = ends;
@@ -74,11 +76,9 @@ export function redrawEdge(source: CurveOutline, stroke: Point[], scale: number,
   const adjusted = edge === Math.floor(hi) ? edge + (lo - edge) / (hi - edge) : lo;
   const lowIndex = splitAt(ring, adjusted);
   if (!Number.isInteger(adjusted)) highIndex++;
-  let first = start.position === lo ? lowIndex : highIndex;
-  let last = start.position === lo ? highIndex : lowIndex;
-  // Choose the side with the smaller area between the old edge and the stroke.
-  // A long U-shaped recess can be the right side even when the opposite perimeter is shorter.
-  const replacedArea = (from: number, to: number, returnPath: Point[]) => {
+  const first = start.position === lo ? lowIndex : highIndex;
+  const last = start.position === lo ? highIndex : lowIndex;
+  const arcPoints = (from: number, to: number) => {
     const points = [ring[from].point];
     for (let i = from; i !== to; i = (i + 1) % ring.length) {
       const next = ring[(i + 1) % ring.length];
@@ -88,29 +88,47 @@ export function redrawEdge(source: CurveOutline, stroke: Point[], scale: number,
       }
       points.push(next.point);
     }
-    return ringArea(points.concat(returnPath));
+    return points;
   };
+  const tolerance = .35 / scale;
   let work = 0;
   const budget = () => { if (++work > 2_000_000) throw new Error("Draw a shorter section of the edge."); };
-  const line = [...simplifyOpen(stroke, .35 / scale, budget).points];
-  if (replacedArea(first, last, [...line].reverse()) > replacedArea(last, first, line)) {
-    [first, last] = [last, first]; line.reverse();
+  const line = simplifyOpen(stroke, tolerance, budget).points;
+  const reverse = [...line].reverse();
+  const forwardArc = arcPoints(first, last), backwardArc = arcPoints(last, first);
+  // A stroke joining the same straight edge traces a recess, even when it spans most of the tool.
+  const straight = (arc: Point[]) => arc.every(p => distanceToSegment(p, arc[0], arc[arc.length - 1]) <= tolerance);
+  const forwardStraight = straight(forwardArc), backwardStraight = straight(backwardArc);
+  const preferForward = forwardStraight !== backwardStraight ? forwardStraight
+    : ringArea(forwardArc.concat(reverse)) <= ringArea(backwardArc.concat(line));
+  const precision = Math.min(tolerance / 16, .01);
+  const holeKey = (hole: CurveRing) => traceRingKey(sampleCurveRing(hole, precision));
+  const sharedKey = start.ringIndex < 0 ? undefined : holeKey(curveRing(source, start)!);
+  const replace = (from: number, to: number, strokePoints: Point[]) => {
+    const a = { ...ring[from], smooth: false }, b = { ...ring[to], smooth: false };
+    delete a.out; delete b.in;
+    const middle = strokePoints.slice(
+      distance(a.point, strokePoints[0]) < 1.5 / scale ? 1 : 0,
+      distance(b.point, strokePoints[strokePoints.length - 1]) < 1.5 / scale ? -1 : undefined);
+    const retained = curveFitRange(ring.length, to, from).slice(1, -1).map(i => ring[i]);
+    const replacement = [a, ...middle.map(point => ({ point })), b, ...retained];
+    const result = source.map((shape, i) => {
+      if (sharedKey === undefined) return i === start.shapeIndex ? { ...shape, outer: replacement } : shape;
+      const holes = shape.holes.map(hole => holeKey(hole) === sharedKey ? replacement : hole);
+      return holes.some((hole, j) => hole !== shape.holes[j]) ? { ...shape, holes } : shape;
+    });
+    validateFittedContour(source, result, start, tolerance, budget, 0);
+    return result;
+  };
+  const options: CurveOutline[] = [];
+  let failure: unknown;
+  for (const forward of [preferForward, !preferForward]) {
+    try { options.push(forward ? replace(first, last, line) : replace(last, first, reverse)); }
+    catch (error) { failure ??= error; }
   }
-  const a = ring[first], b = ring[last];
-  delete a.out; delete b.in; a.smooth = false; b.smooth = false;
-  if (distance(a.point, line[0]) < 1.5 / scale) line.shift();
-  if (line.length && distance(b.point, line[line.length - 1]) < 1.5 / scale) line.pop();
-  const retained = curveFitRange(ring.length, last, first).slice(1, -1).map(i => ring[i]);
-  const replacement = [a, ...line.map(point => ({ point })), b, ...retained];
-  const result = source.map((s, i) => i !== start.shapeIndex ? s : start.ringIndex < 0 ?
-    { ...s, outer: replacement } : { ...s, holes: s.holes.map((hole, j) => j === start.ringIndex ? replacement : hole) });
-  try {
-    validateFittedContour(source, result, start, .35 / scale, budget);
-  } catch (error) {
-    if (error instanceof Error && /budget|complex|detailed|shorter/.test(error.message)) {
-      throw new Error("This contour is too detailed for this stroke. Try a shorter section or simplify the contour.");
-    }
-    throw new Error("That stroke would cross or collapse a contour. Trace a shorter section and rejoin the outline.");
+  if (options.length) return options;
+  if (failure instanceof Error && /budget|complex|detailed|shorter/.test(failure.message)) {
+    throw new Error("This contour is too detailed for this stroke. Try a shorter section or simplify the contour.");
   }
-  return result;
+  throw new Error("That stroke would cross or collapse a contour. Trace a shorter section and rejoin the outline.");
 }
