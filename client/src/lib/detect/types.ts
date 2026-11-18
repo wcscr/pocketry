@@ -21,6 +21,8 @@ export type DetectEngine = "opencv" | "js";
 export interface DetectOptions {
   /** Optional learned outer silhouettes for tools on white calibration sheets. */
   boundary?: "color" | "teed";
+  /** User-requested, one-shot 768 px tool-edge inference. Ordinary detections use 512 px. */
+  highDetail?: boolean;
   /**
    * The background is known to be white paper (a recognised calibration
    * sheet), so anything at most half as light as it counts as the object

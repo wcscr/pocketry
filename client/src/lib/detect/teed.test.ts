@@ -135,6 +135,26 @@ describe("self-hosted learned-outline model", () => {
     expect(await loadTeedModel(undefined, request)).toEqual(bytes);
     expect(request).toHaveBeenCalledWith(TEED_MODEL_URL, { cache: "force-cache", signal: undefined });
   });
+  it("verifies both graph sizes and rejects the standard asset at the high-detail URL", async () => {
+    const bytes = new Uint8Array(readFileSync(resolve("client/public/models/teed/teed-768-b50a01b1.onnx")));
+    const request = vi.fn(async () => new Response(bytes));
+    expect(await loadTeedModel(undefined, request, true)).toEqual(bytes);
+    expect(request.mock.calls[0]).toEqual(["/models/teed/teed-768-b50a01b1.onnx", { cache: "force-cache", signal: undefined }]);
+    await expect(loadTeedModel(undefined, async () => new Response(model()), true)).rejects.toThrow("verification");
+    // Four protobuf dimension values change, two each in the input and output.
+    const standard = model();
+    expect(bytes.filter((value, index) => value !== standard[index])).toEqual(Uint8Array.of(6, 6, 6, 6));
+  });
+
+  it("rejects an unsupported high-detail outline instead of substituting color geometry", async () => {
+    const image = { width: 80, height: 80, data: new Uint8ClampedArray(80 * 80 * 4).fill(255) };
+    const cv = await shippedCV();
+    const teed = { segment: vi.fn(async () => ({ reason: "selection-too-tight" })), dispose: vi.fn() };
+    const options = { boundary: "teed", highDetail: true } as const;
+    await expect(detectOutline(image, options, { loadCV: async () => cv, teed })).rejects.toThrow("could not close");
+    await expect(detectOutline(image, { ...options, engine: "js" })).rejects.toThrow("could not run");
+    expect(teed.segment).toHaveBeenCalledOnce();
+  });
   it("rejects corrupt, truncated and oversized assets", async () => {
     const corrupt = model(); corrupt[corrupt.length - 5] ^= 1;
     await expect(loadTeedModel(undefined, async () => new Response(corrupt))).rejects.toThrow("verification");

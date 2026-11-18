@@ -21,6 +21,8 @@ export interface DetectionSettings {
   boundary?: "auto" | "color" | "teed";
   /** Start fresh from photo pixels, resetting tuning and correction strokes. */
   restart?: boolean;
+  /** Retry only this detection with the larger tool-edge model. */
+  highDetail?: boolean;
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
@@ -65,7 +67,7 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
   };
   const request = (settings: DetectionSettings) => {
     setDraftSensitivity(null);
-    if (!settings.restart && settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
+    if (!settings.restart && !settings.highDetail && settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
         (settings.boundary ?? trace.boundaryMethod) === trace.boundaryMethod) return;
     const switchingMethod = settings.boundary !== undefined && settings.boundary !== trace.boundaryMethod;
     // Comparing untouched detector results is reversible and needs no warning.
@@ -146,6 +148,14 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
       </div>
       {holesHelp && <p id={holesHelpId} className="text-xs text-muted-foreground">{holesHelp}</p>}
     </div>}
+    {trace.boundaryMethod === "teed" && !includeInteriorHoles && trace.imageUrl && trace.region &&
+      trace.detectedImageUrl === trace.imageUrl && <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing}
+          onClick={() => request({ sensitivity, includeInteriorHoles, highDetail: true })}>
+          Retry in high detail
+        </Button>
+        <HelpHint label="high-detail retry">Use a 768 px edge model for this region when the outline misses fine details. This uses more memory. Undo restores the previous outline.</HelpHint>
+      </div>}
     {outlineActions}
     {compact ? tuning : <div className="space-y-3 border-t pt-3">
       <div className="flex items-center gap-1">

@@ -18,6 +18,30 @@ also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
 
+After a **Tool edges** detection, choose **Retry in high detail** in Outline
+(or Adjust outline on mobile) to run the same region through the 768 px edge
+model. It uses the current sensitivity and correction marks. Review the
+result against the photo. Undo and Redo compare the two outlines. If the model
+fails or rejects the boundary, the current outline and history are retained.
+The next ordinary detection starts at 512 px. The high-detail worker is released
+after each attempt to free its larger WebAssembly heap.
+
+The November 18 desktop Chrome prototype check covered all 36 library
+selections and the supplied Milwaukee cutter. The retry produced an outline
+on 33 library selections and the cutter. It kept the existing outline on the
+clear-hub dispensing needle, the second of five grouped Wiha drivers, and
+the angled Wolfbox nozzle. Undo and Redo restored both outlines on all 34
+applied retries. Rejected retries preserved edit history.
+
+The cutter's sampled solid-head coverage rose from 62% to 100%. Both sizes
+included the blade center. Coverage of the first grouped Wiha driver's sampled
+shaft core rose from 13% to 100%. The larger model also lost part of the
+caliper rail, split the pink needle hub and fragmented the flux syringe.
+Of four tools with a reviewed SVG in the same image frame, three had a lower
+95th-percentile boundary error at 768 px and one had a higher error. Across
+all 37 attempts, median detection-worker time was 1.37 s at 512 px and
+2.17 s at 768 px. These measurements cover this desktop and photo set.
+
 [Before/after comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
 are included as a portable HTML report, with one view per distinct tool or
 attachment. In a running build, open `/reports/outline-comparison/`. The report
@@ -186,7 +210,7 @@ experimental records are kept outside the repository.
 
 ## Model provenance
 
-The fixed 512×512 TEED ONNX model is **248,782 bytes**, loaded only when needed.
+Each fixed-size TEED ONNX model is **248,782 bytes**. The 768×768 graph is loaded on demand for a high-detail retry. Only its input and output shape declarations differ from the 512×512 graph.
 It uses the existing OpenCV CPU/WASM runtime and adds no npm dependency.
 Source revision `40fa4b1391dc6424f88989d0ca75d5b592c8681d` includes the BIPED
 checkpoint under repository-level MIT terms (Xavier Soria Poma, 2022), without a

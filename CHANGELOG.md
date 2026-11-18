@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Trace can retry Tool edges at higher detail for thin shafts or missing material. Undo returns to the previous outline.
+
 ## 1.12.7 — 2026-11-18
 
 - Keep bright metal parts in a Tool edges trace when a stray line of sheet printing or shadow reaches the region's edge; such traces no longer fall back to Color contrast and lose the part.

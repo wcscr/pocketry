@@ -1,3 +1,4 @@
+import type { DetectionSettings } from "@/components/trace/trace-detection-controls";
 import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
@@ -211,14 +212,7 @@ function TraceWorkspace(): JSX.Element {
     [toast],
   );
 
-  const runDetection = useCallback(async (settings?: {
-    editableCurves?: boolean;
-    hints?: DetectionHint[];
-    sensitivity: number;
-    includeInteriorHoles: boolean;
-    boundary?: "auto" | "color" | "teed";
-    restart?: boolean;
-  }, requestedRegion?: Rect) => {
+  const runDetection = useCallback(async (settings?: DetectionSettings & { hints?: DetectionHint[] }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
     // Tool detection is deliberately gated on an explicit region. Image load
@@ -299,7 +293,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
-          boundary, hints,
+          boundary, hints, highDetail: settings?.highDetail,
           signal: controller.signal,
           occlusions,
           sensitivity: detectionSettings.sensitivity,
@@ -310,6 +304,7 @@ function TraceWorkspace(): JSX.Element {
       });
 
       if (controller.signal.aborted || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      if (settings?.highDetail && !result.outline.length) throw new Error("High detail found no outline in this region.");
       dispatch({
         type: "DETECTED",
         expectedOutline: store.outline,
@@ -322,18 +317,19 @@ function TraceWorkspace(): JSX.Element {
         estimatedEdgeRegions: result.estimatedEdgeRegions,
         detectionHints: hints,
         settings: detectionSettings,
-        label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
+        label: settings?.highDetail ? "High-detail outline" : settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
           : settings?.hints ? hints.length ? "Correct outline" : "Clear corrections" : undefined,
         svg: result.svg,
         region,
       });
+      if (settings?.highDetail) notice("High-detail outline ready", "Use Undo to compare with your previous outline.");
       // The legacy fire-and-forget POST /api/images is gone (design doc:
       // "opt-in or removed"): nothing ever read the copies back, and silently
       // uploading every trace is the wrong default for local tooling.
     } catch (error) {
-      if (request !== detectionRequest.current || controller.signal.aborted) return;
+      if (request !== detectionRequest.current || controller.signal.aborted || latestStore.current.sourceRevision !== sourceRevision) return;
       toast({
-        title: "Tracing failed",
+        title: settings?.highDetail ? "Kept the previous outline" : "Tracing failed",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });

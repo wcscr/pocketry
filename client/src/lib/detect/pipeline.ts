@@ -70,11 +70,17 @@ async function detectPreparedOutline(
   // including guarded GrabCut and its topology checks. Re-enter once with the
   // model disabled; never leave users with an unrefined intermediate mask.
   const colorFallback = async (report: RefinementReport): Promise<DetectResult> => {
+    if (options.highDetail) {
+      throw new Error(report.reason === "teed-unavailable"
+        ? "The high-detail edge model could not run on this device."
+        : "High detail could not close a reliable outline. Try leaving more paper around the tool.");
+    }
     const started = now();
     // The sheet is still white paper when the learned outline is rejected.
     const fallback = await detectPreparedOutline(image, { ...options, boundary: "color", paperBackground: options.paperBackground ?? true, engine }, runtime, sourceImage);
     return { ...fallback, refinement: report, timings: { ...timings, colorFallback: now() - started } };
   };
+  if (options.highDetail && refinement?.status === "skipped") throw new Error("This image already defines its outline with transparency.");
   if (options.boundary === "teed" && refinement?.status === "fallback") return colorFallback(refinement);
   const estimatedEdgeRegions: Ring[] = [];
   const inferredOccludedEdge = options.occlusions?.length
