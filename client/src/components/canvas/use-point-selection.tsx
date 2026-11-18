@@ -13,6 +13,9 @@ interface Options {
   source: CurveOutline;
   enabled: boolean;
   contextKey: string;
+  /** Trace owns the tool choice. Other editors keep the local Select points toggle. */
+  selectMode?: boolean;
+  onExitSelectMode?: () => void;
   scale: number;
   fromClient: (x: number, y: number) => Point | null;
   toCanvas: (p: Point) => Point;
@@ -35,7 +38,8 @@ interface Gesture {
 export function usePointSelection(options: Options) {
   const { source, enabled, contextKey, scale, fromClient, toCanvas, viewport, panRequested, onCommit, onSmoothSection } = options;
   const [selection, setSelection] = useState<CurvePointRef[]>([]);
-  const [selectMode, setSelectMode] = useState(false);
+  const [localSelectMode, setSelectMode] = useState(false);
+  const selectMode = options.selectMode ?? localSelectMode;
   const [box, setBox] = useState<{ start: Point; end: Point }>();
   const [draft, setDraft] = useState<CurveOutline>();
   const [error, setError] = useState<string>();
@@ -69,7 +73,7 @@ export function usePointSelection(options: Options) {
     const retain = expectedSource.current && JSON.stringify(expectedSource.current) === JSON.stringify(source);
     expectedSource.current = undefined; cancel(); if (!retain) setSelection(previous => previous.length ? [] : previous); setError(undefined);
   }, [source]);
-  useEffect(() => { clear(); setSelectMode(false); pointers.current.clear(); pinching.current = false; }, [enabled, contextKey]);
+  useEffect(() => { clear(); setSelectMode(false); pointers.current.clear(); pinching.current = false; }, [enabled, contextKey, options.selectMode]);
   useEffect(() => { cancel(); }, [scale]);
   useEffect(() => {
     const blur = () => { cancel(); pointers.current.clear(); pinching.current = false; };
@@ -86,7 +90,7 @@ export function usePointSelection(options: Options) {
     const key = (event: KeyboardEvent) => {
       if (!canHandleCanvasShortcut(event)) return;
       if (event.key === "Escape" && (gesture.current || selection.length || selectMode)) {
-        event.preventDefault(); event.stopImmediatePropagation(); clear(); setSelectMode(false);
+        event.preventDefault(); event.stopImmediatePropagation(); clear(); setSelectMode(false); options.onExitSelectMode?.();
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
         event.preventDefault(); event.stopImmediatePropagation(); setSelection(points);
       } else if ((event.key === "Delete" || event.key === "Backspace") && selection.length) {
@@ -186,13 +190,13 @@ export function usePointSelection(options: Options) {
     {box && (() => { const a = toCanvas(box.start), b = toCanvas(box.end); return <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(a.x - b.x)} height={Math.abs(a.y - b.y)} className="fill-primary/10 stroke-primary" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />; })()}
   </g>;
   const controls = enabled && <>
-    <Button size="sm" variant={selectMode ? "default" : "outline"} aria-pressed={selectMode} onClick={(event) => {
+    {options.selectMode === undefined && <Button size="sm" variant={selectMode ? "default" : "outline"} aria-pressed={selectMode} onClick={(event) => {
       // Pointer clicks leave native button focus behind. Return it to the
       // canvas so the documented Space-drag gesture works immediately.
       if (event.detail > 0) event.currentTarget.blur();
       cancel(); setSelectMode(value => !value);
-    }}>Select points</Button>
-    <HelpHint label="selecting points">Shift-click points to add or remove them. Drag empty space for a selection box; Shift adds to the current selection. Without a keyboard, turn on Select points and tap points to toggle them. Drag selected points to move the group. Delete removes the selection, and Escape clears it. Space-drag pans.</HelpHint>
+    }}>Select points</Button>}
+    {options.selectMode !== false && <HelpHint label="selecting points">Shift-click points to add or remove them. Drag empty space for a selection box; Shift adds to the current selection. Without a keyboard, choose {options.selectMode === undefined ? "Select points" : "Select multiple"} and tap points to toggle them. Drag selected points to move the group. Delete removes the selection, and Escape clears it. Space-drag pans.</HelpHint>}
     {!!selection.length && <span className="text-xs" role="status">{selection.length} {selection.length === 1 ? "point" : "points"} selected</span>}
     {!!selection.length && <Button size="sm" variant="outline" onClick={clear}>Clear selection</Button>}
     {selection.length > 1 && <Button size="sm" variant="outline" onClick={remove}>Delete selected points</Button>}

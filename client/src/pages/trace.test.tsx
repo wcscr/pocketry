@@ -525,6 +525,18 @@ describe("Trace detection workflow", () => {
     expect(current!.processing).toBe(false);
   });
 
+  it.each([true, false])("keeps the outline toolbar reachable when Trace properties are open (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
+    let panel!: ReturnType<typeof usePanelState>, trace!: ReturnType<typeof useTrace>;
+    function Probe() { panel = usePanelState(); trace = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider>
+      <Probe /><SeedExportOutline format="svg" /><TracePage />
+    </TraceProvider></PanelProvider>));
+    React.act(() => panel.setPanelOpen(true));
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
+    expect(panel.panelOpen).toBe(!mobile);
+  });
+
   it.each([false, true].flatMap(mobile => ["controls-start-over", "controls-add-to-bin"].map(action => ({ mobile, action }))))(
     "keeps the desktop workflow open after $action and the mobile canvas clear (mobile=$mobile)", async ({ mobile, action }) => {
       vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));

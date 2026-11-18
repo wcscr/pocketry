@@ -32,7 +32,8 @@ interface Options {
   startHint?: string;
   onDone?: () => void;
   allowCurves?: boolean;
-  pointEraser?: React.ReactNode;
+  selectMode?: boolean;
+  onExitSelectMode?: () => void;
   /** Expose selection, edge bending, fitting, and repair controls. */
   advancedTools?: boolean;
   onFrameRepair?: (points: Point[]) => void;
@@ -50,7 +51,7 @@ function handlePosition(ring: CurveRing, index: number, side: "in" | "out"): Poi
  * cancel, selection and pointer clicks never create source revisions. */
 export function useCurveEditor({ outline, curves, allowOutlineSimplification, enabled, contextKey, scale, tolerance,
   fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone, allowCurves = true, advancedTools = true,
-  fitUnitsPerUnit = 1, fitUnit = "mm", onFrameRepair, pointEraser }: Options) {
+  fitUnitsPerUnit = 1, fitUnit = "mm", onFrameRepair, selectMode, onExitSelectMode }: Options) {
   const [started, setStarted] = useState(false);
   const [ref, setRef] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
   const [target, setTarget] = useState<Target>({ kind: "edge", index: 0 });
@@ -107,7 +108,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
   useEffect(() => {
     if (sectionRequest && active) { if (sectionRequest.repair) repair.start(sectionRequest); else fitting.start("range", sectionRequest); setSectionRequest(undefined); }
   }, [sectionRequest, active]);
-  const points = usePointSelection({ source: base, enabled: active && advancedTools && !previewOpen, contextKey, scale,
+  const points = usePointSelection({ source: base, enabled: active && advancedTools && !previewOpen, contextKey, scale, selectMode, onExitSelectMode,
     fromClient, toCanvas, viewport, panRequested, onCommit: commit, onSmoothSection: fitSection,
     onRepairSection: repairSection,
     repairDisabledReason: startDisabled && (allowCurves || curves) ? startHint : undefined,
@@ -116,6 +117,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     if (!active) return false;
     if (repair.open) { viewport.onPointerDown(e); return true; }
     if (points.down(e)) { cancel(); return true; }
+    if (selectMode && !previewOpen) { viewport.onPointerDown(e); return true; }
     if (e.pointerType === "touch") pointers.current.add(e.pointerId);
     if (pointers.current.size > 1) { cancel(); viewport.onPointerDown(e, { pan: false }); return true; }
     if (e.button !== 0 || panRequested || gesture.current) { viewport.onPointerDown(e); return true; }
@@ -225,7 +227,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
             <path d={d} fill="none" stroke="transparent" strokeWidth={22} vectorEffect="non-scaling-stroke" className={advancedTools ? "cursor-grab" : "cursor-crosshair"} {...data("edge", i, rRef)} />
           </g>;
         })}
-        {r.flatMap((a, i) => (["in", "out"] as const).map(side => {
+        {!selectMode && r.flatMap((a, i) => (["in", "out"] as const).map(side => {
           const show = selectedRing && (selected.kind === "edge" ? side === "out" && i === selected.index || side === "in" && i === (selected.index + 1) % r.length : i === selected.index);
           // On a straight segment, selecting a point exposes its implicit
           // Bézier handles. Only dragging one changes the source geometry.
@@ -249,10 +251,9 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     {points.overlay}
   </g>;
   const coordinate = anchor && (selected.kind === "in" || selected.kind === "out" ? anchor[selected.kind] : anchor.point);
-  const controls = advancedTools && active && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
+  const controls = advancedTools && active && ring && anchor && <div className="curve-editor-options flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
     <div className="curve-editor-heading flex w-full flex-wrap items-center gap-2"><span className="text-sm font-medium">{repair.open ? "Edit outline" : fitting.open ? "Smooth outline" : "Edit outline · Bend edges"}</span>
-      <HelpHint label="curve editing">Click an edge to add a point. Right-click a point to delete it. Drag edges to bend them into curves, points to move them, or handles to shape a curve. Shift-click adds points; drag empty space for a selection box. Select two endpoints for Repair section and preview a line or curve. Use Select points without a keyboard. Space-drag pans. Edits apply immediately; Undo restores them.</HelpHint>
-      {!previewOpen && pointEraser}
+      <HelpHint label="curve editing">Click an edge to add a point. Right-click a point to delete it. Drag edges to bend them into curves, points to move them, or handles to shape a curve. Shift-click adds points; drag empty space for a selection box. Select two endpoints for Repair section and preview a line or curve. Use {selectMode === undefined ? "Select points" : "Select multiple"} without a keyboard. Space-drag pans. Edits apply immediately; Undo restores them.</HelpHint>
       {!curves && <Button size="sm" variant="outline" onClick={() => { cancel(); points.clear(); setStarted(false); }}>Points</Button>}
       {onDone && <Button size="sm" variant="secondary" onClick={onDone}>Done</Button>}</div>
     <select aria-label="Curve contour" disabled={previewOpen} className="h-9 max-w-40 rounded border bg-background px-1 text-xs" value={`${ringRef.shapeIndex}:${ringRef.ringIndex}`}
@@ -290,12 +291,14 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     </>}
     {error && <span role="alert" className="w-full text-xs text-destructive">{error}</span>}
   </div>;
-  const startButton = advancedTools && enabled && !active && <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm" role="group" aria-label="Outline editing style">
+  const bendButton = allowCurves && <Button size="sm" variant="outline" disabled={startDisabled} title={startDisabled ? startHint : "Drag an edge to turn it into a curve. Click to add a point; right-click a point to delete."}
+    onClick={() => { setStarted(true); setError(null); }} data-testid="button-edit-curves">Bend edges</Button>;
+  const startButton = advancedTools && enabled && !active && (selectMode !== undefined ? bendButton : <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm" role="group" aria-label="Outline editing style">
     <span className="text-sm font-medium">Edit outline</span><Button size="sm" variant="secondary" aria-pressed>Points</Button>
-    {allowCurves && <Button size="sm" variant="outline" disabled={startDisabled} title={startDisabled ? startHint : "Drag an edge to turn it into a curve. Click to add a point; right-click a point to delete."}
-      onClick={() => { setStarted(true); setError(null); }} data-testid="button-edit-curves">Bend edges</Button>}
+    {bendButton}
     {onDone && <Button size="sm" variant="outline" onClick={onDone}>Done</Button>}
-  </div>;
-  return { active, error: active ? error : null, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu, removePointAt,
+  </div>);
+  const cancelTool = () => { cancel(); pointers.current.clear(); points.clear(); repair.dismiss(); fitting.dismiss(); };
+  return { active, cancelTool, previewOpen, selectionControls: points.controls, error: active ? error : null, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu, removePointAt,
     lostCapture: (e: ReactPointerEvent<SVGSVGElement>) => { points.lostCapture(e); if (gesture.current?.id === e.pointerId) cancel(); } };
 }

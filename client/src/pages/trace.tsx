@@ -111,6 +111,11 @@ function TraceWorkspace(): JSX.Element {
   const isMobile = useIsMobile();
   const { enabled: advancedEditing, inspectorEnabled, straightRunTolerance } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
+  const editingOutline = store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove");
+  useEffect(() => {
+    // Entering compact layout can carry over an open desktop properties panel.
+    if (isMobile && editingOutline) setPanelOpen(false);
+  }, [isMobile, editingOutline, setPanelOpen]);
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const [outlineToolRequest, setOutlineToolRequest] = useState<OutlineToolRequest>();
