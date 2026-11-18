@@ -28,11 +28,15 @@ import type { ImageLike } from "./types";
  * - **Thin lines hugging a solid dark part**, such as a contact shadow along a
  *   handle. They stay. Over the ruled bar they do not pass that protection on
  *   to the printed line they touch, or the bar under a handle would survive.
+ *   A shadow lying across the bar is such a dark part too, so there the bar
+ *   and its ticks are picked out by their own shape and removed
+ *   (`releaseRuledLine`).
  *
  * What it can still remove is a dark tool part that lies wholly inside a
  * printed area, top to bottom and side to side, such as a short wire end
- * resting on the title line. The photo must be the rectified sheet with the
- * page upright; callers skip the step otherwise.
+ * resting on the title line, and the few rows where a part thinner than a
+ * printed stroke crosses the bar inside a shadow. The photo must be the
+ * rectified sheet with the page upright; callers skip the step otherwise.
  */
 
 /** One printed area of the sheet, in the pixels of the image being detected. */
@@ -61,6 +65,11 @@ const MIN_STROKE_CONTRAST = 8;
 const HALO_PX = 2;
 /** Anything wider than a stroke and darker than this fraction of the paper is a solid tool part. */
 const BODY_DARKNESS = 0.75;
+
+/** Verdict for a stroke kept because it lies beside a solid dark part of a ruled area. */
+const HUGGING = 3;
+/** The ruled line must be found erased over this many stroke widths before it is followed into a shadow. */
+const RULED_LINE_STROKES = 4;
 
 interface Box { x0: number; y0: number; x1: number; y1: number }
 
@@ -140,6 +149,77 @@ function fillWithPaper(image: ImageLike, data: Uint8ClampedArray, box: Box, ring
 }
 
 /**
+ * Follows the ruled bar and its ticks through a shadow.
+ *
+ * A shadow across the bar is as dark as a gray handle, so the bar inside it is
+ * a stroke beside a dark part and was kept. Unlike a handle, a shadow does not
+ * hide the bar. Where the bar has been erased it gives the rows the line runs
+ * in. On those rows a kept stroke no taller than the line is the same line,
+ * and a narrow upright stroke standing on it, ending inside the area, is a
+ * tick. Nothing else is released: a thin part of a tool lying beside the bar,
+ * a wider contact shadow, and anything kept because it leaves the printed
+ * area stay as they were. When the image ends inside the area (`cutBelow`),
+ * the bar may be out of view and the ticks stand on that edge instead.
+ *
+ * What this can still take is a part of a tool under a stroke width that
+ * crosses the bar itself inside a shadow: it loses the bar's few rows.
+ * `verdict` holds 0 for no stroke, 1 erased, 2 kept, `HUGGING` kept beside a
+ * dark part.
+ */
+function releaseRuledLine(verdict: Uint8Array, w: number, h: number, box: Box, thickness: number, cutBelow: boolean): void {
+  const dark = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && verdict[y * w + x] !== 0;
+  /** The dark run through a pixel along one axis, counted to one past `limit`. */
+  const run = (x: number, y: number, dx: number, dy: number, limit: number): number => {
+    let length = 1;
+    for (const step of [-1, 1]) for (let k = 1; length <= limit && dark(x + dx * step * k, y + dy * step * k); k++) length++;
+    return length;
+  };
+
+  // The bar: the rows of the area with the most erased stroke.
+  const erasedInRow = new Uint32Array(h);
+  let best = box.y0;
+  for (let y = box.y0; y < box.y1; y++) {
+    for (let x = box.x0; x < box.x1; x++) if (verdict[y * w + x] === 1) erasedInRow[y]++;
+    if (erasedInRow[y] > erasedInRow[best]) best = y;
+  }
+  let top = -1, bottom = -1;
+  if (erasedInRow[best] >= RULED_LINE_STROKES * thickness) {
+    top = bottom = best;
+    while (top > box.y0 && erasedInRow[top - 1] * 4 >= erasedInRow[best]) top--;
+    while (bottom + 1 < box.y1 && erasedInRow[bottom + 1] * 4 >= erasedInRow[best]) bottom++;
+    // Rows this deep are not one printed line.
+    if (bottom - top + 1 > thickness + 2) top = bottom = -1;
+  }
+
+  const released: number[] = [];
+  if (top >= 0) {
+    // Blur makes the line a pixel taller in a shadow than on white paper.
+    const tallest = bottom - top + 3;
+    for (let y = top; y <= bottom; y++) for (let x = box.x0; x < box.x1; x++) {
+      if (verdict[y * w + x] === HUGGING && run(x, y, 0, 1, tallest) <= tallest) released.push(y * w + x);
+    }
+  }
+  // Ticks stand on the bar, or on the image's edge when the bar lies beyond it.
+  const base = top >= 0 ? top : cutBelow ? box.y1 : -1;
+  // A tick is printed finer than the bar.
+  const widest = Math.max(2, thickness - 1);
+  for (let x = box.x0; base > box.y0 && x < box.x1; x++) {
+    let y = base - 1, tick = true, kept = false;
+    for (; y >= box.y0 && dark(x, y); y--) {
+      const v = verdict[y * w + x];
+      if (v === 2 || run(x, y, 1, 0, widest) > widest) { tick = false; break; }
+      if (v === HUGGING) kept = true;
+    }
+    // A stroke that runs on above the area is not a tick.
+    if (!tick || !kept || (y < box.y0 && dark(x, y))) continue;
+    for (let yy = base - 1; yy > y; yy--) if (verdict[yy * w + x] === HUGGING) released.push(yy * w + x);
+    // Under a tick the line is taller than itself, and was passed over above.
+    for (let yy = top; top >= 0 && yy <= bottom; yy++) if (verdict[yy * w + x] === HUGGING) released.push(yy * w + x);
+  }
+  for (const i of released) verdict[i] = 1;
+}
+
+/**
  * Paints out thin dark strokes inside one printed area, unless they continue
  * beyond the printing. `ruled` marks an area of long printed lines, which a
  * tool lying across them touches along its whole edge.
@@ -168,19 +248,21 @@ function eraseStrokes(image: ImageLike, data: Uint8ClampedArray, printed: Uint8A
     const contrast = closedGrey[i] - grey[i];
     stroke[i] = contrast >= Math.max(MIN_STROKE_CONTRAST, closedGrey[i] * STROKE_CONTRAST) ? 1 : 0;
   }
-  // Connected strokes that reach beyond the printing belong to a tool. 0 unvisited, 1 printing, 2 kept.
+  // Connected strokes that reach beyond the printing belong to a tool. 0 unvisited, 1 printing, 2 kept,
+  // `HUGGING` kept beside a dark part.
   const verdict = new Uint8Array(w * h), stack: number[] = [], members: number[] = [];
   if (ruled) {
     // A solid part of a tool: wider than a stroke, and clearly not paper. Thin lines hugging it (a
     // contact shadow, a rim) run along its edge and out of the printed area, and would carry the
     // "continues beyond the printing" protection to the ruled line they touch: the bar under a
-    // handle. They are left exactly as they are and connect nothing. Only ruled areas need this;
-    // in text it would cut a thin tip off the thicker shaft it continues from.
+    // handle. They are left exactly as they are and connect nothing, except where they turn out
+    // to be the ruled line itself (`releaseRuledLine`). Only ruled areas need this; in text it would
+    // cut a thin tip off the thicker shaft it continues from.
     const paper = [...closedGrey].sort((a, b) => a - b)[Math.floor(closedGrey.length * 0.8)];
     const body = new Uint8Array(w * h);
     for (let i = 0; i < body.length; i++) body[i] = closedGrey[i] < paper * BODY_DARKNESS ? 255 : 0;
     const nearBody = rank(body, w, h, radius + 1, radius + 1, true);
-    for (let i = 0; i < stroke.length; i++) if (stroke[i] && nearBody[i]) { verdict[i] = 2; stroke[i] = 0; }
+    for (let i = 0; i < stroke.length; i++) if (stroke[i] && nearBody[i]) { verdict[i] = HUGGING; stroke[i] = 0; }
   }
   for (let start = 0; start < stroke.length; start++) {
     if (!stroke[start] || verdict[start]) continue;
@@ -198,6 +280,11 @@ function eraseStrokes(image: ImageLike, data: Uint8ClampedArray, printed: Uint8A
       }
     }
     if (leaves) for (const i of members) verdict[i] = 2;
+  }
+  if (ruled) {
+    releaseRuledLine(verdict, w, h, { x0: inner.x0 - win.x0, y0: inner.y0 - win.y0, x1: inner.x1 - win.x0, y1: inner.y1 - win.y0 },
+      2 * radius + 1, region.y + region.height > height);
+    for (let i = 0; i < verdict.length; i++) if (verdict[i] === HUGGING) verdict[i] = 2;
   }
 
   // A blurred stroke has a faint halo below the contrast floor. Take it with the stroke, or the

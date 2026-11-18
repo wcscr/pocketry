@@ -18,8 +18,8 @@ export interface EdgeCleanupEvidence {
   unknown: Uint8Array;
 }
 
-/** Square morphology proposes locations only; it is never the returned mask. */
-function morph(mask: Uint8Array, width: number, height: number, radius: number, dilate: boolean): Uint8Array {
+/** Square morphology proposes locations only; it is never the returned mask. Beyond the frame is background. */
+export function morph(mask: Uint8Array, width: number, height: number, radius: number, dilate: boolean): Uint8Array {
   const horizontal = new Uint8Array(mask.length), result = new Uint8Array(mask.length);
   const apply = (source: Uint8Array, target: Uint8Array, vertical: boolean) => {
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
