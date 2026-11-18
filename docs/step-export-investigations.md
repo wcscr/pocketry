@@ -1,5 +1,28 @@
 # STEP export investigations — review gate
 
+## Selection — 2026-11-18
+
+The maintainer selected **A, dedicated STEP** (`codex/step-cad-export`,
+[PR 193](https://github.com/wcscr/pocketry/pull/193)) as the primary
+implementation path. **B, unified CAD** (`codex/cad-unified-geometry`,
+[PR 194](https://github.com/wcscr/pocketry/pull/194)) is closed; its branch is
+kept for reference.
+
+- Both build STEP from the same CAD construction at similar cost, so B added
+  no export capability.
+- A leaves preview, STL, and 3MF on the established printing path. B's
+  ordinary preview updates were many times slower on five of the six fixtures
+  (see [Performance comparison](#performance-comparison)), and B still needed
+  its CAD fit-check paths, printing parity, assembled material slicing, and
+  physical prints.
+- The rounding construction of 2026-11-17 exists only in A.
+
+This decides where work continues. It does not make STEP export a production
+default or change its experimental status: 8 of the 16 sample project files
+export, and the unsupported features and acceptance gates below remain open.
+Sections dated before this one describe both investigations as they stood
+then.
+
 ## Rounding construction update — 2026-11-17
 
 Applies to the dedicated STEP investigation (A) only. Measured locally with
@@ -440,6 +463,8 @@ Select **A** to deliver editable CAD exports while retaining the established
 printing path. Select **B** if a single CAD source for all bin outputs is the
 priority and the additional preview, mobile-memory, fit-check and printing
 qualification work is acceptable. No selection has been made automatically.
+The maintainer selected A on 2026-11-18; see
+[Selection](#selection--2026-11-18).
 
 Evidence and reproducible artifacts are in
 `outputs/cad-investigation/` in each worktree. The compact tracked

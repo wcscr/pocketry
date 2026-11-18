@@ -1,5 +1,12 @@
 # Experimental STEP export for CAD editing
 
+**Selected 2026-11-18:** the maintainer chose the dedicated STEP investigation
+(A, `codex/step-cad-export`) as the primary implementation path. The unified
+CAD investigation (B) is closed and no longer pursued. STEP export remains
+experimental and is not a production default; the unsupported cases and
+failing sample files recorded below still apply. See
+[the selection record](step-export-investigations.md#selection--2026-11-18).
+
 **2026-11-17 update, dedicated STEP investigation only:** rounded pocket floors
 and mouths are now built by exact construction of the print path's rounding
 rule instead of the modeler's edge fillet, and traced pocket sections are
@@ -17,10 +24,12 @@ shipped. The October 15 unchanged Klein, DeWalt, and Caliper examples failed
 not establish support for those designs. See the dated
 [baseline and evidence ledger](step-export-investigations.md).
 
-Two isolated investigations now build browser-local CAD boundary representations
-from Pocketry design data. Neither is a production default. See
-[the investigation comparison](step-export-investigations.md) for evidence,
-benchmarks, unsupported cases, and the required human selection gate.
+The dedicated STEP investigation builds browser-local CAD boundary
+representations from Pocketry design data, separately from the established
+printing path. It is the selected approach and is not a production default. See
+[the investigation record](step-export-investigations.md) for evidence,
+benchmarks, unsupported cases, and the comparison with the unified CAD
+investigation.
 
 ## Download and editing contract
 
