@@ -1,3 +1,5 @@
+import * as editingPoints from "@shared/geometry/edit-point-spacing";
+import { collapseStraightRuns, thinEditingOutline } from "@shared/geometry/edit-point-spacing";
 import { ringArea } from "@shared/geometry/rings";
 import { describe, expect, it, vi } from "vitest";
 import * as cleanupModule from "@shared/geometry/detected-cleanup";
@@ -6,7 +8,8 @@ import { curvesFromOutline, mapCurves, sampleCurves } from "@shared/geometry/cur
 import * as metrics from "@shared/geometry/contour-metrics";
 import { distanceToOutlineBoundary, sampleRing } from "@shared/geometry/contour-metrics";
 
-import type { ImageLike } from "./detect/types";
+import { DETECT_DEFAULTS, type ImageLike } from "./detect/types";
+import { validDetectionGeometry } from "./detect/boundary-validation";
 import { convexHullForTest, polygonArea } from "./geometry/fixtures";
 import { outlineArea, outlineBounds, pointInOutline } from "./geometry/outline";
 import {
@@ -172,7 +175,6 @@ describe("processImage straightening", () => {
     expect(result.outline[0].outer.filter(p => p.x > 85 && p.x < 115 && p.y < 60).every(p => p.y < 40.6)).toBe(true);
     // The detected outline still has the notch, for the comparison and the detail controls.
     expect(pointInOutline(result.rawOutline, inNotch)).toBe(false);
-    expect(result.refinementBase).toEqual(result.outline);
     expect(!!result.curves).toBe(editableCurves);
     expect(result.timings.straightening).toBeGreaterThanOrEqual(0);
     // Later smoothing by hand starts from the straightened outline, so it does not bring the notch back.
@@ -248,14 +250,47 @@ describe("processImage", () => {
     expect(result.smoothing?.applied).toBe(true);
     expect(result.autoSimplification).toMatchObject({ allowance: 2, unitsPerUnit: 1, unit: "px" });
     const request = { source: result.autoSimplification!.source, tolerance: 2, sampleTolerance: .1, editableCurves };
-    expect(result.outline).toEqual(sampleCurves(smoothing.simplifyAcceptedOutline(request).curves, .1));
+    const fitted = sampleCurves(smoothing.simplifyAcceptedOutline(request).curves, .1);
+    expect(result.refinementBase).toEqual(fitted);
+    if (editableCurves) expect(result.outline).toEqual(fitted);
+    else {
+      // On this circle, the detection guard retains the finer spacing at the boundary.
+      expect(result.outline).toEqual(thinEditingOutline(fitted, 16, .5));
+      expect(result.outline[0].outer.length).toBeLessThan(fitted[0].outer.length);
+    }
     expect(result.rawOutline).toEqual(detected.rawOutline);
-    expect(result.refinementBase).toEqual(result.outline);
     expect(!!result.curves).toBe(editableCurves);
     expect(result.outline[0].outer.length).toBeLessThan(result.rawOutline[0].outer.length);
     expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
     expect(result.timings.cleanup).toBeGreaterThanOrEqual(0);
     if (editableCurves) expect(result.curves![0].outer.some(a => a.in || a.out)).toBe(true);
+  });
+
+  it.each([undefined, .1, .2, .3, .5, 1] as const)("applies the calibrated straight-line tolerance %s from the fitted contour", async setting => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const fit = vi.spyOn(editingPoints, "collapseStraightRuns");
+    try {
+      const result = await processImage(image, { detect: { ...JS, tolerancePx: 4 }, autoCleanup: true,
+        straightRunToleranceMm: setting, calibration });
+      const calls = fit.mock.calls;
+      expect(calls.at(-1)![2]).toBeCloseTo((setting ?? .3) / .25);
+      expect(calls.every(([source]) => source === calls[0][0])).toBe(true);
+      expect(result.refinementBase).toEqual(calls[0][0]);
+    } finally { fit.mockRestore(); }
+  });
+
+  it("keeps the previous spacing pass when a proposed straight edge fails material validation", async () => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const bad = vi.spyOn(editingPoints, "collapseStraightRuns").mockImplementation((source) =>
+      source.map(shape => ({ ...shape, outer: shape.outer.map(p => ({ ...p, x: p.x + 100 })) })));
+    try {
+      const result = await processImage(image, { detect: JS, autoCleanup: true });
+      const [base, spaced] = bad.mock.calls[0];
+      expect(spaced[0].outer.length).toBeLessThan(base[0].outer.length);
+      expect(result.outline).toEqual(spaced);
+      expect(result.refinementBase).toEqual(base);
+    } finally { bad.mockRestore(); }
   });
 
   it("retains the reconstructed boundary and raw evidence when extra smoothing violates the material guard", async () => {
@@ -270,9 +305,13 @@ describe("processImage", () => {
       expect(result.cleanup?.applied).toBe(true);
       expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would exceed the detection detail allowance." });
       expect(result.autoSimplification).toBeUndefined();
-      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+      const fitted = sampleCurves(invoke.mock.calls[0][0].source, .25);
+      expect(result.refinementBase).toEqual(fitted);
+      const spaced = thinEditingOutline(fitted, 16, .5);
+      expect(result.outline[0].outer.length).toBeLessThan(spaced[0].outer.length);
+      expect(result.outline[0].outer.every(p => spaced[0].outer.some(q => q.x === p.x && q.y === p.y))).toBe(true);
+      expect(validDetectionGeometry(detected.rawOutline, result.outline, DETECT_DEFAULTS.tolerancePx, 4)).toBe(true);
       expect(result.rawOutline).toEqual(detected.rawOutline);
-      expect(result.refinementBase).toEqual(result.outline);
     } finally { invoke.mockRestore(); }
   });
 
@@ -293,7 +332,9 @@ describe("processImage", () => {
       expect(result.cleanup?.applied).toBe(true);
       expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would add boundary ripples." });
       expect(result.autoSimplification).toBeUndefined();
-      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+      const fitted = sampleCurves(invoke.mock.calls[0][0].source, .25);
+      expect(result.refinementBase).toEqual(fitted);
+      expect(result.outline).toEqual(collapseStraightRuns(fitted, thinEditingOutline(fitted, 16, .5), 1));
     } finally { invoke.mockRestore(); }
   });
 
@@ -305,7 +346,9 @@ describe("processImage", () => {
     expect(offset.curves).toBeUndefined(); // Native editing still requires zero Trace margin.
     expect(original.autoSimplification).toMatchObject({ allowance: .2, unitsPerUnit: .25, unit: "mm" });
     expect(offset.autoSimplification).toBeUndefined(); // Offset geometry starts a different manual source.
-    expect(offset.refinementBase).toEqual(original.outline);
+    expect(offset.refinementBase).toEqual(original.refinementBase);
+    const base = original.refinementBase!;
+    expect(original.outline).toEqual(collapseStraightRuns(base, thinEditingOutline(base, 4 / .25, .1 / .25), .2 / .25));
     expect(offset.rawOutline).toEqual(original.rawOutline);
     expect(outlineArea(offset.outline)).toBeGreaterThan(outlineArea(original.outline));
   });
