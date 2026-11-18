@@ -86,6 +86,8 @@ export interface ViewportTransformApi {
   resetZoom(): void;
   zoomBy(factor: number, anchorClient?: Point): void;
   zoomTo(scale: number, anchorClient?: Point): void;
+  /** End captured gestures without changing zoom or pan when switching tools. */
+  cancelPointers(): void;
   handlers: ViewportPointerHandlers;
   /** Ref callback for the element that should receive wheel events. */
   attachWheel(element: HTMLElement | SVGElement | null): void;
@@ -583,6 +585,16 @@ export function useViewportTransform(
     };
   }, [wheelListener]);
 
+  const cancelPointers = React.useCallback(() => {
+    const surface = surfaceRef.current;
+    for (const id of pointersRef.current.keys()) {
+      if (surface?.hasPointerCapture?.(id)) releasePointer(surface, id);
+    }
+    pointersRef.current.clear();
+    gestureRef.current = null;
+    setIsPanning(false);
+  }, []);
+
   // Space-to-pan. Tracked on the window because the canvas is not focusable and
   // the user's hand is on the mouse, over the canvas, not on a focused element.
   React.useEffect(() => {
@@ -609,9 +621,7 @@ export function useViewportTransform(
     // would make the next single finger start a pinch.
     const onBlur = () => {
       setHeld(false);
-      pointersRef.current.clear();
-      gestureRef.current = null;
-      setIsPanning(false);
+      cancelPointers();
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -622,7 +632,7 @@ export function useViewportTransform(
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, []);
+  }, [cancelPointers]);
 
   const startPan = React.useCallback((event: React.PointerEvent) => {
     if (pointersRef.current.size > 1) return;
@@ -778,6 +788,7 @@ export function useViewportTransform(
       resetZoom,
       zoomBy,
       zoomTo,
+      cancelPointers,
       handlers,
       attachWheel,
     }),
@@ -791,6 +802,7 @@ export function useViewportTransform(
       resetZoom,
       zoomBy,
       zoomTo,
+      cancelPointers,
       handlers,
       attachWheel,
     ],

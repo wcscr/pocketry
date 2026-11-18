@@ -378,6 +378,8 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const [selectionRevision, setSelectionRevision] = useState<number | null>(null);
   const selecting = advancedEditing && editing && mode === "edit" && selectionRevision === store.sourceRevision;
   const outlineTool: OutlineTool = erasing ? "erase" : selecting ? "select" : "edit";
+  // A finger can lift over the toolbar after its old editor releases capture.
+  useEffect(() => viewport.cancelPointers(), [editing, outlineTool, viewport.cancelPointers]);
   useEffect(() => {
     if (!editing || !advancedEditing || mode !== "edit") setSelectionRevision(null);
   }, [editing, advancedEditing, mode]);

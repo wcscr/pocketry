@@ -332,6 +332,22 @@ describe("direct Trace contour edits", () => {
     expect(document.querySelector('[aria-label="Outline editing tools"] [aria-pressed="true"]')?.textContent).toBe("Edit points");
   });
 
+  it("forgets an interrupted touch when its release lands on the toolbar", () => {
+    setExperimentalTools(true);
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[aria-label="Outline editing tools"] button'));
+    const [, select, erase] = buttons;
+    React.act(() => erase.click());
+    pointer("pointerdown", 45, 10, svg, "touch", 1);
+    React.act(() => select.click());
+    pointer("pointerup", 45, 10, select, "touch", 1);
+    const scene = svg.querySelector("g[transform]")!;
+    const transform = scene.getAttribute("transform");
+    pointer("pointerdown", 125, 125, svg, "touch", 2);
+    pointer("pointermove", 160, 160, svg, "touch", 2);
+    pointer("pointerup", 160, 160, svg, "touch", 2);
+    expect(scene.getAttribute("transform")).toBe(transform);
+  });
+
   it.each([false, true])("cancels a desktop vertex drag on a tool switch without overwriting history (undo=%s)", undo => {
     setExperimentalTools(true);
     const original = trace.outline;
