@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.12.7 — 2026-11-18
+
 - Keep bright metal parts in a Tool edges trace when a stray line of sheet printing or shadow reaches the region's edge; such traces no longer fall back to Color contrast and lose the part.
 - Remove the calibration sheet's 100 mm bar where a tool's shadow lies across it, so long pieces of the bar no longer stay attached to the outline.
 
