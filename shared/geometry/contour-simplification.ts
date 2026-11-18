@@ -1,28 +1,8 @@
 import { curveRing, mapCurves, type CurveOutline } from "./curves";
 import { reconstructionSourceRing, type ReconstructionResult } from "./contour-reconstruction";
 import { curveFitRange, type CurveFitRequest, type CurveFitResult, validateFittedContour } from "./curve-fit";
-import { distanceToSegment } from "./rings";
+import { simplifyOpen } from "./chord-simplification";
 import type { Outline, Point, Ring, RingRef } from "./types";
-
-function simplifyOpen(points: Ring, tolerance: number, budget: () => void): { points: Ring; maxDeviation: number } {
-  let maxDeviation = 0;
-  const fit = (points: Ring, depth = 0): Ring => {
-      budget(); const a = points[0], b = points.at(-1)!;
-      let error = 0, split = 0, progress = 0, reversal = 0;
-      const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
-      for (let i = 1; i + 1 < points.length; i++) {
-        budget(); const p = points[i], distance = distanceToSegment(p, a, b);
-        if (distance > error) { error = distance; split = i; }
-        const along = length ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / length : 0;
-        reversal = Math.max(reversal, progress - along); progress = Math.max(progress, along);
-      }
-      if (error <= tolerance && reversal <= tolerance) { maxDeviation = Math.max(maxDeviation, error); return [a, b]; }
-      if (depth >= 24) return points;
-      if (!split || reversal > tolerance) split = Math.floor(points.length / 2);
-      return [...fit(points.slice(0, split + 1), depth + 1).slice(0, -1), ...fit(points.slice(split), depth + 1)];
-    };
-  return { points: fit(points), maxDeviation };
-}
 
 /** Default point-only cleanup. Finite-chord, two-way distance bounds retain
  * straight runs and approximate curved runs with points. Never authors handles. */

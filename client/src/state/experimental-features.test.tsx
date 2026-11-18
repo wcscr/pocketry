@@ -3,7 +3,7 @@ import { projectUsesExperimentalFeatures } from "@/lib/project/experimental-feat
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY, SELECTION_INSPECTOR_KEY, EDITOR_LAYOUT_KEY } from "./experimental-features";
+import { ExperimentalFeaturesProvider, useExperimentalFeatures, EXPERIMENTAL_FEATURES_KEY, SELECTION_INSPECTOR_KEY, EDITOR_LAYOUT_KEY, STRAIGHT_RUN_TOLERANCE_KEY } from "./experimental-features";
 import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { fingerHoleSchema } from "@shared/gridfinity/cutout";
@@ -254,11 +254,32 @@ it.each(["standard", "workflow"] as const)("keeps an explicit %s preference desp
   expect(state.editorLayout).toBe(layout);
 });
 
+it("persists the advanced point tolerance without experimental opt-in and recovers invalid or cleared preferences", () => {
+  localStorage.setItem(STRAIGHT_RUN_TOLERANCE_KEY, "Infinity");
+  mount();
+  expect(state.straightRunTolerance).toBe(.3);
+  React.act(() => state.setSettingsOpen(true));
+  const select = document.querySelector<HTMLSelectElement>("#straight-run-tolerance")!;
+  expect(select.closest("details")?.open).toBe(false);
+  React.act(() => select.closest("details")!.querySelector("summary")!.click());
+  expect([...select.options].map(option => option.value)).toEqual(["0.1", "0.2", "0.3", "0.5", "1"]);
+  React.act(() => { select.value = "1"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  cleanup.pop()!(); mount();
+  expect(state.straightRunTolerance).toBe(1);
+  expect(state.enabled).toBe(false);
+  localStorage.removeItem(STRAIGHT_RUN_TOLERANCE_KEY);
+  React.act(() => window.dispatchEvent(new StorageEvent("storage", { key: null })));
+  expect(state.straightRunTolerance).toBe(.3);
+});
+
 it("uses the desktop default with blocked storage and retains an explicit session choice", () => {
   vi.stubGlobal("innerWidth", 1440);
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
   mount(); expect(state.editorLayout).toBe("workflow");
+  expect(state.straightRunTolerance).toBe(.3);
+  React.act(() => state.setStraightRunTolerance(.5));
+  expect(state.straightRunTolerance).toBe(.5);
   React.act(() => state.setEditorLayout("standard"));
   React.act(() => { vi.stubGlobal("innerHeight", 500); window.dispatchEvent(new Event("resize")); });
   expect(state.editorLayout).toBe("standard");

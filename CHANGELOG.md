@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 1.13.0 — 2026-11-18
 
 - Choose **Retry at higher resolution** in Trace to rerun Tool edges at 768 px when a thin shaft or printed rail is missing from the outline. The first trace still uses 512 px. Undo restores the previous outline.
@@ -8,6 +10,12 @@
 
 - Keep bright metal parts in a Tool edges trace when a stray line of sheet printing or shadow reaches the region's edge; such traces no longer fall back to Color contrast and lose the part.
 - Remove the calibration sheet's 100 mm bar where a tool's shadow lies across it, so long pieces of the bar no longer stay attached to the outline.
+
+## 1.12.6 — 2026-11-18
+
+- New Trace point outlines replace nearly straight runs with one edge when all intervening vertices are within 0.30 mm of that edge by default. Adjust this tolerance in App settings → Advanced settings. Sharp corners stay available for editing. A rejected edge no longer restores points already removed elsewhere.
+- Experimental outline editing includes a point eraser. Hold and drag over points on one contour. Points needed to preserve the contour stay visible, and release commits the deletions shown in the preview as one undoable edit.
+- Recognize a calibration sheet whose printed markers have thin light streaks, instead of reporting it as incomplete or rejecting its geometry.
 
 ## 1.12.5 — 2026-11-18
 

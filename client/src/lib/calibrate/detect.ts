@@ -1,6 +1,7 @@
 import type { Point } from "@shared/geometry/types";
 
 import {
+  ARUCO_4X4_MODULES,
   POCKETRY_ARUCO_BITS,
   PAPER_TEMPLATE_MARKER_COUNT,
   STABLE_TEMPLATE_MARKER_COUNT,
@@ -85,11 +86,67 @@ export function detectReferenceStripMarkers(
   ).filter(({ id }) => REFERENCE_STRIP_MARKER_IDS.includes(id));
 }
 
+/**
+ * Print streaks up to about this fraction of one marker cell are filled before
+ * the second look, and never fewer than `MIN_STREAK_FILL_PX`. For markers
+ * about 60 px and wider a cell is over three times the fill, so the pattern
+ * survives. For smaller markers the 3 px floor is a larger share of a cell
+ * and the second look may simply find nothing.
+ */
+const STREAK_FILL_CELL_FRACTION = 0.3;
+const MIN_STREAK_FILL_PX = 3;
+const MAX_STREAK_FILL_PX = 9;
+
+/**
+ * Side, in pixels, of the square that fills print streaks for markers of the
+ * size the first pass found. A streak can cut a quad short, so the longest
+ * measured side stands in for the marker's true size; in a tilted photo that
+ * is the nearest marker. Always odd, so the square is centered on its pixel.
+ */
+export function streakFillSizePx(markers: readonly DetectedMarker[]): number {
+  let longestSide = 0;
+  for (const { cornersPx } of markers) {
+    if (!cornersPx) continue;
+    for (let i = 0; i < 4; i++) {
+      const a = cornersPx[i];
+      const b = cornersPx[(i + 1) % 4];
+      const side = Math.hypot(b.x - a.x, b.y - a.y);
+      // A comparison, not Math.max: a non-finite corner must not win.
+      if (side > longestSide && Number.isFinite(side)) longestSide = side;
+    }
+  }
+  const target = (longestSide / ARUCO_4X4_MODULES) * STREAK_FILL_CELL_FRACTION;
+  const odd = 2 * Math.round((target - 1) / 2) + 1;
+  return Math.min(MAX_STREAK_FILL_PX, Math.max(MIN_STREAK_FILL_PX, odd));
+}
+
+/**
+ * Fills light lines thinner than `sizePx` in a grayscale frame, in place.
+ *
+ * This is a morphological opening. The outline of a dark convex shape with
+ * clear lighter ground around it, which is what a marker's outer square on
+ * paper is, stays where it was: corners refined afterwards moved 0 px on clean
+ * synthetic sheets and under 0.1 px on a photographed streaked sheet. The light
+ * cells inside a marker lose a little at their corners. Anything dark within
+ * `sizePx` of a marker can merge with it, so a result from this frame still
+ * has to pass the sheet geometry checks like any other.
+ */
+function fillThinLightLines(cv: Cv, gray: Cv, sizePx: number): void {
+  const square = cv.Mat.ones(sizePx, sizePx, cv.CV_8U);
+  try {
+    cv.morphologyEx(gray, gray, cv.MORPH_OPEN, square);
+  } finally {
+    square.delete();
+  }
+}
+
 function detectMarkersWithDictionary(
   cv: Cv,
   image: ImageData,
   createDictionary: () => Cv,
   cornerRefinement = cv.CORNER_REFINE_SUBPIX,
+  /** Fill light lines thinner than this many pixels first; 0 reads the frame as is. */
+  streakFillPx = 0,
 ): DetectedMarker[] {
   const src = cv.matFromImageData(image);
   const gray = new cv.Mat();
@@ -103,6 +160,7 @@ function detectMarkersWithDictionary(
 
   try {
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    if (streakFillPx > 1) fillThinLightLines(cv, gray, streakFillPx);
     dictionary = createDictionary();
     parameters = new cv.aruco_DetectorParameters();
     // The default is CORNER_REFINE_NONE. Subpixel refinement gives the
@@ -184,12 +242,46 @@ export function detectPocketryTemplateMarkers(
 }
 
 /**
+ * Second look at a sheet whose markers are crossed by thin light print
+ * streaks (banding from an inkjet or laser printer).
+ *
+ * A streak through a marker's black border splits the square the detector
+ * needs: the marker is missed, or found with one edge placed on the streak.
+ * This pass fills such lines first and otherwise detects exactly as usual,
+ * with the dictionary the first pass's markers belong to. `firstPass` must
+ * hold at least one marker; it sets the streak size to fill. The caller
+ * decides whether the result is a better sheet than the first pass found.
+ */
+export function detectStreakedTemplateMarkers(
+  cv: Cv,
+  image: ImageData,
+  firstPass: readonly DetectedMarker[],
+): DetectedMarker[] {
+  const stable = firstPass.every(({ id }) => id < STABLE_TEMPLATE_MARKER_COUNT);
+  return detectMarkersWithDictionary(
+    cv,
+    image,
+    () =>
+      createPocketryTemplateDictionary(
+        cv,
+        stable ? STABLE_TEMPLATE_MARKER_COUNT : PAPER_TEMPLATE_MARKER_COUNT,
+      ),
+    cv.CORNER_REFINE_SUBPIX,
+    streakFillSizePx(firstPass),
+  );
+}
+
+/**
  * Looks for a calibration sheet: the Pocketry template's dictionary first;
  * failing that, the common foreign families, so the UI can point the user at
- * the printable template instead of silently finding nothing.
+ * the printable template instead of silently finding nothing. `primary` lets
+ * a caller that already ran the template pass reuse its markers.
  */
-export function detectCalibrationSheet(cv: Cv, image: ImageData): ArucoDetection | null {
-  const primary = detectPocketryTemplateMarkers(cv, image);
+export function detectCalibrationSheet(
+  cv: Cv,
+  image: ImageData,
+  primary: DetectedMarker[] = detectPocketryTemplateMarkers(cv, image),
+): ArucoDetection | null {
   if (primary.length >= 2) {
     return { markers: primary, family: TEMPLATE_DICTIONARY, isTemplate: true };
   }
