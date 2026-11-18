@@ -43,8 +43,12 @@ clear-hub dispensing needle, the second of five grouped Wiha drivers, and
 the angled Wolfbox nozzle. Undo and Redo restored both outlines on all 34
 applied retries. Rejected retries preserved edit history.
 
-The cutter's sampled solid-head coverage rose from 62% to 100%. Both sizes
-included the blade center. Coverage of the first grouped Wiha driver's sampled
+On the cutter’s reference selection, sampled solid-head coverage rose from
+62% to 100%. Both sizes included the blade center. A tighter 732 × 803 px
+selection reproduced a poor retry seen in Edge. It split the solid head into
+three contours along the blade and slider. Expanding the selection on all
+sides to 752 × 833 px produced one outline and preserved the gap between
+the handles. Coverage of the first grouped Wiha driver's sampled
 shaft core rose from 13% to 100%. The larger model also lost part of the
 caliper rail, split the pink needle hub and fragmented the flux syringe.
 Of four tools with a reviewed SVG in the same image frame, three had a lower

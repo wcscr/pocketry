@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.13.0 — 2026-11-18
 
-- Trace can retry Tool edges at higher detail for thin shafts and recover outer edges obscured by printed markings. Undo restores the previous outline.
+- Choose **Retry at higher resolution** in Trace to rerun Tool edges at 768 px when a thin shaft or printed rail is missing from the outline. The first trace still uses 512 px. Undo restores the previous outline.
 
 ## 1.12.7 — 2026-11-18
 
