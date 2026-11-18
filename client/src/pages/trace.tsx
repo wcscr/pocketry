@@ -111,6 +111,9 @@ function TraceWorkspace(): JSX.Element {
   const isMobile = useIsMobile();
   const { inspectorEnabled } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
+  const editingOnPhone = isMobile && store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove");
+  const [mobileEditDock, setMobileEditDock] = useState<HTMLDivElement | null>(null);
+  useEffect(() => { if (editingOnPhone) setPanelOpen(false); }, [editingOnPhone, setPanelOpen]);
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const [outlineCleanupRequest, setOutlineCleanupRequest] = useState<{ id: number; sourceRevision: number }>();
@@ -815,7 +818,7 @@ function TraceWorkspace(): JSX.Element {
         onPanelOpenChange={setPanelOpen}
         panelTitle="Trace controls"
         mobileActionsLayout="landscape-side"
-        mobileActions={<MobileTraceActions
+        mobileActions={editingOnPhone ? <div ref={setMobileEditDock} data-mobile-expanded="true" /> : <MobileTraceActions
           onAddToBin={handoff.addToBin}
           onExport={requestExport}
           addToBinReady={handoff.ready}
@@ -875,6 +878,7 @@ function TraceWorkspace(): JSX.Element {
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
+                  mobileEditDock={mobileEditDock}
                   outlineCleanupRequest={outlineCleanupRequest}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}

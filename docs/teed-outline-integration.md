@@ -151,7 +151,12 @@ step. Unsupported fits keep the detected boundary; cleanup never guesses across 
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
 right-click a point to delete it. Shift-click or box-select multiple points;
-**Select points** also works without a keyboard. **Repair section** replaces a
+**More tools → Select points** also works without a keyboard. In Trace, edit
+directly on the photo. Controls sit in the desktop Outline properties pane or
+in a dock when that pane is unavailable. The phone dock sits below the photo in portrait and beside it in landscape. On a phone, tap a point and
+choose **Delete point**. **More tools** also offers repeated erasing on desktop
+and **Bend edges** when editable curves are enabled. Edits apply immediately.
+Choose **Done** to leave editing. **Repair section** replaces a
 selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,

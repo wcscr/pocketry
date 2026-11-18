@@ -6,6 +6,7 @@ export interface TraceInspector {
   /** Margin is optional and only counts as reviewed after opening it for this source. */
   marginVisited: boolean;
   settings: HTMLDivElement | null;
+  outlineEditor: HTMLDivElement | null;
   showSection: (id: string, reveal?: boolean) => void;
   showCanvas: () => void;
 }

@@ -43,7 +43,7 @@ restores any native curve handles. An already-used contour shows a checkmark and
 disables replacement. Hover/focus hints explain the controls without extra copy.
 Escape dismisses the preview. It cannot restore material segmentation missed.
 
-Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
+Use **Edit outline → More tools → Bend edges** in Trace, or **Edit contour → Bend edges** on an
 upright Bin pocket. Tilted/profile pockets retain their editing restriction.
 
 - Drag an edge to bend it, an anchor to move it with its handles, or a handle to

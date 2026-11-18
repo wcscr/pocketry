@@ -75,7 +75,6 @@ export interface TraceSceneProps {
    */
   hoveredVertexIndex?: number | null;
   selectedVertexIndex?: number | null;
-  compactHandles?: boolean;
   /** Selection can highlight a contour without offering point editing. */
   showVertices?: boolean;
   /** Handles for the interaction layer above. */
@@ -93,8 +92,8 @@ export interface TraceSceneProps {
 }
 
 /** Screen-space sizes, divided by the scale so they stay constant when zooming. */
-const HANDLE_RADIUS = 5;
-const HANDLE_RADIUS_SELECTED = 7;
+const HANDLE_RADIUS = 2.75;
+const HANDLE_RADIUS_SELECTED = 5;
 const RULER_HIT_RADIUS = 18;
 const RULER_MARKER_HALF_SIZE = 7;
 const RULER_LABEL_OFFSET = 18;
@@ -155,7 +154,6 @@ export function TraceScene({
   busy = false,
   hoveredVertexIndex = null,
   selectedVertexIndex = null,
-  compactHandles = false,
   showVertices = true,
   onPointerDown,
   onPointerMove,
@@ -240,7 +238,7 @@ export function TraceScene({
               d={ringToPath(ring)}
               fill="none"
               vectorEffect="non-scaling-stroke"
-              strokeWidth={sameRingRef(selection, ref) ? 7 : 6}
+              strokeWidth={sameRingRef(selection, ref) ? (showVertices ? 4.5 : 7) : 6}
               className="stroke-white/95"
               strokeDasharray={ref.ringIndex === OUTER_RING ? undefined : "4 3"}
               strokeLinejoin="round"
@@ -251,7 +249,7 @@ export function TraceScene({
               d={ringToPath(ring)}
               fill="none"
               vectorEffect="non-scaling-stroke"
-              strokeWidth={sameRingRef(selection, ref) ? 3.5 : 2.75}
+              strokeWidth={sameRingRef(selection, ref) ? (showVertices ? 2 : 3.5) : 2.75}
               className={
                 sameRingRef(selection, ref)
                   ? "stroke-fuchsia-500"
@@ -280,7 +278,7 @@ export function TraceScene({
               key={index}
               cx={point.x}
               cy={point.y}
-              r={(selected ? 8 : hovered ? HANDLE_RADIUS_SELECTED : compactHandles ? 3.5 : HANDLE_RADIUS) * inv}
+              r={(selected ? 6 : hovered ? HANDLE_RADIUS_SELECTED : HANDLE_RADIUS) * inv}
               className={
                 selected ? "fill-primary stroke-background" : hovered
                   ? "fill-fuchsia-500 stroke-white"

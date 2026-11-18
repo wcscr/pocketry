@@ -47,7 +47,9 @@ import { useContourPointFocus } from "@/hooks/use-contour-point-focus";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
-import { ContourEditTools } from "@/components/canvas/contour-edit-tools";
+import { createPortal } from "react-dom";
+import { useTraceInspector } from "./trace-inspector-context";
+import { OutlinePointPanel, type OutlinePointTool } from "./outline-point-panel";
 import { useCurveEditor } from "@/components/canvas/use-curve-editor";
 import { useCurveFitting } from "@/components/canvas/use-curve-fitting";
 import { usePointSelection } from "@/components/canvas/use-point-selection";
@@ -59,7 +61,6 @@ import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
 import { nearestEdge, nearestVertex } from "@/lib/geometry/hit-test";
 import { getRing, iterateRings, outlineBounds, sameRingRef, setRing } from "@/lib/geometry/outline";
 import { Button } from "@/components/ui/button";
-import { HelpHint } from "@/components/ui/help-hint";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Tooltip,
@@ -75,6 +76,8 @@ import { TraceScene } from "./trace-scene";
 const PICK_RADIUS_PX = 10;
 
 export interface TraceCanvasProps {
+  /** Reuse the phone action tray while editing so the photo keeps its available height. */
+  mobileEditDock?: HTMLDivElement | null;
   outlineCleanupRequest?: { id: number; sourceRevision: number };
   /** Incremented by the persistent review notice to focus the estimated area. */
   estimatedEdgeFocusRequest?: number;
@@ -99,22 +102,20 @@ export interface TraceCanvasProps {
  */
 export function TraceCanvas(props: TraceCanvasProps): JSX.Element {
   const menu = useContourContextMenu();
+  const inspector = useTraceInspector();
+  const [dock, setDock] = useState<HTMLDivElement | null>(null);
   if (!menu) return <ContourMenuProvider><TraceCanvas {...props} /></ContourMenuProvider>;
   return (
-    <CanvasViewport>
-      {/*
-        Scene and floating toolbars both live in `children` rather than being
-        split across the `overlays` slot, because both need the same viewport
-        transform and it is owned by the stage. `CanvasViewport` renders its
-        children into a full-size `absolute inset-0` layer, so the toolbars'
-        corner offsets resolve against exactly the same box either way.
-      */}
-      <TraceStage {...props} />
-    </CanvasViewport>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1">
+        <CanvasViewport><TraceStage {...props} editHost={props.mobileEditDock ?? inspector?.outlineEditor ?? dock} /></CanvasViewport>
+      </div>
+      <div ref={setDock} className="max-h-[45%] shrink-0 overflow-y-auto overscroll-contain border-t bg-background empty:hidden" />
+    </div>
   );
 }
 
-function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps): JSX.Element {
+function TraceStage({ editHost, onReprocess, onCorrection, emptyState, estimatedEdgeFocusRequest = 0, outlineCleanupRequest }: TraceCanvasProps & { editHost: HTMLDivElement | null }): JSX.Element {
   const openContourMenu = useContourContextMenu();
   const store = useTrace();
   const detectedReview = store.detectedOutlineReview;
@@ -344,9 +345,12 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       cleanup.start("reconstruct");
     }
   }, [outlineCleanupRequest]);
+  const editingOutline = (mode === "edit" || mode === "remove") && outline.length > 0;
+  const finishOutlineEdit = () => dispatch({ type: "SET_MODE", mode: "pan" });
   const curveEditor = useCurveEditor({
+    preferPointTools: true,
     allowCurves: store.editableCurves || !!store.curves,
-    outline, curves: store.curves, enabled: (mode === "edit" || mode === "remove") && outline.length > 0,
+    outline, curves: store.curves, enabled: editingOutline,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
     tolerance: CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? 0.1), fromClient: toImage,
@@ -357,22 +361,17 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       const bounds = outlineBounds([{ outer: points, holes: [] }]);
       const width = containerSize.width, height = containerSize.height;
       if (!bounds || width <= 80 || height <= 160) return;
-      // Frame the chosen boundary above the floating preview controls, so the
-      // replacement and both endpoints remain visible while reviewing it.
+      // The edit dock sits outside the measured canvas. Frame both repair endpoints.
       const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 10) * .5;
-      const reserve = Math.min(300, height * .45);
-      const scale = Math.min((width - 48) / (bounds.maxX - bounds.minX + 2 * padding),
-        Math.max(40, height - reserve - 96) / (bounds.maxY - bounds.minY + 2 * padding));
-      const framedWidth = (width - 48) / scale, framedHeight = (height - 48) / scale;
-      fitToRect({ x: (bounds.minX + bounds.maxX - framedWidth) / 2,
-        y: (bounds.minY + bounds.maxY - framedHeight) / 2 + reserve / (2 * scale), width: framedWidth, height: framedHeight });
+      fitToRect({ x: bounds.minX - padding, y: bounds.minY - padding,
+        width: bounds.maxX - bounds.minX + 2 * padding, height: bounds.maxY - bounds.minY + 2 * padding });
     },
-    onDone: () => dispatch({ type: "SET_MODE", mode: "pan" }),
+    onDone: finishOutlineEdit,
     onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
       outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
   const pointSelection = usePointSelection({ source: cleanupSource,
-    enabled: !curveEditor.active && (mode === "edit" || mode === "remove") && outline.length > 0,
+    enabled: !curveEditor.active && mode === "edit" && outline.length > 0,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale, fromClient: toImage, toCanvas: p => p,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
     onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
@@ -390,7 +389,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   });
   const desktopPoint = useContourPointFocus({
     outline,
-    enabled: !curveEditor.active && !isMobile && selection !== null && (mode === "edit" || mode === "remove"),
+    enabled: !curveEditor.active && !isMobile && selection !== null && mode === "edit" && !pointSelection.selectMode,
     contextKey: `${store.sourceRevision}:${imageRotation}`,
   });
   useEffect(() => {
@@ -517,7 +516,22 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     return true;
   };
 
-  const mobileEditing = !curveEditor.active && isMobile && (mode === "edit" || mode === "remove");
+  const mobileEditing = !curveEditor.active && isMobile && mode === "edit" && !pointSelection.selectMode;
+  // Compact layouts delete a focused point explicitly, so a resize must end the desktop eraser.
+  useEffect(() => {
+    if (isMobile && mode === "remove") dispatch({ type: "SET_MODE", mode: "edit" });
+  }, [isMobile, mode, dispatch]);
+  const editorPoints = curveEditor.basicPoints ?? pointSelection;
+  const pointTool: OutlinePointTool = mode === "remove" ? "erase" : editorPoints.selectMode ? "select" : "edit";
+  const editingRing = curveEditor.basicPoints ? curveEditor.ringRef : selection;
+  const contourLabel = editingRing && (outline.length > 1 || editingRing.ringIndex !== OUTER_RING)
+    ? `Contour ${editingRing.shapeIndex + 1}${editingRing.ringIndex === OUTER_RING ? "" : ` · Hole ${editingRing.ringIndex + 1}`}` : undefined;
+  const changePointTool = (tool: OutlinePointTool) => {
+    if (tool === pointTool) return;
+    editorPoints.clear();
+    editorPoints.setSelectMode(tool === "select");
+    dispatch({ type: "SET_MODE", mode: tool === "erase" ? "remove" : "edit" });
+  };
   const focusContour = () => {
     const ring = selection && getRing(outline, selection);
     const bounds = outlineBounds(ring ? [{ outer: ring, holes: [] }] : outline);
@@ -541,6 +555,9 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", outline: next, label }),
   });
   const focusedPoint = isMobile ? mobileEditor.selectedPoint : desktopPoint.selectedPoint;
+  const deletePointAction = pointTool === "edit" && editorPoints.selection.length <= 1 && (curveEditor.basicPoints ? curveEditor.deleteAnchor : focusedPoint &&
+    <Button size="sm" variant="outline" disabled={isMobile ? !mobileEditor.canRemove : !desktopPoint.canDelete}
+      onClick={isMobile ? mobileEditor.removeSelected : deleteFocusedPoint}>Delete point</Button>);
   const magnifiedPoint = isMobile ? mobileEditor.activePoint : desktopPoint.activePoint;
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -559,6 +576,10 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       correctionPointer.current = event.pointerId;
       correctionStroke.current = hint; setStrokePreview(hint);
       event.currentTarget.setPointerCapture(event.pointerId); return;
+    }
+    if (editingOutline && viewport.isSpaceHeld && !curveEditor.active) {
+      viewport.handlers.onPointerDown(event, { pan: true });
+      return;
     }
     if (pointSelection.down(event)) return;
     if (curveEditor.down(event)) return;
@@ -961,6 +982,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     if (correctionMode) return correctionMode === "pan" || viewport.isSpaceHeld || shiftHeld ? "grab" : processing ? "wait" : "crosshair";
     // Shift selects nodes during editing; Space and the hand tool still pan.
     if (viewport.isSpaceHeld || mode === "navigate" || shiftHeld && mode !== "edit" && mode !== "remove") return "grab";
+    if (mode === "remove" || pointSelection.selectMode) return "crosshair";
     // Promise the grab before the drag, too.
     if (hoveredVertexIndex !== null) return "move";
     if (
@@ -972,7 +994,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       return "crosshair";
     }
     return "default";
-  }, [mode, correctionMode, processing, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex]);
+  }, [mode, correctionMode, processing, viewport.isPanning, viewport.isSpaceHeld, shiftHeld, hoveredVertexIndex, pointSelection.selectMode]);
 
   // No wrapper element of its own: CanvasViewport already provides the
   // positioned, clipped, full-size box these children lay out against.
@@ -1041,7 +1063,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
           cursor={cursor}
           hoveredVertexIndex={hoveredVertexIndex}
           selectedVertexIndex={focusedPoint && sameRingRef(focusedPoint.ref, selection) ? focusedPoint.index : null}
-          compactHandles={isMobile}
           showVertices={!curveEditor.active && (mode === "edit" || mode === "remove")}
           contourOverlay={<>{detectedPreview && <g data-testid="detected-outline-preview" pointerEvents="none">
               <path d={outlineToPathData(detectedPreview)} fill="none" stroke="white" strokeWidth={5} vectorEffect="non-scaling-stroke" />
@@ -1149,19 +1170,18 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             />
           </CanvasToolbar>
 
-          {(curveEditor.controls || curveEditor.startButton) && <div className="absolute bottom-16 left-2 right-2 z-30">
-            {curveEditor.active ? curveEditor.controls : <div className="flex max-w-xl flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border bg-background p-2 shadow-md [&>*]:shrink-0" aria-label="Outline editing controls">
+          {editHost && editingOutline && createPortal(curveEditor.controls || <OutlinePointPanel
+            tool={pointTool} mobile={isMobile} canErase={!isMobile && !curveEditor.active && !!selection}
+            contour={contourLabel} onToolChange={changePointTool} onDone={finishOutlineEdit}
+            advanced={<>
+              {!isMobile && deletePointAction}
               {curveEditor.startButton}
-              <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Select two endpoints for Repair section and preview a line or curve. Space-drag pans; Done leaves editing. Edits apply immediately and can be undone.</HelpHint>
-              {selection && getRing(outline, selection) && !isMobile && <ContourEditTools compact removeActive={mode === "remove"}
-                onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete}
-                selectionLabel={`Contour ${selection.shapeIndex + 1}${selection.ringIndex === OUTER_RING ? "" : ` · Hole ${selection.ringIndex + 1}`}`}
-                onChange={(remove) => dispatch({ type: "SET_MODE", mode: remove ? "remove" : "edit" })} />}
-              {isMobile && mobileEditor.selectedPoint && <Button size="sm" variant="outline" disabled={!mobileEditor.canRemove} onClick={mobileEditor.removeSelected}>Delete point</Button>}
-              {pointSelection.controls}
-              {(store.margin ?? 0) !== 0 && <span className="w-full text-xs">Set trace margin to zero to bend edges. Use Bin clearance to adjust fit.</span>}
-            </div>}
-          </div>}
+              {curveEditor.startButton && (store.margin ?? 0) !== 0 && <p className="w-full text-xs text-muted-foreground">Set trace margin to zero to bend edges.</p>}
+            </>}>
+            {isMobile && deletePointAction}
+            {(pointTool === "select" || editorPoints.selection.length > 1) && editorPoints.selectionActions}
+            {curveEditor.basicPoints && curveEditor.error && <p role="alert" className="text-xs text-destructive">{curveEditor.error}</p>}
+          </OutlinePointPanel>, editHost)}
           {cleanup.open && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto" data-testid="outline-cleanup-panel">
             <div className="max-h-[60vh] w-full overflow-y-auto rounded-xl border bg-background p-4 shadow-lg md:w-[23rem]" role="region" aria-label="Smooth outline preview">{cleanup.controls}</div>
           </div>}
@@ -1198,17 +1218,14 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
                 </>
               )}
             </span>
-            <span className={cn("hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground", !correctionMode && "md:inline")}>
+            <span className={cn("hidden border-l pl-2 pr-1.5 text-[11px] text-muted-foreground", !correctionMode && !editingOutline && "md:inline")}>
               {mode === "measure"
                 ? !measurement
                   ? "Click the first measurement point"
                   : measurement.end
                     ? "Click to start a new measurement"
                     : "Click the second measurement point"
-                : curveEditor.active ? "Click edge to add · Right-click point to delete · Drag edge to bend · Space pans"
-                : selection && (mode === "edit" || mode === "remove")
-                  ? "Click edge to add · Right-click point to delete · Shift-click or box-select points · Space pans"
-                  : mode === "pan"
+                : mode === "pan"
                     ? "Click a contour to select · Empty space clears selection · Shift-drag pans"
                     : "Shift-drag pans · Ctrl-scroll zooms"}
             </span>

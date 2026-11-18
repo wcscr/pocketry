@@ -65,7 +65,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Automatic · match background</strong> under <strong>Find the outline using</strong>.
               If perspective correction crops the tool, enable
               <strong> Show full photo</strong> beside the canvas. In
-              <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points.
+              <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points. Drag a point to move it, or tap the line to add one.
+              Use <strong>More tools → Select points</strong> to move several together or repair a section between two endpoints.
+              Choose <strong>Done</strong> to return to the photo. Undo is available for each edit.
               Choose <strong>Add manual contour</strong> to start another trace with a four-point
               square, then drag its corners and add points on its edges. Trace an inner feature
               separately when it needs a different pocket depth in Bin.
@@ -87,7 +89,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               to adjust sensitivity, point simplification, or preview <strong>Smooth outline</strong>.
               <strong> Detected outline</strong> compares the earlier detection without changing your work;
               <strong> Use detected outline</strong> restores it as one Undo step.
-              <strong> Editable curves</strong> enables handles and <strong>Edit outline → Bend edges</strong>.
+              <strong> Editable curves</strong> enables handles and <strong>Edit outline → More tools → Bend edges</strong>.
               <strong> Restart outline detection</strong> resets tuning and corrections while keeping the photo,
               scale, region, and margin. Undo restores the previous result.
             </p>

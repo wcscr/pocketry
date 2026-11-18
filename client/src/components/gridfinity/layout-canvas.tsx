@@ -2384,7 +2384,10 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             onDone={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })} /> :
             <ContourEditTools removeActive={removeVertices} onChange={setRemoveVertices}
               onDeletePoint={desktopPoint.selectedPoint ? deleteFocusedPoint : undefined} canDeletePoint={desktopPoint.canDelete} />}
-          {curveEditor.startButton}
+          {curveEditor.startButton && <div role="group" aria-label="Outline editing style" className="flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm">
+            <span className="text-sm font-medium">Edit outline</span>{curveEditor.startButton}
+            {!isMobile && <Button size="sm" variant="outline" onClick={() => dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" })}>Done</Button>}
+          </div>}
           <WorkflowHint hintKey="contour-edit" className="mt-1 max-w-[min(22rem,calc(100vw-1rem))]">
             {curveEditor.active ? "Drag an edge to bend · Drag handles to shape · Esc cancels a drag" :
             isMobile ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom."
