@@ -179,6 +179,12 @@ type SheetCalibrationResult = Exclude<
  * filled. The second result replaces the first only if it is a complete sheet
  * that passes the same geometry checks; otherwise the first verdict stands.
  * Photos without any Pocketry marker, the common case, never pay for it.
+ *
+ * The second look may add markers and move corners. It must never hide what
+ * the first pass saw: filling light lines can also join a marker to a dark
+ * shape beside it, and a marker that disappears that way could take an
+ * ambiguity with it. So a repeated id in the first pass is final, and every
+ * first-pass marker has to be found again where it was.
  */
 function runSheetCalibration(cv: any, image: ImageData): SheetCalibrationResult {
   const firstPass = detectPocketryTemplateMarkers(cv, image);
@@ -187,13 +193,44 @@ function runSheetCalibration(cv: any, image: ImageData): SheetCalibrationResult 
     detectCalibrationSheet(cv, image, firstPass),
   );
   if (direct.kind === "calibrated" || firstPass.length === 0) return direct;
+  // Streaks hide a marker or shift its edges; they do not print a second one.
+  if (new Set(firstPass.map(({ id }) => id)).size !== firstPass.length) return direct;
 
+  const secondLook = detectStreakedTemplateMarkers(cv, image, firstPass);
+  if (!keepsEveryMarker(firstPass, secondLook)) return direct;
   const recovered = calibrateDetectedSheet(cv, {
-    markers: detectStreakedTemplateMarkers(cv, image, firstPass),
+    markers: secondLook,
     family: TEMPLATE_DICTIONARY,
     isTemplate: true,
   });
   return recovered.kind === "calibrated" ? recovered : direct;
+}
+
+/**
+ * True when each marker of `seen` appears in `again` with the same id and its
+ * center within half a marker side. A streak that cut a quad short moves the
+ * center by a fraction of that; a different marker with the same id is
+ * elsewhere on the page.
+ */
+function keepsEveryMarker(
+  seen: readonly DetectedMarker[],
+  again: readonly DetectedMarker[],
+): boolean {
+  return seen.every((first) =>
+    again.some((marker) => {
+      if (marker.id !== first.id || !marker.cornersPx) return false;
+      const [a, b, c] = marker.cornersPx;
+      const side = Math.max(
+        Math.hypot(b.x - a.x, b.y - a.y),
+        Math.hypot(c.x - b.x, c.y - b.y),
+      );
+      const moved = Math.hypot(
+        marker.centerPx.x - first.centerPx.x,
+        marker.centerPx.y - first.centerPx.y,
+      );
+      return moved <= side / 2;
+    }),
+  );
 }
 
 /** Identifies and validates a sheet from one detection pass's markers. */

@@ -685,6 +685,75 @@ describe("sheets printed with light streaks across the markers", () => {
       reason: "invalid-geometry",
     });
   });
+
+  /**
+   * A complete a4 sheet with a second copy of `copyId` at the page center and
+   * a dark block two pixels beside the copy. Filling light lines closes that
+   * gap, so the copy joins the block and the second look no longer sees it.
+   */
+  function sheetWithHideableCopy(copyId: number): ImageData {
+    const template = "a4";
+    const sizePx = templateMarkerSizeMm(template) * PX_PER_MM;
+    const page = TEMPLATE_PAPER_MM[templatePaper(template)];
+    const copy = { id: copyId, x: page.width / 2, y: page.height / 2 };
+    const sheet = composeSheet(pocketryDictionary, template, {
+      centers: [...templateMarkerCentersMm(template), copy],
+    });
+    const left = Math.round(copy.x * PX_PER_MM + sizePx / 2) + 2;
+    const top = Math.round(copy.y * PX_PER_MM - sizePx / 2);
+    for (let row = top; row < top + sizePx; row++) {
+      for (let col = left; col < left + 12; col++) {
+        const at = (row * sheet.width + col) * 4;
+        sheet.data.fill(0, at, at + 3);
+      }
+    }
+    return sheet;
+  }
+
+  it("keeps rejecting a repeated id that the second look would no longer see", () => {
+    const sheet = sheetWithHideableCopy(0);
+    const firstPass = detectPocketryTemplateMarkers(cv, sheet);
+    expect(sortedIds(firstPass)).toEqual([0, 0, 1, 2, 3]);
+    // The hazard: with the gap filled, the copy is gone and the sheet looks clean.
+    expect(
+      sortedIds(detectStreakedTemplateMarkers(cv, sheet, firstPass)),
+    ).toEqual([0, 1, 2, 3]);
+
+    const counted = countingDetectorWork();
+    expect(runAutoCalibration(counted.cv, sheet)).toMatchObject({
+      kind: "foreign-sheet",
+      reason: "invalid-geometry",
+      markerIds: [0, 0, 1, 2, 3],
+    });
+    // A repeated id is not streak damage, so there is no second look at all.
+    expect(counted.fills()).toBe(0);
+  });
+
+  it("keeps the first verdict when the second look drops a marker the first pass saw", () => {
+    // The sheet's own id 2 is hidden from the first pass by a streak, so the
+    // copy of id 2 is the only one it sees: four distinct ids in the wrong
+    // geometry. The second look finds the real one and loses the copy. Two
+    // markers with one id were in the photo, and that must not calibrate.
+    const template = "a4";
+    const sizePx = templateMarkerSizeMm(template) * PX_PER_MM;
+    const sheet = addPrintStreaks(
+      sheetWithHideableCopy(2),
+      template,
+      [Math.round(sizePx * 0.45)],
+      { onlyIds: [2] },
+    );
+    const firstPass = detectPocketryTemplateMarkers(cv, sheet);
+    expect(sortedIds(firstPass)).toEqual([0, 1, 2, 3]);
+    expect(
+      sortedIds(detectStreakedTemplateMarkers(cv, sheet, firstPass)),
+    ).toEqual([0, 1, 2, 3]);
+
+    expect(runAutoCalibration(cv, sheet)).toMatchObject({
+      kind: "foreign-sheet",
+      reason: "invalid-geometry",
+      markerIds: [0, 1, 2, 3],
+    });
+  });
 });
 
 describe("streakFillSizePx", () => {

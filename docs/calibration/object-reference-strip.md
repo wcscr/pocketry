@@ -156,7 +156,11 @@ A marker with clear paper around it keeps its outer corners: they moved by
 0 pixels on clean synthetic sheets and under 0.1 pixel on a photographed
 streaked sheet. The second result is used only when it shows all four signature
 markers and passes the same 16-corner geometry check; otherwise the first
-result and its notice stand. Photos in which the first pass finds no paper
+result and its notice stand. The second look can add a marker or move its
+corners, but it cannot hide one: filling light lines can also join a marker to
+a dark shape beside it. A repeated marker ID in the first pass therefore stays
+rejected without a second look, and every marker the first pass found must be
+found again in the same place. Photos in which the first pass finds no paper
 marker are not looked at again, so a print whose streaks hide all four markers
 still reports no markers.
 
