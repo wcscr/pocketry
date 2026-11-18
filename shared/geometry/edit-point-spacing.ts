@@ -2,6 +2,15 @@ import { simplifyOpen } from "./chord-simplification";
 import { distanceToSegment } from "./rings";
 import type { Outline, Point, Ring } from "./types";
 
+export const STRAIGHT_RUN_TOLERANCES_MM = [0.1, 0.2, 0.3, 0.5, 1] as const;
+export type StraightRunToleranceMm = typeof STRAIGHT_RUN_TOLERANCES_MM[number];
+export const DEFAULT_STRAIGHT_RUN_TOLERANCE_MM: StraightRunToleranceMm = 0.3;
+
+export function straightRunToleranceMm(value: unknown): StraightRunToleranceMm {
+  return STRAIGHT_RUN_TOLERANCES_MM.find(mm => value === mm || value === String(mm))
+    ?? DEFAULT_STRAIGHT_RUN_TOLERANCE_MM;
+}
+
 const CORNER_COS = Math.cos(Math.PI / 6);
 
 function sharpCorner(ring: Ring, i: number): boolean {

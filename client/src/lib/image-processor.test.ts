@@ -266,6 +266,20 @@ describe("processImage", () => {
     if (editableCurves) expect(result.curves![0].outer.some(a => a.in || a.out)).toBe(true);
   });
 
+  it.each([undefined, .1, .2, .3, .5, 1] as const)("applies the calibrated straight-line tolerance %s from the fitted contour", async setting => {
+    const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
+    const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 25 };
+    const fit = vi.spyOn(editingPoints, "collapseStraightRuns");
+    try {
+      const result = await processImage(image, { detect: { ...JS, tolerancePx: 4 }, autoCleanup: true,
+        straightRunToleranceMm: setting, calibration });
+      const calls = fit.mock.calls;
+      expect(calls.at(-1)![2]).toBeCloseTo((setting ?? .3) / .25);
+      expect(calls.every(([source]) => source === calls[0][0])).toBe(true);
+      expect(result.refinementBase).toEqual(calls[0][0]);
+    } finally { fit.mockRestore(); }
+  });
+
   it("keeps the previous spacing pass when a proposed straight edge fails material validation", async () => {
     const image = photo(160, 160, (x, y) => Math.hypot(x - 80, y - 80) < 50);
     const bad = vi.spyOn(editingPoints, "collapseStraightRuns").mockImplementation((source) =>

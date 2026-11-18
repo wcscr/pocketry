@@ -319,6 +319,22 @@ describe("direct Trace contour edits", () => {
     expect(button()).toBeUndefined();
   });
 
+  it("discards an unfinished erasure when undo and redo return to the same geometry", () => {
+    const outer = [10, 35, 60, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer, holes: [] }] }));
+    setExperimentalTools(true);
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    const before = trace.outline;
+    pointer("pointerdown", 35, 10);
+    pointer("pointermove", 60, 10);
+    React.act(() => { trace.undo(); trace.redo(); });
+    const history = trace.history;
+    expect(trace.outline).toBe(before);
+    pointer("pointerup", 60, 10);
+    expect(trace.history).toBe(history);
+    expect(trace.outline).toBe(before);
+  });
+
   it.each(["pointermove", "pointerup", "mixed batch"])("keeps safe erasures when %s hits a corner protecting a hole", last => {
     const outer = [10, 40, 60, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
     const hole = [{ x: 73, y: 19 }, { x: 73, y: 27 }, { x: 81, y: 27 }, { x: 81, y: 19 }];

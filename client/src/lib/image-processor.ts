@@ -1,3 +1,5 @@
+import { preservesMaterial } from "@shared/geometry/boundary-contract";
+import { straightRunToleranceMm, type StraightRunToleranceMm } from "@shared/geometry/edit-point-spacing";
 import { validateDetectionHints } from "./detect/hint-validation";
 import { simplifyEditingPoints } from "./detect/simplify-editing-points";
 import { validDetectionGeometry } from "./detect/boundary-validation";
@@ -117,6 +119,8 @@ export async function adjustOutlineMargin(
 export interface ProcessOptions {
   /** Reconstruct the detected boundary before exposing it for editing. */
   autoCleanup?: boolean;
+  /** Maximum deviation of a straight edge on new point outlines, in calibrated millimeters. */
+  straightRunToleranceMm?: StraightRunToleranceMm;
   editableCurves?: boolean;
   /**
    * Smooth the dense trace outward before simplification and cleanup, about one
@@ -260,7 +264,8 @@ export async function processImage(
     holes: s.holes.map(r => r.map(p => ({ x: p.x * toWorking.x, y: p.y * toWorking.y }))) }));
   let outline = translate(mapToWorking(silhouette(result.outline)), origin);
   let rawOutline = translate(mapToWorking(silhouette(result.rawOutline)), origin);
-  const material = translate(mapToWorking(silhouette(result.materialOutline ?? result.rawOutline)), origin);
+  const material = !result.materialOutline || result.materialOutline === result.rawOutline
+    ? rawOutline : translate(mapToWorking(silhouette(result.materialOutline)), origin);
 
   let curves: CurveOutline | undefined, refinementBase: Outline | undefined;
   let autoSimplification: AppliedOutlineSimplification | undefined;
@@ -394,10 +399,14 @@ export async function processImage(
     const spacing = workingMmPerPixel ? 4 / workingMmPerPixel : 16;
     const detailPx = detectionOptions.tolerancePx! * workingPerDetectPixel;
     const step = workingMmPerPixel ? .1 / workingMmPerPixel : .5;
-    const straightRunLevels = 2;
+    const straightRunLevels = Math.round(straightRunToleranceMm(options.straightRunToleranceMm) * 10);
+    const inward = detectionOptions.inwardTolerancePx! * workingPerDetectPixel;
+    const outward = detectionOptions.outwardTolerancePx! * workingPerDetectPixel;
+    // Outward smoothing may intentionally expand the trace beyond the original
+    // material. Keep that accepted silhouette inside its own inward allowance.
     outline = simplifyEditingPoints(outline, spacing, step, detailPx, straightRunLevels, candidate =>
-      honoursMarks(candidate) && validDetectionGeometry(material, candidate,
-        detectionOptions.inwardTolerancePx! * workingPerDetectPixel, detectionOptions.outwardTolerancePx! * workingPerDetectPixel));
+      honoursMarks(candidate) && validDetectionGeometry(material, candidate, inward, outward) &&
+      (rawOutline === material || preservesMaterial(rawOutline, candidate, inward)));
   }
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {

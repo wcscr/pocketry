@@ -12,6 +12,8 @@ type CanvasEvent = PointerEvent<SVGSVGElement>;
 interface Stroke {
   id: number;
   target: SVGSVGElement;
+  source: CurveOutline;
+  revision: object;
   last: Point;
   ring: RingRef | null;
   removed: Map<number, CurvePointRef>;
@@ -122,11 +124,11 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
   const down = (e: CanvasEvent, pan: boolean) => {
     viewport.onPointerDown(e, { pan });
     if (e.pointerType === "touch" && e.isPrimary === false) { cancel(); return; }
-    if (pan || e.button !== 0 || stroke.current) return;
+    if (!enabled || pan || e.button !== 0 || stroke.current) return;
     const p = fromClient(e.clientX, e.clientY);
     if (!p) return;
     setError("");
-    const current: Stroke = { id: e.pointerId, target: e.currentTarget, last: p, ring: null, removed: new Map() };
+    const current: Stroke = { id: e.pointerId, target: e.currentTarget, source, revision, last: p, ring: null, removed: new Map() };
     stroke.current = current;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     setCursor(p);
@@ -139,7 +141,7 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
     const p = fromClient(e.clientX, e.clientY);
     setCursor(p);
     const current = stroke.current;
-    if (!current || current.id !== e.pointerId || !p) return;
+    if (!enabled || !current || current.id !== e.pointerId || current.source !== source || current.revision !== revision || !p) return;
     const pending = new Map<number, CurvePointRef>();
     for (const sample of e.nativeEvent.getCoalescedEvents?.() ?? []) {
       const position = fromClient(sample.clientX, sample.clientY);
@@ -150,7 +152,7 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
   };
   const end = (e: CanvasEvent) => {
     const current = stroke.current;
-    if (current && current.id === e.pointerId && e.type === "pointerup") {
+    if (enabled && current && current.id === e.pointerId && current.source === source && current.revision === revision && e.type === "pointerup") {
       const p = fromClient(e.clientX, e.clientY);
       if (p && (p.x !== current.last.x || p.y !== current.last.y)) {
         const pending = new Map<number, CurvePointRef>();
