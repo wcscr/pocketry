@@ -28,6 +28,15 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("recovers a correction session with its marks and the ordinary canvas tool", () => {
+    const trace = calibrated();
+    const hints = [{ kind: "tool" as const, points: [{ x: 10, y: 20 }], radius: 2 }];
+    const snapshot = traceDraftSnapshot({ ...trace, mode: "correct", detectionHints: hints })!;
+    const recovered = traceReducer(initialTraceState, { type: "TRACE_DRAFT_RESTORED", draft: traceDraftSchema.parse(snapshot) });
+    expect(recovered.mode).toBe("pan");
+    expect(recovered.detectionHints).toEqual(hints);
+  });
+
   it("preserves color detection for legacy drafts that predate tool edges", () => {
     const snapshot = traceDraftSnapshot(calibrated())!;
     const { boundaryMethod: _method, ...legacyState } = snapshot.state;

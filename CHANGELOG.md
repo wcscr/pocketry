@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correct outlines by selecting and moving points together, or switch directly to an Add area or Remove area brush.
+
 - Edit outlines directly on the photo. Smaller point markers reveal the edge, and advanced tools stay tucked away beside or below the photo.
 
 ## 1.12.4 — 2026-11-17

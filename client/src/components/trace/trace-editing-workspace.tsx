@@ -21,7 +21,7 @@ function TraceWorkflowWorkspace(props: WorkspaceLayoutProps): JSX.Element {
   // A collapsed inspector measures zero. In that case the canvas owns the edit dock.
   const [editorRef, editorSize] = useElementSize<HTMLDivElement>();
   const outlineEditor = editorSize.width > 0 && activeSection === "trace-settings-detect" ? editorRef.current : null;
-  const editingInInspector = !!outlineEditor && trace.outline.length > 0 && (trace.mode === "edit" || trace.mode === "remove");
+  const editingInInspector = !!outlineEditor && (trace.mode === "correct" || (trace.outline.length > 0 && (trace.mode === "edit" || trace.mode === "remove")));
   const [openRequest, setOpenRequest] = useState(0);
   const [canvasRequest, setCanvasRequest] = useState(0);
   const [marginVisitedRevision, setMarginVisitedRevision] = useState<number | null>(null);

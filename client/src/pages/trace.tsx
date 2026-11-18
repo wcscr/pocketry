@@ -111,7 +111,7 @@ function TraceWorkspace(): JSX.Element {
   const isMobile = useIsMobile();
   const { inspectorEnabled } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
-  const editingOnPhone = isMobile && store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove");
+  const editingOnPhone = isMobile && (store.mode === "correct" || (store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove")));
   const [mobileEditDock, setMobileEditDock] = useState<HTMLDivElement | null>(null);
   useEffect(() => { if (editingOnPhone) setPanelOpen(false); }, [editingOnPhone, setPanelOpen]);
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));

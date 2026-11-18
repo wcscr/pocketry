@@ -12,7 +12,8 @@ export function traceDraftSnapshot(trace: TraceState): TraceDraft | null {
     detectedImageUrl, autoCalibrationAttemptedImageUrl, ...state } = trace;
   return {
     schemaVersion: 2,
-    state: { ...state, imageUrl: trace.imageUrl },
+    // Correction tools and unfinished strokes are transient. Restore the saved outline in Select.
+    state: { ...state, imageUrl: trace.imageUrl, mode: state.mode === "correct" ? "pan" : state.mode },
     detectionComplete: detectedImageUrl === trace.imageUrl,
     referencesAttempted: autoCalibrationAttemptedImageUrl === trace.imageUrl,
   };

@@ -1566,7 +1566,54 @@ describe("touch-accessible trace tools", () => {
   });
 });
 
-it.each(["mouse", "touch"])("submits and cancels local correction strokes with %s", async pointerType => {
+it("corrects native curve anchors on outer and inner contours in one undoable move", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  const restore = installIdentitySvgCoordinates();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  let trace!: TraceStore;
+  function Probe() { trace = useTrace(); return null; }
+  try {
+    await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider>
+      <TraceCanvas onReprocess={() => {}} onCorrection={() => {}} />
+    </TooltipProvider></TraceProvider>));
+    const curves = curvesFromOutline([{
+      outer: detected[0].outer,
+      holes: [[{ x: 35, y: 35 }, { x: 35, y: 65 }, { x: 65, y: 65 }, { x: 65, y: 35 }]],
+    }]);
+    curves[0].outer[0].out = { x: 28, y: 4 };
+    curves[0].holes[0][0].in = { x: 43, y: 33 };
+    React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves, label: "Edit curve" }));
+    React.act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Correct"]')!.click());
+    expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(8);
+    const svg = host.querySelector("svg")!;
+    const pointer = (type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } });
+      svg.dispatchEvent(event);
+    });
+    for (const { x, y } of [curves[0].outer[0].point, curves[0].holes[0][0].point]) {
+      pointer("pointerdown", x, y);
+      pointer("pointerup", x, y);
+    }
+    expect(host.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    pointer("pointerdown", 35, 35);
+    pointer("pointermove", 40, 38);
+    pointer("pointerup", 40, 38);
+    expect(trace.curves![0].outer[0]).toMatchObject({ point: { x: 15, y: 13 }, out: { x: 33, y: 7 } });
+    expect(trace.curves![0].holes[0][0]).toMatchObject({ point: { x: 40, y: 38 }, in: { x: 48, y: 36 } });
+    React.act(() => trace.undo());
+    expect(trace.curves).toEqual(curves);
+  } finally {
+    React.act(() => root.unmount());
+    restore();
+  }
+});
+
+it.each(["mouse", "touch"])("selects points and applies correction brushes with %s", async pointerType => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
   vi.stubGlobal("ResizeObserver",NoopResizeObserver);
   vi.stubGlobal("matchMedia",()=>({matches:pointerType==="touch",addEventListener(){},removeEventListener(){}}));
@@ -1584,7 +1631,7 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     const button=host.querySelector<HTMLButtonElement>('[aria-label="Correct"]')!;
     await React.act(async()=>button.click());
     const control=(label:string)=>host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
-    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    expect(control("Select points").getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('button[aria-label="Select"]')).toBeNull();
     const svg=host.querySelector("svg")!;
     Object.defineProperty(svg,"setPointerCapture",{value:()=>{}});
@@ -1592,6 +1639,23 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
       const event=new MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y});
       Object.defineProperties(event,{pointerType:{value:pointerType},pointerId:{value:id}});svg.dispatchEvent(event);
     });
+    expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(4);
+    const historyIndex = trace!.history.index;
+    for (const x of [10, 90]) { pointer("pointerdown",x,10); pointer("pointerup",x,10); }
+    expect(host.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    expect(trace!.history.index).toBe(historyIndex);
+    expect(control("Add area").disabled).toBe(false);
+    pointer("pointerdown",10,10); pointer("pointermove",20,22); pointer("pointerup",20,22);
+    expect(trace!.outline[0].outer.slice(0,2)).toEqual([{x:20,y:22},{x:100,y:22}]);
+    expect(trace!.history.index).toBe(historyIndex+1);
+    expect(trace!.mode).toBe("correct");
+    expect(control("Add area").disabled).toBe(true);
+    expect(correct).not.toHaveBeenCalled();
+    React.act(()=>trace!.undo());
+    expect(trace!.outline).toEqual(detected);
+    React.act(()=>control("Add area").click());
+    expect(control("Add area").getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(0);
     pointer("pointerdown",20,20);pointer("pointermove",30,30,2);pointer("pointermove",25,25);
     expect(host.querySelector('[data-testid="correction-brush"]')).not.toBeNull();
     pointer("pointerup",25,25);
@@ -1613,15 +1677,17 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(0);
     expect(host.querySelector('[aria-label="Corrections applied"]')).not.toBeNull();
     React.act(()=>control("Correct").click());
-    React.act(()=>control("Remove").click());
-    expect(control("Remove").getAttribute("aria-pressed")).toBe("true");
+    React.act(()=>control("Remove area").click());
+    expect(control("Remove area").getAttribute("aria-pressed")).toBe("true");
     pointer("pointerdown",40,40);pointer("pointerup",40,40);
     expect(correct).toHaveBeenLastCalledWith([...hints,{kind:"paper",points:[{x:40,y:40}],radius:1}]);
     const calls=correct.mock.calls.length;
     React.act(()=>control("Pan while correcting").click());
     pointer("pointerdown",40,40);pointer("pointermove",50,50);pointer("pointerup",50,50);
     expect(correct).toHaveBeenCalledTimes(calls);
-    React.act(()=>control("Add").click());
+    React.act(()=>control("Pan while correcting").click());
+    expect(control("Remove area").getAttribute("aria-pressed")).toBe("true");
+    React.act(()=>control("Add area").click());
     pointer("pointerdown",-10,-10);pointer("pointerup",-10,-10);
     pointer("pointerdown",20,20);pointer("lostpointercapture",20,20);pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(calls);
@@ -1629,7 +1695,7 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     React.act(()=>control("Clear correction marks").click());
     expect(correct).toHaveBeenLastCalledWith([]);
     React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:detected,rawOutline:detected,svg:"",region:null,detectionHints:[],label:"Clear corrections"}));
-    expect(control("Clear correction marks").disabled).toBe(true);
+    expect(control("Clear correction marks")).toBeNull();
     React.act(()=>trace!.undo());
     expect(trace!.detectionHints).toEqual(hints);
     expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(1);
@@ -1638,7 +1704,7 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     // Processing and region changes cannot submit a half-finished stroke.
     pointer("pointerdown",20,20);
     React.act(()=>trace!.dispatch({type:"SET_PROCESSING",processing:true}));
-    expect(control("Add").disabled).toBe(true);
+    expect(control("Add area").disabled).toBe(true);
     expect(control("Done correcting").disabled).toBe(false);
     pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(calls+1);
@@ -1648,13 +1714,18 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(calls+1);
     expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
-    // Starting from Edit enters correction without exposing editing handles.
+    // A manual point edit protects the geometry while keeping selection available.
     React.act(()=>trace!.dispatch({type:"SET_MODE",mode:"edit"}));
     React.act(()=>control("Correct").click());
-    expect(trace!.mode).toBe("pan");
-    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    expect(trace!.mode).toBe("correct");
     React.act(()=>trace!.dispatch({type:"OUTLINE_COMMITTED",outline:edited}));
-    expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
-    expect(control("Correct").disabled).toBe(true);
+    expect(control("Select points").disabled).toBe(false);
+    expect(control("Add area").disabled).toBe(true);
+    React.act(()=>control("Done correcting").click());
+    expect(control("Correct").disabled).toBe(false);
+    React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:[],rawOutline:[],svg:"",region:null}));
+    React.act(()=>control("Correct").click());
+    expect(control("Select points").disabled).toBe(true);
+    expect(control("Add area").getAttribute("aria-pressed")).toBe("true");
   } finally {React.act(()=>root.unmount());restoreCoordinates();}
 });

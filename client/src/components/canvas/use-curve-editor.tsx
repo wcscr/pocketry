@@ -275,6 +275,6 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
   const startButton = enabled && (!active || basicCurveEditing) && allowCurves && <Button size="sm" variant="outline" disabled={startDisabled}
     title={startDisabled ? startHint : "Drag an edge to turn it into a curve."}
     onClick={() => { points.clear(); points.setSelectMode(false); setStarted(true); setError(null); }} data-testid="button-edit-curves">Bend edges</Button>;
-  return { active, deleteAnchor, basicPoints: basicCurveEditing ? points : null, ringRef, error, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu,
+  return { active, commit, deleteAnchor, basicPoints: basicCurveEditing ? points : null, ringRef, error, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu,
     lostCapture: (e: ReactPointerEvent<SVGSVGElement>) => { points.lostCapture(e); if (gesture.current?.id === e.pointerId) cancel(); } };
 }

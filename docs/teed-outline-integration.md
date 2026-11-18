@@ -62,18 +62,19 @@ were tested separately.
 
 ## Editing
 
-**Correct** opens a compact toolbar in place of the ordinary canvas tools.
-**Add** marks missing tool material in green; **Remove** marks unwanted background
-or shadow in red. The active button and brush cursor identify the current tool.
-Each completed stroke re-detects with the existing settings and creates one
-**Correct outline** Undo step. The hand tool pans without drawing; Space-drag also
-pans. The trash button clears correction marks and re-detects, undoably.
-**Done** or Escape leaves correction mode and hides marks without removing them;
-a checkmark on Correct indicates retained corrections. Hover/focus hints explain
-the tools without a persistent instruction banner. Manual outline edits must be
-undone before correcting detection, so strokes cannot silently replace them.
-Changing region, photo or editing mode cancels an unfinished stroke. Detected
-outline review and smoothing previews are separate from correction drawing.
+**Correct** opens beside or below the photo. With a detected outline, it starts
+in **Select points**. Click or tap points to toggle them, or drag a box to select a
+group. Drag a selected point to move the group. Clear and delete actions appear
+with a selection. These edits can be undone.
+
+Choose **Add area** to brush over missing tool material in green or **Remove area**
+to brush over unwanted background in red. Each completed stroke updates detection
+with the current settings and creates one Undo step. A region without an outline
+starts with **Add area**. After manual geometry edits, Undo those edits to enable
+brush detection again. Selecting points alone keeps both brushes available.
+
+Use the hand tool or Space-drag to pan. **Clear marks** appears when brush marks
+exist and re-detects without them. **Done** leaves the corrections in place.
 
 Detection finds a boundary, reconstructs supported lines and rounded sections,
 and applies the bounded smoothing pass automatically. The finishing pass permits

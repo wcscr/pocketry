@@ -78,8 +78,8 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             </p>
             <p className="mt-1 text-muted-foreground">
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
-              and amber estimated edges. Before editing points, use <strong>Correct → Add</strong> to mark
-              missing tool material or <strong>Remove</strong> to mark unwanted background.
+              and amber estimated edges. In <strong>Correct</strong>, pick points or drag a box around them, then drag the selection to move it.
+              Choose <strong>Add area</strong> to brush in missing material or <strong>Remove area</strong> to brush away background.
               Each stroke re-detects and can be undone; <strong>Done</strong> keeps the corrections.
               Undo manual outline edits before returning to brush corrections.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
