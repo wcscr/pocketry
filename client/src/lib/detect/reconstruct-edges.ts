@@ -32,7 +32,7 @@ function overlap(a: Uint8Array, b: Uint8Array): number {
   return intersection / Math.max(1, union);
 }
 
-function exteriorPaper(mask: Uint8Array, width: number, height: number): Uint8Array {
+export function exteriorPaper(mask: Uint8Array, width: number, height: number): Uint8Array {
   const seen = new Uint8Array(mask.length), queue = new Uint32Array(mask.length);
   let head = 0, tail = 0;
   const push = (i: number): void => {

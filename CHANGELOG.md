@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Trace can retry Tool edges at higher detail for thin shafts or missing material. Undo returns to the previous outline.
+- Trace can retry Tool edges at higher detail for thin shafts and recover outer edges obscured by printed markings. Undo restores the previous outline.
 
 ## 1.12.7 — 2026-11-18
 
