@@ -122,6 +122,14 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
   </>;
 
   return <>
+    {trace.boundaryMethod === "teed" && !includeInteriorHoles && trace.imageUrl && trace.region &&
+      trace.detectedImageUrl === trace.imageUrl && <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing}
+          onClick={() => request({ sensitivity, includeInteriorHoles, highDetail: true })}>
+          Retry at higher resolution
+        </Button>
+        <HelpHint label="higher-resolution retry">Trace this region again at 768 px. The larger model uses more memory than the 512 px default. Undo restores the previous outline.</HelpHint>
+      </div>}
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>
@@ -148,14 +156,6 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
       </div>
       {holesHelp && <p id={holesHelpId} className="text-xs text-muted-foreground">{holesHelp}</p>}
     </div>}
-    {trace.boundaryMethod === "teed" && !includeInteriorHoles && trace.imageUrl && trace.region &&
-      trace.detectedImageUrl === trace.imageUrl && <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing}
-          onClick={() => request({ sensitivity, includeInteriorHoles, highDetail: true })}>
-          Retry in high detail
-        </Button>
-        <HelpHint label="high-detail retry">Use a 768 px edge model for this region when the outline misses fine details. This uses more memory. Undo restores the previous outline.</HelpHint>
-      </div>}
     {outlineActions}
     {compact ? tuning : <div className="space-y-3 border-t pt-3">
       <div className="flex items-center gap-1">

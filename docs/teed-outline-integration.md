@@ -18,7 +18,7 @@ also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
 
-After a **Tool edges** detection, choose **Retry in high detail** in Outline
+After a **Tool edges** detection, choose **Retry at higher resolution** in Outline
 (or Adjust outline on mobile) to run the same region through the 768 px edge
 model. It uses the current sensitivity and correction marks. Review the
 result against the photo. Undo and Redo compare the two outlines. If the model

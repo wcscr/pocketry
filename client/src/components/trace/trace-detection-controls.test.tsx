@@ -117,7 +117,7 @@ it.each([false, true])("offers a one-shot retry after detection and protects edi
   document.body.append(host);
   const root = createRoot(host);
   const button = (label: string) => [...document.querySelectorAll("button")].find(item => item.textContent === label);
-  const retry = () => button("Retry in high detail");
+  const retry = () => button("Retry at higher resolution");
   try {
     await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
     const region = { x: 0, y: 0, width: 80, height: 80 };
