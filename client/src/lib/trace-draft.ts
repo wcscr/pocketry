@@ -13,7 +13,10 @@ export function traceDraftSnapshot(trace: TraceState): TraceDraft | null {
   return {
     schemaVersion: 2,
     // Correction tools and unfinished strokes are transient. Restore the saved outline in Select.
-    state: { ...state, imageUrl: trace.imageUrl, mode: state.mode === "correct" ? "pan" : state.mode },
+    state: { ...state,
+      // A curve fit runs in the worker. Save the tolerance accepted for the visible geometry.
+      tolerancePx: state.curves ? state.history.stack[state.history.index]?.tolerancePx ?? state.tolerancePx : state.tolerancePx,
+      imageUrl: trace.imageUrl, mode: state.mode === "correct" ? "pan" : state.mode },
     detectionComplete: detectedImageUrl === trace.imageUrl,
     referencesAttempted: autoCalibrationAttemptedImageUrl === trace.imageUrl,
   };

@@ -45,7 +45,7 @@ const frameFields = {
 };
 const historyEntry = z.object({
   outline, curves: curveOutlineSchema.optional(), label: z.string(), margin,
-  refinementBase: outline.optional(), baselineMarginPx: finite.optional(),
+  refinementBase: outline.optional(), curveRefinementBase: curveOutlineSchema.optional(), baselineMarginPx: finite.optional(),
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
   autoSimplification: z.object({ source: curveOutlineSchema, allowance: finite.positive(),
     unitsPerUnit: finite.positive(), unit: z.enum(["mm", "px"]) }).optional(),

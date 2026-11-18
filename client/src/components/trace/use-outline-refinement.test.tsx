@@ -3,6 +3,8 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
+import { curvesFromOutline, sampleCurves } from "@shared/geometry/curves";
+import { traceDraftSchema } from "@shared/trace-draft";
 import type { Outline } from "@shared/geometry/types";
 import { traceDraftSnapshot } from "@/lib/trace-draft";
 
@@ -71,6 +73,45 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("adjusts native detail from the edited curves after recovery and restores exact handles on Undo", async () => {
+    const refiner = vi.fn<OutlineRefiner>(async o => o);
+    const mounted = mountHook(refiner);
+    const store = mounted.store;
+    try {
+      const ring = Array.from({ length: 120 }, (_, i) => {
+        const angle = 2 * Math.PI * i / 120, r = 40 + (i % 2 ? 1.5 : 0);
+        return { x: 50 + r * Math.cos(angle), y: 50 + r * Math.sin(angle) };
+      });
+      const original = curvesFromOutline([{ outer: ring, holes: [] }]);
+      original[0].outer[0].out = { x: 98, y: 54 };
+      React.act(() => {
+        store().dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,AA==", fileName: "edited" });
+        store().dispatch({ type: "SOURCE_READY", imageSize: {width: 120, height: 120} });
+        store().dispatch({ type: "CURVES_COMMITTED", curves: original, label: "Edit curve" });
+      });
+      const edited = store().curves!;
+      const index = store().history.index;
+      const tolerance = async (value: number) => React.act(async () => store().dispatch({ type: "SET_TOLERANCE", tolerancePx: value }));
+      await tolerance(6);
+      expect(store().curves![0].outer.length).toBeLessThan(edited[0].outer.length);
+      expect(store().outline).toEqual(sampleCurves(store().curves!, .25));
+      expect(store().history.stack[store().history.index].curveRefinementBase).toBe(edited);
+      const coarse = store().curves!;
+      const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(store()))));
+      React.act(() => store().dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+      await tolerance(.1);
+      expect(store().history.index).toBe(index + 1);
+      expect(store().curves![0].outer.length).toBeGreaterThan(coarse[0].outer.length);
+      const fine = store().curves;
+      React.act(() => store().undo());
+      expect(store().curves).toEqual(edited);
+      React.act(() => store().redo());
+      expect(store().curves).toEqual(fine);
+      expect(store().tolerancePx).toBe(.1);
+      expect(refiner).not.toHaveBeenCalled();
+    } finally { mounted.unmount(); }
+  });
+
   it("cancels pending manual refinement when a fresh detection takes over", async () => {
     let finish!: (outline: Outline) => void;
     const refiner = vi.fn<OutlineRefiner>(() => new Promise(resolve => { finish = resolve; }));

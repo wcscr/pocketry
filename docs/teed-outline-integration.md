@@ -101,7 +101,11 @@ contour** can trace an inner feature for a different pocket depth in Bin.
 contours over the fixed photo.
 
 **Manual detection settings**, below the contour list, contains sensitivity,
-point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
+**Simplification**, and **Smooth outline**. Release the Simplification slider to
+adjust the current point or curve outline. Higher values allow a larger departure
+in photo pixels and can reduce the number of anchors. Successive adjustments use
+the same edited source, including after reload. Undo restores its exact points
+and curve handles. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
 A checkmark indicates smoothing already applied during detection or a previous
 Apply; Apply is disabled. A dash marks a preview that would make no change.

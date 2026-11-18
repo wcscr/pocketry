@@ -38,13 +38,16 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     ? "Tool edges traces only the outer boundary. Enabling holes asks to switch to Color contrast."
     : trace.boundaryMethod === "auto" ? "With holes enabled, Automatic uses Color contrast." : null;
   const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
+  const [draftTolerance, setDraftTolerance] = useState<number | null>(null);
   const [pendingDetection, setPendingDetection] = useState<DetectionSettings | null>(null);
   const switchingForHoles = trace.boundaryMethod === "teed" && pendingDetection?.boundary === "color" && pendingDetection.includeInteriorHoles;
   useEffect(() => {
     setDraftSensitivity(null);
+    setDraftTolerance(null);
     setPendingDetection(null);
   }, [trace.sourceRevision, trace.region]);
   useEffect(() => { if (!processing) setDraftSensitivity(null); }, [processing, sensitivity]);
+  useEffect(() => { setDraftTolerance(null); }, [processing, tolerancePx, trace.outline]);
 
   const apply = (settings: DetectionSettings) => {
     setPendingDetection(null);
@@ -97,14 +100,15 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
           ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto. Higher includes more of the image. Updates on release and asks before replacing edits."
           : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />
       <LabelledSlider id={compact ? "mobile-detail" : "detail"} label="Simplification"
-        value={tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
-        disabled={processing || !!trace.curves} onChange={(value) => dispatch({ type: "SET_TOLERANCE", tolerancePx: value })}
-        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />
+        value={draftTolerance ?? tolerancePx} min={0.1} max={8} step={0.1} format={(value) => `${value.toFixed(1)} px`}
+        disabled={processing} onChange={setDraftTolerance}
+        onCommit={value => { setDraftTolerance(null); dispatch({ type: "SET_TOLERANCE", tolerancePx: value }); }}
+        touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Release to simplify the current outline. Undo restores the previous geometry."} />
     </div>
     {children}
     <DetectedOutlineControls />
     {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
-    {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
+    {trace.curves && <p className="text-xs text-muted-foreground">Simplification keeps the outline editable as lines and curves.</p>}
   </>;
 
   return <>
