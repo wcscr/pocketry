@@ -3,6 +3,8 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 
+import { curvesFromOutline, sampleCurves } from "@shared/geometry/curves";
+import { traceDraftSchema } from "@shared/trace-draft";
 import type { Outline } from "@shared/geometry/types";
 import { traceDraftSnapshot } from "@/lib/trace-draft";
 
@@ -71,6 +73,87 @@ function mountHook(
 }
 
 describe("useOutlineRefinement", () => {
+  it("adjusts native detail from the edited curves after recovery and restores exact handles on Undo", async () => {
+    const refiner = vi.fn<OutlineRefiner>(async o => o);
+    const mounted = mountHook(refiner);
+    const store = mounted.store;
+    try {
+      const ring = Array.from({ length: 120 }, (_, i) => {
+        const angle = 2 * Math.PI * i / 120, r = 40 + (i % 2 ? 1.5 : 0);
+        return { x: 50 + r * Math.cos(angle), y: 50 + r * Math.sin(angle) };
+      });
+      const original = curvesFromOutline([{ outer: ring, holes: [] }]);
+      original[0].outer[0].out = { x: 98, y: 54 };
+      React.act(() => {
+        store().dispatch({ type: "SOURCE_LOADED", imageUrl: "data:image/png;base64,AA==", fileName: "edited" });
+        store().dispatch({ type: "SOURCE_READY", imageSize: {width: 120, height: 120} });
+        store().dispatch({ type: "CURVES_COMMITTED", curves: original, label: "Edit curve" });
+      });
+      const edited = store().curves!;
+      const index = store().history.index;
+      const tolerance = async (value: number) => React.act(async () => store().dispatch({ type: "SET_TOLERANCE", tolerancePx: value }));
+      await tolerance(6);
+      expect(store().curves![0].outer.length).toBeLessThan(edited[0].outer.length);
+      expect(store().outline).toEqual(sampleCurves(store().curves!, .25));
+      expect(store().history.stack[store().history.index].curveRefinementBase).toBe(edited);
+      const coarse = store().curves!;
+      const draft = traceDraftSchema.parse(JSON.parse(JSON.stringify(traceDraftSnapshot(store()))));
+      React.act(() => store().dispatch({ type: "TRACE_DRAFT_RESTORED", draft }));
+      await tolerance(.1);
+      expect(store().history.index).toBe(index + 1);
+      expect(store().curves![0].outer.length).toBeGreaterThan(coarse[0].outer.length);
+      const fine = store().curves;
+      React.act(() => store().undo());
+      expect(store().curves).toEqual(edited);
+      React.act(() => store().redo());
+      expect(store().curves).toEqual(fine);
+      expect(store().tolerancePx).toBe(.1);
+      expect(refiner).not.toHaveBeenCalled();
+    } finally { mounted.unmount(); }
+  });
+
+  it("simplifies overlapping native pockets and keeps their shared hole and Undo intact", async () => {
+    const mounted = mountHook(async outline => outline), { store } = mounted;
+    const rect = (x: number, y: number, size: number) => [
+      {x,y}, {x:x+size/2,y}, {x:x+size,y}, {x:x+size,y:y+size/2},
+      {x:x+size,y:y+size}, {x:x+size/2,y:y+size}, {x,y:y+size}, {x,y:y+size/2},
+    ];
+    const hole = rect(55, 35, 15).reverse();
+    const source = curvesFromOutline([{outer:rect(0,0,100),holes:[hole]},
+      {outer:rect(30,10,85),holes:[[...hole.slice(1),hole[0]]]}]);
+    try {
+      React.act(() => store().dispatch({type:"CURVES_COMMITTED",curves:source,label:"Edit overlapping pockets"}));
+      const original = store().curves;
+      await React.act(async () => store().dispatch({type:"SET_TOLERANCE",tolerancePx:3}));
+      expect(store().tolerancePx).toBe(3);
+      expect(store().curves!).toHaveLength(2);
+      expect(store().curves![0].outer.length).toBeLessThan(8);
+      expect(store().curves![0].holes[0].length).toBeLessThan(8);
+      expect(store().curves![1].holes[0]).toBe(store().curves![0].holes[0]);
+      React.act(() => store().undo());
+      expect(store().curves).toEqual(original);
+    } finally { mounted.unmount(); }
+  });
+
+  it("keeps the requested detail when shallow pocket crossings move along both boundaries", async () => {
+    const ellipse = (x: number, y: number, phase: number) => ({
+      outer: Array.from({length: 24}, (_, i) => {
+        const t = 2 * Math.PI * i / 24 + phase;
+        return { x: x + 50 * Math.cos(t), y: y + 65 * Math.sin(t) };
+      }), holes: [],
+    });
+    const source = curvesFromOutline([ellipse(100, 100, 0), ellipse(198, 106, .05)]);
+    const mounted = mountHook(async outline => outline), {store} = mounted;
+    try {
+      React.act(() => store().dispatch({type:"CURVES_COMMITTED", curves:source, label:"Edit pockets"}));
+      await React.act(async () => store().dispatch({type:"SET_TOLERANCE", tolerancePx:2}));
+      expect(store().tolerancePx).toBe(2);
+      expect(store().curves!.map(shape => shape.outer.length)).toEqual([4, 4]);
+      React.act(() => store().undo());
+      expect(store().curves).toEqual(source);
+    } finally { mounted.unmount(); }
+  });
+
   it("cancels pending manual refinement when a fresh detection takes over", async () => {
     let finish!: (outline: Outline) => void;
     const refiner = vi.fn<OutlineRefiner>(() => new Promise(resolve => { finish = resolve; }));

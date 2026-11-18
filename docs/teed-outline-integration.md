@@ -62,18 +62,33 @@ were tested separately.
 
 ## Editing
 
-**Correct** opens a compact toolbar in place of the ordinary canvas tools.
-**Add** marks missing tool material in green; **Remove** marks unwanted background
-or shadow in red. The active button and brush cursor identify the current tool.
-Each completed stroke re-detects with the existing settings and creates one
-**Correct outline** Undo step. The hand tool pans without drawing; Space-drag also
-pans. The trash button clears correction marks and re-detects, undoably.
-**Done** or Escape leaves correction mode and hides marks without removing them;
-a checkmark on Correct indicates retained corrections. Hover/focus hints explain
-the tools without a persistent instruction banner. Manual outline edits must be
-undone before correcting detection, so strokes cannot silently replace them.
-Changing region, photo or editing mode cancels an unfinished stroke. Detected
-outline review and smoothing previews are separate from correction drawing.
+**Correct** opens beside or below the photo. With a detected outline, it starts
+in **Select points**. Click or tap points to toggle them, or drag a box to select a
+group. Drag a selected point to move the group. Clear and delete actions appear
+with a selection. These edits can be undone.
+
+Choose **Edge brush** and trace from one place near the purple outline to another.
+The thin green line is the new boundary. The two dots show where it will join the
+outline. For a recess between handles, trace down one side and back up the other
+in a single stroke. To include the gap instead, draw the edge across its mouth.
+The brush starts at 24 screen pixels. Adjust **Brush width** for a wider target
+or zoom in for finer placement. A manual edge can extend beyond the detection box
+anywhere on the visible photo. Choose **Show full photo** to work outside the paper crop.
+Release to preview the pocket in purple. **Other side** switches which part of the
+original outline is kept when both sides are valid.
+Choose **Apply edge** to save one undoable edit, or **Cancel** to keep the original.
+Finish this choice before exporting or adding the pocket to a bin.
+
+To include a whole area, close a loop inside the detection box. If the loop also
+joins the outline in two places, choose **Fill loop** or **Preview edge**. If the traced
+edge crosses itself, choose **Fill loop** to keep the fill or **Cancel** to redraw.
+**Remove area** marks unwanted background for detection. A region with no outline
+starts in **Add area**. Purple shading shows the pocket. Photo detection is
+available before manual edits; **Edge brush** can redraw successive sections of
+a manually edited outline.
+
+Use the hand tool or Space-drag to pan. **Clear marks** appears when brush marks
+exist and re-detects without them. **Done** leaves the corrections in place.
 
 Detection finds a boundary, reconstructs supported lines and rounded sections,
 and applies the bounded smoothing pass automatically. The finishing pass permits
@@ -93,7 +108,11 @@ contour** can trace an inner feature for a different pocket depth in Bin.
 contours over the fixed photo.
 
 **Manual detection settings**, below the contour list, contains sensitivity,
-point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
+**Simplification**, and **Smooth outline**. Release the Simplification slider to
+adjust the current point or curve outline. Higher values allow a larger departure
+in photo pixels and can reduce the number of anchors. Successive adjustments use
+the same edited source, including after reload. Undo restores its exact points
+and curve handles. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
 A checkmark indicates smoothing already applied during detection or a previous
 Apply; Apply is disabled. A dash marks a preview that would make no change.
@@ -151,7 +170,12 @@ step. Unsupported fits keep the detected boundary; cleanup never guesses across 
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
 right-click a point to delete it. Shift-click or box-select multiple points;
-**Select points** also works without a keyboard. **Repair section** replaces a
+**More tools → Select points** also works without a keyboard. In Trace, edit
+directly on the photo. Controls sit in the desktop Outline properties pane or
+in a dock when that pane is unavailable. The phone dock sits below the photo in portrait and beside it in landscape. On a phone, tap a point and
+choose **Delete point**. **More tools** also offers repeated erasing on desktop
+and **Bend edges** when editable curves are enabled. Edits apply immediately.
+Choose **Done** to leave editing. **Repair section** replaces a
 selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,

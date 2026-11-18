@@ -4,7 +4,7 @@ import { curveFitRange, type CurveFitRequest, type CurveFitResult, validateFitte
 import { distanceToSegment } from "./rings";
 import type { Outline, Point, Ring, RingRef } from "./types";
 
-function simplifyOpen(points: Ring, tolerance: number, budget: () => void): { points: Ring; maxDeviation: number } {
+export function simplifyOpen(points: Ring, tolerance: number, budget: () => void): { points: Ring; maxDeviation: number } {
   let maxDeviation = 0;
   const fit = (points: Ring, depth = 0): Ring => {
       budget(); const a = points[0], b = points.at(-1)!;

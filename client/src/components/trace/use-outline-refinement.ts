@@ -4,6 +4,9 @@ import {
   mmPerPixel,
   type Calibration,
 } from "@shared/geometry/scale";
+import { CURVE_TOLERANCE_MM } from "@shared/geometry/curves";
+import { refineCurveDetail } from "@shared/geometry/refine-curve-detail";
+import { refineCurvesInWorker } from "@/lib/detect/worker-client";
 import type { Outline } from "@shared/geometry/types";
 
 import {
@@ -77,7 +80,7 @@ export function useOutlineRefinement(
 
     // A committed edit, undo or recovered/photo-transformed source already
     // supplies its geometry and controls together. It becomes the new baseline.
-    if (curves || outlineChanged || sourceReplaced || imageRotated || (rawOutline.length === 0 && !entry?.refinementBase?.length)) {
+    if (outlineChanged || sourceReplaced || imageRotated || (!curves && rawOutline.length === 0 && !entry?.refinementBase?.length)) {
       applied.current = settings;
       return;
     }
@@ -102,27 +105,35 @@ export function useOutlineRefinement(
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
 
-    const refinement = detectionSettingsChanged
-      ? refineOutline(entry?.refinementBase ?? rawOutline, {
-          detect: { tolerancePx, smoothing },
-          margin: null,
-          calibration,
-        }).then((refined) => {
-          const deltaPx = marginToPixels(margin, calibration) - (entry?.baselineMarginPx ?? 0);
-          return deltaPx === 0 ? refined : offsetEditedOutline(refined, deltaPx);
-        })
-      : offsetEditedOutline(outline, scaleMarginDeltaPx);
-
-    void refinement.then((refined) => {
+    const run = async () => {
+      if (curves) {
+        const request = { source: entry?.curveRefinementBase ?? curves, tolerance: tolerancePx,
+          sampleTolerance: CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? .1) };
+        const refined = typeof Worker === "undefined" ? refineCurveDetail(request) : await refineCurvesInWorker(request, controller.signal);
+        if (!cancelled) {
+          applied.current = settings;
+          dispatch({ type: "CURVES_REFINED", curves: refined, expectedCurves: curves, tolerancePx });
+        }
+        return;
+      }
+      let refined: Outline;
+      if (detectionSettingsChanged) {
+        refined = await refineOutline(entry?.refinementBase ?? rawOutline, {
+          detect: { tolerancePx, smoothing }, margin: null, calibration,
+        });
+        const deltaPx = marginToPixels(margin, calibration) - (entry?.baselineMarginPx ?? 0);
+        if (deltaPx !== 0) refined = await offsetEditedOutline(refined, deltaPx);
+      } else {
+        refined = await offsetEditedOutline(outline, scaleMarginDeltaPx);
+      }
       if (!cancelled) {
         applied.current = settings;
-        dispatch({
-          type: "OUTLINE_REFINED",
-          outline: withoutNewInteriorHoles(refined, outline),
-        });
+        dispatch({ type: "OUTLINE_REFINED", outline: withoutNewInteriorHoles(refined, outline) });
       }
-    }).catch(() => {
+    };
+    void run().catch(() => {
       if (cancelled) return;
       dispatch({ type: "REFINEMENT_REJECTED", expectedOutline: outline, expectedSourceRevision: sourceRevision,
         expected: { tolerancePx, smoothing, margin, calibration }, settings: previous });
@@ -135,6 +146,7 @@ export function useOutlineRefinement(
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     rawOutline,

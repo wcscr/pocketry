@@ -60,6 +60,17 @@ it("uses the visible Select points toggle for touch and cancels a group drag on 
   pointer("pointerdown", 90, 90, false, 2, true); pointer("pointerup", 30, 25, false, 1, true); pointer("pointerup", 90, 90, false, 2, true);
   expect(commit).not.toHaveBeenCalled(); expect(saved).toEqual(initial);
 });
+it("deletes a single point selected with the touch tool", () => {
+  React.act(() => root.render(<Harness />));
+  React.act(() => button("Select points").click());
+  pointer("pointerdown", 10, 10, false, 1, true);
+  pointer("pointerup", 10, 10, false, 1, true);
+  expect(host.textContent).toContain("1 point selected");
+  React.act(() => button("Delete point").click());
+  expect(saved[0].outer.map(anchor => anchor.point)).toEqual(initial[0].outer.slice(1).map(anchor => anchor.point));
+  expect(commit).toHaveBeenCalledTimes(1);
+});
+
 it("releases pointer focus after selecting points while preserving keyboard focus", () => {
   React.act(() => root.render(<Harness />));
   const select = button("Select points");

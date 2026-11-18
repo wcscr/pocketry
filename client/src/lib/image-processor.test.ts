@@ -91,6 +91,21 @@ it("lets manual simplification exceed the automatic detection allowance", async 
 });
 
 describe("processImage with correction marks", () => {
+  it("fills a circled gap between handles while keeping an unrelated opening", async () => {
+    const image = photo(200, 200, pliers);
+    const points = [{ x: 105, y: 70 }, { x: 160, y: 70 }, { x: 160, y: 108 }, { x: 105, y: 108 }];
+    const options = { includeInteriorHoles: true, autoCleanup: true, smoothBoundary: true };
+    const initial = await processImage(image, { ...options, detect: JS });
+    expect(pointInOutline(initial.outline, JAW_GAP)).toBe(false);
+    const filled = await processImage(image, { ...options, detect: { ...JS, hints: [{ kind: "tool", points, radius: 1, fill: true }] } });
+    for (const outline of [filled.outline, filled.rawOutline]) {
+      for (const x of [115, 130, 150, 158]) {
+        for (const y of [80, 90, 100]) expect(pointInOutline(outline, { x, y })).toBe(true);
+      }
+      expect(pointInOutline(outline, PIVOT)).toBe(false);
+      expect(pointInOutline(outline, { x: 168, y: 90 })).toBe(false);
+    }
+  });
   it("keeps the detected outline when cleanup would cross a paper mark, instead of failing", async () => {
     const image = photo(160, 160, box(30, 30, 130, 130));
     // Two pixels outside the left edge: closer than cleanup is allowed to grow.

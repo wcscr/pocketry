@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { WorkspaceLayout, type WorkspaceLayoutProps } from "@/components/layout/workspace-layout";
+import { useElementSize } from "@/hooks/use-element-size";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useTrace } from "@/state/trace-store";
 import { TraceInspectorContext } from "./trace-inspector-context";
@@ -17,6 +18,10 @@ function TraceWorkflowWorkspace(props: WorkspaceLayoutProps): JSX.Element {
     : trace.pendingAutoCalibration || !trace.calibration ? "trace-settings-scale"
     : trace.region || trace.outline.length ? "trace-settings-detect" : "trace-settings-crop");
   const [settings, setSettings] = useState<HTMLDivElement | null>(null);
+  // A collapsed inspector measures zero. In that case the canvas owns the edit dock.
+  const [editorRef, editorSize] = useElementSize<HTMLDivElement>();
+  const outlineEditor = editorSize.width > 0 && activeSection === "trace-settings-detect" ? editorRef.current : null;
+  const editingInInspector = !!outlineEditor && (trace.mode === "correct" || (trace.outline.length > 0 && (trace.mode === "edit" || trace.mode === "remove")));
   const [openRequest, setOpenRequest] = useState(0);
   const [canvasRequest, setCanvasRequest] = useState(0);
   const [marginVisitedRevision, setMarginVisitedRevision] = useState<number | null>(null);
@@ -29,8 +34,8 @@ function TraceWorkflowWorkspace(props: WorkspaceLayoutProps): JSX.Element {
     }
   }, [trace.sourceRevision]);
   const showCanvas = useCallback(() => setCanvasRequest(request => request + 1), []);
-  const context = useMemo(() => ({ activeSection, marginVisited, settings, showSection, showCanvas }),
-    [activeSection, marginVisited, settings, showSection, showCanvas]);
+  const context = useMemo(() => ({ activeSection, marginVisited, settings, outlineEditor, showSection, showCanvas }),
+    [activeSection, marginVisited, settings, outlineEditor, showSection, showCanvas]);
   const section = TRACE_WORKFLOW_SECTIONS.find(item => item.id === activeSection) ?? TRACE_WORKFLOW_SECTIONS[0];
   return <TraceInspectorContext.Provider value={context}>
     <WorkspaceLayout {...props} inspectorPanelTitle="Workflow" inspectorRequest={openRequest}
@@ -42,7 +47,8 @@ function TraceWorkflowWorkspace(props: WorkspaceLayoutProps): JSX.Element {
             <HelpHint label={`${section.label.toLowerCase()} step`}>{section.description}</HelpHint>
           </div>
         </header>
-        <div ref={setSettings} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="trace-properties-scroll" />
+        <div ref={editorRef} className="hidden min-h-0 overflow-y-auto overscroll-contain min-[1100px]:block" />
+        <div ref={setSettings} hidden={editingInInspector} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="trace-properties-scroll" />
       </aside>} />
   </TraceInspectorContext.Provider>;
 }

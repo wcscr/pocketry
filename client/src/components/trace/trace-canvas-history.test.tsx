@@ -347,7 +347,7 @@ describe("TraceCanvas edit history", () => {
       const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
       expect(trace!.curves).toBeUndefined();
       if (mode.startsWith("reconstruct")) await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineCleanupRequest={{ id: 1, sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
-      else { click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
+      else { click("More tools"); click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
       if (mode === "range") {
         for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
           const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
@@ -495,6 +495,8 @@ describe("TraceCanvas edit history", () => {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
       React.act(() => trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: true }));
+      const panelButton = (name: string) => [...host.querySelectorAll<HTMLButtonElement>('[aria-label="Outline editing controls"] button')].find(b => b.textContent === name)!;
+      React.act(() => panelButton("More tools").click());
       const entry = host.querySelector<HTMLButtonElement>('[data-testid="button-edit-curves"]');
       expect(entry).not.toBeNull(); React.act(() => entry!.click());
       const before = trace!.history.stack.length;
@@ -506,6 +508,26 @@ describe("TraceCanvas edit history", () => {
       expect(trace!.history.stack).toHaveLength(before + 1);
       React.act(() => trace!.undo()); expect(trace!.curves).toBeUndefined(); expect(trace!.outline).toEqual(edited);
       React.act(() => trace!.redo()); expect(trace!.curves).toEqual(curves);
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
+      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
+      expect(panelButton("More tools")).toBeDefined();
+      expect(host.querySelector('[data-testid="curve-editor-controls"]')).toBeNull();
+      expect(host.querySelector('[data-testid="curve-control-handle"]')).toBeNull();
+      expect(host.querySelector('[data-testid="curve-anchor"]')).not.toBeNull();
+      const svg = host.querySelector("svg")!;
+      const anchor = host.querySelector('[data-curve-kind="point"][data-curve-index="0"]')!;
+      const start = curves![0].outer[0].point;
+      const pointer = (target: Element, type: string, x: number, y: number) => React.act(() => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } });
+        target.dispatchEvent(event);
+      });
+      pointer(anchor, "pointerdown", start.x, start.y);
+      pointer(svg, "pointermove", start.x + 6, start.y + 5);
+      pointer(svg, "pointerup", start.x + 6, start.y + 5);
+      expect(trace!.curves![0].outer[0].point).toEqual({ x: start.x + 6, y: start.y + 5 });
+      React.act(() => trace!.undo());
+      expect(trace!.curves).toEqual(curves);
     } finally { React.act(() => root.unmount()); restore(); }
   });
   it.each(["click", "tiny", "cancel", "escape", "commit", "decline"])("preserves edited geometry through region %s", async gesture => {
@@ -1320,7 +1342,7 @@ describe("desktop point focus", () => {
         pointer("pointerdown", x, y); pointer("pointerup", x, y);
         expect(trace!.selection).toEqual({ shapeIndex: 0, ringIndex: -1 });
         expect(host.querySelector("[data-vertex]")).toBeNull();
-        expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+        expect(host.querySelector('[aria-label="Outline editing controls"]')).toBeNull();
       }
       pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
       const menu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
@@ -1366,8 +1388,11 @@ describe("desktop point focus", () => {
       pointer('pointermove', 12, 12);
       pointer('pointerup', 12, 12);
       expect(host.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
-      expect(host.querySelector('[aria-label="Erase points by clicking"]')).not.toBeNull();
-      expect(host.querySelector('[aria-label="Outline editing controls"]')?.className).toContain("flex-nowrap");
+      const panel = host.querySelector('[aria-label="Outline editing controls"]')!;
+      expect([...panel.querySelectorAll("button")].map(b => b.textContent)).toEqual(["Done", "More tools"]);
+      expect(panel.textContent).toContain("Right-click a point to delete it.");
+      React.act(() => [...panel.querySelectorAll("button")].find(b => b.textContent === "More tools")!.click());
+      expect(panel.querySelector('[aria-label="More outline tools"]')).not.toBeNull();
       expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
       expect(trace!.history.index).toBe(historyIndex);
       expect(trace!.outline).toEqual(edited);
@@ -1472,7 +1497,7 @@ describe("touch-accessible trace tools", () => {
       React.act(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Delete point")!.click());
       expect(trace!.outline[0].outer).toHaveLength(5);
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
-      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      expect(host.querySelector('[aria-label="Outline editing controls"]')).toBeNull();
       pointer("pointerdown", 10, 10); pointer("pointermove", 35, 35); pointer("pointerup", 35, 35);
       expect(trace!.outline).toEqual(edited);
     } finally { React.act(() => root.unmount()); restoreSvgCoordinates(); }
@@ -1492,12 +1517,16 @@ describe("touch-accessible trace tools", () => {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
       React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
-      const tools = host.querySelector('[aria-label="Contour editing tools"]')!;
-      const buttons = tools.querySelectorAll<HTMLButtonElement>('button');
-      expect(tools.textContent).toContain("Contour 1");
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
-      React.act(() => buttons[0].click());
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+      const tools = host.querySelector('[aria-label="Outline editing controls"]')!;
+      const button = (name: string) => [...tools.querySelectorAll("button")].find(b => b.textContent === name)!;
+      const activeTool = () => tools.querySelector('[aria-pressed="true"]')?.textContent;
+      expect(button("Select points")).toBeUndefined();
+      React.act(() => button("More tools").click());
+      React.act(() => button("Select points").click());
+      expect(activeTool()).toBe("Select points");
+      React.act(() => button("Erase points").click());
+      expect(activeTool()).toBe("Erase points");
+      expect(tools.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
       const remove = (x: number, y: number) => React.act(() => {
         const event = new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: x, clientY: y });
         Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: 1 } });
@@ -1516,15 +1545,20 @@ describe("touch-accessible trace tools", () => {
       expect(trace!.outline).toEqual(edited);
       remove(500, 500);
       expect(trace!.outline).toEqual(edited);
-      React.act(() => buttons[0].click());
+      React.act(() => button("Select points").click());
       expect(trace!.mode).toBe("edit");
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
-      React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
+      expect(activeTool()).toBe("Select points");
+      React.act(() => button("More tools").click());
+      expect(button("Select points")).toBeUndefined();
+      React.act(() => button("Done").click());
+      expect(trace!.mode).toBe("pan");
       expect(trace!.selection).not.toBeNull();
-      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      expect(host.querySelector('[aria-label="Outline editing controls"]')).toBeNull();
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: null }));
-      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      const panel = host.querySelector('[aria-label="Outline editing controls"]')!;
+      expect(panel.textContent).toContain("Done");
+      expect(panel.textContent).not.toContain("Erase points");
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();
@@ -1532,25 +1566,75 @@ describe("touch-accessible trace tools", () => {
   });
 });
 
-it.each(["mouse", "touch"])("submits and cancels local correction strokes with %s", async pointerType => {
+it("corrects native curve anchors on outer and inner contours in one undoable move", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  const restore = installIdentitySvgCoordinates();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  let trace!: TraceStore;
+  function Probe() { trace = useTrace(); return null; }
+  try {
+    await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider>
+      <TraceCanvas onReprocess={() => {}} onCorrection={() => {}} />
+    </TooltipProvider></TraceProvider>));
+    const curves = curvesFromOutline([{
+      outer: detected[0].outer,
+      holes: [[{ x: 35, y: 35 }, { x: 35, y: 65 }, { x: 65, y: 65 }, { x: 65, y: 35 }]],
+    }]);
+    curves[0].outer[0].out = { x: 28, y: 4 };
+    curves[0].holes[0][0].in = { x: 43, y: 33 };
+    React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves, label: "Edit curve" }));
+    React.act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Correct"]')!.click());
+    expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(8);
+    const svg = host.querySelector("svg")!;
+    const pointer = (type: string, x: number, y: number) => React.act(() => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } });
+      svg.dispatchEvent(event);
+    });
+    for (const { x, y } of [curves[0].outer[0].point, curves[0].holes[0][0].point]) {
+      pointer("pointerdown", x, y);
+      pointer("pointerup", x, y);
+    }
+    expect(host.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    pointer("pointerdown", 35, 35);
+    pointer("pointermove", 40, 38);
+    pointer("pointerup", 40, 38);
+    expect(trace.curves![0].outer[0]).toMatchObject({ point: { x: 15, y: 13 }, out: { x: 33, y: 7 } });
+    expect(trace.curves![0].holes[0][0]).toMatchObject({ point: { x: 40, y: 38 }, in: { x: 48, y: 36 } });
+    React.act(() => trace.undo());
+    expect(trace.curves).toEqual(curves);
+  } finally {
+    React.act(() => root.unmount());
+    restore();
+  }
+});
+
+it.each(["mouse", "touch"])("selects points and applies correction brushes with %s", async pointerType => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
   vi.stubGlobal("ResizeObserver",NoopResizeObserver);
   vi.stubGlobal("matchMedia",()=>({matches:pointerType==="touch",addEventListener(){},removeEventListener(){}}));
   const restoreCoordinates=installIdentitySvgCoordinates(),host=document.createElement("div");document.body.append(host);
-  const root=createRoot(host),correct=vi.fn();let trace:TraceStore;
+  const root=createRoot(host),correct=vi.fn(),reviewChanged=vi.fn();let trace:TraceStore;
   function Probe():null {trace=useTrace();return null;}
   try {
-    await React.act(async()=>root.render(<TraceProvider><Probe/><TooltipProvider><TraceCanvas onReprocess={()=>{}} onCorrection={correct}/></TooltipProvider></TraceProvider>));
+    await React.act(async()=>root.render(<TraceProvider><Probe/><TooltipProvider><TraceCanvas onReprocess={()=>{}} onCorrection={correct} onBrushReviewChange={reviewChanged}/></TooltipProvider></TraceProvider>));
     React.act(()=>{
       trace!.dispatch({type:"SOURCE_LOADED",imageUrl:"data:image/png;base64,AA==",fileName:"tool"});
-      trace!.dispatch({type:"SOURCE_READY",imageSize:{width:100,height:100}});
+      trace!.dispatch({type:"SOURCE_READY",imageSize:{width:160,height:160}});
+      trace!.dispatch({type:"PERSPECTIVE_APPLIED", sourceImageUrl:"data:image/png;base64,AA==", imageUrl:"corrected",
+        imageSize:{width:160,height:160}, paper:"a4", source:"template", calibration:{startX:0,startY:0,endX:100,endY:0,lengthMm:100},
+        paperBounds:{x:0,y:0,width:102,height:102}});
       trace!.dispatch({type:"SET_REGION",region:{x:0,y:0,width:100,height:100}});
-      trace!.dispatch({type:"DETECTED",imageUrl:"data:image/png;base64,AA==",outline:detected,rawOutline:detected,svg:"",region:null});
+      trace!.dispatch({type:"DETECTED",imageUrl:"corrected",outline:detected,rawOutline:detected,svg:"",region:null});
     });
     const button=host.querySelector<HTMLButtonElement>('[aria-label="Correct"]')!;
     await React.act(async()=>button.click());
     const control=(label:string)=>host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
-    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    expect(control("Select points").getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('button[aria-label="Select"]')).toBeNull();
     const svg=host.querySelector("svg")!;
     Object.defineProperty(svg,"setPointerCapture",{value:()=>{}});
@@ -1558,10 +1642,109 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
       const event=new MouseEvent(type,{bubbles:true,button:0,clientX:x,clientY:y});
       Object.defineProperties(event,{pointerType:{value:pointerType},pointerId:{value:id}});svg.dispatchEvent(event);
     });
-    pointer("pointerdown",20,20);pointer("pointermove",30,30,2);pointer("pointermove",25,25);
-    expect(host.querySelector('[data-testid="correction-brush"]')).not.toBeNull();
-    pointer("pointerup",25,25);
-    expect(correct).toHaveBeenCalledWith([{kind:"tool",points:[{x:20,y:20},{x:25,y:25}],radius:1}]);
+    const action = (name: string) => {
+      const button = Array.from(host.querySelectorAll("button")).find(b => b.textContent === name);
+      expect(button, name).toBeDefined();
+      React.act(() => button!.click());
+    };
+    expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(4);
+    const historyIndex = trace!.history.index;
+    for (const x of [10, 90]) { pointer("pointerdown",x,10); pointer("pointerup",x,10); }
+    expect(host.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    expect(trace!.history.index).toBe(historyIndex);
+    expect(control("Edge brush").disabled).toBe(false);
+    pointer("pointerdown",10,10); pointer("pointermove",20,22); pointer("pointerup",20,22);
+    expect(trace!.outline[0].outer.slice(0,2)).toEqual([{x:20,y:22},{x:100,y:22}]);
+    expect(trace!.history.index).toBe(historyIndex+1);
+    expect(trace!.mode).toBe("correct");
+    expect(control("Edge brush").disabled).toBe(false);
+    expect(control("Remove area").disabled).toBe(true);
+    expect(correct).not.toHaveBeenCalled();
+    React.act(()=>trace!.undo());
+    expect(trace!.outline).toEqual(detected);
+    React.act(()=>control("Edge brush").click());
+    expect(control("Edge brush").getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelectorAll('[data-testid="correction-point"]')).toHaveLength(0);
+    const width = host.querySelector<HTMLInputElement>('input[aria-label="Brush width"]')!;
+    expect(width.value).toBe("24");
+    React.act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(width, "32");
+      width.dispatchEvent(new Event("input", { bubbles: true }));
+      width.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(width.getAttribute("aria-valuetext")).toBe("32 pixels");
+    pointer("pointerdown",89,20); pointer("pointermove",35,30,2); pointer("pointermove",70,45);
+    pointer("pointermove",88,75);
+    expect(host.querySelector('[data-testid="edge-joins"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="correction-brush"]')?.getAttribute("r")).toBe("16");
+    pointer("pointerup",88,75);
+    expect(trace!.history.index).toBe(historyIndex);
+    const contourPath = () => host.querySelector('[data-testid="detected-contour-stroke"]')!.getAttribute("d");
+    const proposed = contourPath();
+    pointer("pointerdown",40,40); pointer("pointermove",45,50); pointer("pointerup",45,50);
+    expect(contourPath()).toBe(proposed);
+    expect(trace!.history.index).toBe(historyIndex);
+    action("Other side");
+    expect(contourPath()).not.toBe(proposed);
+    action("Other side");
+    expect(contourPath()).toBe(proposed);
+    action("Apply edge");
+    expect(trace!.outline[0].outer).toContainEqual({x:70,y:45});
+    expect(trace!.history.index).toBe(historyIndex+1);
+    expect(correct).not.toHaveBeenCalled();
+    const firstEdge = trace!.outline;
+    pointer("pointerdown",10,20); pointer("pointermove",25,45); pointer("pointerup",10,75);
+    action("Apply edge");
+    expect(trace!.outline[0].outer).toContainEqual({x:25,y:45});
+    React.act(()=>trace!.undo());
+    expect(trace!.outline).toEqual(firstEdge);
+    React.act(()=>trace!.undo());
+    expect(trace!.outline).toEqual(detected);
+    React.act(()=>trace!.redo());
+    expect(trace!.outline).toEqual(firstEdge);
+    React.act(()=>trace!.undo());
+    // The same stroke can reach into the margin only when the full photo is visible.
+    pointer("pointerdown",90,24); pointer("pointermove",115,46); pointer("pointerup",90,73);
+    expect(host.textContent).toContain("canceled at the photo boundary");
+    expect(trace!.outline).toEqual(detected);
+    React.act(() => trace!.dispatch({type:"SET_SHOW_FULL_PHOTO",show:true}));
+    pointer("pointerdown",90,24); pointer("pointermove",97,30); pointer("pointermove",115,46);
+    pointer("pointermove",97,67); pointer("pointerup",90,73); action("Apply edge");
+    expect(Math.max(...trace!.outline[0].outer.map(p => p.x))).toBe(115);
+    React.act(() => trace!.undo());
+    pointer("pointerdown",90,24); pointer("pointermove",97,30); pointer("pointermove",165,46);
+    pointer("pointermove",97,67); pointer("pointerup",90,73);
+    expect(trace!.outline).toEqual(detected);
+    expect(host.textContent).toContain("canceled at the photo boundary");
+    const nearLoop = () => {
+      pointer("pointerdown",30,90); pointer("pointermove",32,64); pointer("pointermove",56,46);
+      pointer("pointermove",72,69); pointer("pointermove",59,81); pointer("pointerup",35,90);
+    };
+    const crossedLoop = () => {
+      pointer("pointerdown",30,90); pointer("pointermove",32,64); pointer("pointermove",60,45);
+      pointer("pointermove",50,45); pointer("pointermove",60,54); pointer("pointermove",72,69); pointer("pointerup",35,90);
+    };
+    crossedLoop();
+    expect(correct).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("cross");
+    expect(host.textContent).not.toContain("Preview edge");
+    expect(reviewChanged).toHaveBeenLastCalledWith(true);
+    action("Cancel");
+    expect(reviewChanged).toHaveBeenLastCalledWith(false);
+    expect(trace!.history.index).toBe(historyIndex);
+    crossedLoop(); action("Fill loop");
+    expect(correct.mock.lastCall![0][0]).toMatchObject({fill:true});
+    correct.mockClear();
+    nearLoop();
+    expect(correct).not.toHaveBeenCalled();
+    expect(trace!.history.index).toBe(historyIndex);
+    action("Preview edge"); action("Cancel");
+    expect(trace!.outline).toEqual(detected);
+    nearLoop(); action("Fill loop");
+    expect(correct.mock.lastCall![0][0]).toMatchObject({fill:true, kind:"tool"});
+    correct.mockClear();
+    pointer("pointerdown",20,20); pointer("pointermove",60,20); pointer("pointermove",60,60); pointer("pointermove",20,60); pointer("pointerup",20,20);
+    expect(correct).toHaveBeenCalledWith([{kind:"tool",points:[{x:20,y:20},{x:60,y:20},{x:60,y:60},{x:20,y:60},{x:20,y:20}],radius:16,fill:true}]);
     pointer("pointerdown",20,20);pointer("pointermove",30,30);pointer("pointercancel",30,30);
     expect(correct).toHaveBeenCalledTimes(1);
     pointer("pointerdown",20,20);
@@ -1579,15 +1762,17 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(0);
     expect(host.querySelector('[aria-label="Corrections applied"]')).not.toBeNull();
     React.act(()=>control("Correct").click());
-    React.act(()=>control("Remove").click());
-    expect(control("Remove").getAttribute("aria-pressed")).toBe("true");
+    React.act(()=>control("Remove area").click());
+    expect(control("Remove area").getAttribute("aria-pressed")).toBe("true");
     pointer("pointerdown",40,40);pointer("pointerup",40,40);
-    expect(correct).toHaveBeenLastCalledWith([...hints,{kind:"paper",points:[{x:40,y:40}],radius:1}]);
+    expect(correct).toHaveBeenLastCalledWith([...hints,{kind:"paper",points:[{x:40,y:40}],radius:16}]);
     const calls=correct.mock.calls.length;
     React.act(()=>control("Pan while correcting").click());
     pointer("pointerdown",40,40);pointer("pointermove",50,50);pointer("pointerup",50,50);
     expect(correct).toHaveBeenCalledTimes(calls);
-    React.act(()=>control("Add").click());
+    React.act(()=>control("Pan while correcting").click());
+    expect(control("Remove area").getAttribute("aria-pressed")).toBe("true");
+    React.act(()=>control("Edge brush").click());
     pointer("pointerdown",-10,-10);pointer("pointerup",-10,-10);
     pointer("pointerdown",20,20);pointer("lostpointercapture",20,20);pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(calls);
@@ -1595,7 +1780,7 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     React.act(()=>control("Clear correction marks").click());
     expect(correct).toHaveBeenLastCalledWith([]);
     React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:detected,rawOutline:detected,svg:"",region:null,detectionHints:[],label:"Clear corrections"}));
-    expect(control("Clear correction marks").disabled).toBe(true);
+    expect(control("Clear correction marks")).toBeNull();
     React.act(()=>trace!.undo());
     expect(trace!.detectionHints).toEqual(hints);
     expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(1);
@@ -1604,7 +1789,7 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     // Processing and region changes cannot submit a half-finished stroke.
     pointer("pointerdown",20,20);
     React.act(()=>trace!.dispatch({type:"SET_PROCESSING",processing:true}));
-    expect(control("Add").disabled).toBe(true);
+    expect(control("Edge brush").disabled).toBe(true);
     expect(control("Done correcting").disabled).toBe(false);
     pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(calls+1);
@@ -1614,13 +1799,44 @@ it.each(["mouse", "touch"])("submits and cancels local correction strokes with %
     pointer("pointerup",20,20);
     expect(correct).toHaveBeenCalledTimes(calls+1);
     expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
-    // Starting from Edit enters correction without exposing editing handles.
+    // A manual point edit protects the geometry while keeping selection available.
     React.act(()=>trace!.dispatch({type:"SET_MODE",mode:"edit"}));
     React.act(()=>control("Correct").click());
-    expect(trace!.mode).toBe("pan");
-    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    expect(trace!.mode).toBe("correct");
     React.act(()=>trace!.dispatch({type:"OUTLINE_COMMITTED",outline:edited}));
-    expect(host.querySelector('[aria-label="Correction tools"]')).toBeNull();
-    expect(control("Correct").disabled).toBe(true);
+    expect(control("Select points").disabled).toBe(false);
+    expect(control("Edge brush").disabled).toBe(false);
+    React.act(()=>control("Done correcting").click());
+    expect(control("Correct").disabled).toBe(false);
+    React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:[],rawOutline:[],svg:"",region:null}));
+    React.act(()=>control("Correct").click());
+    expect(control("Select points").disabled).toBe(true);
+    expect(control("Add area").getAttribute("aria-pressed")).toBe("true");
+    pointer("pointerdown",10,10);
+    pointer("pointermove",50,10);
+    pointer("pointermove",50,50);
+    pointer("pointermove",10,50);
+    const previewFill = () => host.querySelector('[data-testid="detection-hint"]')?.getAttribute("fill");
+    expect(previewFill()).toBe("none");
+    pointer("pointermove",12,12);
+    expect(previewFill()).toBe("#16a34a");
+    pointer("pointermove",18,32);
+    expect(previewFill()).toBe("none");
+    pointer("pointerup",10,10);
+    const added = correct.mock.lastCall![0];
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ kind: "tool", fill: true });
+    React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:detected,rawOutline:detected,svg:"",region:null,detectionHints:added,label:"Correct outline"}));
+    expect(host.querySelector('[aria-label="Correction tools"]')?.textContent).toContain("included in the pocket");
+    React.act(()=>trace!.undo());
+    expect(trace!.detectionHints).toEqual([]);
+    React.act(()=>trace!.redo());
+    expect(trace!.detectionHints).toEqual(added);
+    pointer("pointerdown",22,22); pointer("pointerup",22,22);
+    expect(host.querySelector('[aria-label="Correction tools"]')?.textContent).toContain("Start and finish");
+    pointer("pointerdown",20,20); pointer("pointermove",40,20); pointer("pointermove",40,40); pointer("pointermove",20,40); pointer("pointerup",20,20);
+    const retained = correct.mock.lastCall![0];
+    React.act(()=>trace!.dispatch({type:"DETECTED",imageUrl:trace!.imageUrl!,outline:detected,rawOutline:detected,svg:"",region:null,detectionHints:retained,label:"Correct outline"}));
+    expect(host.querySelector('[aria-label="Correction tools"]')?.textContent).toContain("already included");
   } finally {React.act(()=>root.unmount());restoreCoordinates();}
 });

@@ -73,6 +73,7 @@ import { DEFAULT_MARGIN_MM, marginToPixels, type Margin } from "@/lib/image-proc
 /** Exactly one interaction mode is active at a time. */
 export type TraceMode =
   | "navigate"
+  | "correct"
   | "remove"
   | "pan"
   | "region"
@@ -102,6 +103,8 @@ export interface TraceHistoryEntry {
   margin: Margin;
   /** Stable source for refinements; manual edits replace this source. */
   refinementBase?: Outline;
+  /** Exact editable anchors before the current series of slider adjustments. */
+  curveRefinementBase?: CurveOutline;
   baselineMarginPx?: number;
   tolerancePx?: number;
   smoothing?: number;
@@ -298,6 +301,7 @@ export type TraceAction =
       label?: string;
     }
   | { type: "OUTLINE_REFINED"; outline: Outline }
+  | { type: "CURVES_REFINED"; curves: CurveOutline; expectedCurves: CurveOutline; tolerancePx: number }
   | { type: "REFINEMENT_REJECTED"; expectedOutline: Outline; expectedSourceRevision: number;
       expected: Pick<TraceRefinementSettings, "tolerancePx" | "smoothing" | "margin" | "calibration">;
       settings: TraceRefinementSettings }
@@ -525,6 +529,7 @@ function commitPhotoRotation(state: TraceState, radians: number, outline: Outlin
   next.history = pushHistory({ ...state.history, stack: state.history.stack.map(entry => ({ ...entry,
     photoFrame: !entry.photoFrame || samePhotoFrame(entry.photoFrame, before) ? before : entry.photoFrame })) },
     rotated, label, state.margin, { ...current, autoSimplification: undefined, detection: detectionSnapshot(next), curves: next.curves, estimatedEdgeRegions: next.estimatedEdgeRegions, detectionHints: next.detectionHints, photoFrame: photoFrame(next), hasManualEdits: manual || current?.hasManualEdits,
+      curveRefinementBase: !manual && current?.curveRefinementBase ? mapCurves(current.curveRefinementBase, point) : undefined,
       refinementBase: manual ? rotated : transformOutline(current?.refinementBase ?? state.rawOutline, transform),
       baselineMarginPx: manual ? marginToPixels(state.margin, state.calibration) : current?.baselineMarginPx,
       tolerancePx: state.tolerancePx, smoothing: state.smoothing });
@@ -549,7 +554,7 @@ function retainedEditSelection(state: TraceState, outline: Outline): RingRef | n
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   // Polygon-only reshaping cannot silently bake editable curve sources. These
   // controls are disabled in the prototype; also reject stale async results.
-  if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING", "SET_TOLERANCE"].includes(action.type)) return state;
+  if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING"].includes(action.type)) return state;
   switch (action.type) {
     case "CURVES_COMMITTED": {
       if ((state.margin ?? 0) !== 0) return state;
@@ -679,6 +684,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
               entry.detection.rawOutline, state.imageSize, imageSize, action.direction) },
             detectionHints: entry.detectionHints?.map(rotateHint),
             estimatedEdgeRegions: entry.estimatedEdgeRegions?.map(ring => ring.map(p => rotateImagePoint(p, state.imageSize, imageSize, action.direction))),
+            curveRefinementBase: entry.curveRefinementBase && mapCurves(entry.curveRefinementBase, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
             curves: entry.curves && mapCurves(entry.curves, point => rotateImagePoint(point, state.imageSize, imageSize, action.direction)),
             refinementBase: entry.refinementBase && rotateImageOutline(
               entry.refinementBase, state.imageSize, imageSize, action.direction,
@@ -799,16 +805,22 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
       // previous accepted values atomically without manufacturing an undo step.
       return { ...state, ...action.settings };
 
+    case "CURVES_REFINED":
     case "OUTLINE_REFINED": {
       const current = state.history.stack[state.history.index];
-      const entry = { ...current, autoSimplification: undefined, outline: action.outline, label: "Refine outline",
+      if (action.type === "CURVES_REFINED" && (state.processing || state.curves !== action.expectedCurves || state.tolerancePx !== action.tolerancePx)) return state;
+      const curves = action.type === "CURVES_REFINED" ? action.curves : undefined;
+      const outline = action.type === "OUTLINE_REFINED" ? action.outline
+        : sampleCurves(action.curves, CURVE_TOLERANCE_MM / (mmPerPixel(state.calibration) ?? .1));
+      const entry = { ...current, autoSimplification: undefined, curves, outline, label: "Refine outline",
+        curveRefinementBase: curves ? current?.curveRefinementBase ?? state.curves : undefined,
         tolerancePx: state.tolerancePx, smoothing: state.smoothing };
       const history = current?.label === "Refine outline"
         ? { ...state.history, stack: state.history.stack.slice(0, state.history.index + 1).map((item, index) => index === state.history.index ? entry : item) }
-        : pushHistory(state.history, action.outline, entry.label, state.margin, entry);
+        : pushHistory(state.history, outline, entry.label, state.margin, entry);
       return {
         ...state,
-        outline: action.outline,
+        outline, curves,
         history,
       };
     }

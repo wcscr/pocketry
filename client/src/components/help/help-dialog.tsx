@@ -65,7 +65,9 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               <strong> Automatic · match background</strong> under <strong>Find the outline using</strong>.
               If perspective correction crops the tool, enable
               <strong> Show full photo</strong> beside the canvas. In
-              <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points.
+              <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points. Drag a point to move it, or tap the line to add one.
+              Use <strong>More tools → Select points</strong> to move several together or repair a section between two endpoints.
+              Choose <strong>Done</strong> to return to the photo. Undo is available for each edit.
               Choose <strong>Add manual contour</strong> to start another trace with a four-point
               square, then drag its corners and add points on its edges. Trace an inner feature
               separately when it needs a different pocket depth in Bin.
@@ -76,10 +78,11 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
             </p>
             <p className="mt-1 text-muted-foreground">
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
-              and amber estimated edges. Before editing points, use <strong>Correct → Add</strong> to mark
-              missing tool material or <strong>Remove</strong> to mark unwanted background.
-              Each stroke re-detects and can be undone; <strong>Done</strong> keeps the corrections.
-              Undo manual outline edits before returning to brush corrections.
+              and amber estimated edges. In <strong>Correct</strong>, pick points or drag a box around them, then drag the selection to move it.
+              With <strong>Edge brush</strong>, trace from one place on the outline to another. Follow the inside edges of the handles
+              in a single stroke to create a recess, or draw across the gap to include it. Release to preview the pocket. Use <strong>Other side</strong> to switch sides, then <strong>Apply edge</strong> to save.
+              Adjust <strong>Brush width</strong> in pixels. Circle an area to fill it. If the loop also joins two edges, choose <strong>Fill loop</strong> or <strong>Preview edge</strong>. Use <strong>Remove area</strong> to mark background.
+              Purple shading shows the pocket. Undo reverses a stroke and <strong>Done</strong> keeps your work.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
               With Tool edges selected, confirm switching to <strong>Color contrast</strong>{" "}
               and re-detecting the outline; <strong>Automatic</strong> selects Color contrast for holes.
@@ -87,7 +90,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               to adjust sensitivity, point simplification, or preview <strong>Smooth outline</strong>.
               <strong> Detected outline</strong> compares the earlier detection without changing your work;
               <strong> Use detected outline</strong> restores it as one Undo step.
-              <strong> Editable curves</strong> enables handles and <strong>Edit outline → Bend edges</strong>.
+              <strong> Editable curves</strong> enables handles and <strong>Edit outline → More tools → Bend edges</strong>.
               <strong> Restart outline detection</strong> resets tuning and corrections while keeping the photo,
               scale, region, and margin. Undo restores the previous result.
             </p>

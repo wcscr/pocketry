@@ -23,6 +23,24 @@ function endpoint() {
 afterEach(() => vi.useRealTimers());
 
 describe("photo worker lifecycle", () => {
+  it("routes edited curve detail to the worker and honors cancellation", async () => {
+    const dense = [{ outer: [{x:0,y:0},{x:5,y:0},{x:10,y:0},{x:10,y:10},{x:0,y:10}], holes: [] }];
+    const request = { source: curvesFromOutline(dense), tolerance: 1, sampleTolerance: .25 };
+    const load = vi.fn(), controller = new AbortController();
+    const handlers = createDetectionHandlers(load);
+    const context = { signal: controller.signal, progress: () => {} };
+    const result = handlers.refineCurves(request, context);
+    expect(result[0].outer).toHaveLength(4);
+    const ep = endpoint(), client = createDetectionClient(() => ep.port);
+    const pending = client.refineCurves(request, controller.signal);
+    expect(ep.sent[0]).toMatchObject({method:"refineCurves",payload:request});
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+    expect(() => handlers.refineCurves(request, context)).toThrow();
+    expect(load).not.toHaveBeenCalled();
+    client.dispose();
+  });
+
   it("simplifies the accepted outline without raw detection or OpenCV, and cancels its worker", async () => {
     const source = curvesFromOutline([{ outer: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 30 }, { x: 0, y: 30 }], holes: [] }]);
     const payload = { source, tolerance: .2, sampleTolerance: .025, editableCurves: false }, before = structuredClone(payload);

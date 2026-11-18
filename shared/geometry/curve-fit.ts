@@ -1,7 +1,7 @@
 import { curveControls, curveRing, mapCurves, sampleCurveRing, splitCurve,
   type Cubic, type CurveOutline, type CurveRing } from "./curves";
-import { distanceToSegment, pointInRing, signedArea } from "./rings";
-import type { Point, RingRef } from "./types";
+import { distanceToSegment, pointInRing, signedArea, traceRingKey } from "./rings";
+import type { Point, Ring, RingRef } from "./types";
 
 export type CurveFitRequest = { kind: "auto" } | { kind: "range"; start: number; end: number };
 export interface CurveFitResult {
@@ -184,41 +184,184 @@ export function fitContour(source: CurveOutline, ref: RingRef, request: CurveFit
     maxDeviation: Math.max(0, ...spans.map(s => s.error)), changed };
 }
 
-/** Topology guard on fine adaptive samples. Fitting's deviation bound above is
- * continuous; intersection/containment checks use these polygon approximations.
- */
-export function validateFittedContour(before: CurveOutline, after: CurveOutline, ref: RingRef, tolerance: number, budget: () => void): void {
+interface Contact {
+  span: [Point, Point];
+  targetEdge: number;
+  otherEdge: number;
+  /** Crossing direction along the target ring. Zero denotes a touch or shared span. */
+  direction: number;
+}
+
+/** Locate contact along the neighboring edge. Collinear overlap contributes an interval. */
+function edgeContact(a: Point, b: Point, c: Point, d: Point): Pick<Contact, "span" | "direction"> | undefined {
+  const determinant = (u: Point, v: Point) => u.x * v.y - u.y * v.x;
+  const ab = sub(b, a), cd = sub(d, c), ac = sub(c, a);
+  const den = determinant(ab, cd);
+  if (den) {
+    const t = determinant(ac, cd) / den, u = determinant(ac, ab) / den;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+      const point = mix(a, b, t);
+      return { span: [point, point], direction: Math.min(t, 1 - t) * norm(ab) > 1e-9 && Math.min(u, 1 - u) * norm(cd) > 1e-9 ? Math.sign(den) : 0 };
+    }
+  }
+  const touching = [a, b, c, d].filter(p =>
+    distanceToSegment(p, a, b) < 1e-9 && distanceToSegment(p, c, d) < 1e-9);
+  if (!touching.length) return;
+  touching.sort((p, q) => p.x - q.x || p.y - q.y);
+  return { span: [touching[0], touching[touching.length - 1]], direction: 0 };
+}
+
+/** At a sampled vertex both incident segments report the same hit. Use the outgoing
+ * segment as its owner, and both incident rays to distinguish a crossing from a touch. */
+function incidentRays(ring: Ring, edge: number, p: Point) {
+  const next = (edge + 1) % ring.length;
+  const vertex = norm(sub(p, ring[edge])) < 1e-9 ? edge : norm(sub(p, ring[next])) < 1e-9 ? next : -1;
+  if (vertex < 0) return { owner: edge, back: ring[edge], forward: ring[next] };
+  return { owner: vertex, back: ring[(vertex + ring.length - 1) % ring.length], forward: ring[(vertex + 1) % ring.length] };
+}
+
+function crossingAtVertex(p: Point, target: ReturnType<typeof incidentRays>, other: ReturnType<typeof incidentRays>) {
+  const angle = (q: Point) => Math.atan2(q.y - p.y, q.x - p.x);
+  const origin = angle(target.forward), turn = 2 * Math.PI;
+  const relative = (q: Point) => (angle(q) - origin + turn) % turn;
+  const limit = relative(target.back);
+  const side = (q: Point) => {
+    const a = relative(q);
+    if (Math.min(a, turn - a, Math.abs(a - limit)) < 1e-10) return 0;
+    return a < limit ? 1 : -1;
+  };
+  const before = side(other.back), after = side(other.forward);
+  return before && before === -after ? after : 0;
+}
+
+const crossingError = "The fit would cross or touch another contour edge. Try a smaller deviation.";
+
+/** Sweep only overlapping bounds. The target may never cross itself. */
+function contourContacts(rings: Ring[], target: number, skip: Set<number>, budget: () => void, strict: boolean) {
+  const contacts = new Map<number, Contact[]>();
+  const edges = rings.flatMap((r, ring) => skip.has(ring) ? [] : r.map((a, i) => {
+    const b = r[(i + 1) % r.length];
+    return { a, b, ring, i, minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x), minY: Math.min(a.y, b.y), maxY: Math.max(a.y, b.y) };
+  })).sort((a, b) => a.minX - b.minX);
+  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length && edges[j].minX <= edges[i].maxX + 1e-9; j++) {
+    budget();
+    const a = edges[i], b = edges[j];
+    if (a.ring !== target && b.ring !== target || a.maxY < b.minY || b.maxY < a.minY) continue;
+    if (a.ring === b.ring && (Math.abs(a.i - b.i) === 1 || Math.abs(a.i - b.i) === rings[a.ring].length - 1)) continue;
+    const [subject, neighbor] = a.ring === target ? [a, b] : [b, a];
+    const contact = edgeContact(subject.a, subject.b, neighbor.a, neighbor.b);
+    if (!contact) continue;
+    if (strict || a.ring === b.ring) throw new Error(crossingError);
+    if (!contact.direction && norm(sub(contact.span[0], contact.span[1])) < 1e-9) {
+      const p = contact.span[0];
+      const subjectRays = incidentRays(rings[target], subject.i, p);
+      const neighborRays = incidentRays(rings[neighbor.ring], neighbor.i, p);
+      if (subjectRays.owner !== subject.i || neighborRays.owner !== neighbor.i) continue;
+      contact.direction = crossingAtVertex(p, subjectRays, neighborRays);
+    }
+    const other = neighbor.ring;
+    const list = contacts.get(other) ?? [];
+    list.push({ ...contact, targetEdge: subject.i, otherEdge: neighbor.i });
+    contacts.set(other, list);
+  }
+  return contacts;
+}
+
+/** Existing authored crossings can move within the fitting allowance. Require contacts in
+ * both directions so a new intersection elsewhere, or a lost overlap, is still rejected. */
+function coversContacts(contacts: Contact[], previous: Contact[], tolerance: number, budget: () => void) {
+  return contacts.every(({ span: [a, b] }) => [a, mix(a, b, .5), b].every(p => previous.some(({ span: [c, d] }) => {
+    budget();
+    return distanceToSegment(p, c, d) <= tolerance;
+  })));
+}
+
+/** At a shallow angle a small boundary displacement can move the intersection much farther.
+ * Follow the actual contour from the old crossing toward its proposed location. Stay within
+ * the deviation of that short path, so a crossing on a distant fold cannot take its place. */
+function followsCrossing(ring: Ring, edge: number, from: Point, to: Point, tolerance: number, budget: () => void): boolean {
+  for (const step of [1, -1]) {
+    let start = from;
+    let index = step === 1 ? (edge + 1) % ring.length : edge;
+    for (let n = 0; n <= ring.length; n++) {
+      budget();
+      const end = ring[index];
+      if (distanceToSegment(to, start, end) <= tolerance) return true;
+      if (distanceToSegment(end, from, to) > tolerance) break;
+      start = end;
+      index = (index + step + ring.length) % ring.length;
+    }
+  }
+  return false;
+}
+
+function preservesCrossings(old: Contact[], next: Contact[], originals: Ring[], fitted: Ring[],
+  target: number, other: number, tolerance: number, budget: () => void): boolean {
+  if (old.length !== next.length) return false;
+  const used = new Set<Contact>();
+  return old.every(before => {
+    const a = before.span[0];
+    const matches = next.filter(after => {
+      budget();
+      if (before.direction !== after.direction) return false;
+      const b = after.span[0];
+      return norm(sub(a, b)) <= tolerance || (
+        followsCrossing(originals[target], before.targetEdge, a, b, tolerance, budget) &&
+        followsCrossing(originals[other], before.otherEdge, a, b, tolerance, budget) &&
+        followsCrossing(fitted[target], after.targetEdge, b, a, tolerance, budget) &&
+        followsCrossing(fitted[other], after.otherEdge, b, a, tolerance, budget));
+    });
+    if (matches.length !== 1 || used.has(matches[0])) return false;
+    used.add(matches[0]);
+    return true;
+  });
+}
+
+/** Topology guard on fine adaptive samples. Detected contours require disjoint boundaries.
+ * For authored pockets, compare contacts to the accepted geometry before the edit. */
+export function validateFittedContour(before: CurveOutline, after: CurveOutline, ref: RingRef, tolerance: number,
+  budget: () => void, existingContactAllowance?: number): void {
   const flat = (outline: CurveOutline) => outline.flatMap((s, shapeIndex) => [
     { ring: s.outer, shapeIndex, ringIndex: -1 }, ...s.holes.map((ring, ringIndex) => ({ ring, shapeIndex, ringIndex }))]);
   const sources = flat(before), target = sources.findIndex(r => r.shapeIndex === ref.shapeIndex && r.ringIndex === ref.ringIndex);
   const precision = Math.min(tolerance / 16, 0.01);
   const originals = sources.map(r => sampleCurveRing(r.ring, precision));
-  const candidate = sampleCurveRing(curveRing(after, ref)!, precision);
+  const rings = flat(after).map((r, i) => {
+    if (r.ring === sources[i].ring || (existingContactAllowance === undefined && i !== target)) return originals[i];
+    return sampleCurveRing(r.ring, precision);
+  });
+  const candidate = rings[target];
   if (candidate.length + originals.reduce((n, r) => n + r.length, 0) > 16_000) {
     throw new Error("This contour is too detailed to validate. Choose a shorter section or simplify it first.");
   }
   if (Math.abs(signedArea(candidate)) < 1e-12 || Math.sign(signedArea(candidate)) !== Math.sign(signedArea(originals[target]))) {
     throw new Error("The fit would collapse or reverse the contour. Try a smaller deviation.");
   }
-  const rings = originals.map((r, i) => i === target ? candidate : r);
-  const edges = rings.flatMap((r, ring) => r.map((a, i) => {
-    const b = r[(i + 1) % r.length];
-    return { a, b, ring, i, minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x), minY: Math.min(a.y, b.y), maxY: Math.max(a.y, b.y) };
-  })).sort((a, b) => a.minX - b.minX);
-  const cross = (a: Point, b: Point, c: Point) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length && edges[j].minX <= edges[i].maxX + 1e-9; j++) {
-    budget();
-    const a = edges[i], b = edges[j];
-    if (a.ring !== target && b.ring !== target || a.maxY < b.minY || b.maxY < a.minY) continue;
-    if (a.ring === b.ring && (Math.abs(a.i - b.i) === 1 || Math.abs(a.i - b.i) === rings[a.ring].length - 1)) continue;
-    const crossing = cross(a.a, a.b, b.a) * cross(a.a, a.b, b.b) < 0 && cross(b.a, b.b, a.a) * cross(b.a, b.b, a.b) < 0;
-    if (crossing || [distanceToSegment(a.a, b.a, b.b), distanceToSegment(a.b, b.a, b.b), distanceToSegment(b.a, a.a, a.b), distanceToSegment(b.b, a.a, a.b)].some(d => d < 1e-9)) {
-      throw new Error("The fit would cross or touch another contour edge. Try a smaller deviation.");
-    }
+  const skip = new Set<number>();
+  if (existingContactAllowance !== undefined && ref.ringIndex >= 0) {
+    const key = traceRingKey(originals[target]), nextKey = traceRingKey(candidate);
+    sources.forEach((r, i) => {
+      if (i !== target && r.ringIndex >= 0 && traceRingKey(originals[i]) === key && traceRingKey(rings[i]) === nextKey) skip.add(i);
+    });
   }
-  for (let i = 0; i < rings.length; i++) if (i !== target) {
-    if (pointInRing(originals[target], originals[i][0]) !== pointInRing(candidate, originals[i][0])
-      || pointInRing(originals[i], originals[target][0]) !== pointInRing(originals[i], candidate[0])) {
+  const contacts = contourContacts(rings, target, skip, budget, existingContactAllowance === undefined);
+  const previous = existingContactAllowance === undefined || rings.length === 1
+    ? new Map<number, Contact[]>() : contourContacts(originals, target, skip, budget, false);
+  for (let i = 0; i < rings.length; i++) if (i !== target && !skip.has(i)) {
+    const old = previous.get(i) ?? [], next = contacts.get(i) ?? [];
+    if (old.length || next.length) {
+      const allowance = (existingContactAllowance ?? 0) + 2 * precision;
+      if (existingContactAllowance) {
+        const oldCrossings = old.filter(c => c.direction), newCrossings = next.filter(c => c.direction);
+        if (!preservesCrossings(oldCrossings, newCrossings, originals, rings, target, i, allowance, budget)) throw new Error(crossingError);
+      }
+      // Direct brush edits keep all contacts in place. For bounded refinement, crossings
+      // were matched above and only tangent points and collinear spans still need comparison.
+      const oldFixed = existingContactAllowance ? old.filter(c => !c.direction) : old;
+      const newFixed = existingContactAllowance ? next.filter(c => !c.direction) : next;
+      if (!coversContacts(newFixed, oldFixed, allowance, budget) || !coversContacts(oldFixed, newFixed, allowance, budget)) throw new Error(crossingError);
+    } else if (pointInRing(originals[target], originals[i][0]) !== pointInRing(candidate, rings[i][0])
+      || pointInRing(originals[i], originals[target][0]) !== pointInRing(rings[i], candidate[0])) {
       throw new Error("The fit would change a hole or another contour. Try a smaller deviation.");
     }
   }

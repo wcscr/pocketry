@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.13.0 — 2026-11-17
+
+- Edit outline points directly on the photo or select and move several together in Correct.
+- Trace a recess or bridge a gap with an adjustable Edge brush. Preview the pocket, switch sides, or fill a closed loop before exporting or adding it to a bin.
+- Adjust simplification on editable curves, including overlapping pockets, after hand edits and sensitivity changes. Undo restores the original curve handles.
+
 ## 1.12.4 — 2026-11-17
 
 - Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.

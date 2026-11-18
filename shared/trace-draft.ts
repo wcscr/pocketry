@@ -12,7 +12,9 @@ const imageSize = z.object({ width: finite.positive(), height: finite.positive()
 const imageAlignment = z.object({ sourceSize: imageSize, size: imageSize,
   matrix: z.tuple([finite, finite, finite, finite, finite, finite]).refine(m => Math.abs(m[0]*m[3]-m[1]*m[2]) > 1e-12),
 });
-const detectionHints = z.array(z.object({ kind: z.enum(["tool", "paper"]), points: z.array(vec2Schema).min(1).max(4096), radius: finite.positive() })).max(100);
+const detectionHints = z.array(z.object({
+  kind: z.enum(["tool", "paper"]), points: z.array(vec2Schema).min(1).max(4096), radius: finite.positive(), fill: z.literal(true).optional(),
+}).refine(h => !h.fill || (h.kind === "tool" && h.points.length >= 3))).max(100);
 const margin = finite.min(0).max(5).nullable();
 const calibrationFields = {
   startX: finite, startY: finite, endX: finite, endY: finite, lengthMm: finite.positive(),
@@ -43,7 +45,7 @@ const frameFields = {
 };
 const historyEntry = z.object({
   outline, curves: curveOutlineSchema.optional(), label: z.string(), margin,
-  refinementBase: outline.optional(), baselineMarginPx: finite.optional(),
+  refinementBase: outline.optional(), curveRefinementBase: curveOutlineSchema.optional(), baselineMarginPx: finite.optional(),
   tolerancePx: finite.nonnegative().optional(), smoothing: finite.nonnegative().optional(),
   autoSimplification: z.object({ source: curveOutlineSchema, allowance: finite.positive(),
     unitsPerUnit: finite.positive(), unit: z.enum(["mm", "px"]) }).optional(),

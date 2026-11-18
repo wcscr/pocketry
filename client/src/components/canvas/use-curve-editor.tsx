@@ -32,6 +32,8 @@ interface Options {
   startHint?: string;
   onDone?: () => void;
   allowCurves?: boolean;
+  /** Keep native curve geometry editable with the simple Trace gestures until Bend edges is chosen. */
+  preferPointTools?: boolean;
   onFrameRepair?: (points: Point[]) => void;
 }
 const identity = (p: Point) => p;
@@ -39,7 +41,7 @@ const identity = (p: Point) => p;
 /** Shared editing interaction. All gesture drafts are local until pointer-up;
  * cancel, selection and pointer clicks never create source revisions. */
 export function useCurveEditor({ outline, curves, allowOutlineSimplification, enabled, contextKey, scale, tolerance,
-  fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone, allowCurves = true,
+  fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone, allowCurves = true, preferPointTools = false,
   fitUnitsPerUnit = 1, fitUnit = "mm", onFrameRepair }: Options) {
   const [started, setStarted] = useState(false);
   const [ref, setRef] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
@@ -85,14 +87,17 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     onFrameSection: onFrameRepair,
     onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
   const previewOpen = fitting.open || repair.open;
+  const basicCurveEditing = active && preferPointTools && !started && !previewOpen;
   useEffect(() => { if (!allowCurves && !curves && !previewOpen) setStarted(false); }, [allowCurves, curves, previewOpen]);
   useEffect(() => { if (previewOpen) cancel(); }, [previewOpen]);
   const fitSection = (section: NonNullable<ReturnType<typeof selectedCurveSection>>) => {
-    setStarted(true); setRef(section.ref); setTarget({ kind: "point", index: section.start }); setSectionRequest(section);
+    if (!curves) setStarted(true);
+    setRef(section.ref); setTarget({ kind: "point", index: section.start }); setSectionRequest(section);
   };
   const repairSection = (section: RepairSection) => {
     if (startDisabled && (allowCurves || curves)) return;
-    setStarted(true); setRef(section.ref); setTarget({ kind: "point", index: section.start }); setSectionRequest({ ...section, repair: true });
+    if (!curves) setStarted(true);
+    setRef(section.ref); setTarget({ kind: "point", index: section.start }); setSectionRequest({ ...section, repair: true });
   };
   useEffect(() => {
     if (sectionRequest && active) { if (sectionRequest.repair) repair.start(sectionRequest); else fitting.start("range", sectionRequest); setSectionRequest(undefined); }
@@ -144,6 +149,8 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     const drag = gesture.current; if (!drag || drag.id !== e.pointerId) return true;
     e.stopPropagation();
     if (!drag.latest && Math.hypot(e.clientX - drag.client.x, e.clientY - drag.client.y) < (e.pointerType === "touch" ? 8 : 3)) return true;
+    // Dragging an edge only bends it after explicitly choosing Bend edges.
+    if (basicCurveEditing && drag.target.kind === "edge") { cancel(); return true; }
     const q = fromClient(e.clientX, e.clientY); if (!q) return true;
     const delta = { x: q.x - drag.start.x, y: q.y - drag.start.y }, a = curveRing(drag.source, drag.ref)![drag.target.index];
     const { kind, index } = drag.target;
@@ -197,13 +204,13 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
           const c = curveControls(r, i).map(toCanvas), curved = a.out || r[(i + 1) % r.length].in;
           const d = `M${c[0].x},${c[0].y} ` + (curved ? `C${c[1].x},${c[1].y} ${c[2].x},${c[2].y} ${c[3].x},${c[3].y}` : `L${c[3].x},${c[3].y}`);
           return <g key={`edge:${i}`}>
-            {selectedRing && selected.kind === "edge" && selected.index === i && <path d={d} fill="none" className="stroke-primary" strokeWidth={4} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
+            {!basicCurveEditing && selectedRing && selected.kind === "edge" && selected.index === i && <path d={d} fill="none" className="stroke-primary" strokeWidth={4} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
             <path d={d} fill="none" stroke="transparent" strokeWidth={22} vectorEffect="non-scaling-stroke" className="cursor-grab" {...data("edge", i, rRef)} />
           </g>;
         })}
         {r.flatMap((a, i) => (["in", "out"] as const).map(side => {
           const show = selectedRing && (selected.kind === "edge" ? side === "out" && i === selected.index || side === "in" && i === (selected.index + 1) % r.length : i === selected.index);
-          if (!show || !a[side]) return null;
+          if (basicCurveEditing || !show || !a[side]) return null;
           const p = toCanvas(a.point), q = toCanvas(a[side]!);
           return <g key={`${i}:${side}`}><line x1={p.x} y1={p.y} x2={q.x} y2={q.y} className="stroke-primary/70" strokeWidth={1} vectorEffect="non-scaling-stroke" pointerEvents="none" />
             <circle cx={q.x} cy={q.y} r={5 * inv} className="fill-background stroke-primary" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" />
@@ -223,17 +230,19 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     {points.overlay}
   </g>;
   const coordinate = anchor && (selected.kind === "in" || selected.kind === "out" ? anchor[selected.kind] : anchor.point);
-  const controls = active && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
-    <div className="flex w-full items-center gap-2"><span className="text-sm font-medium">{repair.open ? "Edit outline" : fitting.open ? "Smooth outline" : "Edit outline · Bend edges"}</span>
+  const deleteAnchor = active && ring && selected.kind === "point" && <Button size="sm" variant="outline" disabled={ring.length <= 3}
+    onClick={() => { edit({ kind: "delete", index: selected.index }, "Delete curve anchor"); setTarget({ kind: "point", index: Math.max(0, selected.index - 1) }); }}>Delete point</Button>;
+  const controls = active && !basicCurveEditing && ring && anchor && <div className="flex max-h-[60vh] max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1.5 overflow-y-auto rounded-md border bg-background/95 p-2 shadow-sm" aria-label="Curve editing controls" data-testid="curve-editor-controls">
+    <div className="flex w-full flex-wrap items-center gap-2"><span className="text-sm font-medium">{repair.open ? "Edit outline" : fitting.open ? "Smooth outline" : "Edit outline · Bend edges"}</span>
       <HelpHint label="curve editing">Click an edge to add a point. Right-click a point to delete it. Drag edges to bend them into curves, points to move them, or handles to shape a curve. Shift-click adds points; drag empty space for a selection box. Select two endpoints for Repair section and preview a line or curve. Use Select points without a keyboard. Space-drag pans. Edits apply immediately; Undo restores them.</HelpHint>
-      {!curves && <Button size="sm" variant="outline" onClick={() => { cancel(); points.clear(); setStarted(false); }}>Points</Button>}
+      {!previewOpen && (!curves || preferPointTools) && <Button size="sm" variant="outline" onClick={() => { cancel(); points.clear(); points.setSelectMode(false); setStarted(false); }}>Edit points</Button>}
       {onDone && <Button size="sm" variant="secondary" onClick={onDone}>Done</Button>}</div>
     <select aria-label="Curve contour" disabled={previewOpen} className="h-9 max-w-40 rounded border bg-background px-1 text-xs" value={`${ringRef.shapeIndex}:${ringRef.ringIndex}`}
       onChange={e => { const [shapeIndex, ringIndex] = e.target.value.split(":").map(Number); setRef({ shapeIndex, ringIndex }); setTarget({ kind: "edge", index: 0 }); }}>
       {value.flatMap((s, i) => [<option key={`${i}:-1`} value={`${i}:-1`}>Contour {i + 1}</option>, ...s.holes.map((_, j) => <option key={`${i}:${j}`} value={`${i}:${j}`}>Contour {i + 1} · Hole {j + 1}</option>)])}
     </select>
     {repair.open ? repair.controls : fitting.open ? fitting.controls : <>
-    {points.selection.length < 2 && (selected.kind === "edge" ? <>
+    {points.selection.length < (points.selectMode ? 1 : 2) && (selected.kind === "edge" ? <>
       <Button size="sm" variant="outline" onClick={() => edit({ kind: "curve", index: selected.index }, "Make contour curve")} title="Add curve handles to this edge; drag a handle or the edge to bend it.">Add handles</Button>
       <Button size="sm" variant="outline" onClick={() => edit({ kind: "straight", index: selected.index }, "Straighten contour edge")} title="Replace this curved edge with a straight line between its endpoints.">Straighten</Button>
       <Button size="sm" variant="outline" onClick={() => { edit({ kind: "split", index: selected.index, t: 0.5 }, "Split contour curve"); setTarget({ kind: "point", index: selected.index + 1 }); }} title="Add a point halfway along this edge. You can also click the edge where you want a point.">Add midpoint</Button>
@@ -244,7 +253,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
       {selected.kind === "point" && <>
         <Button size="sm" variant={anchor.smooth ? "secondary" : "outline"} onClick={() => edit({ kind: "smooth", index: selected.index }, "Smooth curve anchor")}>Smooth</Button>
         <Button size="sm" variant={!anchor.smooth ? "secondary" : "outline"} onClick={() => edit({ kind: "corner", index: selected.index }, "Corner curve anchor")}>Corner</Button>
-        <Button size="sm" variant="outline" disabled={ring.length <= 3} onClick={() => { edit({ kind: "delete", index: selected.index }, "Delete curve anchor"); setTarget({ kind: "point", index: Math.max(0, selected.index - 1) }); }}>Delete point</Button>
+        {deleteAnchor}
       </>}
       {coordinate && (["x", "y"] as const).map(axis => <label key={axis} className="flex items-center gap-1 text-xs">{axis.toUpperCase()}
         <Input key={`${selected.kind}:${selected.index}:${coordinate[axis]}`} aria-label={`Curve ${axis.toUpperCase()} coordinate`} type="number" step="any" className="h-9 w-20" defaultValue={Number(coordinate[axis].toFixed(4))}
@@ -263,12 +272,9 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     </>}
     {error && <span role="alert" className="w-full text-xs text-destructive">{error}</span>}
   </div>;
-  const startButton = enabled && !active && <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background/95 p-2 shadow-sm" role="group" aria-label="Outline editing style">
-    <span className="text-sm font-medium">Edit outline</span><Button size="sm" variant="secondary" aria-pressed>Points</Button>
-    {allowCurves && <Button size="sm" variant="outline" disabled={startDisabled} title={startDisabled ? startHint : "Drag an edge to turn it into a curve. Click to add a point; right-click a point to delete."}
-      onClick={() => { setStarted(true); setError(null); }} data-testid="button-edit-curves">Bend edges</Button>}
-    {onDone && <Button size="sm" variant="outline" onClick={onDone}>Done</Button>}
-  </div>;
-  return { active, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu,
+  const startButton = enabled && (!active || basicCurveEditing) && allowCurves && <Button size="sm" variant="outline" disabled={startDisabled}
+    title={startDisabled ? startHint : "Drag an edge to turn it into a curve."}
+    onClick={() => { points.clear(); points.setSelectMode(false); setStarted(true); setError(null); }} data-testid="button-edit-curves">Bend edges</Button>;
+  return { active, commit, deleteAnchor, basicPoints: basicCurveEditing ? points : null, ringRef, error, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu,
     lostCapture: (e: ReactPointerEvent<SVGSVGElement>) => { points.lostCapture(e); if (gesture.current?.id === e.pointerId) cancel(); } };
 }
