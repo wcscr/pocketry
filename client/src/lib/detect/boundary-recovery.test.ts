@@ -76,6 +76,79 @@ describe("clipped learned-boundary recovery", () => {
     expect(run(shaft(false)).recovery.requiresReview).toBe(true);
   });
 
+  /** An edge-only box: a part the color detector cannot see, such as bright metal on white paper. */
+  function unseeded(f: ReturnType<typeof fixture>, x0: number, y0: number, x1: number, y1: number) {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (x === x0 || x === x1 || y === y0 || y === y1) f.edges[y * width + x] = .95;
+    }
+  }
+  function spur(f: ReturnType<typeof fixture>, x: number, y0: number, y1: number) {
+    for (let y = y0; y <= y1; y++) f.edges[y * width + x] = .95;
+  }
+  /** A colored handle with a bright metal head above it, sharing one edge. */
+  function headAndHandle() {
+    const f = fixture(); rectangle(f, 20, 34, 44, 56); unseeded(f, 18, 12, 46, 34);
+    return f;
+  }
+
+  it("keeps a part without color support when only thin lines reach opposite sides", () => {
+    const f = headAndHandle(); spur(f, 24, 0, 12); spur(f, 40, 56, 63);
+    expect(maskFromEdges(f.edges, width, height, f.seeds).reason).toBe("selection-too-tight");
+    const copy = structuredClone(f), result = run(f);
+    expect(result.reason).toBeUndefined();
+    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact", lostSupportedPixels: 0, requiresReview: true });
+    // The head and the handle are both whole, and the two lines are gone from the selection sides.
+    expect(result.mask[20 * width + 32]).toBe(1);
+    expect(result.mask[45 * width + 32]).toBe(1);
+    expect(result.mask[2 * width + 24]).toBe(0);
+    expect(result.mask[61 * width + 40]).toBe(0);
+    // Only the lines were taken.
+    const original = maskFromEdges(f.edges, width, height, f.seeds).mask;
+    for (let y = 12; y <= 56; y++) for (let x = 18; x <= 46; x++) expect(result.mask[y * width + x]).toBe(original[y * width + x]);
+    expect(f).toEqual(copy);
+  });
+
+  it("leaves one printed line crossing the selection to the general recovery", () => {
+    // The same two lines in one column are a single line passing behind the tool.
+    const f = headAndHandle(); spur(f, 30, 0, 12); spur(f, 30, 56, 63);
+    expect(run(f).recovery.reason).not.toBe("thin-contact");
+  });
+
+  it("keeps a thin part with color support that reaches a selection side", () => {
+    const f = headAndHandle(); spur(f, 40, 56, 63);
+    // A dark shaft from the head to the top of the selection.
+    for (let y = 0; y <= 12; y++) {
+      for (let x = 29; x <= 31; x++) f.edges[y * width + x] = .95;
+      f.seeds[y * width + 30] = 1;
+    }
+    const result = run(f);
+    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact" });
+    expect(result.mask[1 * width + 30]).toBe(1);
+    expect(result.mask[20 * width + 32]).toBe(1);
+    expect(result.mask[61 * width + 40]).toBe(0);
+  });
+
+  it("does not accept a mask that lines with color support still clip", () => {
+    const f = fixture(); rectangle(f, 20, 20, 44, 50);
+    for (const [x, y0, y1] of [[24, 0, 20], [40, 50, 63]]) for (let y = y0; y <= y1; y++) {
+      for (let dx = -1; dx <= 1; dx++) f.edges[y * width + x + dx] = .95;
+      f.seeds[y * width + x] = 1;
+    }
+    const result = run(f);
+    expect(result.reason).toBe("selection-too-tight");
+    expect(result.recovery).toMatchObject({ status: "rejected", reason: "recovered-mask-still-clipped" });
+  });
+
+  it("accepts a tool the selection cuts on one side once the line on the other side is gone", () => {
+    // The head meets the top of the selection along its whole width; a printed stroke reaches the bottom.
+    const f = fixture(); rectangle(f, 20, 34, 44, 56); unseeded(f, 18, 0, 46, 34); spur(f, 40, 56, 63);
+    const result = run(f);
+    expect(result.recovery).toMatchObject({ status: "recovered", reason: "thin-contact" });
+    expect(result.mask[32]).toBe(1);
+    expect(result.mask[20 * width + 32]).toBe(1);
+    expect(result.mask[61 * width + 40]).toBe(0);
+  });
+
   it("retains independent tools without adding pixels or filling their gap", () => {
     const f = fixture(); rectangle(f, 8, 12, 23, 50); rectangle(f, 40, 18, 56, 50); printAcross(f, 12);
     const original = maskFromEdges(f.edges, width, height, f.seeds), result = run(f);

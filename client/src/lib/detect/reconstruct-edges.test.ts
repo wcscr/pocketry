@@ -92,6 +92,24 @@ describe("automatic edge reconstruction", () => {
       boundaryRecovery: { status: "recovered", requiresReview: true } });
   });
 
+  it("keeps a part without color support when thin lines reach opposite selection sides", () => {
+    // A colored handle under a bright metal head; one stray line to the top, another to the bottom.
+    const f = fixture(); rectangle(f, 30, 40, 60, 66);
+    for (let y = 14; y <= 40; y++) for (let x = 28; x <= 62; x++) {
+      f.background[y * width + x] = 0;
+      if (x === 28 || x === 62 || y === 14 || y === 40) f.edges[y * width + x] = .9;
+    }
+    for (let y = 0; y <= 14; y++) f.edges[y * width + 34] = .9;
+    for (let y = 66; y < height; y++) f.edges[y * width + 54] = .9;
+    const result = run(f);
+    expect(result.result.reason).toBeUndefined();
+    expect(result.result.mask[26 * width + 45]).toBe(1);
+    expect(result.result.mask[52 * width + 45]).toBe(1);
+    expect(result.result.mask[3 * width + 34]).toBe(0);
+    expect(result.selection).toMatchObject({ edgeReconstruction: "clipped-boundary-recovery",
+      boundaryRecovery: { status: "recovered", reason: "thin-contact" } });
+  });
+
   it("leaves a clipped mask unchanged if recovery would alter a recognized strip", () => {
     const f = fixture(); rectangle(f, 20, 15, 70, 60);
     for (let x = 0; x < width; x++) f.edges[35 * width + x] = .95;

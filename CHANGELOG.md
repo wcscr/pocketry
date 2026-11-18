@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep bright metal parts in a Tool edges trace when a stray line of sheet printing or shadow reaches the region's edge; such traces no longer fall back to Color contrast and lose the part.
+- Remove the calibration sheet's 100 mm bar where a tool's shadow lies across it, so long pieces of the bar no longer stay attached to the outline.
+
 ## 1.12.4 — 2026-11-17
 
 - Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.
