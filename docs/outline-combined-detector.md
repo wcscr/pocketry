@@ -19,7 +19,7 @@ See [the control guide](teed-outline-integration.md) for current interaction det
 
 The automatic detector still receives Claude's copy with inferred sheet ink
 removed. It preserves the original input separately. In Trace, users adjust
-the result with **Edit outline**. Fresh detection ignores legacy brush marks.
+the result with **Edit outline**. The experimental **Correct** brushes can supply tool and paper marks. Standard re-detection starts from the photo.
 The diagnostic evaluator can still supply tool and paper marks to the
 experimental solver with `--hints`. It uses the original pixels around each
 mark and checks the result against the final contour before clearance.

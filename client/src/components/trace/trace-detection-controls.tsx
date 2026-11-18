@@ -2,7 +2,8 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { DetectedOutlineControls } from "./detected-outline-controls";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-import { ChevronDown, RotateCcw, Settings2 } from "lucide-react";
+import { correctionUnavailable } from "./correction-tools";
+import { Brush, ChevronDown, RotateCcw, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -23,8 +24,9 @@ export interface DetectionSettings {
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
-export function TraceDetectionControls({ onReprocess, compact = false, children, outlineActions }: {
+export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact = false, children, outlineActions }: {
   onReprocess: (settings: DetectionSettings) => void;
+  onCorrectOutline?: () => void;
   compact?: boolean;
   children?: ReactNode;
   /** Editing and contour controls precede the final restart action. */
@@ -70,10 +72,10 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     // Only protect adjustments the fresh method would actually discard.
     const discardsSettings = sensitivity !== initialTraceState.sensitivity ||
       tolerancePx !== initialTraceState.tolerancePx || trace.smoothing !== initialTraceState.smoothing ||
-      settings.includeInteriorHoles !== includeInteriorHoles;
+      trace.detectionHints.length > 0 || settings.includeInteriorHoles !== includeInteriorHoles;
     const confirmRestart = settings.restart && trace.outline.length > 0 && (!switchingMethod || discardsSettings);
-    // Older drafts may have brush edits that fresh detection replaces.
-    if (confirmRestart || trace.detectionHints.length > 0 || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
+    // Standard re-detection discards brush marks. Experimental tuning reuses them.
+    if (confirmRestart || (!advancedEditing && trace.detectionHints.length > 0) || trace.history.stack[trace.history.index]?.hasManualEdits) setPendingDetection(settings);
     else apply(settings);
   };
   const cancel = () => { setPendingDetection(null); setDraftSensitivity(null); };
@@ -87,6 +89,7 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
     } else request({ sensitivity, includeInteriorHoles: include });
   };
 
+  const brushDisabled = correctionUnavailable(trace);
   const tuning = <>
     <div className={compact && advancedEditing ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
       <LabelledSlider id={compact ? "mobile-sensitivity" : "sensitivity"} label="Sensitivity"
@@ -105,6 +108,12 @@ export function TraceDetectionControls({ onReprocess, compact = false, children,
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />}
     </div>
     {children}
+    {advancedEditing && onCorrectOutline && trace.region && <div className="flex items-center gap-1">
+      <Button variant="outline" size="sm" className="min-w-0 flex-1" onClick={onCorrectOutline} disabled={!!brushDisabled}>
+        <Brush className="h-4 w-4" />Correct
+      </Button>
+      <HelpHint label="experimental correction brushes">{brushDisabled ?? "Mark missing tool material with Add or unwanted background with Remove. Each stroke reruns detection and can be undone."}</HelpHint>
+    </div>}
     <DetectedOutlineControls />
     {compact && advancedEditing && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}

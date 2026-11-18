@@ -8,6 +8,9 @@ import { memoryLocation } from "wouter/memory-location";
 import { PanelProvider, usePanelState } from "@/components/layout/panel-context";
 import type { TraceControlsPanelProps } from "@/components/trace/trace-controls-panel";
 import { TraceHandoffOptions } from "@/components/trace/trace-handoff";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
+import { setExperimentalTools } from "@/components/trace/trace-experimental.test-support";
+import type { TraceCanvasProps } from "@/components/trace/trace-canvas";
 import { initialTraceState, TraceProvider, useTrace } from "@/state/trace-store";
 import { BinProvider, useBin } from "@/state/bin-store";
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
@@ -18,7 +21,7 @@ import { loadTraceDraft, saveTraceDraft, traceDraftSnapshot } from "@/lib/trace-
 import type { TraceDraft } from "@shared/trace-draft";
 import { generateSTL } from "@/lib/export/stl";
 import { parseProjectDoc } from "@shared/gridfinity/project";
-import type { Outline, Rect } from "@shared/geometry/types";
+import type { Outline } from "@shared/geometry/types";
 import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
 import type { DetectionFrame } from "@/components/trace/use-image-source";
 import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
@@ -122,18 +125,16 @@ async function chooseExportFormat(format: "dxf" | "stl"): Promise<void> {
 vi.mock("@/components/trace/trace-canvas", () => ({
   TraceCanvas: ({
     emptyState,
+    onCorrection,
     onReprocess,
     estimatedEdgeFocusRequest = 0,
-  }: {
-    emptyState?: React.ReactNode;
-    onReprocess: (region?: Rect) => void;
-    estimatedEdgeFocusRequest?: number;
-  }) => {
+  }: TraceCanvasProps) => {
     const { dispatch, imageUrl } = useTrace();
     return (
     <>
       {!imageUrl && emptyState}
       <output data-testid="estimated-focus-request">{estimatedEdgeFocusRequest}</output>
+      {onCorrection && <button data-testid="submit-brush" onClick={() => onCorrection([{ kind: "paper", points: [{ x: 25, y: 25 }], radius: 4 }])}>Submit brush</button>}
       <button data-testid="run-detection" onClick={() => onReprocess()}>
         Run detection
       </button>
@@ -1032,10 +1033,11 @@ describe("Trace detection workflow", () => {
     expect(current.calibration).toBe(before.calibration); expect(current.region).toBe(before.region); expect(current.margin).toBe(1);
   });
 
-  it("re-detects a legacy trace without replaying brush marks and can undo to its saved contour", async () => {
+  it.each([false, true])("replays saved marks only with experimental features enabled (%s) and preserves Undo", async enabled => {
     let current!: ReturnType<typeof useTrace>;
     function Probe() { current = useTrace(); return null; }
-    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    await React.act(async () => root.render(<ExperimentalFeaturesProvider><PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider></ExperimentalFeaturesProvider>));
+    setExperimentalTools(enabled);
     const region = { x: 10, y: 20, width: 300, height: 200 };
     React.act(() => {
       current.dispatch({ type: "SET_REGION", region });
@@ -1048,11 +1050,34 @@ describe("Trace detection workflow", () => {
     const saved = current;
     expect(saved.detectionHints).toHaveLength(1);
     await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="run-detection"]')!.click());
-    expect(processImageMock.mock.lastCall![1].detect.hints ?? []).toEqual([]);
-    expect(current.detectionHints).toEqual([]);
+    expect(processImageMock.mock.lastCall![1].detect.hints).toEqual(enabled ? saved.detectionHints : []);
+    expect(current.detectionHints).toEqual(enabled ? saved.detectionHints : []);
     React.act(() => current.undo());
     expect(current.outline).toEqual(saved.outline);
     expect(current.detectionHints).toEqual(saved.detectionHints);
+    setExperimentalTools(false);
+  });
+
+  it("discards a brush result that finishes after experimental editing is switched off", async () => {
+    let current!: ReturnType<typeof useTrace>;
+    function Probe() { current = useTrace(); return null; }
+    await React.act(async () => root.render(<ExperimentalFeaturesProvider><PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider></ExperimentalFeaturesProvider>));
+    setExperimentalTools(true);
+    React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="set-region"]')!.click());
+    const history = current.history;
+    let finish!: (value: unknown) => void;
+    processImageMock.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="submit-brush"]')!.click());
+    const { hints, signal } = processImageMock.mock.lastCall![1].detect;
+    expect(current.processing).toBe(true);
+    expect(hints).toEqual([{ kind: "paper", points: [{ x: 25, y: 25 }], radius: 4 }]);
+    setExperimentalTools(false);
+    expect(signal.aborted).toBe(true);
+    expect(host.querySelector('[data-testid="submit-brush"]')).toBeNull();
+    await React.act(async () => finish({ outline: exportOutline, rawOutline: exportOutline, svg: "" }));
+    expect(current.history).toBe(history);
+    expect(current.processing).toBe(false);
+    expect(current.detectionHints).toEqual([]);
   });
 
   it("uses original-photo crop pixels for the default tool-edge detection", async () => {

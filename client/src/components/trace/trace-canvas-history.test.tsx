@@ -13,7 +13,9 @@ import { curvesFromOutline, CURVE_TOLERANCE_MM, normalizeCurves, sampleCurves } 
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { TraceCanvas as TraceCanvasComponent } from "./trace-canvas";
+import { TraceDetectionControls } from "./trace-detection-controls";
+import { MAX_DETECTION_HINTS, type DetectionHint } from "@shared/geometry/detection-hints";
+import { TraceCanvas as TraceCanvasComponent, type OutlineToolRequest } from "./trace-canvas";
 import { TracePhotoBoundsControl } from "./trace-photo-bounds-control";
 import { traceDraftSnapshot } from "@/lib/trace-draft";
 import { traceDraftSchema } from "@shared/trace-draft";
@@ -433,7 +435,7 @@ describe("TraceCanvas edit history", () => {
       const before = trace!.history.stack.length;
       const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
       expect(trace!.curves).toBeUndefined();
-      if (mode.startsWith("reconstruct")) await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineCleanupRequest={{ id: 1, sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
+      if (mode.startsWith("reconstruct")) await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineToolRequest={{ tool: "smooth", sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
       else { click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
       if (mode === "range") {
         for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
@@ -464,10 +466,10 @@ describe("TraceCanvas edit history", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
     let trace!: TraceStore; function Probe() { trace = useTrace(); return null; }
-    let request = 0;
+
     const button = (label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === label)!;
     const click = (label: string) => React.act(async () => button(label).click());
-    const open = () => React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineCleanupRequest={{ id: ++request, sourceRevision: trace.sourceRevision }} /></TooltipProvider></TraceProvider>));
+    const open = () => React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineToolRequest={{ tool: "smooth", sourceRevision: trace.sourceRevision }} /></TooltipProvider></TraceProvider>));
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       const rounded: Outline = [{ outer: Array.from({ length: 96 }, (_, i) => {
@@ -534,7 +536,7 @@ describe("TraceCanvas edit history", () => {
       });
       const before = trace.curves, outline = trace.outline, index = trace.history.index;
       expect(trace.editableCurves).toBe(editableCurves); expect(before).toBeDefined();
-      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineCleanupRequest={{ id: 1, sourceRevision: trace.sourceRevision }} /></TooltipProvider></TraceProvider>));
+      await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineToolRequest={{ tool: "smooth", sourceRevision: trace.sourceRevision }} /></TooltipProvider></TraceProvider>));
       expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
       React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Apply")!.click());
       expect(trace.history.index).toBe(index + 1); expect(trace.curves).not.toEqual(before); expect(trace.outline).not.toEqual(outline);
@@ -1632,4 +1634,100 @@ describe("touch-accessible trace tools", () => {
       restoreSvgCoordinates();
     }
   });
+});
+
+it.each(["mouse", "touch"])("keeps Correct behind the experimental detection controls and cancels unfinished %s strokes", async pointerType => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  vi.stubGlobal("matchMedia", () => ({ matches: pointerType === "touch", addEventListener() {}, removeEventListener() {} }));
+  const restore = installIdentitySvgCoordinates();
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  let trace!: TraceStore;
+  const apply = vi.fn((hints: DetectionHint[]) => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl,
+    outline: detected, rawOutline: detected, detectionHints: hints, svg: "", region: trace.region }));
+  function Harness() {
+    trace = useTrace();
+    const [request, setRequest] = React.useState<OutlineToolRequest>();
+    return <>
+      <TraceDetectionControls compact={pointerType === "touch"} onReprocess={() => {}}
+        onCorrectOutline={() => { trace.detectedOutlineReview.close(); trace.dispatch({ type: "SET_MODE", mode: "pan" }); setRequest({ tool: "correct", sourceRevision: trace.sourceRevision }); }} />
+      <TraceCanvasComponent onReprocess={() => {}} onCorrection={apply} outlineToolRequest={request} onOutlineToolHandled={() => setRequest(undefined)} />
+    </>;
+  }
+  const launch = () => Array.from(host.querySelectorAll("button")).find(b => b.textContent === "Correct");
+  const control = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+  const click = (button: HTMLButtonElement) => React.act(() => button.click());
+  try {
+    await React.act(async () => root.render(<ExperimentalFeaturesProvider><TraceProvider><TooltipProvider><Harness /></TooltipProvider></TraceProvider></ExperimentalFeaturesProvider>));
+    React.act(() => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "test" });
+      trace.dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
+      const region = { x: 0, y: 0, width: 100, height: 100 };
+      trace.dispatch({ type: "SET_REGION", region });
+      trace.dispatch({ type: "DETECTED", imageUrl: "photo", region, outline: detected, rawOutline: detected, svg: "" });
+    });
+    expect(launch()).toBeUndefined();
+    setExperimentalTools(true);
+    if (pointerType === "mouse") {
+      expect(launch()!.closest("[hidden]")).not.toBeNull();
+      click(Array.from(host.querySelectorAll("button")).find(b => b.textContent === "Manual detection settings")!);
+    }
+    expect(launch()!.closest("[hidden]")).toBeNull();
+    click(launch()!);
+    expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    click(host.querySelector<HTMLButtonElement>('[data-testid="detected-outline-controls"] [role="switch"]')!);
+    expect(trace.detectedOutlineReview.showing).toBe(true);
+    expect(control("Add")).toBeNull();
+    click(launch()!);
+    expect(trace.detectedOutlineReview.showing).toBe(false);
+    const svg = host.querySelector<SVGSVGElement>('[data-testid="trace-source-image"]')!.closest("svg")!;
+    Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
+    const pointer = (type: string, x: number, id = 1) => React.act(() => {
+      const e = new MouseEvent(type, { button: 0, bubbles: true, clientX: x, clientY: 20 });
+      Object.defineProperties(e, { pointerType: { value: pointerType }, pointerId: { value: id }, isPrimary: { value: id === 1 } });
+      svg.dispatchEvent(e);
+    });
+    pointer("pointerdown", 20); pointer("pointermove", 30); pointer("pointerup", 30);
+    const marks = trace.detectionHints;
+    expect(marks).toEqual([{ kind: "tool", points: [{ x: 20, y: 20 }, { x: 30, y: 20 }], radius: 1 }]);
+    click(control("Remove"));
+    pointer("pointerdown", 40); pointer("pointerup", 40);
+    expect(trace.detectionHints[1].kind).toBe("paper");
+    click(control("Clear correction marks"));
+    expect(trace.detectionHints).toEqual([]);
+    React.act(() => trace.undo());
+    expect(trace.detectionHints).toHaveLength(2);
+    pointer("pointerdown", 50); pointer("pointercancel", 50);
+    pointer("pointerdown", 50); pointer("lostpointercapture", 50); pointer("pointerup", 50);
+    if (pointerType === "touch") {
+      pointer("pointerdown", 25); pointer("pointermove", 35);
+      const view = svg.querySelector("g[transform]")!;
+      const beforePinch = view.getAttribute("transform");
+      pointer("pointerdown", 70, 2); pointer("pointermove", 35);
+      expect(view.getAttribute("transform")).toBe(beforePinch);
+      pointer("pointerup", 70, 2); pointer("pointerup", 35);
+    }
+    const before = trace.history;
+    pointer("pointerdown", 20);
+    setExperimentalTools(false); pointer("pointerup", 20);
+    expect(apply).toHaveBeenCalledTimes(3);
+    expect(trace.history).toBe(before);
+    expect(trace.mode).toBe("edit");
+    expect(launch()).toBeUndefined();
+    expect(control("Add")).toBeNull();
+    expect(host.querySelector('[data-testid="detection-hint"]')).toBeNull();
+    setExperimentalTools(true);
+    expect(control("Add")).toBeNull();
+    click(launch()!);
+    expect(host.querySelectorAll('[data-testid="detection-hint"]')).toHaveLength(2);
+    React.act(() => apply(Array.from({ length: MAX_DETECTION_HINTS }, () => marks[0])));
+    expect(control("Add").disabled).toBe(true);
+    const atLimit = trace.history;
+    pointer("pointerdown", 15); pointer("pointerup", 15);
+    expect(trace.history).toBe(atLimit);
+    click(control("Clear correction marks")); click(control("Done correcting"));
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: edited }));
+    expect(launch()!.disabled).toBe(true);
+  } finally { React.act(() => root.unmount()); restore(); }
 });

@@ -1,3 +1,4 @@
+import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
 import { useLocation } from "wouter";
@@ -13,7 +14,7 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-handoff";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { TraceCanvas } from "@/components/trace/trace-canvas";
+import { TraceCanvas, type OutlineToolRequest } from "@/components/trace/trace-canvas";
 import { TracePhotoBoundsControl } from "@/components/trace/trace-photo-bounds-control";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
@@ -112,7 +113,13 @@ function TraceWorkspace(): JSX.Element {
   const workflowLayout = inspectorEnabled && !isMobile;
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
-  const [outlineCleanupRequest, setOutlineCleanupRequest] = useState<{ id: number; sourceRevision: number }>();
+  const [outlineToolRequest, setOutlineToolRequest] = useState<OutlineToolRequest>();
+  const requestOutlineTool = (tool: OutlineToolRequest["tool"]) => {
+    if (!advancedEditing) return;
+    store.detectedOutlineReview.close();
+    dispatch({ type: "SET_MODE", mode: "pan" });
+    setOutlineToolRequest({ tool, sourceRevision: store.sourceRevision });
+  };
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
     setPanelOpen(true);
@@ -131,6 +138,8 @@ function TraceWorkspace(): JSX.Element {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const detectionAbort = useRef<AbortController | null>(null);
+  const brushDetection = useRef<AbortController | null>(null);
+  useEffect(() => { if (!advancedEditing) brushDetection.current?.abort(); }, [advancedEditing]);
   useEffect(() => () => detectionAbort.current?.abort(), [store.sourceRevision]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -204,6 +213,7 @@ function TraceWorkspace(): JSX.Element {
 
   const runDetection = useCallback(async (settings?: {
     editableCurves?: boolean;
+    hints?: DetectionHint[];
     sensitivity: number;
     includeInteriorHoles: boolean;
     boundary?: "auto" | "color" | "teed";
@@ -221,10 +231,12 @@ function TraceWorkspace(): JSX.Element {
         : null;
     if (!region) return;
 
+    const hints = advancedEditing && !requestedRegion && !settings?.restart ? settings?.hints ?? store.detectionHints : [];
     const request = ++detectionRequest.current;
     detectionAbort.current?.abort();
     const controller = new AbortController();
     detectionAbort.current = controller;
+    brushDetection.current = settings?.hints !== undefined || hints.length > 0 ? controller : null;
     const sourceRevision = store.sourceRevision;
     const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
     const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
@@ -264,7 +276,7 @@ function TraceWorkspace(): JSX.Element {
       } catch {
         // Optional reference recognition must not disable ordinary tracing.
       }
-      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      if (controller.signal.aborted || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       const boundary = requestedBoundary === "auto"
         ? !includeInteriorHoles && hasWhitePaperBackground(initialPixels, recognizedSheet) ? "teed" : "color"
         : requestedBoundary;
@@ -287,7 +299,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
-          boundary,
+          boundary, hints,
           signal: controller.signal,
           occlusions,
           sensitivity: detectionSettings.sensitivity,
@@ -297,7 +309,7 @@ function TraceWorkspace(): JSX.Element {
         onNotice: notice,
       });
 
-      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      if (controller.signal.aborted || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       dispatch({
         type: "DETECTED",
         expectedOutline: store.outline,
@@ -308,10 +320,10 @@ function TraceWorkspace(): JSX.Element {
         autoSimplification: result.autoSimplification,
         refinementBase: result.refinementBase,
         estimatedEdgeRegions: result.estimatedEdgeRegions,
-        detectionHints: [],
+        detectionHints: hints,
         settings: detectionSettings,
         label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
-          : undefined,
+          : settings?.hints ? hints.length ? "Correct outline" : "Clear corrections" : undefined,
         svg: result.svg,
         region,
       });
@@ -326,6 +338,7 @@ function TraceWorkspace(): JSX.Element {
         variant: "destructive",
       });
     } finally {
+      if (brushDetection.current === controller) brushDetection.current = null;
       if (request === detectionRequest.current) dispatch({ type: "SET_PROCESSING", processing: false });
     }
     // `store.region` is read through a ref-free closure on purpose: the caller
@@ -344,6 +357,8 @@ function TraceWorkspace(): JSX.Element {
     store.sensitivity,
     store.includeInteriorHoles,
     store.boundaryMethod,
+    advancedEditing,
+    store.detectionHints,
     store.editableCurves,
     store.perspectiveCorrection,
     store.imageRotation,
@@ -819,6 +834,7 @@ function TraceWorkspace(): JSX.Element {
           onChoosePhoto={() => photoInputRef.current?.click()}
           onStartOver={startOver}
           onReprocess={(settings) => void runDetection(settings)}
+          onCorrectOutline={() => requestOutlineTool("correct")}
           onOpenSettings={openSettings}
           onDetectMarkers={() => void detectMarkers(true)}
           onApplyPerspective={(proposal, template, scale) => void applyPerspective(proposal, template, scale)}
@@ -829,10 +845,8 @@ function TraceWorkspace(): JSX.Element {
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
-            onSmoothOutline={() => {
-              dispatch({ type: "SET_MODE", mode: "pan" });
-              setOutlineCleanupRequest(previous => ({ id: (previous?.id ?? 0) + 1, sourceRevision: store.sourceRevision }));
-            }}
+            onSmoothOutline={() => requestOutlineTool("smooth")}
+            onCorrectOutline={() => requestOutlineTool("correct")}
             onReplaceImage={() => photoInputRef.current?.click()}
             onStartOver={startOver}
             onRotateImage={handleRotateImage}
@@ -871,7 +885,9 @@ function TraceWorkspace(): JSX.Element {
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
-                  outlineCleanupRequest={outlineCleanupRequest}
+                  outlineToolRequest={outlineToolRequest}
+                  onOutlineToolHandled={() => setOutlineToolRequest(undefined)}
+                  onCorrection={advancedEditing ? hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints }) : undefined}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
                   emptyState={

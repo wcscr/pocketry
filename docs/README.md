@@ -47,7 +47,7 @@ and internal refactors usually need no changelog entry.
   [How outlines are evaluated](outline-evaluation.md); the
   [detection plan](outline-detection-plan.md) is a proposal, not implemented behavior.
   [Combined detector](outline-combined-detector.md) describes source sampling,
-  experimental brush evaluation, reconstruction, and the geometry preservation checks.
+  experimental correction brushes, reconstruction, and the geometry preservation checks.
   The [1.9 → 1.10 release comparison](outline-detection-1.9-to-1.10.md)
   shows every maintainer-selected reference photo at the released defaults.
   The [November 12 full-workflow comparison](outline-full-workflow-validation-2026-11-12.md)

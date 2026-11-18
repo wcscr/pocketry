@@ -26,6 +26,7 @@ export interface MobileTraceActionsProps {
   onOpenSettings: (sectionId: string) => void;
   onApplyPerspective: (proposal: PerspectiveProposal, template: TemplateVariant, scale?: boolean | Calibration) => void;
   onDetectMarkers: () => void;
+  onCorrectOutline?: () => void;
   onReprocess: (settings: DetectionSettings) => void;
 }
 
@@ -33,7 +34,7 @@ type TraceStep = "photo" | "scale" | "region" | "outline";
 const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
-export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
+export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onCorrectOutline, onReprocess }: MobileTraceActionsProps): JSX.Element {
   const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
@@ -100,7 +101,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
       </WorkflowHint>
     </MobileCanvasOverlay>
     {hasTuning && adjustOpen && <MobileAdjustmentTray title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
-      <TraceDetectionControls compact onReprocess={onReprocess} />
+      <TraceDetectionControls compact onReprocess={onReprocess} onCorrectOutline={onCorrectOutline && (() => { setAdjustOpen(false); onCorrectOutline(); })} />
       <div className="mt-1 grid grid-cols-2 gap-1">
         <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
         <Button variant="ghost" className="h-11 whitespace-normal leading-tight" disabled={!trace.outline.length || processing || !!pendingAutoCalibration || replacingRuler}

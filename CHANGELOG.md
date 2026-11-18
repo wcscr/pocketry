@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.12.5 — 2026-11-18
 
-- Remove the Correct brushes from Trace. Edit outline now fits its controls without scrolling. Click an edge to add a point, drag a point to move it, or right-click to remove it. Editable curves adds draggable handles. Multi-select, section repair, smoothing, and contour transforms require experimental features.
+- Simplify Trace’s Edit outline controls and keep them visible without scrolling. Click an edge to add a point, drag a point to move it, or right-click to remove it. Turn on Editable curves to shape an edge with handles.
+- Move Correct brushes, multi-select, section repair, manual smoothing, and contour transforms behind the experimental features switch. Find Correct under Manual detection settings or the mobile Adjust tray.
 
 ## 1.12.4 — 2026-11-17
 

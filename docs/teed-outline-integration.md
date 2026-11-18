@@ -66,8 +66,9 @@ Choose **Edit outline** to adjust the contour over the photo. Drag a point to
 move it, click an edge to add a point, or right-click a point to remove it.
 With **Editable curves** on, select a point and drag its handles to shape the adjacent edges. The controls wrap to fit the canvas. On phones and short windows,
 the editor uses the full screen until you choose **Done**. Undo restores the
-previous contour. Older drafts open with their saved outlines and edit history. A fresh detection starts from the photo and
-ignores brush marks saved by earlier versions.
+previous contour. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
+
+Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
 Detection finds a boundary, reconstructs supported lines and rounded sections,
 and applies the bounded smoothing pass automatically. The finishing pass permits
@@ -109,7 +110,7 @@ is retained where supported; Tool edges turns it off.
 Method-specific tuning is reset because a sensitivity bias or point tolerance
 chosen for one detector need not suit another. Within a method, sensitivity and
 interior-hole changes re-read the photo with the current tuning. They ask
-before replacing manual edits, including brush edits from an older draft. The manual Simplification slider
+before replacing manual point edits. With experimental features enabled, tuning reuses brush marks for the same region. Standard re-detection, a new region, or a restart clears them. The manual Simplification slider
 works from the accepted refinement base, including committed edits. Optional smoothing
 starts from the currently displayed boundary and retains that source until
 another edit or detection establishes a new one. It smooths small bumps within its
