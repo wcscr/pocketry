@@ -160,6 +160,50 @@
   max-width: calc(100% - 4.5rem);
 }
 
+/* Point tools and curve previews share the available canvas width. */
+.trace-outline-tools { container-type: inline-size; }
+/* Reserve the bottom toolbar row when there is room. Let that gap shrink
+   before it can push the first editing controls off the top of the canvas. */
+.trace-outline-tools::after { content: ""; flex: 0 1 3.5rem; }
+.trace-outline-tools > * {
+  flex: none;
+  width: fit-content;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+}
+
+@container (max-width: 38rem) {
+  .trace-outline-tools button {
+    font-size: 0.75rem;
+    padding-inline: 0.5rem;
+  }
+  .trace-outline-tools button svg { flex-shrink: 0; }
+}
+
+/* On phones and short windows, make room for both the tools and the photo.
+   Done returns to the ordinary Trace layout. */
+@media (max-width: 767px), (max-height: 599px) {
+  .trace-canvas:has(.trace-outline-tools) {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background-color: hsl(var(--background));
+  }
+}
+
+@media (max-height: 450px) {
+  .trace-outline-tools .curve-editor-heading { width: auto; }
+}
+
+/* In a shallow phone canvas, keep history clear of the Edit outline button. */
+@media (min-width: 560px) and (max-width: 767px) and (max-height: 599px) {
+  .trace-canvas .trace-history-tools {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
 /* Short landscape phones keep the photo alongside the step controls. */
 @media (min-width: 560px) and (max-height: 599px) {
   .mobile-workspace .mobile-adjustment-tray { max-height: none; }

@@ -605,8 +605,14 @@ export function useViewportTransform(
       if (event.code !== "Space") return;
       setHeld(false);
     };
-    // Alt-tabbing away mid-hold would otherwise leave the flag stuck on.
-    const onBlur = () => setHeld(false);
+    // Releases in another window never reach the canvas. A retained touch
+    // would make the next single finger start a pinch.
+    const onBlur = () => {
+      setHeld(false);
+      pointersRef.current.clear();
+      gestureRef.current = null;
+      setIsPanning(false);
+    };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);

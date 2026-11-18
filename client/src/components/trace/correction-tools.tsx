@@ -1,22 +1,23 @@
-import { Brush, Check, Hand, Minus, Plus, Trash2 } from "lucide-react";
+import { Check, Hand, Minus, Plus, Trash2 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { hasPendingManualCalibration, type TraceState } from "@/state/trace-store";
 import { cn } from "@/lib/utils";
 
 export type CorrectionTool = "tool" | "paper" | "pan";
 
 /** The correction tools replace the ordinary toolbar while marking the photo. */
-export function CorrectionTools({ tool, busy, hasMarks, onTool, onClear, onDone }: {
-  tool: CorrectionTool; busy: boolean; hasMarks: boolean;
+export function CorrectionTools({ tool, busy, atLimit, hasMarks, onTool, onClear, onDone }: {
+  tool: CorrectionTool; busy: boolean; atLimit: boolean; hasMarks: boolean;
   onTool: (tool: CorrectionTool) => void; onClear: () => void; onDone: () => void;
 }) {
   return <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Correction tools">
-    <CorrectionButton icon={Plus} label="Add" pressed={tool === "tool"} disabled={busy}
+    <CorrectionButton icon={Plus} label="Add" pressed={tool === "tool"} disabled={busy || atLimit}
       className={tool === "tool" ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-200" : undefined}
       hint="Draw inside missing tool material. The outline updates after each stroke; Undo restores the previous result."
       onClick={() => onTool("tool")}>Add</CorrectionButton>
-    <CorrectionButton icon={Minus} label="Remove" pressed={tool === "paper"} disabled={busy}
+    <CorrectionButton icon={Minus} label="Remove" pressed={tool === "paper"} disabled={busy || atLimit}
       className={tool === "paper" ? "bg-rose-100 text-rose-900 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-200" : undefined}
       hint="Draw on unwanted background or shadow. The outline updates after each stroke; Undo restores the previous result."
       onClick={() => onTool("paper")}>Remove</CorrectionButton>
@@ -28,14 +29,15 @@ export function CorrectionTools({ tool, busy, hasMarks, onTool, onClear, onDone 
       onClick={onClear} />
     <CorrectionButton icon={Check} label="Done correcting" hint="Finish correcting and hide the marks. Changes are already applied. Escape also finishes."
       onClick={onDone}>Done</CorrectionButton>
+    <span className="sr-only" role="status">{tool === "tool" ? "Add missing tool material" : tool === "paper" ? "Remove unwanted background" : "Pan photo"}. Strokes update the outline automatically.</span>
+    {atLimit && <span role="status" className="text-xs">Mark limit reached. Undo a mark or clear the marks to continue.</span>}
   </div>;
 }
 
-export function CorrectButton({ unavailable, hasMarks, onClick }: { unavailable?: string; hasMarks: boolean; onClick: () => void }) {
-  return <CorrectionButton icon={Brush} label="Correct" disabled={!!unavailable}
-    hint={unavailable ?? "Add missing tool material or remove unwanted background by marking the photo."} onClick={onClick}>
-    Correct{hasMarks && <Check className="h-3 w-3" aria-label="Corrections applied" />}
-  </CorrectionButton>;
+export function correctionUnavailable(trace: TraceState): string | undefined {
+  if (trace.processing) return "Wait for detection to finish.";
+  if (trace.history.stack[trace.history.index]?.hasManualEdits) return "Undo manual outline edits before correcting detection.";
+  if (trace.pendingAutoCalibration || hasPendingManualCalibration(trace) || trace.mode === "perspective") return "Finish calibration before correcting detection.";
 }
 
 function CorrectionButton({ icon: Icon, label, hint, children, pressed, disabled, className, onClick }: {

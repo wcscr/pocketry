@@ -2,8 +2,8 @@
 
 The [1.9 → 1.10 release comparison](outline-detection-1.9-to-1.10.md) shows the default output on every entry in the maintainer-selected reference set, including improvements, remaining errors and tradeoffs.
 
-The [combined detector](outline-combined-detector.md) adds geometry preservation,
-tool/paper correction strokes, and original-photo sampling to Claude's detector.
+The [combined detector](outline-combined-detector.md) adds geometry preservation
+and original-photo sampling to Claude's detector.
 The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) and
 [original-photo UI comparison](outline-ui-validation-2026-11-11.md) preserve earlier
 branch evidence. The November 15 release comparison above records the 1.9/1.10
@@ -62,18 +62,14 @@ were tested separately.
 
 ## Editing
 
-**Correct** opens a compact toolbar in place of the ordinary canvas tools.
-**Add** marks missing tool material in green; **Remove** marks unwanted background
-or shadow in red. The active button and brush cursor identify the current tool.
-Each completed stroke re-detects with the existing settings and creates one
-**Correct outline** Undo step. The hand tool pans without drawing; Space-drag also
-pans. The trash button clears correction marks and re-detects, undoably.
-**Done** or Escape leaves correction mode and hides marks without removing them;
-a checkmark on Correct indicates retained corrections. Hover/focus hints explain
-the tools without a persistent instruction banner. Manual outline edits must be
-undone before correcting detection, so strokes cannot silently replace them.
-Changing region, photo or editing mode cancels an unfinished stroke. Detected
-outline review and smoothing previews are separate from correction drawing.
+Choose **Edit outline** to adjust the contour over the photo. Drag a point to
+move it, click an edge to add a point, or right-click a point to remove it.
+With **Editable curves** on, select a point and drag its handles to shape the adjacent edges. The controls wrap to fit the canvas. On phones and short windows,
+the editor uses the full screen until you choose **Done**. Moving a point on a hole
+updates every pocket that shares it. In standard point editing, using Undo or
+Redo during a drag ends the drag and restores the chosen history entry. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
+
+Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
 Detection finds a boundary, reconstructs supported lines and rounded sections,
 and applies the bounded smoothing pass automatically. The finishing pass permits
@@ -89,11 +85,9 @@ outline and settings unchanged; Undo restores them after successful detection.
 **Automatic** uses Color contrast when holes are enabled. Help icons beside the main
 actions explain their purpose on hover, keyboard focus, or tap. **Add manual
 contour** can trace an inner feature for a different pocket depth in Bin.
-**Import outline from file** loads an SVG, and **Move & rotate outline** adjusts
-contours over the fixed photo.
+**Import outline from file** loads an SVG. Enable experimental features in **App settings** to move and rotate entire contours, use symmetry, or clean up several contours at once.
 
-**Manual detection settings**, below the contour list, contains sensitivity,
-point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
+**Manual detection settings**, below the contour list, contains sensitivity and the detected-outline comparison. Turning on experimental features adds point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
 A checkmark indicates smoothing already applied during detection or a previous
 Apply; Apply is disabled. A dash marks a preview that would make no change.
@@ -105,19 +99,19 @@ source. Fresh detection establishes its own automatically smoothed result.
 **Restart outline detection**, at the bottom of the Outline section, starts again
 from the current photo within the selected region. Switching detection methods
 uses the same restart flow. Switching an untouched detection needs no confirmation;
-switching asks only when it would discard manual tuning, tool/paper corrections,
+switching asks only when it would discard manual tuning,
 outline edits, or an incompatible interior-hole setting. Explicit Restart still
 asks before replacing an existing outline.
 Sensitivity returns to Auto, Simplification to 1.2 px, and detection smoothing
-to its default. Outline edits and tool/paper correction strokes are replaced.
+to its default. The new contour replaces the previous edits.
 Photo selection, rotation/perspective correction, calibration, region and margin
 are retained, as is the editable-curve preference. The interior-hole preference
 is retained where supported; Tool edges turns it off.
 
 Method-specific tuning is reset because a sensitivity bias or point tolerance
 chosen for one detector need not suit another. Within a method, sensitivity and
-interior-hole changes re-read the photo with the current tuning and correction
-strokes; they ask before replacing manual edits. The manual Simplification slider
+interior-hole changes re-read the photo with the current tuning. They ask
+before replacing manual point edits. With experimental features enabled, tuning reuses brush marks for the same region. Standard re-detection, a new region, or a restart clears them. The manual Simplification slider
 works from the accepted refinement base, including committed edits. Optional smoothing
 starts from the currently displayed boundary and retains that source until
 another edit or detection establishes a new one. It smooths small bumps within its
@@ -127,9 +121,7 @@ The earlier silhouette is retained as `rawOutline` in working-photo coordinates,
 after the pipeline's bounded outward smoothing but before simplification,
 line/curve fitting, small-dip straightening, and finishing polish. The separate
 unsmoothed `materialOutline` guards later geometry changes; it is not the displayed
-comparison. Correction marks can force the comparison back to that material
-reference if smoothing would cross a mark. The comparison includes segmentation,
-corrections, and accepted occlusion repair. It can expose detail removed by fitting,
+comparison. The comparison includes segmentation and accepted occlusion repair. It can expose detail removed by fitting,
 but cannot recover material segmentation never detected. Shadows or slits may remain. **Detected outline** under Manual detection settings
 previews this contour in green without changing saved/exported geometry. The
 conditional **Use detected outline** action replaces the current outline and edits
@@ -150,8 +142,7 @@ outline or re-detect and replace edits; Undo can restore the previous source. De
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
-right-click a point to delete it. Shift-click or box-select multiple points;
-**Select points** also works without a keyboard. **Repair section** replaces a
+right-click a point to delete it. With experimental features on, Shift-click or box-select multiple points. **Select points** also works without a keyboard. **Repair section** replaces a
 selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,
