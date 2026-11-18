@@ -69,6 +69,8 @@ the editor uses the full screen until you choose **Done**. Moving a point on a h
 updates every pocket that shares it. In standard point editing, using Undo or
 Redo during a drag ends the drag and restores the chosen history entry. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
 
+With experimental features enabled, **Edit outline → Point eraser** removes points from the first contour the brush touches. Hold and drag to see the new boundary. Release to commit the stroke, press Escape to discard it, or use Undo to restore all its points. The same brush works on curve anchors.
+
 Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
 Detection finds a boundary, reconstructs supported lines and rounded sections,
@@ -76,7 +78,7 @@ and applies the bounded smoothing pass automatically. The finishing pass permits
 up to 0.2 mm of movement (2 px without calibration) from the reconstructed outline.
 It must also stay within the original material-detail allowance and must not add
 broader boundary ripples. A rejected proposal keeps the reconstructed boundary.
-Point mode samples fitted curves; Editable curves is off by default.
+New point outlines thin the sampled polygon for hand editing. Nearby points on shallow turns have a 4 mm spacing target (16 px without calibration). Corners turning 30° or more stay pinned, and a shallow curve keeps closer points wherever thinning would move the boundary by more than 0.10 mm (0.5 px without calibration). The original detection, material boundary and correction marks still constrain the result. Editable curves keep their fitted anchors and handles.
 
 **Include interior holes** stays available with every detection method. Enabling
 it with **Tool edges** asks to switch to **Color contrast** and re-detect, explaining

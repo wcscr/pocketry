@@ -1,3 +1,4 @@
+import { thinEditingOutline } from "@shared/geometry/edit-point-spacing";
 import { ringArea } from "@shared/geometry/rings";
 import { describe, expect, it, vi } from "vitest";
 import * as cleanupModule from "@shared/geometry/detected-cleanup";
@@ -172,7 +173,6 @@ describe("processImage straightening", () => {
     expect(result.outline[0].outer.filter(p => p.x > 85 && p.x < 115 && p.y < 60).every(p => p.y < 40.6)).toBe(true);
     // The detected outline still has the notch, for the comparison and the detail controls.
     expect(pointInOutline(result.rawOutline, inNotch)).toBe(false);
-    expect(result.refinementBase).toEqual(result.outline);
     expect(!!result.curves).toBe(editableCurves);
     expect(result.timings.straightening).toBeGreaterThanOrEqual(0);
     // Later smoothing by hand starts from the straightened outline, so it does not bring the notch back.
@@ -248,9 +248,14 @@ describe("processImage", () => {
     expect(result.smoothing?.applied).toBe(true);
     expect(result.autoSimplification).toMatchObject({ allowance: 2, unitsPerUnit: 1, unit: "px" });
     const request = { source: result.autoSimplification!.source, tolerance: 2, sampleTolerance: .1, editableCurves };
-    expect(result.outline).toEqual(sampleCurves(smoothing.simplifyAcceptedOutline(request).curves, .1));
+    const fitted = sampleCurves(smoothing.simplifyAcceptedOutline(request).curves, .1);
+    expect(result.refinementBase).toEqual(fitted);
+    if (editableCurves) expect(result.outline).toEqual(fitted);
+    else {
+      expect(result.outline).toEqual(thinEditingOutline(fitted, 16, .5));
+      expect(result.outline[0].outer.length).toBeLessThan(fitted[0].outer.length);
+    }
     expect(result.rawOutline).toEqual(detected.rawOutline);
-    expect(result.refinementBase).toEqual(result.outline);
     expect(!!result.curves).toBe(editableCurves);
     expect(result.outline[0].outer.length).toBeLessThan(result.rawOutline[0].outer.length);
     expect(pointInOutline(result.outline, { x: 80, y: 80 })).toBe(true);
@@ -270,9 +275,10 @@ describe("processImage", () => {
       expect(result.cleanup?.applied).toBe(true);
       expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would exceed the detection detail allowance." });
       expect(result.autoSimplification).toBeUndefined();
-      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+      const fitted = sampleCurves(invoke.mock.calls[0][0].source, .25);
+      expect(result.refinementBase).toEqual(fitted);
+      expect(result.outline).toEqual(thinEditingOutline(fitted, 16, .5));
       expect(result.rawOutline).toEqual(detected.rawOutline);
-      expect(result.refinementBase).toEqual(result.outline);
     } finally { invoke.mockRestore(); }
   });
 
@@ -293,7 +299,9 @@ describe("processImage", () => {
       expect(result.cleanup?.applied).toBe(true);
       expect(result.smoothing).toEqual({ applied: false, reason: "Smoothing would add boundary ripples." });
       expect(result.autoSimplification).toBeUndefined();
-      expect(result.outline).toEqual(sampleCurves(invoke.mock.calls[0][0].source, .25));
+      const fitted = sampleCurves(invoke.mock.calls[0][0].source, .25);
+      expect(result.refinementBase).toEqual(fitted);
+      expect(result.outline).toEqual(thinEditingOutline(fitted, 16, .5));
     } finally { invoke.mockRestore(); }
   });
 
@@ -305,7 +313,8 @@ describe("processImage", () => {
     expect(offset.curves).toBeUndefined(); // Native editing still requires zero Trace margin.
     expect(original.autoSimplification).toMatchObject({ allowance: .2, unitsPerUnit: .25, unit: "mm" });
     expect(offset.autoSimplification).toBeUndefined(); // Offset geometry starts a different manual source.
-    expect(offset.refinementBase).toEqual(original.outline);
+    expect(offset.refinementBase).toEqual(original.refinementBase);
+    expect(original.outline).toEqual(thinEditingOutline(original.refinementBase!, 4 / .25, .1 / .25));
     expect(offset.rawOutline).toEqual(original.rawOutline);
     expect(outlineArea(offset.outline)).toBeGreaterThan(outlineArea(original.outline));
   });

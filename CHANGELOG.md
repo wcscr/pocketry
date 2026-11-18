@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- New Trace point outlines use fewer points along straight and gently curved edges while retaining closely spaced corners.
+- Experimental outline editing includes a point eraser. Hold and drag over points on one contour, then release to apply each stroke as one undoable edit.
+
 ## 1.12.5 — 2026-11-18
 
 - Simplify Trace’s Edit outline controls and keep them visible without scrolling. Click an edge to add a point, drag a point to move it, or right-click to remove it. Turn on Editable curves to shape an edge with handles.

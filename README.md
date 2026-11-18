@@ -80,7 +80,7 @@ scale** for the sheet or **Correct perspective & use aid scale** for a detected
 aid. Otherwise, **Set scale** from a known distance. Check a real dimension,
 then box the tool with **Region → Set region**. Use the default **Tool edges ·
 white sheet** on light paper or **Color contrast** on other backgrounds. Choose
-**Edit outline**. Click an edge to add a point, drag a point to move it, or right-click a point to remove it. Turn on **Editable curves** to adjust a curve by its handles. When the contour
+**Edit outline**. New point outlines use fewer points along straight or gently curved edges, retaining tight spacing at corners. Click an edge to add a point, drag a point to move it, or right-click a point to remove it. Turn on **Editable curves** to adjust a curve by its handles. With experimental features enabled, choose **Point eraser** and brush over points on one contour. Release to apply the stroke, or press Escape to cancel. Undo restores the whole stroke. When the contour
 follows the tool, choose **Add to Bin**.
 [Detailed tracing guidance](docs/teed-outline-integration.md).
 

@@ -269,6 +269,7 @@ export type TraceRefinementSettings = Pick<TraceState,
 type ContourGestureSource = { outline: Outline; history: TraceState["history"] };
 
 export type TraceAction =
+  | { type: "ERASE_OUTLINE_POINTS"; curves: CurveOutline; gesture: ContourGestureSource }
   | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string; autoSimplification?: AppliedOutlineSimplification }
   | { type: "SET_EDITABLE_CURVES"; enabled: boolean }
   | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
@@ -557,6 +558,14 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
   // controls are disabled in the prototype; also reject stale async results.
   if (state.curves && ["OUTLINE_REFINED", "OUTLINE_DRAGGING", "MARGIN_COMMITTED", "SET_MARGIN", "SET_SMOOTHING", "SET_TOLERANCE"].includes(action.type)) return state;
   switch (action.type) {
+    case "ERASE_OUTLINE_POINTS": {
+      if (state.mode !== "remove" || state.processing || action.gesture.history !== state.history ||
+          action.gesture.outline !== state.outline) return state;
+      const label = "Erase outline points";
+      if (state.curves) return traceReducer(state, { type: "CURVES_COMMITTED", curves: action.curves, label });
+      const outline = action.curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) }));
+      return traceReducer(state, { type: "OUTLINE_COMMITTED", outline, label });
+    }
     case "CURVES_COMMITTED": {
       if ((state.margin ?? 0) !== 0) return state;
       const tolerance = CURVE_TOLERANCE_MM / (mmPerPixel(state.calibration) ?? 0.1);

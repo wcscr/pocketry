@@ -269,15 +269,90 @@ describe("direct Trace contour edits", () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1) {
+  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1, primary = true) {
     React.act(() => {
       const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
       Object.defineProperties(event, {
-        pointerType: { value: pointerType }, pointerId: { value: id }, isPrimary: { value: true },
+        pointerType: { value: pointerType }, pointerId: { value: id }, isPrimary: { value: primary },
       });
       target.dispatchEvent(event);
     });
   }
+
+  it.each(["mouse", "touch"])("sweeps several anchors in one undoable %s stroke and discards interrupted strokes", pointerType => {
+    const outer = [10, 30, 50, 70, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
+    const original = [{ outer, holes: [] }];
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original }));
+    const button = () => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser");
+    expect(button()).toBeUndefined();
+    setExperimentalTools(true);
+    React.act(() => button()!.click());
+    const before = trace.history;
+    const draw = () => {
+      pointer("pointerdown", 30, 10, svg, pointerType);
+      pointer("pointermove", 70, 10, svg, pointerType);
+    };
+    draw();
+    expect(trace.history).toBe(before);
+    pointer("pointercancel", 70, 10, svg, pointerType);
+    draw();
+    pointer("lostpointercapture", 70, 10, svg, pointerType);
+    pointer("pointerup", 70, 10, svg, pointerType);
+    if (pointerType === "touch") {
+      draw();
+      pointer("pointerdown", 90, 15, svg, "touch", 2, false);
+      pointer("pointerup", 90, 15, svg, "touch", 2, false);
+      pointer("pointerup", 70, 10, svg, "touch");
+    }
+    expect(trace.history).toBe(before);
+    draw();
+    pointer("pointerup", 70, 10, svg, pointerType);
+    expect(trace.outline[0].outer).toEqual([outer[0], ...outer.slice(4)]);
+    expect(trace.curves).toBeUndefined();
+    expect(trace.history.index).toBe(before.index + 1);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(original);
+    draw();
+    setExperimentalTools(false);
+    pointer("pointerup", 70, 10, svg, pointerType);
+    expect(trace.outline).toEqual(original);
+    expect(button()).toBeUndefined();
+  });
+
+  it("locks a stroke to one ring and updates every pocket that shares the erased hole", () => {
+    const hole = [{ x: 25, y: 35 }, { x: 25, y: 65 }, { x: 65, y: 65 }, { x: 65, y: 35 }, { x: 45, y: 35 }];
+    const outer = [{ x: 10, y: 28 }, { x: 45, y: 28 }, { x: 90, y: 28 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+    const original = [{ outer, holes: [hole] }, { outer: detected[0].outer, holes: [hole] }];
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original }));
+    setExperimentalTools(true);
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    pointer("pointerdown", 45, 35); pointer("pointerup", 45, 28);
+    expect(trace.outline[0].outer).toEqual(outer);
+    expect(trace.outline[0].holes[0]).toEqual(hole.slice(0, 4));
+    expect(trace.outline[1].holes[0]).toEqual(hole.slice(0, 4));
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(original);
+  });
+
+  it("erases actual curve anchors and restores handles exactly on Undo", () => {
+    const source = curvesFromOutline([{ outer: [
+      { x: 10, y: 10 }, { x: 30, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 },
+    ], holes: [] }]);
+    source[0].outer[4].out = { x: 67, y: 98 };
+    React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: source, label: "Curved base" }));
+    setExperimentalTools(true);
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    pointer("pointerdown", 30, 10); pointer("pointerup", 50, 10);
+    expect(trace.curves?.[0].outer).toHaveLength(4);
+    expect(trace.curves?.[0].outer[2].out).toEqual(source[0].outer[4].out);
+    React.act(() => trace.undo());
+    expect(trace.curves).toEqual(source);
+    const history = trace.history;
+    pointer("pointerdown", 30, 10);
+    React.act(() => { trace.undo(); pointer("pointerup", 50, 10); });
+    expect(trace.history.stack).toBe(history.stack);
+    expect(trace.history.index).toBe(history.index - 1);
+  });
 
   it.each([0, 1])("moves and cancels a shared hole from pocket %i", shapeIndex => {
     const hole = [{ x: 35, y: 35 }, { x: 35, y: 65 }, { x: 65, y: 65 }, { x: 65, y: 35 }];
@@ -1633,7 +1708,7 @@ describe("desktop point focus", () => {
       pointer('pointermove', 12, 12);
       pointer('pointerup', 12, 12);
       expect(host.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
-      expect(host.querySelector('[aria-label="Erase points by clicking"]')).not.toBeNull();
+      expect([...host.querySelectorAll('button')].some(b => b.textContent === 'Point eraser')).toBe(true);
       expect(host.querySelector('[aria-label="Outline editing controls"]')?.className).toContain("flex-wrap");
       expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
       expect(trace!.history.index).toBe(historyIndex);
@@ -1760,23 +1835,25 @@ describe("touch-accessible trace tools", () => {
     function Probe(): null { trace = useTrace(); return null; }
     try {
       await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
+      const pentagon = [{ outer: [...detected[0].outer.slice(0, 3), { x: 50, y: 95 }, detected[0].outer[3]], holes: [] }];
+      React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: pentagon }));
       const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
       expect(host.querySelector('[aria-label="Correct"]')).toBeNull();
       React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
-      const tools = host.querySelector('[aria-label="Contour editing tools"]')!;
-      const buttons = tools.querySelectorAll<HTMLButtonElement>('button');
-      expect(tools.textContent).toContain("Contour 1");
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
-      React.act(() => buttons[0].click());
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
-      const remove = (x: number, y: number) => React.act(() => {
-        const event = new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: x, clientY: y });
-        Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: 1 } });
-        svg!.dispatchEvent(event);
-      });
+      const eraser = () => [...host.querySelectorAll("button")].find(b => b.textContent === "Point eraser");
+      expect(eraser()!.getAttribute("aria-pressed")).toBe("false");
+      React.act(() => eraser()!.click());
+      expect(eraser()!.getAttribute("aria-pressed")).toBe("true");
+      const remove = (x: number, y: number) => {
+        for (const type of ["pointerdown", "pointerup"]) React.act(() => {
+          const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+          Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: 1 }, isPrimary: { value: true } });
+          svg!.dispatchEvent(event);
+        });
+      };
       remove(10, 10);
       expect(trace!.outline[0].outer).toHaveLength(4);
-      expect(trace!.history.stack[trace!.history.index].label).toBe("Remove contour node");
+      expect(trace!.history.stack[trace!.history.index].label).toBe("Erase outline points");
       remove(90, 10);
       expect(trace!.outline[0].outer).toHaveLength(3);
       remove(90, 90);
@@ -1784,24 +1861,24 @@ describe("touch-accessible trace tools", () => {
       React.act(() => trace!.undo());
       expect(trace!.outline[0].outer).toHaveLength(4);
       React.act(() => trace!.undo());
-      expect(trace!.outline).toEqual(edited);
+      expect(trace!.outline).toEqual(pentagon);
       remove(500, 500);
-      expect(trace!.outline).toEqual(edited);
-      React.act(() => buttons[0].click());
+      expect(trace!.outline).toEqual(pentagon);
+      React.act(() => eraser()!.click());
       expect(trace!.mode).toBe("edit");
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
-      React.act(() => buttons[0].click());
+      expect(eraser()!.getAttribute("aria-pressed")).toBe("false");
+      React.act(() => eraser()!.click());
       expect(trace!.mode).toBe("remove");
       setExperimentalTools(false);
       expect(trace!.mode).toBe("edit");
-      expect(trace!.outline).toEqual(edited);
-      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      expect(trace!.outline).toEqual(pentagon);
+      expect(eraser()).toBeUndefined();
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
       expect(trace!.selection).not.toBeNull();
-      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      expect(eraser()).toBeUndefined();
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: null }));
-      expect(host.querySelector('[aria-label="Contour editing tools"]')).toBeNull();
+      expect(eraser()).toBeUndefined();
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

@@ -1,4 +1,5 @@
 import { validateDetectionHints } from "./detect/hint-validation";
+import { thinEditingOutline } from "@shared/geometry/edit-point-spacing";
 import { validDetectionGeometry } from "./detect/boundary-validation";
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Outline, Point, Rect, Ring } from "@shared/geometry/types";
@@ -387,6 +388,18 @@ export async function processImage(
   if (hints.length && !honoursMarks(rawOutline)) rawOutline = material;
   // Otherwise `rawOutline` stays the outward-smoothed trace, so neither of those brings the
   // stair-steps back. The unsmoothed `material` is only what the checks above measure against.
+  // Thin the accepted point polygon before clearance. Keep the dense detection
+  // for comparison and keep native Bézier anchors and their handles authoritative.
+  if (options.autoCleanup && !options.editableCurves && outline.length) {
+    const spacing = workingMmPerPixel ? 4 / workingMmPerPixel : 16;
+    const deviation = Math.min(workingMmPerPixel ? .1 / workingMmPerPixel : .5,
+      detectionOptions.tolerancePx! * workingPerDetectPixel);
+    const candidate = thinEditingOutline(outline, spacing, deviation);
+    if (candidate !== outline && honoursMarks(candidate) && validDetectionGeometry(material, candidate,
+      detectionOptions.inwardTolerancePx! * workingPerDetectPixel, detectionOptions.outwardTolerancePx! * workingPerDetectPixel)) {
+      outline = candidate;
+    }
+  }
   const marginPx = marginToPixels(margin, calibration);
   if (marginPx !== 0) {
     // Keep independently detected tools separate as their margins grow.
