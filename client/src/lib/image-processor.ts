@@ -229,7 +229,7 @@ export async function processImage(
   } catch (error) {
     if (detect.signal?.aborted || (error instanceof Error &&
       (error.name === "AbortError" || error.name === "WorkerCancelledError"))) throw error;
-    onNotice?.(
+    if (!detect.highDetail) onNotice?.(
       "Detection failed",
       error instanceof Error ? error.message : String(error),
     );

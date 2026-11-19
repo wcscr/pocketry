@@ -1,4 +1,4 @@
-import { labelMaskComponents } from "./edge-mask";
+import { labelMaskComponents, MAX_EDGE_SIDE } from "./edge-mask";
 
 export interface EdgeCleanupReport {
   filledSlits: number;
@@ -63,7 +63,7 @@ function components(mask: Uint8Array, width: number, height: number, connectivit
  * its adjoining slit. A small opening/closing locates candidates; colour must
  * justify each edit. Unsupported outward shafts, short corners, paper gaps,
  * separate objects and recognized aids are protected. All budgets are in the
- * bounded (at most 512px) learned-model frame, not original camera pixels.
+ * bounded (at most 768 px) learned-model frame, not original camera pixels.
  *
  * Strong paper pixels are never filled. Existing colour seeds are never removed.
  * Foreground and background components must retain their individual identities.
@@ -73,7 +73,7 @@ export function cleanupEdgeMask(mask: Uint8Array, width: number, height: number,
   mask: Uint8Array; report: EdgeCleanupReport;
 } {
   const count = width * height;
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 3 || height < 3 || count > 512 * 512 ||
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 3 || height < 3 || count > MAX_EDGE_SIDE * MAX_EDGE_SIDE ||
       mask.length !== count || evidence.colour.length !== count || evidence.seeds.length !== count || evidence.unknown.length !== count ||
       !Number.isFinite(evidence.iso) || evidence.iso <= 0 || evidence.iso > 255) throw new Error("Invalid edge-cleanup field");
   const report: EdgeCleanupReport = { filledSlits: 0, trimmedBranches: 0, filledPixels: 0, removedPixels: 0, topologyRejected: false, softenedPixels: 0, softeningRejected: false };

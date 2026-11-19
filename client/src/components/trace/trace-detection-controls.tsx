@@ -21,6 +21,8 @@ export interface DetectionSettings {
   boundary?: "auto" | "color" | "teed";
   /** Start fresh from photo pixels, resetting tuning and correction strokes. */
   restart?: boolean;
+  /** Retry only this detection with the larger tool-edge model. */
+  highDetail?: boolean;
 }
 
 /** Shared controls keep inline and drawer adjustments on the same guarded detection path. */
@@ -65,7 +67,7 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
   };
   const request = (settings: DetectionSettings) => {
     setDraftSensitivity(null);
-    if (!settings.restart && settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
+    if (!settings.restart && !settings.highDetail && settings.sensitivity === sensitivity && settings.includeInteriorHoles === includeInteriorHoles &&
         (settings.boundary ?? trace.boundaryMethod) === trace.boundaryMethod) return;
     const switchingMethod = settings.boundary !== undefined && settings.boundary !== trace.boundaryMethod;
     // Comparing untouched detector results is reversible and needs no warning.
@@ -120,6 +122,14 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
   </>;
 
   return <>
+    {trace.boundaryMethod === "teed" && !includeInteriorHoles && trace.imageUrl && trace.region &&
+      trace.detectedImageUrl === trace.imageUrl && <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing}
+          onClick={() => request({ sensitivity, includeInteriorHoles, highDetail: true })}>
+          Retry at higher resolution
+        </Button>
+        <HelpHint label="higher-resolution retry">Trace this region again at 768 px. The larger model uses more memory than the 512 px default. Undo restores the previous outline.</HelpHint>
+      </div>}
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>

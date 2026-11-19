@@ -115,6 +115,48 @@ describe("self-hosted learned-outline model", () => {
       } finally { detector.dispose(); readNet.mockRestore(); reconstruct.mockRestore(); }
     });
 
+  it.each(["warm", "cold", "coarse unavailable", "manual"] as const)(
+    "uses only matching coarse evidence on a high-detail retry (%s)", async scenario => {
+      const cv = await shippedCV(), width = 120, height = 30;
+      const image = { width, height, data: new Uint8ClampedArray(width * height * 4).fill(255) };
+      const score = new Uint8Array(width * height);
+      for (let y = 8; y < 22; y++) for (let x = 31; x < 89; x++) score[y * width + x] = 255;
+      const baseline = { width, height, score, evidence: Uint8Array.from(score, value => Math.max(90, value)),
+        iso: 128, otsu: 128, scale: 1, offsetX: 0, offsetY: 0 };
+      const loaded: number[] = [], forwarded: number[] = [];
+      const detector = createTeedDetector(async (_signal, highDetail) => {
+        loaded.push(highDetail ? 768 : 512);
+        if (!highDetail && scenario === "coarse unavailable") throw new Error("offline");
+        return new Uint8Array();
+      });
+      const readNet = vi.spyOn(cv, "readNetFromONNX").mockImplementation(() => {
+        const side = loaded.at(-1)!;
+        return { setInput() {}, delete() {}, forward() {
+          forwarded.push(side);
+          const data32F = new Float32Array(side * side);
+          const left = side / 4, right = side === 512 ? side * .75 : side * .5;
+          const top = side * 7 / 16, bottom = side * 9 / 16;
+          for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+            if (x === left || x === right || y === top || y === bottom) data32F[y * side + x] = 1;
+          }
+          return { data32F, delete() {} };
+        } };
+      });
+      try {
+        if (scenario === "warm") await detector.segment(cv, image, {}, baseline);
+        const retry = await detector.segment(cv, image, { highDetail: true, sensitivity: scenario === "manual" ? 130 : 128 }, baseline);
+        expect(retry.field?.width).toBe(768);
+        if (scenario === "warm" || scenario === "cold") {
+          expect(retry.selection?.edgeReconstruction).toBe("cross-scale-recovery");
+          expect(forwarded).toEqual(scenario === "warm" ? [512, 768] : [768, 512]);
+        } else {
+          expect(retry.selection?.edgeReconstruction).toBeUndefined();
+          expect(loaded).toEqual(scenario === "manual" ? [768] : [768, 512]);
+        }
+      } finally { detector.dispose(); readNet.mockRestore(); }
+    },
+  );
+
   it("rejects a learned mask that fragments a formerly connected silhouette", async () => {
     const cv = await shippedCV(), width = 100, height = 100;
     const data = new Uint8ClampedArray(width * height * 4).fill(255), score = new Uint8Array(width * height);
@@ -134,6 +176,26 @@ describe("self-hosted learned-outline model", () => {
     const request = vi.fn(async () => new Response(bytes));
     expect(await loadTeedModel(undefined, request)).toEqual(bytes);
     expect(request).toHaveBeenCalledWith(TEED_MODEL_URL, { cache: "force-cache", signal: undefined });
+  });
+  it("verifies both graph sizes and rejects the standard asset at the high-detail URL", async () => {
+    const bytes = new Uint8Array(readFileSync(resolve("client/public/models/teed/teed-768-b50a01b1.onnx")));
+    const request = vi.fn(async () => new Response(bytes));
+    expect(await loadTeedModel(undefined, request, true)).toEqual(bytes);
+    expect(request.mock.calls[0]).toEqual(["/models/teed/teed-768-b50a01b1.onnx", { cache: "force-cache", signal: undefined }]);
+    await expect(loadTeedModel(undefined, async () => new Response(model()), true)).rejects.toThrow("verification");
+    // Four protobuf dimension values change, two each in the input and output.
+    const standard = model();
+    expect(bytes.filter((value, index) => value !== standard[index])).toEqual(Uint8Array.of(6, 6, 6, 6));
+  });
+
+  it("rejects an unsupported high-detail outline instead of substituting color geometry", async () => {
+    const image = { width: 80, height: 80, data: new Uint8ClampedArray(80 * 80 * 4).fill(255) };
+    const cv = await shippedCV();
+    const teed = { segment: vi.fn(async () => ({ reason: "selection-too-tight" })), dispose: vi.fn() };
+    const options = { boundary: "teed", highDetail: true } as const;
+    await expect(detectOutline(image, options, { loadCV: async () => cv, teed })).rejects.toThrow("could not close");
+    await expect(detectOutline(image, { ...options, engine: "js" })).rejects.toThrow("could not run");
+    expect(teed.segment).toHaveBeenCalledOnce();
   });
   it("rejects corrupt, truncated and oversized assets", async () => {
     const corrupt = model(); corrupt[corrupt.length - 5] ^= 1;

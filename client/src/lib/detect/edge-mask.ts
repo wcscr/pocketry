@@ -1,4 +1,6 @@
 /** Pure, bounded edge-to-silhouette reconstruction. No model/runtime imports. */
+export const MAX_EDGE_SIDE = 768;
+
 export interface EdgeMask {
   score: Uint8Array;
   mask: Uint8Array;
@@ -60,7 +62,7 @@ export function maskFromEdges(edges: Float32Array, width: number, height: number
   seeds: Uint8Array, threshold = 0.60): EdgeMask {
   const count = width * height;
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 3 || height < 3 ||
-      count > 512 * 512 || edges.length !== count || seeds.length !== count ||
+      count > MAX_EDGE_SIDE * MAX_EDGE_SIDE || edges.length !== count || seeds.length !== count ||
       !Number.isFinite(threshold) || threshold <= 0 || threshold >= 1) throw new Error("Invalid edge field");
   const barrier = new Uint8Array(count);
   for (let i = 0; i < count; i++) {

@@ -18,6 +18,64 @@ also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
 
+After a **Tool edges** detection, choose **Retry at higher resolution** in Outline
+(or Adjust outline on mobile) to run the same region through the 768 px edge
+model. It uses the current sensitivity and correction marks. Review the
+result against the photo. Undo and Redo compare the two outlines. If the model
+fails or rejects the boundary, the current outline and history are retained.
+The next ordinary detection starts at 512 px. The high-detail worker is released
+after each attempt to free its larger WebAssembly heap.
+
+With automatic sensitivity, an incomplete 768 px enclosure can use edges
+from the 512 px model to close a break in the outer boundary. For example,
+the finer model can mistake printed graduations for the edge of a metal rail.
+Recovery requires material evidence inside the missing region. It preserves
+the fine outline, distinct seeded tools and recognized occlusions, and rejects
+growth into exterior paper beyond a two-pixel allowance around observed edges
+or material. The worker reuses a 512 px edge map when the input pixels and
+dimensions match, and can compute it again after a reload. A nondefault
+sensitivity still uses its selected edge threshold directly.
+
+The first November 18 desktop Chrome prototype check covered all 36 library
+selections and the supplied Milwaukee cutter. The retry produced an outline
+on 33 library selections and the cutter. It kept the existing outline on the
+clear-hub dispensing needle, the second of five grouped Wiha drivers, and
+the angled Wolfbox nozzle. Undo and Redo restored both outlines on all 34
+applied retries. Rejected retries preserved edit history.
+
+On the cutter’s reference selection, sampled solid-head coverage rose from
+62% to 100%. Both sizes included the blade center. A tighter 732 × 803 px
+selection reproduced a poor retry seen in Edge. It split the solid head into
+three contours along the blade and slider. Expanding the selection on all
+sides to 752 × 833 px produced one outline and preserved the gap between
+the handles. Coverage of the first grouped Wiha driver's sampled
+shaft core rose from 13% to 100%. The larger model also lost part of the
+caliper rail, split the pink needle hub and fragmented the flux syringe.
+Of four tools with a reviewed SVG in the same image frame, three had a lower
+95th-percentile boundary error at 768 px and one had a higher error. Across
+all 37 attempts, median detection-worker time was 1.37 s at 512 px and
+2.17 s at 768 px. These measurements cover this desktop and photo set.
+
+In the follow-up, the revised retry covered 100% of 2,550 sampled caliper
+rail points, up from 85% with the first retry. The 10 ml flux syringe changed
+from three outlines to one. Sampled barrel coverage rose from 43% to 100%
+and the nozzle remained included. The 512 px defaults covered 100% of the
+rail and 59% of the barrel on these selections.
+
+The full rerun matched all 37 previous default outlines exactly. The revised
+retry changed four results. It recovered the rail and barrel, kept the pink
+hub and needle together, and produced a connected angled Wolfbox nozzle
+where the previous retry had kept the default. The other 33 retry results
+matched exactly, including the cutter and all eight Wiha selections. Undo
+and Redo restored every applied retry. Both declined retries preserved the
+default outline and its history.
+
+The rail still has a small outward bump near its markings. Widening the
+selection by 0.5% of its long dimension on each side gave 92% rail coverage
+at both sizes. The updated syringe still covered all the sampled barrel
+points in the wider selection. These interior checks do not measure
+whole-boundary accuracy or physical fit.
+
 [Before/after comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
 are included as a portable HTML report, with one view per distinct tool or
 attachment. In a running build, open `/reports/outline-comparison/`. The report
@@ -187,7 +245,7 @@ experimental records are kept outside the repository.
 
 ## Model provenance
 
-The fixed 512×512 TEED ONNX model is **248,782 bytes**, loaded only when needed.
+Each fixed-size TEED ONNX model is **248,782 bytes**. The 768×768 graph is loaded on demand for a high-detail retry. Only its input and output shape declarations differ from the 512×512 graph.
 It uses the existing OpenCV CPU/WASM runtime and adds no npm dependency.
 Source revision `40fa4b1391dc6424f88989d0ca75d5b592c8681d` includes the BIPED
 checkpoint under repository-level MIT terms (Xavier Soria Poma, 2022), without a

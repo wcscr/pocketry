@@ -328,12 +328,12 @@ function morphClose(mask: Uint8Array, width: number, height: number, size: numbe
 }
 
 /** Separable min filter (square structuring element). */
-function erode(mask: Uint8Array, width: number, height: number, radius: number): void {
+export function erode(mask: Uint8Array, width: number, height: number, radius: number): void {
   rankFilter(mask, width, height, radius, false);
 }
 
 /** Separable max filter (square structuring element). */
-function dilate(mask: Uint8Array, width: number, height: number, radius: number): void {
+export function dilate(mask: Uint8Array, width: number, height: number, radius: number): void {
   rankFilter(mask, width, height, radius, true);
 }
 
