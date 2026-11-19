@@ -4,7 +4,7 @@
 
 ## 1.13.0 — 2026-11-18
 
-- Edit outline now offers Edit points, Select multiple, Erase points, and Done in a fixed toolbar. Move or delete a selection in one undoable edit, or brush over points with the smaller 20 px eraser.
+- Edit outline now offers Edit points, Select multiple, Erase points, and Done in a fixed toolbar. Move or delete a selection in one undoable edit, or brush over points with the smaller 20 px eraser. An interrupted box selection keeps the previous selection.
 
 ## 1.12.7 — 2026-11-18
 

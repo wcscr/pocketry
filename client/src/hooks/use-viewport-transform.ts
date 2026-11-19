@@ -70,7 +70,7 @@ export interface ViewportPointerHandlers {
   onPointerDown: (event: React.PointerEvent, options?: PointerDownOptions) => void;
   onPointerMove: React.PointerEventHandler;
   onPointerUp: React.PointerEventHandler;
-  onPointerCancel: React.PointerEventHandler;
+  onPointerCancel: (pointer: Pick<React.PointerEvent, "currentTarget" | "pointerId">) => void;
 }
 
 export interface ViewportTransformApi {
@@ -739,7 +739,7 @@ export function useViewportTransform(
     [panBy, zoomAt, toContainerPoint],
   );
 
-  const onPointerEnd = React.useCallback((event: React.PointerEvent) => {
+  const onPointerEnd = React.useCallback((event: Pick<React.PointerEvent, "currentTarget" | "pointerId">) => {
     const pointers = pointersRef.current;
     const wasTracked = pointers.delete(event.pointerId);
     releasePointer(event.currentTarget, event.pointerId);

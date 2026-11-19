@@ -183,6 +183,8 @@ export function TraceScene({
 
   return (
     <svg
+      tabIndex={-1}
+      aria-label="Trace canvas"
       ref={svgRef}
       className="absolute inset-0 block h-full w-full touch-none select-none"
       style={{ cursor }}

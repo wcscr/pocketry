@@ -344,6 +344,54 @@ describe("direct Trace contour edits", () => {
     expect(trace.outline[2]).toEqual(original[2]);
   });
 
+  it.each(["polygon", "curves"])("returns keyboard shortcuts to the %s canvas after selecting from a focused toolbar", representation => {
+    const ring = [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+    const outline = [{ outer: ring, holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    select.focus();
+    React.act(() => select.click());
+    expect(document.activeElement).toBe(select);
+    pointer("pointerdown", 50, 10);
+    pointer("pointerup", 50, 10);
+    expect(document.activeElement).toBe(svg);
+    const key = (type: string, key: string, code: string) => React.act(() =>
+      document.activeElement!.dispatchEvent(new KeyboardEvent(type, { key, code, bubbles: true, cancelable: true })));
+    const transform = () => svg.querySelector("g[transform]")!.getAttribute("transform");
+    const before = transform(), history = trace.history;
+    key("keydown", " ", "Space");
+    pointer("pointerdown", 50, 10);
+    pointer("pointermove", 65, 20);
+    pointer("pointerup", 65, 20);
+    key("keyup", " ", "Space");
+    expect(transform()).not.toBe(before);
+    expect(trace.history).toBe(history);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(1);
+    key("keydown", "Delete", "Delete");
+    const anchors = trace.curves?.[0].outer.map(a => a.point) ?? trace.outline[0].outer;
+    expect(anchors).toEqual(ring.filter((_, i) => i !== 1));
+  });
+
+  it.each(["polygon", "curves"])("rejects a %s selection drag released in the same batch as Undo", representation => {
+    const outline = [{ outer: [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    React.act(() => select.click());
+    const before = trace.history;
+    pointer("pointerdown", 50, 10);
+    pointer("pointermove", 65, 20);
+    React.act(() => {
+      trace.undo();
+      pointer("pointerup", 65, 20);
+    });
+    expect(trace.history.stack).toBe(before.stack);
+    expect(trace.history.index).toBe(before.index - 1);
+    expect(trace.outline).toBe(before.stack[before.index - 1].outline);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(0);
+  });
+
   it.each(["polygon", "curves"])("adds %s points with a Shift-drag box without panning", representation => {
     const outline = [{ outer: [{ x: 10, y: 10 }, { x: 40, y: 10 }, { x: 80, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
     if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));

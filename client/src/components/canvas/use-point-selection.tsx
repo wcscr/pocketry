@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { curveControls, curvePath, curveRing, evaluateCurve, type CurveOutline } from "@shared/geometry/curves";
 import { curvePoints, deleteCurvePoints, moveCurvePoints, pointSelectionKey, selectedCurveSection, type CurvePointRef } from "@shared/geometry/curve-point-selection";
 import { distanceToSegment } from "@shared/geometry/rings";
@@ -30,9 +30,15 @@ interface Options {
   onBlankClick?: () => void;
   onPinchStart?: () => void;
 }
+interface SelectionPreview {
+  selection: CurvePointRef[];
+  box?: { start: Point; end: Point };
+  draft?: CurveOutline;
+}
 interface Gesture {
   id: number; kind: "box" | "move"; source: CurveOutline; start: Point; client: Point;
-  selection: CurvePointRef[]; toggle?: CurvePointRef; moved: boolean; draft?: CurveOutline;
+  selection: CurvePointRef[]; toggle?: CurvePointRef; preview?: SelectionPreview;
+  surface: SVGSVGElement; commit: Options["onCommit"];
 }
 
 /** Shared node selection for polygon and curve editors. Selection is UI-only;
@@ -42,13 +48,11 @@ export function usePointSelection(options: Options) {
   const [selection, setSelection] = useState<CurvePointRef[]>([]);
   const [localSelectMode, setSelectMode] = useState(false);
   const selectMode = options.selectMode ?? localSelectMode;
-  const [box, setBox] = useState<{ start: Point; end: Point }>();
-  const [draft, setDraft] = useState<CurveOutline>();
+  const [preview, setPreview] = useState<SelectionPreview>();
   const [error, setError] = useState<string>();
   const gesture = useRef<Gesture>();
   const pointers = useRef(new Set<number>());
   const pinching = useRef(false);
-  const capture = useRef<SVGSVGElement>();
   const expectedSource = useRef<CurveOutline>();
   const points = useMemo(() => curvePoints(source), [source]);
   const chosen = new Set(selection.map(pointSelectionKey));
@@ -67,23 +71,28 @@ export function usePointSelection(options: Options) {
     }
   }
   const cancel = () => {
-    const g = gesture.current; gesture.current = undefined; setBox(undefined); setDraft(undefined);
-    if (g && capture.current?.hasPointerCapture?.(g.id)) capture.current.releasePointerCapture(g.id);
+    const g = gesture.current;
+    gesture.current = undefined;
+    setPreview(undefined);
+    if (g) {
+      pointers.current.delete(g.id);
+      viewport.onPointerCancel({ currentTarget: g.surface, pointerId: g.id });
+    }
   };
   const clear = () => { cancel(); setSelection(previous => previous.length ? [] : previous); setError(undefined); };
-  useEffect(() => {
+  useLayoutEffect(() => {
     const retain = expectedSource.current && JSON.stringify(expectedSource.current) === JSON.stringify(source);
     expectedSource.current = undefined; cancel(); if (!retain) setSelection(previous => previous.length ? [] : previous); setError(undefined);
   }, [source]);
-  useEffect(() => { clear(); setSelectMode(false); pointers.current.clear(); pinching.current = false; }, [enabled, contextKey, options.selectMode]);
-  useEffect(() => { cancel(); }, [scale]);
+  useLayoutEffect(() => { clear(); setSelectMode(false); pointers.current.clear(); pinching.current = false; }, [enabled, contextKey, options.selectMode]);
+  useLayoutEffect(() => { cancel(); }, [scale]);
   useEffect(() => {
     const blur = () => { cancel(); pointers.current.clear(); pinching.current = false; };
     window.addEventListener("blur", blur); window.addEventListener("resize", blur);
     return () => { window.removeEventListener("blur", blur); window.removeEventListener("resize", blur); };
   }, []);
   const remove = () => {
-    if (!enabled || !selection.length) return;
+    if (!enabled || !selection.length || gesture.current || pinching.current) return;
     try { const next = deleteCurvePoints(source, selection); onCommit(next, selection.length === 1 ? "Delete outline point" : "Delete outline points"); clear(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete points."); }
   };
@@ -94,8 +103,9 @@ export function usePointSelection(options: Options) {
       if (event.key === "Escape" && (gesture.current || selection.length || selectMode)) {
         event.preventDefault(); event.stopImmediatePropagation(); clear(); setSelectMode(false); options.onExitSelectMode?.();
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
-        event.preventDefault(); event.stopImmediatePropagation(); setSelection(points);
-      } else if ((event.key === "Delete" || event.key === "Backspace") && selection.length) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (!gesture.current && !pinching.current) setSelection(points);
+      } else if ((event.key === "Delete" || event.key === "Backspace") && (selection.length || gesture.current || pinching.current)) {
         event.preventDefault(); event.stopImmediatePropagation(); remove();
       }
     };
@@ -106,10 +116,19 @@ export function usePointSelection(options: Options) {
     ? previous.filter(p => pointSelectionKey(p) !== pointSelectionKey(ref)) : [...previous, ref]);
   const down = (event: ReactPointerEvent<SVGSVGElement>): boolean => {
     if (!enabled) return false;
-    if (event.pointerType === "touch") pointers.current.add(event.pointerId);
-    if (pointers.current.size > 1) {
-      cancel(); pinching.current = true; options.onPinchStart?.(); viewport.onPointerDown(event, { pan: false }); return true;
+    if (event.pointerType === "touch") {
+      pointers.current.add(event.pointerId);
+      if (pointers.current.size > 1) {
+        // Hand both live pointers and their captures to the viewport.
+        gesture.current = undefined;
+        setPreview(undefined);
+        pinching.current = true;
+        options.onPinchStart?.();
+        viewport.onPointerDown(event, { pan: false });
+        return true;
+      }
     }
+    if (gesture.current || pinching.current) return true;
     if (event.button !== 0 || panRequested || event.altKey || event.ctrlKey || event.metaKey) return false;
     const p = fromClient(event.clientX, event.clientY); if (!p) return false;
     if ((event.target as Element).closest('[data-curve-kind="in"], [data-curve-kind="out"]')) { clear(); return false; }
@@ -122,7 +141,10 @@ export function usePointSelection(options: Options) {
         distance = d;
       }
     }
-    if (hit && event.shiftKey) { event.preventDefault(); toggle(hit); return true; }
+    if (hit && event.shiftKey) {
+      event.currentTarget.focus({ preventScroll: true });
+      event.preventDefault(); toggle(hit); return true;
+    }
     const selectedHit = hit && chosen.has(pointSelectionKey(hit));
     if (hit && !selectMode && !(selectedHit && selection.length > 1)) {
       setSelection([hit]); return false; // The existing single-point editor owns this drag.
@@ -139,28 +161,27 @@ export function usePointSelection(options: Options) {
         }
       }
     }
+    event.currentTarget.focus({ preventScroll: true });
     event.preventDefault(); event.stopPropagation();
     const selected = hit ? selectedHit ? selection : [...selection, hit] : event.shiftKey ? selection : [];
-    gesture.current = { id: event.pointerId, kind: hit ? "move" : "box", source, start: p,
-      client: { x: event.clientX, y: event.clientY }, selection: selected, toggle: selectMode ? hit : undefined, moved: false };
-    capture.current = event.currentTarget; event.currentTarget.setPointerCapture?.(event.pointerId);
+    gesture.current = {
+      id: event.pointerId, kind: hit ? "move" : "box", source, start: p,
+      client: { x: event.clientX, y: event.clientY }, selection: selected,
+      toggle: selectMode ? hit : undefined, surface: event.currentTarget, commit: onCommit,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     viewport.onPointerDown(event, { pan: false, allowShiftPan: false });
     return true;
   };
-  const move = (event: ReactPointerEvent<SVGSVGElement>): boolean => {
-    if (enabled && pinching.current) { viewport.onPointerMove(event); return true; }
-    const g = gesture.current; if (!enabled || !g || event.pointerId !== g.id) return false;
-    viewport.onPointerMove(event);
-    if (pointers.current.size > 1) { cancel(); return false; }
-    const p = fromClient(event.clientX, event.clientY); if (!p) return true;
-    if (!g.moved && Math.hypot(event.clientX - g.client.x, event.clientY - g.client.y) < (event.pointerType === "touch" ? 8 : 3)) return true;
-    g.moved = true;
+  // Only the owning pointer's release promotes a preview to a selection or geometry edit.
+  const previewAt = (g: Gesture, event: ReactPointerEvent<SVGSVGElement>): SelectionPreview | undefined => {
+    if (!g.preview && Math.hypot(event.clientX - g.client.x, event.clientY - g.client.y) < (event.pointerType === "touch" ? 8 : 3)) return;
+    const p = fromClient(event.clientX, event.clientY); if (!p) return;
     if (g.kind === "box") {
-      setBox({ start: g.start, end: p });
       // The rectangle belongs to the screen. A rotated, mirrored or stretched
       // Bin pocket sees a parallelogram in its own source coordinates.
       const across = fromClient(event.clientX, g.client.y), down = fromClient(g.client.x, event.clientY);
-      if (!across || !down) return true;
+      if (!across || !down) return;
       const u = { x: across.x - g.start.x, y: across.y - g.start.y }, v = { x: down.x - g.start.x, y: down.y - g.start.y };
       const determinant = u.x * v.y - u.y * v.x;
       const inside = points.filter(ref => { const q = curveRing(source, ref)![ref.index].point;
@@ -168,28 +189,61 @@ export function usePointSelection(options: Options) {
         const dx = q.x - g.start.x, dy = q.y - g.start.y;
         const a = (dx * v.y - dy * v.x) / determinant, b = (u.x * dy - u.y * dx) / determinant;
         return a >= -1e-10 && a <= 1 + 1e-10 && b >= -1e-10 && b <= 1 + 1e-10; });
-      setSelection([...new Map([...g.selection, ...inside].map(ref => [pointSelectionKey(ref), ref])).values()]);
-    } else {
-      setSelection(g.selection); g.draft = moveCurvePoints(g.source, g.selection, { x: p.x - g.start.x, y: p.y - g.start.y }); setDraft(g.draft);
+      const selection = [...new Map([...g.selection, ...inside].map(ref => [pointSelectionKey(ref), ref])).values()];
+      return { selection, box: { start: g.start, end: p } };
     }
+    const draft = moveCurvePoints(g.source, g.selection, { x: p.x - g.start.x, y: p.y - g.start.y });
+    return { selection: g.selection, draft };
+  };
+  const move = (event: ReactPointerEvent<SVGSVGElement>): boolean => {
+    if (enabled && pinching.current) { viewport.onPointerMove(event); return true; }
+    const g = gesture.current;
+    if (!enabled || !g || event.pointerId !== g.id) return false;
+    viewport.onPointerMove(event);
+    g.preview = previewAt(g, event);
+    setPreview(g.preview);
     return true;
   };
   const end = (event: ReactPointerEvent<SVGSVGElement>): boolean => {
     pointers.current.delete(event.pointerId);
-    if (pinching.current) { viewport.onPointerUp(event); if (!pointers.current.size) pinching.current = false; return true; }
-    const g = gesture.current; if (!g || g.id !== event.pointerId) return false;
-    viewport.onPointerUp(event);
-    if (event.type !== "pointercancel") {
-      if (g.draft) { expectedSource.current = g.draft; onCommit(g.draft, "Move outline points"); }
-      else if (!g.moved && g.toggle) toggle(g.toggle);
-      else if (!g.moved && g.kind === "box") { setSelection(g.selection); if (!g.selection.length) options.onBlankClick?.(); }
+    if (pinching.current) {
+      viewport.onPointerUp(event);
+      if (!pointers.current.size) pinching.current = false;
+      return true;
     }
-    cancel(); return true;
+    const g = gesture.current;
+    if (!g || g.id !== event.pointerId) return false;
+    gesture.current = undefined;
+    setPreview(undefined);
+    viewport.onPointerUp(event);
+    if (!enabled || g.source !== source || event.type !== "pointerup") return true;
+    const final = previewAt(g, event);
+    if (final) {
+      setSelection(final.selection);
+      if (final.draft) {
+        expectedSource.current = final.draft;
+        g.commit(final.draft, "Move outline points");
+      }
+    } else if (!g.preview) {
+      if (g.toggle) toggle(g.toggle);
+      else if (g.kind === "box") { setSelection(g.selection); if (!g.selection.length) options.onBlankClick?.(); }
+    }
+    return true;
   };
+  const lostCapture = (event: ReactPointerEvent<SVGSVGElement>) => {
+    // A touch target can lose implicit capture when the SVG claims the same pointer.
+    if (event.target !== event.currentTarget) return;
+    if (gesture.current?.id === event.pointerId) cancel();
+    else if (pinching.current && pointers.current.delete(event.pointerId)) {
+      viewport.onPointerCancel(event);
+      if (!pointers.current.size) pinching.current = false;
+    }
+  };
+  const { draft, box } = preview ?? {};
   const display = draft ?? source;
   const overlay = enabled && <g pointerEvents="none" data-testid="point-selection-overlay">
     {draft && display.flatMap(s => [s.outer, ...s.holes]).map((r, i) => <path key={i} d={curvePath(r, toCanvas)} fill="none" className="stroke-primary" strokeWidth={3} vectorEffect="non-scaling-stroke" />)}
-    {selection.map(ref => { const anchor = curveRing(display, ref)?.[ref.index]; if (!anchor) return null;
+    {(preview?.selection ?? selection).map(ref => { const anchor = curveRing(display, ref)?.[ref.index]; if (!anchor) return null;
       const p = toCanvas(anchor.point), r = 5 / Math.max(scale, 1e-6);
       return <rect key={pointSelectionKey(ref)} x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} className="fill-primary stroke-background" strokeWidth={2} vectorEffect="non-scaling-stroke" data-testid="selected-outline-point" />; })}
     {box && (() => { const a = toCanvas(box.start), b = toCanvas(box.end); return <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(a.x - b.x)} height={Math.abs(a.y - b.y)} className="fill-primary/10 stroke-primary" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />; })()}
@@ -214,6 +268,5 @@ export function usePointSelection(options: Options) {
     {selection.length >= 2 && options.onRepairSection && options.repairDisabledReason && <span className="w-full text-xs">{options.repairDisabledReason}</span>}
     {error && <p className="w-full text-xs text-destructive" role="alert">{error}</p>}
   </>;
-  return { down, move, end, cancel, clear, overlay, controls, selection, draft,
-    lostCapture: (event: ReactPointerEvent<SVGSVGElement>) => { if (gesture.current?.id === event.pointerId) cancel(); } };
+  return { down, move, end, lostCapture, cancel, clear, overlay, controls, selection, draft };
 }

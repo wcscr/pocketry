@@ -401,14 +401,14 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     fitUnitsPerUnit: mmPerPixel(calibration) ?? 1, fitUnit: mmPerPixel(calibration) ? "mm" : "px",
     startDisabled: (store.margin ?? 0) !== 0,
     startHint: "Set trace margin to zero before editing curves. Use Bin clearance to adjust fit.",
-    onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
+    onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label, gesture: { history, outline } }) : dispatch({ type: "OUTLINE_COMMITTED", gesture: { history, outline },
       outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
   const pointSelection = usePointSelection({ source: cleanupSource, activeRing: selection, selectMode: selecting, onExitSelectMode: exitSelectMode,
     enabled: (selecting || advancedEditing) && !curveEditor.active && editing && !erasing,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale, fromClient: toImage, toCanvas: p => p,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
-    onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
+    onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label, gesture: { history, outline },
       outline: next.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })) }),
     onBlankClick: () => { desktopPoint.clear(); },
     onPinchStart: () => {

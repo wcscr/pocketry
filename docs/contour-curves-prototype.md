@@ -50,6 +50,8 @@ Trace includes **Select multiple** and **Erase points** in **Edit outline**. For
 - Shift-click toggles points. Drag empty space for a box selection, or hold Shift and drag to add to the selection. For tap selection,
   use **Select multiple** in Trace or **Select points** in Bin. Move or delete selected
   points together. Each ring keeps at least three points. **Add manual contour** starts a separate four-point trace.
+  Release the box to apply the highlighted selection. Starting a pinch or interrupting a drag keeps the previous selection.
+  After picking a point on the canvas, Delete removes the selection and Space-drag pans.
   When Trace contours overlap, **Select multiple** and **Erase points** prefer the active contour for equally close points.
 - In Bin, **Repair section** accepts two endpoints or a continuous run. Preview a Line
   or Smooth curve, choose Other side or adjust Bend, then Apply/Cancel. Repair

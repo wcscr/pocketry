@@ -270,7 +270,7 @@ type ContourGestureSource = { outline: Outline; history: TraceState["history"] }
 
 export type TraceAction =
   | { type: "ERASE_OUTLINE_POINTS"; curves: CurveOutline; gesture: ContourGestureSource }
-  | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string; autoSimplification?: AppliedOutlineSimplification }
+  | { type: "CURVES_COMMITTED"; curves: CurveOutline; label: string; gesture?: ContourGestureSource; autoSimplification?: AppliedOutlineSimplification }
   | { type: "SET_EDITABLE_CURVES"; enabled: boolean }
   | { type: "TRACE_DRAFT_RESTORED"; draft: TraceDraft }
   | { type: "SOURCE_LOADED"; imageUrl: string; fileName: string }
@@ -552,7 +552,7 @@ function retainedEditSelection(state: TraceState, outline: Outline): RingRef | n
 
 export function traceReducer(state: TraceState, action: TraceAction): TraceState {
   // A pointer event can be queued in the same render as Undo or a new source.
-  if ((action.type === "OUTLINE_DRAGGING" || action.type === "OUTLINE_COMMITTED") &&
+  if ((action.type === "OUTLINE_DRAGGING" || action.type === "OUTLINE_COMMITTED" || action.type === "CURVES_COMMITTED") &&
       action.gesture && action.gesture.history !== state.history) return state;
   // Polygon-only reshaping cannot silently bake editable curve sources. These
   // controls are disabled in the prototype; also reject stale async results.
