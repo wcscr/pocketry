@@ -117,7 +117,7 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
       <HelpHint label="experimental correction brushes">{brushDisabled ?? "Mark missing tool material with Add or unwanted background with Remove. Each stroke reruns detection and can be undone."}</HelpHint>
     </div>}
     <DetectedOutlineControls />
-    {compact && advancedEditing && trace.outline.length > 0 && <TraceSymmetryTool />}
+    {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
 

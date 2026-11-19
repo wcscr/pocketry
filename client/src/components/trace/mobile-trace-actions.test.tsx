@@ -149,6 +149,16 @@ describe("Mobile trace progression", () => {
     expect(button("Choose a photo")).toBeDefined();
   });
 
+  it("opens Symmetry & straighten from Adjust by default", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    expect(host.querySelector("#mobile-detail")).toBeNull();
+    React.act(() => button("Symmetry & straighten").click());
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector("h2")?.textContent).toBe("Symmetry & straighten");
+    expect(dialog?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe("Straighten only");
+  });
+
   it("adjusts sensitivity and detail inline and protects manual edits on re-detection", async () => {
     setExperimentalTools(true);
     readyOutline();

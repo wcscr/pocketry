@@ -255,18 +255,24 @@ it("adds a square from the Outline controls after empty detection and guards pro
   expect(trace.outline).toHaveLength(2);
 });
 
-it("keeps Editable curves available while advanced outline tools follow the app preference", async () => {
+it("keeps Editable curves and Symmetry & straighten available while advanced outline tools follow the app preference", async () => {
   await prepareOutline();
   const advanced = ["button-position-contour", "button-smooth-outline"];
   const tools = () => advanced.map(id => host.querySelector(`[data-testid="${id}"]`));
+  const symmetry = () => [...host.querySelectorAll<HTMLButtonElement>("#trace-settings-detect button")]
+    .find(button => button.textContent === "Symmetry & straighten");
   expect(host.querySelector("#editable-curves")).not.toBeNull();
+  expect(symmetry()?.disabled).toBe(false);
+  expect(symmetry()?.closest("[hidden]")).toBeNull();
   expect(tools()).toEqual([null, null]);
   const history = trace.history;
   setExperimentalTools(true);
   expect(tools().every(Boolean)).toBe(true);
+  expect(symmetry()?.disabled).toBe(false);
   setExperimentalTools(false);
   expect(tools()).toEqual([null, null]);
   expect(host.querySelector("#editable-curves")).not.toBeNull();
+  expect(symmetry()?.disabled).toBe(false);
   expect(trace.history).toBe(history);
 });
 
