@@ -43,7 +43,7 @@ restores any native curve handles. An already-used contour shows a checkmark and
 disables replacement. Hover/focus hints explain the controls without extra copy.
 Escape dismisses the preview. It cannot restore material segmentation missed.
 
-The following advanced controls are available in Trace with experimental features on. Choose **Edit outline → Bend edges** for edge bending. In Bin, choose **Edit contour → Bend edges** on an upright pocket. Tilted/profile pockets retain their editing restriction.
+Trace includes **Select multiple** and **Erase points** in **Edit outline**. For edge bending, enable experimental features and choose **Edit outline → Bend edges**. In Bin, choose **Edit contour → Bend edges** on an upright pocket. Tilted/profile pockets retain their editing restriction.
 
 - Drag an edge to bend it, an anchor to move it with its handles, or a handle to
   shape the curve. Click an edge to add a point; right-click an anchor to delete.

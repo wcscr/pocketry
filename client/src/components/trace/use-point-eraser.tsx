@@ -20,7 +20,7 @@ interface Stroke {
   draft?: CurveOutline;
 }
 
-const RADIUS_PX = 12;
+const RADIUS_PX = 10;
 
 /** Local gesture preview. Only release commits geometry, once for the entire stroke. */
 export function usePointEraser({ enabled, source, outline, revision, scale, tolerance, fromClient, viewport, onCommit }: {

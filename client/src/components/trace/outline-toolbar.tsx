@@ -11,16 +11,15 @@ export type OutlineTool = typeof tools[number]["value"];
 
 interface Props {
   active: OutlineTool;
-  experimental: boolean;
   processing: boolean;
   onSelect: (tool: OutlineTool) => void;
   onDone: () => void;
 }
 
 /** Keep the same buttons mounted while the contextual controls above them change. */
-export function OutlineToolbar({ active, experimental, processing, onSelect, onDone }: Props) {
+export function OutlineToolbar({ active, processing, onSelect, onDone }: Props) {
   return <div role="group" aria-label="Outline editing tools" className="trace-outline-toolbar rounded-lg border bg-background p-1 shadow-md">
-    {experimental ? tools.map(({ value, label, icon: Icon }) =>
+    {tools.map(({ value, label, icon: Icon }) =>
       <Button key={value} type="button" size="sm" variant={active === value ? "default" : "ghost"}
         aria-pressed={active === value} disabled={processing && value === "erase"}
         onClick={event => {
@@ -29,7 +28,7 @@ export function OutlineToolbar({ active, experimental, processing, onSelect, onD
         }}>
         <Icon aria-hidden="true" />{label}
       </Button>
-    ) : <span className="flex items-center justify-center gap-1.5 text-xs font-medium"><MousePointer2 aria-hidden="true" className="size-4" />Edit points</span>}
+    )}
     <Button type="button" size="sm" variant="outline" onClick={onDone}><Check aria-hidden="true" />Done</Button>
   </div>;
 }

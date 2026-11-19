@@ -140,7 +140,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     rulerLengthMm,
     pendingPerspective,
     manualPerspectivePoints,
-    mode: storedMode,
+    mode,
     processing,
     dispatch,
     canUndo,
@@ -149,11 +149,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     undo,
     redo,
   } = store;
-  // An older draft or a live preference change can leave the erase tool selected.
-  const mode = !advancedEditing && storedMode === "remove" ? "edit" : storedMode;
-  useEffect(() => {
-    if (!advancedEditing && storedMode === "remove") dispatch({ type: "SET_MODE", mode: "edit" });
-  }, [advancedEditing, storedMode, dispatch]);
   const [selectedBrush, setSelectedBrush] = useState<CorrectionTool | null>(null);
   const correctionMode = advancedEditing && onCorrection && mode === "pan" ? selectedBrush : null;
   const correctionStroke = useRef<DetectionHint | null>(null);
@@ -374,15 +369,15 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       cleanup.start("reconstruct");
     }
   }, [outlineToolRequest]);
-  const erasing = advancedEditing && editing && mode === "remove";
+  const erasing = editing && mode === "remove";
   const [selectionRevision, setSelectionRevision] = useState<number | null>(null);
-  const selecting = advancedEditing && editing && mode === "edit" && selectionRevision === store.sourceRevision;
+  const selecting = editing && mode === "edit" && selectionRevision === store.sourceRevision;
   const outlineTool: OutlineTool = erasing ? "erase" : selecting ? "select" : "edit";
   // A finger can lift over the toolbar after its old editor releases capture.
   useEffect(() => viewport.cancelPointers(), [editing, outlineTool, viewport.cancelPointers]);
   useEffect(() => {
-    if (!editing || !advancedEditing || mode !== "edit") setSelectionRevision(null);
-  }, [editing, advancedEditing, mode]);
+    if (!editing || mode !== "edit") setSelectionRevision(null);
+  }, [editing, mode]);
   const exitSelectMode = () => setSelectionRevision(null);
   const curveTolerance = CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? 0.1);
   const eraser = usePointEraser({
@@ -407,7 +402,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
   const pointSelection = usePointSelection({ source: cleanupSource, selectMode: selecting, onExitSelectMode: exitSelectMode,
-    enabled: advancedEditing && !curveEditor.active && editing && !erasing,
+    enabled: (selecting || advancedEditing) && !curveEditor.active && editing && !erasing,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale, fromClient: toImage, toCanvas: p => p,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
     onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
@@ -578,6 +573,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   });
   const changeOutlineTool = (next: OutlineTool | "done") => {
     if (next === outlineTool) return;
+    cancelHold();
     eraser.cancel();
     curveEditor.cancelTool();
     pointSelection.clear();
@@ -626,7 +622,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       window.removeEventListener("resize", cancelHold);
     };
   }, []);
-  useEffect(() => cancelHold, [outline, history, editing, advancedEditing, curveEditor.active, processing, viewport.transform.scale]);
+  useEffect(() => cancelHold, [outline, history, editing, outlineTool, advancedEditing, curveEditor.active, processing, viewport.transform.scale]);
 
   const brushPointAt = (clientX: number, clientY: number) => {
     const point = toImage(clientX, clientY);
@@ -661,11 +657,11 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       correctionStroke.current = hint; setStrokePreview(hint);
       event.currentTarget.setPointerCapture?.(event.pointerId); return;
     }
-    if (editing && !advancedEditing && (viewport.isSpaceHeld || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)) {
+    if (editing && outlineTool === "edit" && !advancedEditing && (viewport.isSpaceHeld || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)) {
       viewport.handlers.onPointerDown(event, { pan: true });
       return;
     }
-    if (editing && !advancedEditing && !processing && touchInput.current && event.isPrimary) {
+    if (editing && outlineTool === "edit" && !advancedEditing && !processing && touchInput.current && event.isPrimary) {
       const { clientX: x, clientY: y, pointerId: id, target } = event;
       const anchor = (event.target as Element).closest('[data-curve-kind="point"]');
       if (!curveEditor.active || anchor) {
@@ -1033,7 +1029,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     if (usesNativeEditingMenu(event.target)) return;
     // Touch uses our hold timer. Some browsers also emit a native context
     // menu for that same press, which could otherwise delete a second point.
-    if (editing && !advancedEditing && touchInput.current) { event.preventDefault(); return; }
+    if (editing && outlineTool === "edit" && !advancedEditing && touchInput.current) { event.preventDefault(); return; }
     if (mode !== "pan" && mode !== "navigate" && mode !== "edit" && mode !== "remove") return;
     if (mode === "edit" || mode === "remove") {
       event.preventDefault();
@@ -1271,18 +1267,19 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
 
           {editing && <div className="trace-outline-tools pointer-events-none absolute z-30 flex flex-col gap-1 [&>*]:pointer-events-auto">
             <div className="trace-outline-options flex flex-wrap items-center gap-1.5 rounded-lg border bg-background p-2 shadow-md" role="group" aria-label="Outline editing controls">
-              {!advancedEditing ? <>
+              {erasing ? <>
+                <span className="text-xs">Hold and brush over points on one contour. Release to apply.</span>
+                {eraser.error && <span role="alert" className="text-xs text-destructive">{eraser.error}</span>}
+              </> : selecting && !curveEditor.previewOpen ? <>
+                <span className="text-xs">Tap points or drag a box to select. Drag the selection to move it.</span>
+                {curveEditor.active ? curveEditor.selectionControls : pointSelection.controls}
+                {curveEditor.error && <span role="alert" className="text-xs text-destructive">{curveEditor.error}</span>}
+              </> : !advancedEditing ? <>
                 <span className="text-xs">{isMobile
                   ? "Tap an edge to add a point. Drag to move. Touch and hold a point to remove it."
                   : "Click an edge to add a point. Drag to move. Right-click a point to remove it."}{curveEditor.active && " Select a point to drag its curve handles."}
                   {store.editableCurves && !curveEditor.active && (store.margin ?? 0) !== 0 && " Set trace margin to zero to use curve handles."}</span>
                 {curveEditor.error && <span role="alert" className="text-xs text-destructive">{curveEditor.error}</span>}
-              </> : erasing ? <>
-                <span className="text-xs">Hold and brush over points on one contour. Release to apply.</span>
-                {eraser.error && <span role="alert" className="text-xs text-destructive">{eraser.error}</span>}
-              </> : selecting && !curveEditor.previewOpen ? <>
-                <span className="text-xs">Tap points or drag a box to select. Drag the group to move it, or choose Delete selected points.</span>
-                {curveEditor.active ? curveEditor.selectionControls : pointSelection.controls}
               </> : curveEditor.active ? curveEditor.controls : <>
                 {curveEditor.startButton}
                 <span className="text-xs">{isMobile ? "Tap an edge to add a point. Drag a point to move it." : "Click an edge to add a point. Drag to move. Right-click to remove."}</span>
@@ -1294,7 +1291,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
                 {(store.margin ?? 0) !== 0 && <span className="w-full text-xs">Set trace margin to zero to bend edges. Use Bin clearance to adjust fit.</span>}
               </>}
             </div>
-            <OutlineToolbar active={outlineTool} experimental={advancedEditing} processing={processing}
+            <OutlineToolbar active={outlineTool} processing={processing}
               onSelect={changeOutlineTool} onDone={() => changeOutlineTool("done")} />
           </div>}
           {cleanup.open && <div className="absolute bottom-16 left-2 right-2 z-30 md:right-auto" data-testid="outline-cleanup-panel">

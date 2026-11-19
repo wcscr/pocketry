@@ -170,12 +170,10 @@
   flex: none;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: 1fr 1.35fr 1.12fr minmax(2.75rem, 0.78fr);
   width: min(100%, 24rem);
   gap: 0.125rem;
 }
-.trace-outline-toolbar:has([aria-pressed]) { grid-template-columns: 1fr 1.35fr 1.12fr minmax(2.75rem, 0.78fr); }
-.trace-outline-toolbar:not(:has([aria-pressed])) { width: min(100%, 12rem); }
 .trace-outline-toolbar button {
   min-width: 0;
   height: 2.875rem;
@@ -183,7 +181,8 @@
   gap: 0.125rem;
   padding: 0 0.125rem;
   font-size: 0.6875rem;
-  line-height: 1rem;
+  line-height: 1.1;
+  white-space: normal;
 }
 .trace-outline-options { max-width: min(100%, 38rem); }
 .trace-outline-options:has(> .curve-editor-options) { padding: 0; border: 0; }
@@ -208,8 +207,25 @@ body:has(.trace-outline-toolbar) [data-toast-layout="mobile"] { bottom: calc(7.5
   }
 }
 
-@media (max-height: 450px) {
-  .trace-outline-tools .curve-editor-heading { width: auto; }
+/* Use the canvas width before adding rows. Keep touch targets at least 44px
+   even when a user's larger default font would otherwise enlarge every row. */
+@media (max-height: 36em), (max-width: 25em) {
+  .trace-outline-options:has(> .curve-editor-options) { width: 100%; max-width: 44rem; }
+  .trace-outline-options > .curve-editor-options { width: 100%; gap: 3px 5px; padding: 4px; }
+  .trace-outline-options .curve-editor-heading { display: contents; }
+  /* Fit feedback follows its action row so Preview, Apply and Cancel share a line. */
+  .trace-outline-options .curve-editor-options > :is([role="status"], [role="alert"]) { order: 1; }
+  .trace-outline-options .curve-editor-options :is(button, select, input, summary) {
+    min-height: 44px;
+    height: auto;
+    padding-inline: 0.35rem;
+  }
+  .trace-outline-options .curve-editor-options summary { align-content: center; padding-block: 0; }
+  .trace-outline-options .curve-editor-options details > div { gap: 4px; padding-block: 0; }
+}
+
+@media (orientation: landscape) and (max-height: 26em) {
+  .trace-outline-options details[open] > summary { float: inline-start; margin-inline-end: 0.4rem; }
 }
 
 /* In a shallow phone canvas, keep history clear of the Edit outline button. */

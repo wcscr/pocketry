@@ -199,7 +199,10 @@ export function usePointSelection(options: Options) {
     {options.selectMode !== false && <HelpHint label="selecting points">Shift-click points to add or remove them. Drag empty space for a selection box; Shift adds to the current selection. Without a keyboard, choose {options.selectMode === undefined ? "Select points" : "Select multiple"} and tap points to toggle them. Drag selected points to move the group. Delete removes the selection, and Escape clears it. Space-drag pans.</HelpHint>}
     {!!selection.length && <span className="text-xs" role="status">{selection.length} {selection.length === 1 ? "point" : "points"} selected</span>}
     {!!selection.length && <Button size="sm" variant="outline" onClick={clear}>Clear selection</Button>}
-    {selection.length > 1 && <Button size="sm" variant="outline" onClick={remove}>Delete selected points</Button>}
+    {(selection.length > 1 || (options.selectMode === true && selection.length === 1)) && <Button size="sm" variant="outline"
+      disabled={selection.length === 1 && (curveRing(source, selection[0])?.length ?? 0) <= 3} onClick={remove}>
+      {selection.length === 1 ? "Delete point" : "Delete selected points"}
+    </Button>}
     {selection.length >= 3 && onSmoothSection && <Button size="sm" variant="outline" disabled={!section} title={section ? "Simplify this continuous section with a curve-fitting preview." : "Select adjacent points on one outline."} onClick={() => { if (section) onSmoothSection(section); }}>Simplify section</Button>}
     {selection.length >= 2 && options.onRepairSection && <Button size="sm" variant="outline" disabled={!repairSection || !!options.repairDisabledReason} onClick={() => { if (repairSection) options.onRepairSection!(repairSection); }}>Repair section</Button>}
     {selection.length >= 2 && options.onRepairSection && <HelpHint label="choosing a repair section">Select two endpoints, or a continuous group of points on one outline. Repair section previews a replacement line or smooth curve. Other side switches which part of the outline is replaced.</HelpHint>}
