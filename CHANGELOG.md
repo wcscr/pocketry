@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.14.1 — 2026-11-19
+
+- Restore **Symmetry & straighten** to Trace’s **Outline** panel and the phone’s **Adjust** controls by default.
+
 ## 1.14.0 — 2026-11-19
 
 - Choose **Retry at higher resolution** in Trace to rerun Tool edges at 768 px when a thin shaft or printed rail is missing from the outline. The first trace still uses 512 px. Undo restores the previous outline.

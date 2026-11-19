@@ -891,7 +891,7 @@ export function TraceControlsPanel({
           disabled={!scale.mmPerPx || !hasDetectionRegion || reviewingScale}
         >
           <TraceDetectionControls onCorrectOutline={onCorrectOutline && (() => { onCorrectOutline(); onCanvasInteraction(); })} onReprocess={onReprocess} outlineActions={<>
-          {advancedEditing && hasOutline && <TraceSymmetryTool />}
+          {hasOutline && <TraceSymmetryTool />}
           <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" className="min-w-0 flex-1"
             disabled={!hasImage || processing || reviewingScale || store.mode === "perspective"}

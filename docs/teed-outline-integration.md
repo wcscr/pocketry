@@ -145,7 +145,10 @@ outline and settings unchanged; Undo restores them after successful detection.
 **Automatic** uses Color contrast when holes are enabled. Help icons beside the main
 actions explain their purpose on hover, keyboard focus, or tap. **Add manual
 contour** can trace an inner feature for a different pocket depth in Bin.
-**Import outline from file** loads an SVG. Enable experimental features in **App settings** to move and rotate entire contours, use symmetry, or clean up several contours at once.
+**Import outline from file** loads an SVG. Once an outline is available, use
+**Symmetry & straighten** in **Outline** or the phone’s **Adjust** controls.
+Enable experimental features in **App settings** to move and rotate entire
+contours or clean up several contours at once.
 
 **Manual detection settings**, below the contour list, contains sensitivity and the detected-outline comparison. Turning on experimental features adds point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
