@@ -57,14 +57,20 @@ export interface UseViewportTransformOptions extends FitInput {
   panEnabled?: boolean;
 }
 
+interface PointerDownOptions {
+  pan: boolean;
+  /** Selection boxes use Shift to add points and still register touches for pinch. */
+  allowShiftPan?: boolean;
+}
+
 export interface ViewportPointerHandlers {
   /** Hand an in-progress one-pointer edit gesture over to panning. */
   startPan: React.PointerEventHandler;
   /** An editor can explicitly pan a drag that missed its handles. */
-  onPointerDown: (event: React.PointerEvent, options?: { pan: boolean }) => void;
+  onPointerDown: (event: React.PointerEvent, options?: PointerDownOptions) => void;
   onPointerMove: React.PointerEventHandler;
   onPointerUp: React.PointerEventHandler;
-  onPointerCancel: React.PointerEventHandler;
+  onPointerCancel: (pointer: Pick<React.PointerEvent, "currentTarget" | "pointerId">) => void;
 }
 
 export interface ViewportTransformApi {
@@ -86,6 +92,8 @@ export interface ViewportTransformApi {
   resetZoom(): void;
   zoomBy(factor: number, anchorClient?: Point): void;
   zoomTo(scale: number, anchorClient?: Point): void;
+  /** End captured gestures without changing zoom or pan when switching tools. */
+  cancelPointers(): void;
   handlers: ViewportPointerHandlers;
   /** Ref callback for the element that should receive wheel events. */
   attachWheel(element: HTMLElement | SVGElement | null): void;
@@ -583,6 +591,16 @@ export function useViewportTransform(
     };
   }, [wheelListener]);
 
+  const cancelPointers = React.useCallback(() => {
+    const surface = surfaceRef.current;
+    for (const id of pointersRef.current.keys()) {
+      if (surface?.hasPointerCapture?.(id)) releasePointer(surface, id);
+    }
+    pointersRef.current.clear();
+    gestureRef.current = null;
+    setIsPanning(false);
+  }, []);
+
   // Space-to-pan. Tracked on the window because the canvas is not focusable and
   // the user's hand is on the mouse, over the canvas, not on a focused element.
   React.useEffect(() => {
@@ -609,9 +627,7 @@ export function useViewportTransform(
     // would make the next single finger start a pinch.
     const onBlur = () => {
       setHeld(false);
-      pointersRef.current.clear();
-      gestureRef.current = null;
-      setIsPanning(false);
+      cancelPointers();
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -622,7 +638,7 @@ export function useViewportTransform(
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, []);
+  }, [cancelPointers]);
 
   const startPan = React.useCallback((event: React.PointerEvent) => {
     if (pointersRef.current.size > 1) return;
@@ -638,14 +654,14 @@ export function useViewportTransform(
   }, []);
 
   const onPointerDown = React.useCallback(
-    (event: React.PointerEvent, options?: { pan: boolean }) => {
+    (event: React.PointerEvent, options?: PointerDownOptions) => {
       if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
       const pointers = pointersRef.current;
       const isTouch = event.pointerType === "touch";
       const isPrimaryButton = event.button === 0;
       const startsPan =
         event.button === 1 || // middle-drag: the universal pan chord
-        (isPrimaryButton && (event.shiftKey || spaceHeldRef.current)) ||
+        (isPrimaryButton && (spaceHeldRef.current || (event.shiftKey && options?.allowShiftPan !== false))) ||
         (isPrimaryButton && (options?.pan ?? live.current.panEnabled));
 
       // Touch pointers are implicitly captured by the browser, so their
@@ -723,7 +739,7 @@ export function useViewportTransform(
     [panBy, zoomAt, toContainerPoint],
   );
 
-  const onPointerEnd = React.useCallback((event: React.PointerEvent) => {
+  const onPointerEnd = React.useCallback((event: Pick<React.PointerEvent, "currentTarget" | "pointerId">) => {
     const pointers = pointersRef.current;
     const wasTracked = pointers.delete(event.pointerId);
     releasePointer(event.currentTarget, event.pointerId);
@@ -778,6 +794,7 @@ export function useViewportTransform(
       resetZoom,
       zoomBy,
       zoomTo,
+      cancelPointers,
       handlers,
       attachWheel,
     }),
@@ -791,6 +808,7 @@ export function useViewportTransform(
       resetZoom,
       zoomBy,
       zoomTo,
+      cancelPointers,
       handlers,
       attachWheel,
     ],

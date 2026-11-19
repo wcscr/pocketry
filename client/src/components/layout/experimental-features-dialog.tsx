@@ -25,7 +25,7 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <Switch id="experimental-features" checked={enabled} onCheckedChange={setEnabled} aria-describedby="experimental-features-description" />
         </div>
         <ul id="experimental-features-description" className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>Advanced Trace editing, including the point eraser, Correct brushes, multi-select, section repair, smoothing, and contour transforms</li>
+          <li>Advanced Trace editing, including Correct brushes, smoothing, and contour transforms</li>
           <li>Slanted bin walls</li>
           <li>Linked pockets and finger access with shared size, shape, and depth</li>
           <li>Grouped objects that move and rotate together</li>

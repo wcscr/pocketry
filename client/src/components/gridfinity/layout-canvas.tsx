@@ -1836,6 +1836,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   return (
     <>
       <svg
+        tabIndex={-1}
+        aria-label="Bin layout canvas"
         ref={svgRef}
         className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
         style={{ cursor }}

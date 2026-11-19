@@ -160,26 +160,41 @@
   max-width: calc(100% - 4.5rem);
 }
 
-/* Point tools and curve previews share the available canvas width. */
-.trace-outline-tools { container-type: inline-size; }
-/* Reserve the bottom toolbar row when there is room. Let that gap shrink
-   before it can push the first editing controls off the top of the canvas. */
-.trace-outline-tools::after { content: ""; flex: 0 1 3.5rem; }
-.trace-outline-tools > * {
+/* Context changes above the dock. Its grid and bottom inset never depend on the active tool. */
+.trace-outline-tools {
+  inset-inline: 0.5rem;
+  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  align-items: flex-start;
+}
+.trace-outline-toolbar {
   flex: none;
-  width: fit-content;
-  max-width: 100%;
-  max-height: none;
-  overflow: visible;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 1fr 1.35fr 1.12fr minmax(2.75rem, 0.78fr);
+  width: min(100%, 24rem);
+  gap: 0.125rem;
+}
+.trace-outline-toolbar button {
+  min-width: 0;
+  height: 2.875rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0 0.125rem;
+  font-size: 0.6875rem;
+  line-height: 1.1;
+  white-space: normal;
+}
+.trace-outline-options { max-width: min(100%, 38rem); }
+.trace-outline-options:has(> .curve-editor-options) { padding: 0; border: 0; }
+.trace-outline-options > .curve-editor-options { max-width: 100%; max-height: none; overflow: visible; }
+@media (max-width: 767px), (any-pointer: coarse) and (max-width: 1023px) and (max-height: 599px) {
+  .trace-outline-tools { align-items: center; }
 }
 
-@container (max-width: 38rem) {
-  .trace-outline-tools button {
-    font-size: 0.75rem;
-    padding-inline: 0.5rem;
-  }
-  .trace-outline-tools button svg { flex-shrink: 0; }
-}
+/* Detection notices can still be visible when editing starts. Keep their hit
+   targets clear of the toolbar on both the fullscreen and split-pane layouts. */
+body:has(.trace-outline-toolbar) [data-toast-layout="desktop"] { top: 3.5rem; bottom: auto; }
+body:has(.trace-outline-toolbar) [data-toast-layout="mobile"] { bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px)); }
 
 /* On phones and short windows, make room for both the tools and the photo.
    Done returns to the ordinary Trace layout. */
@@ -192,8 +207,25 @@
   }
 }
 
-@media (max-height: 450px) {
-  .trace-outline-tools .curve-editor-heading { width: auto; }
+/* Use the canvas width before adding rows. Keep touch targets at least 44px
+   even when a user's larger default font would otherwise enlarge every row. */
+@media (max-height: 36em), (max-width: 25em) {
+  .trace-outline-options:has(> .curve-editor-options) { width: 100%; max-width: 44rem; }
+  .trace-outline-options > .curve-editor-options { width: 100%; gap: 3px 5px; padding: 4px; }
+  .trace-outline-options .curve-editor-heading { display: contents; }
+  /* Fit feedback follows its action row so Preview, Apply and Cancel share a line. */
+  .trace-outline-options .curve-editor-options > :is([role="status"], [role="alert"]) { order: 1; }
+  .trace-outline-options .curve-editor-options :is(button, select, input, summary) {
+    min-height: 44px;
+    height: auto;
+    padding-inline: 0.35rem;
+  }
+  .trace-outline-options .curve-editor-options summary { align-content: center; padding-block: 0; }
+  .trace-outline-options .curve-editor-options details > div { gap: 4px; padding-block: 0; }
+}
+
+@media (orientation: landscape) and (max-height: 26em) {
+  .trace-outline-options details[open] > summary { float: inline-start; margin-inline-end: 0.4rem; }
 }
 
 /* In a shallow phone canvas, keep history clear of the Edit outline button. */

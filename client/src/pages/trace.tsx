@@ -111,6 +111,11 @@ function TraceWorkspace(): JSX.Element {
   const isMobile = useIsMobile();
   const { enabled: advancedEditing, inspectorEnabled, straightRunTolerance } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
+  const editingOutline = store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove");
+  useEffect(() => {
+    // Entering compact layout can carry over an open desktop properties panel.
+    if (isMobile && editingOutline) setPanelOpen(false);
+  }, [isMobile, editingOutline, setPanelOpen]);
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const [outlineToolRequest, setOutlineToolRequest] = useState<OutlineToolRequest>();
@@ -883,7 +888,7 @@ function TraceWorkspace(): JSX.Element {
                 dispatch({ type: "SET_MODE", mode: "edit" });
                 setEstimatedEdgeFocusRequest(value => value + 1);
               }}>Edit this edge</Button>
-              <HelpHint label="repairing the estimated edge">Move points on the estimated edge to match the visible tool. {advancedEditing && "Select two endpoints and choose Repair section to preview a line or curve. "}The amber area remains an estimate after editing.</HelpHint>
+              <HelpHint label="repairing the estimated edge">Move points on the estimated edge to match the visible tool. The amber area remains an estimate after editing.</HelpHint>
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas

@@ -70,6 +70,46 @@ it("edits a placed contour in local coordinates, retaining source revisions thro
   expect(saved.history!.stack[saved.history!.index].doc.cutouts[0].shapeId).toBe(revised.id);
 });
 
+it("deletes only the selected point of a placed pocket after a box is interrupted", () => {
+  const pocket = createBasicPocket("rectangle", { x: -20, y: -10 }, { x: 20, y: 10 }, "selection-pocket")!;
+  const cutout = { ...pocket.cutout, rotationDeg: 37, mirrored: true, scaleX: 1.7, scaleY: 0.8 };
+  const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 6 });
+  React.act(() => {
+    library.storeShape(pocket.shape);
+    store.dispatch({ type: "HYDRATE", spec, cutouts: [cutout], fingerHoles: [] });
+    store.dispatch({ type: "SELECT_CUTOUT", id: cutout.id });
+    store.dispatch({ type: "SET_EDITOR_MODE", editorMode: "contour" });
+  });
+  const svg = host.querySelector<SVGSVGElement>('[data-testid="layout-canvas"]')!;
+  Object.defineProperty(svg.querySelector("g")!, "getScreenCTM", { value: () => ({ inverse: () => ({}) }) });
+  Object.defineProperty(svg, "createSVGPoint", { value: () => ({ x: 0, y: 0, matrixTransform() { return { x: this.x, y: this.y }; } }) });
+  React.act(() => host.querySelector<HTMLButtonElement>('[data-testid="button-edit-curves"]')!.click());
+  const select = [...host.querySelectorAll("button")].find(b => b.textContent === "Select points")!;
+  select.focus();
+  React.act(() => select.click());
+  expect(document.activeElement).toBe(select);
+  const ring = pocket.shape.outlineMm[0].outer;
+  const screen = ring.map(p => binToCanvas(transformPointPlacement(p, cutout), spec));
+  pointer(svg, "pointerdown", screen[0].x, screen[0].y);
+  pointer(svg, "pointerup", screen[0].x, screen[0].y);
+  expect(document.activeElement).toBe(svg);
+  const history = store.history;
+  const left = Math.min(...screen.map(p => p.x)) - 60, top = Math.min(...screen.map(p => p.y)) - 60;
+  const right = Math.max(...screen.map(p => p.x)) + 60, bottom = Math.max(...screen.map(p => p.y)) + 60;
+  pointer(svg, "pointerdown", left, top);
+  pointer(svg, "pointermove", right, bottom);
+  expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(ring.length);
+  pointer(svg, "pointercancel", right, bottom);
+  pointer(svg, "pointerup", right, bottom);
+  expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(1);
+  expect(store.history).toBe(history);
+  React.act(() => svg.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true })));
+  expect(store.cutouts).toHaveLength(1);
+  const revised = library.shapes.find(shape => shape.id === store.cutouts[0].shapeId)!;
+  expect(revised.curvesMm![0].outer.map(a => a.point)).toEqual(ring.slice(1));
+  expect(store.history.index).toBe(history.index + 1);
+});
+
 it.each(["auto", "range"])("applies %s fitting once in Bin and restores the original points on undo and project reload", mode => {
   const pocket = createBasicPocket("circle", { x: -20, y: -20 }, { x: 20, y: 20 }, "fit-pocket")!;
   const cutout = { ...pocket.cutout, rotationDeg: 37, mirrored: true, scaleX: 1.7, scaleY: 0.8 };
