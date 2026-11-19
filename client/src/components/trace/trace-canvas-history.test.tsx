@@ -309,7 +309,9 @@ describe("direct Trace contour edits", () => {
     expect(chosen()).toBe(select);
     expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(0);
     expect(trace.history).toBe(history);
-    tap(10, 10); tap(90, 10);
+    tap(10, 10); tap(45, 10); tap(90, 10);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(3);
+    expect(Array.from(document.querySelectorAll("button"), b => b.textContent)).not.toContain("Simplify section");
     const repair = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Repair section")!;
     React.act(() => repair.click());
     expect(svg.querySelector('[data-testid="outline-repair-overlay"]')).not.toBeNull();
@@ -800,7 +802,7 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); restoreCoordinates(); }
   });
 
-  it.each(["auto", "range", "reconstruct", "reconstruct-edited"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
+  it.each(["auto", "reconstruct", "reconstruct-edited"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
     setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -824,13 +826,10 @@ describe("TraceCanvas edit history", () => {
       const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
       expect(trace!.curves).toBeUndefined();
       if (mode.startsWith("reconstruct")) await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineToolRequest={{ tool: "smooth", sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
-      else { click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
-      if (mode === "range") {
-        for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
-          const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
-          select.value = value; select.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        click("Preview fit");
+      else {
+        click("Bend edges");
+        expect(Array.from(host.querySelectorAll("button"), b => b.textContent)).not.toContain("Select a section");
+        click("Auto-fit contour");
       }
       expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
       expect(trace!.history.stack).toHaveLength(before); expect(trace!.curves).toBeUndefined();

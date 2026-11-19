@@ -23,6 +23,7 @@ interface Options {
   scale: number;
   toCanvas: (point: Point) => Point;
   allowOutlineSimplification?: boolean;
+  allowSectionFitting?: boolean;
   editableCurves?: boolean;
   appliedSimplification?: AppliedOutlineSimplification;
   onCommit: (curves: CurveOutline, label: string, autoSimplification?: AppliedOutlineSimplification) => void;
@@ -43,7 +44,7 @@ interface Session {
 }
 
 /** Preview never writes to Trace/Bin. Only Apply invokes the single-commit path. */
-export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, editableCurves = true, appliedSimplification }: Options) {
+export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, allowSectionFitting = true, editableCurves = true, appliedSimplification }: Options) {
   const applied = appliedSimplification?.unitsPerUnit === unitsPerUnit && appliedSimplification.unit === unit ? appliedSimplification : undefined;
   // Same bounded search as the former Smoother choice: weaker candidates are
   // retained whenever they produce a smoother safe boundary.
@@ -59,7 +60,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const current = enabled && session?.source === source && session.contextKey === contextKey
     && session.unitsPerUnit === unitsPerUnit && session.unit === unit && session.ref.shapeIndex === ringRef.shapeIndex
     && session.ref.ringIndex === ringRef.ringIndex ? session : null;
-  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, allowOutlineSimplification, editableCurves]);
+  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, allowOutlineSimplification, allowSectionFitting, editableCurves]);
   useEffect(() => {
     if (!current) return;
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } };
@@ -105,6 +106,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     })();
   };
   const start = (mode: Session["mode"], range?: { start: number; end: number }) => {
+    if (mode === "range" && !allowSectionFitting) return;
     const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: String(mode === "reconstruct" ? automaticAllowance : unit === "mm" ? .1 : 1) };
     if (range) { next.start = range.start; next.end = range.end; }
     if (mode === "range" && !range) { stop(); setSession(next); } else performPreview(next);
@@ -136,7 +138,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const actions = !current && <>
     {allowOutlineSimplification &&
       <Button size="sm" variant="outline" title="Remove small bumps and review the result before applying." onClick={() => start("reconstruct")}>Smooth outline</Button>}
-    <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>
+    {allowSectionFitting && <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>}
     <Button size="sm" variant="outline" onClick={() => start("auto")}>Auto-fit contour</Button>
   </>;
   const apply = () => {

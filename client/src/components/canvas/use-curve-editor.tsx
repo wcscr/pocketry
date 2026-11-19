@@ -15,6 +15,7 @@ type Target = { kind: "edge" | "point" | "in" | "out"; index: number };
 interface Options {
   outline: Outline;
   allowOutlineSimplification?: boolean;
+  allowSectionFitting?: boolean;
   curves?: CurveOutline;
   enabled: boolean;
   contextKey: string;
@@ -49,7 +50,7 @@ function handlePosition(ring: CurveRing, index: number, side: "in" | "out"): Poi
 
 /** Shared editing interaction. All gesture drafts are local until pointer-up;
  * cancel, selection and pointer clicks never create source revisions. */
-export function useCurveEditor({ outline, curves, allowOutlineSimplification, enabled, contextKey, scale, tolerance,
+export function useCurveEditor({ outline, curves, allowOutlineSimplification, allowSectionFitting = true, enabled, contextKey, scale, tolerance,
   fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone, allowCurves = true, advancedTools = true,
   fitUnitsPerUnit = 1, fitUnit = "mm", onFrameRepair, selectMode, onExitSelectMode }: Options) {
   const [started, setStarted] = useState(false);
@@ -90,7 +91,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
   };
   const edit = (change: CurveEdit, label: string) => commit(editCurves(base, ringRef, change), label);
   const fitting = useCurveFitting({ source: base, ringRef, enabled: active && advancedTools, contextKey, unitsPerUnit: fitUnitsPerUnit,
-    unit: fitUnit, scale, toCanvas, allowOutlineSimplification, editableCurves: allowCurves || !!curves, onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
+    unit: fitUnit, scale, toCanvas, allowOutlineSimplification, allowSectionFitting, editableCurves: allowCurves || !!curves, onCommit: (next, label) => { cancel(); commit(next, label); setTarget({ kind: "edge", index: 0 }); } });
   const repair = useOutlineRepair({ source: base, enabled: active && advancedTools, contextKey, editableCurves: allowCurves || !!curves,
     tolerance, unitsPerUnit: fitUnitsPerUnit, unit: fitUnit, scale, toCanvas,
     onFrameSection: onFrameRepair,
@@ -109,7 +110,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     if (sectionRequest && active) { if (sectionRequest.repair) repair.start(sectionRequest); else fitting.start("range", sectionRequest); setSectionRequest(undefined); }
   }, [sectionRequest, active]);
   const points = usePointSelection({ source: base, enabled: active && advancedTools && !previewOpen, contextKey, scale, selectMode, onExitSelectMode,
-    fromClient, toCanvas, viewport, panRequested, onCommit: commit, onSmoothSection: fitSection,
+    fromClient, toCanvas, viewport, panRequested, onCommit: commit, onSmoothSection: allowSectionFitting ? fitSection : undefined,
     onRepairSection: repairSection,
     repairDisabledReason: startDisabled && (allowCurves || curves) ? startHint : undefined,
     onPinchStart: () => { cancel(); pointers.current.clear(); } });
@@ -282,7 +283,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
       </label>)}
     </>)}
     {points.controls}
-    <details className="w-full"><summary className="cursor-pointer py-2 text-xs font-medium">Choose a section or point by number</summary><div className="flex flex-wrap gap-2 py-2">    <select aria-label="Curve selection" className="h-9 max-w-36 rounded border bg-background px-1 text-xs" value={`${selected.kind}:${selected.index}`}
+    <details className="w-full"><summary className="cursor-pointer py-2 text-xs font-medium">{allowSectionFitting ? "Choose a section or point by number" : "Choose an edge or point by number"}</summary><div className="flex flex-wrap gap-2 py-2">    <select aria-label="Curve selection" className="h-9 max-w-36 rounded border bg-background px-1 text-xs" value={`${selected.kind}:${selected.index}`}
       onChange={e => { const [kind, index] = e.target.value.split(":"); setTarget({ kind: kind as Target["kind"], index: Number(index) }); }}>
       {ring.flatMap((a, i) => [<option key={`e${i}`} value={`edge:${i}`}>Edge {i + 1}</option>, <option key={`p${i}`} value={`point:${i}`}>Point {i + 1}</option>,
         ...(a.in ? [<option key={`i${i}`} value={`in:${i}`}>Point {i + 1} · In handle</option>] : []), ...(a.out ? [<option key={`o${i}`} value={`out:${i}`}>Point {i + 1} · Out handle</option>] : [])])}
@@ -299,6 +300,6 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, en
     {onDone && <Button size="sm" variant="outline" onClick={onDone}>Done</Button>}
   </div>);
   const cancelTool = () => { cancel(); pointers.current.clear(); points.clear(); repair.dismiss(); fitting.dismiss(); };
-  return { active, cancelTool, previewOpen, selectionControls: points.controls, error: active ? error : null, overlay, controls, startButton, down, move, end, fitSection, repairSection, contextMenu, removePointAt,
+  return { active, cancelTool, previewOpen, selectionControls: points.controls, error: active ? error : null, overlay, controls, startButton, down, move, end, repairSection, contextMenu, removePointAt,
     lostCapture: (e: ReactPointerEvent<SVGSVGElement>) => { points.lostCapture(e); if (gesture.current?.id === e.pointerId) cancel(); } };
 }

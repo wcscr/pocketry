@@ -47,9 +47,9 @@ The following advanced controls are available in Trace with experimental feature
 
 - Drag an edge to bend it, an anchor to move it with its handles, or a handle to
   shape the curve. Click an edge to add a point; right-click an anchor to delete.
-- Shift-click toggles points; drag empty space for a box selection. **Select
-  points** enables tap selection. Move/delete a group together; at least three
-  points remain per ring. **Add manual contour** starts a separate four-point trace.
+- Shift-click toggles points. Drag empty space for a box selection. For tap selection,
+  use **Select multiple** in Trace or **Select points** in Bin. Move or delete selected
+  points together. Each ring keeps at least three points. **Add manual contour** starts a separate four-point trace.
 - **Repair section** accepts two endpoints or a continuous run. Preview a Line
   or Smooth curve, choose Other side or adjust Bend, then Apply/Cancel. Repair
   intentionally replaces that section; it has no fitting-deviation claim.

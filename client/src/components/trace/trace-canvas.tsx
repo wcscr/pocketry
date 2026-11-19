@@ -394,6 +394,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const curveEditor = useCurveEditor({
     selectMode: selecting, onExitSelectMode: exitSelectMode,
     advancedTools: advancedEditing,
+    allowSectionFitting: false,
     allowCurves: store.editableCurves || !!store.curves,
     outline, curves: store.curves, enabled: editing && !erasing,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale,
@@ -425,7 +426,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
     onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
       outline: next.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })) }),
-    onSmoothSection: curveEditor.fitSection,
     onRepairSection: curveEditor.repairSection,
     repairDisabledReason: store.editableCurves && (store.margin ?? 0) !== 0 ? "Set trace margin to zero to repair with editable curves. Use Bin clearance to adjust fit." : undefined,
     onBlankClick: () => { desktopPoint.clear(); },
