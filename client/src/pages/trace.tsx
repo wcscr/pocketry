@@ -888,7 +888,7 @@ function TraceWorkspace(): JSX.Element {
                 dispatch({ type: "SET_MODE", mode: "edit" });
                 setEstimatedEdgeFocusRequest(value => value + 1);
               }}>Edit this edge</Button>
-              <HelpHint label="repairing the estimated edge">Move points on the estimated edge to match the visible tool. {advancedEditing && "Select two endpoints and choose Repair section to preview a line or curve. "}The amber area remains an estimate after editing.</HelpHint>
+              <HelpHint label="repairing the estimated edge">Move points on the estimated edge to match the visible tool. The amber area remains an estimate after editing.</HelpHint>
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas

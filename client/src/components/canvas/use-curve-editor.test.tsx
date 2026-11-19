@@ -117,6 +117,22 @@ function pointer(target: Element, type: string, x: number, y: number, id = 1, po
 const edge = () => host.querySelector('[data-curve-kind="edge"][data-curve-index="0"]')!;
 const svg = () => host.querySelector("svg")!;
 
+it("keeps section repair available when the editor enables section tools", () => {
+  React.act(() => root.render(<Harness input={rounded} />));
+  React.act(() => button("Bend edges").click());
+  React.act(() => button("Select points").click());
+  for (const { x, y } of [rounded[0].outer[0], rounded[0].outer[12]]) {
+    pointer(svg(), "pointerdown", x, y);
+    pointer(svg(), "pointerup", x, y);
+  }
+  React.act(() => button("Repair section").click());
+  expect(host.querySelector('[data-testid="outline-repair-preview"]')).not.toBeNull();
+  React.act(() => button("Line").click());
+  React.act(() => button("Apply repair").click());
+  expect(onCommit).toHaveBeenCalledTimes(1);
+  expect(onCommit.mock.calls[0][1]).toBe("Repair outline with line");
+});
+
 it.each([false, true])("bends a selected edge in its own coordinate frame and commits exactly once (placed: %s)", placed => {
   render(placed);
   const start = placed ? { x: 100, y: 290 } : { x: 50, y: 10 };

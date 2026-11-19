@@ -50,9 +50,9 @@ export function usePointSelection(options: Options) {
   const expectedSource = useRef<CurveOutline>();
   const points = useMemo(() => curvePoints(source), [source]);
   const chosen = new Set(selection.map(pointSelectionKey));
-  const section = selectedCurveSection(source, selection);
+  const section = onSmoothSection || options.onRepairSection ? selectedCurveSection(source, selection) : undefined;
   let repairSection: RepairSection | undefined = section;
-  if (selection.length === 2 && selection[0].shapeIndex === selection[1].shapeIndex && selection[0].ringIndex === selection[1].ringIndex) {
+  if (options.onRepairSection && selection.length === 2 && selection[0].shapeIndex === selection[1].shapeIndex && selection[0].ringIndex === selection[1].ringIndex) {
     const ref = selection[0], ring = curveRing(source, ref);
     if (ring && selection.every(p => Number.isInteger(p.index) && !!ring[p.index])) {
       const distance = (start: number, end: number) => { let sum = 0; for (let i = start; i !== end; i = (i + 1) % ring.length) {
@@ -203,7 +203,7 @@ export function usePointSelection(options: Options) {
     {selection.length >= 3 && onSmoothSection && <Button size="sm" variant="outline" disabled={!section} title={section ? "Simplify this continuous section with a curve-fitting preview." : "Select adjacent points on one outline."} onClick={() => { if (section) onSmoothSection(section); }}>Simplify section</Button>}
     {selection.length >= 2 && options.onRepairSection && <Button size="sm" variant="outline" disabled={!repairSection || !!options.repairDisabledReason} onClick={() => { if (repairSection) options.onRepairSection!(repairSection); }}>Repair section</Button>}
     {selection.length >= 2 && options.onRepairSection && <HelpHint label="choosing a repair section">Select two endpoints, or a continuous group of points on one outline. Repair section previews a replacement line or smooth curve. Other side switches which part of the outline is replaced.</HelpHint>}
-    {selection.length >= 2 && options.repairDisabledReason && <span className="w-full text-xs">{options.repairDisabledReason}</span>}
+    {selection.length >= 2 && options.onRepairSection && options.repairDisabledReason && <span className="w-full text-xs">{options.repairDisabledReason}</span>}
     {error && <p className="w-full text-xs text-destructive" role="alert">{error}</p>}
   </>;
   return { down, move, end, cancel, clear, overlay, controls, selection, draft,

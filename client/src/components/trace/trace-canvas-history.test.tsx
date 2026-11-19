@@ -312,11 +312,8 @@ describe("direct Trace contour edits", () => {
     tap(10, 10); tap(45, 10); tap(90, 10);
     expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(3);
     expect(Array.from(document.querySelectorAll("button"), b => b.textContent)).not.toContain("Simplify section");
-    const repair = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Repair section")!;
-    React.act(() => repair.click());
-    expect(svg.querySelector('[data-testid="outline-repair-overlay"]')).not.toBeNull();
+    expect(Array.from(document.querySelectorAll("button"), b => b.textContent)).not.toContain("Repair section");
     React.act(() => edit.click());
-    expect(svg.querySelector('[data-testid="outline-repair-overlay"]')).toBeNull();
     expect(chosen()).toBe(edit);
     expect(trace.history).toBe(history);
     expect(buttons().every((b, i) => b === original[i])).toBe(true);
@@ -332,6 +329,45 @@ describe("direct Trace contour edits", () => {
     expect(document.contains(dock)).toBe(false);
     React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
     expect(document.querySelector('[aria-label="Outline editing tools"] [aria-pressed="true"]')?.textContent).toBe("Edit points");
+  });
+
+  it.each(["polygon", "curves"])("moves and deletes selected %s points as separate undoable edits", representation => {
+    setExperimentalTools(true);
+    const ring = [{ x: 10, y: 10 }, { x: 40, y: 10 }, { x: 70, y: 10 }, { x: 90, y: 40 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+    const outline = [{ outer: ring, holes: [] }];
+    const curves = curvesFromOutline(outline);
+    curves[0].outer[0].out = { x: 20, y: 10 };
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves, label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+
+    const anchors = () => trace.curves?.[0].outer.map(anchor => anchor.point) ?? trace.outline[0].outer;
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name);
+    const before = trace.history.index;
+    React.act(() => button("Select multiple")!.click());
+    for (const { x, y } of ring.slice(0, 2)) {
+      pointer("pointerdown", x, y);
+      pointer("pointerup", x, y);
+    }
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    expect(button("Repair section")).toBeUndefined();
+    expect(trace.history.index).toBe(before);
+
+    pointer("pointerdown", 40, 10);
+    pointer("pointermove", 45, 18);
+    pointer("pointerup", 45, 18);
+    const moved = [{ x: 15, y: 18 }, { x: 45, y: 18 }, ...ring.slice(2)];
+    expect(anchors()).toEqual(moved);
+    if (representation === "curves") expect(trace.curves![0].outer[0].out).toEqual({ x: 25, y: 18 });
+    expect(trace.history.index).toBe(before + 1);
+
+    React.act(() => button("Delete selected points")!.click());
+    expect(anchors()).toEqual(ring.slice(2));
+    expect(trace.history.index).toBe(before + 2);
+    React.act(() => trace.undo());
+    expect(anchors()).toEqual(moved);
+    React.act(() => trace.undo());
+    expect(anchors()).toEqual(ring);
+    if (representation === "curves") expect(trace.curves).toEqual(curves);
   });
 
   it("forgets an interrupted touch when its release lands on the toolbar", () => {
@@ -930,38 +966,6 @@ describe("TraceCanvas edit history", () => {
       React.act(() => trace.undo()); expect(trace.curves).toEqual(before); expect(trace.outline).toEqual(outline);
     } finally { React.act(() => root.unmount()); }
   });
-  it.each([{ editable: false, mode: "Line" }, { editable: false, mode: "Smooth curve" }, { editable: true, mode: "Line" }, { editable: true, mode: "Smooth curve" }])(
-    "previews and repairs a selected section with calibration and one undo: $mode, editable $editable", async ({ editable, mode }) => {
-      setExperimentalTools(true);
-      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
-      vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
-      const restore = installIdentitySvgCoordinates(), host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
-      let trace: TraceStore; function Probe() { trace = useTrace(); return null; }
-      const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
-      try {
-        await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
-        React.act(() => { trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: editable }); trace!.dispatch({ type: "SET_MODE", mode: "edit" }); });
-        const before = trace!.history.index, calibration = trace!.calibration;
-        const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
-        const selectEndpoints = () => {
-          const svg = host.querySelector("svg")!;
-          for (const index of [6, 12]) for (const type of ["pointerdown", "pointerup"]) React.act(() => {
-            const p = rounded[0].outer[index], event = new MouseEvent(type, { bubbles: true, button: 0, clientX: p.x, clientY: p.y, shiftKey: true });
-            Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } }); svg.dispatchEvent(event);
-          });
-        };
-        selectEndpoints(); click("Repair section"); expect(host.querySelector('[data-testid="outline-repair-preview"]')).not.toBeNull();
-        expect(trace!.history.index).toBe(before); click("Cancel repair"); expect(trace!.outline).toEqual(rounded);
-        selectEndpoints(); click("Repair section"); click(mode); click("Apply repair");
-        expect(trace!.history.index).toBe(before + 1); expect(trace!.calibration).toEqual(calibration);
-        expect(!!trace!.curves).toBe(editable);
-        if (editable && mode === "Smooth curve") expect(trace!.curves![0].outer.some(a => a.in || a.out)).toBe(true);
-        const after = trace!.outline, curves = trace!.curves;
-        for (const index of [6, 12]) expect(after[0].outer).toContainEqual(rounded[0].outer[index]);
-        React.act(() => trace!.undo()); expect(trace!.outline).toEqual(rounded); expect(trace!.curves).toBeUndefined(); expect(trace!.calibration).toEqual(calibration);
-        React.act(() => trace!.redo()); expect(trace!.outline).toEqual(after); expect(trace!.curves).toEqual(curves);
-      } finally { React.act(() => root.unmount()); host.remove(); restore(); }
-    });
   it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
     setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

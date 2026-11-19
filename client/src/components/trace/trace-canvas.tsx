@@ -394,7 +394,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const curveEditor = useCurveEditor({
     selectMode: selecting, onExitSelectMode: exitSelectMode,
     advancedTools: advancedEditing,
-    allowSectionFitting: false,
+    allowSectionTools: false,
     allowCurves: store.editableCurves || !!store.curves,
     outline, curves: store.curves, enabled: editing && !erasing,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale,
@@ -403,20 +403,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     fitUnitsPerUnit: mmPerPixel(calibration) ?? 1, fitUnit: mmPerPixel(calibration) ? "mm" : "px",
     startDisabled: (store.margin ?? 0) !== 0,
     startHint: "Set trace margin to zero before editing curves. Use Bin clearance to adjust fit.",
-    onFrameRepair: points => {
-      const bounds = outlineBounds([{ outer: points, holes: [] }]);
-      const width = containerSize.width, height = containerSize.height;
-      if (!bounds || width <= 80 || height <= 160) return;
-      // Frame the chosen boundary above the floating preview controls, so the
-      // replacement and both endpoints remain visible while reviewing it.
-      const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 10) * .5;
-      const reserve = Math.min(300, height * .45);
-      const scale = Math.min((width - 48) / (bounds.maxX - bounds.minX + 2 * padding),
-        Math.max(40, height - reserve - 96) / (bounds.maxY - bounds.minY + 2 * padding));
-      const framedWidth = (width - 48) / scale, framedHeight = (height - 48) / scale;
-      fitToRect({ x: (bounds.minX + bounds.maxX - framedWidth) / 2,
-        y: (bounds.minY + bounds.maxY - framedHeight) / 2 + reserve / (2 * scale), width: framedWidth, height: framedHeight });
-    },
     onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
       outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
@@ -426,8 +412,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,
     onCommit: (next, label) => dispatch({ type: "OUTLINE_COMMITTED", label,
       outline: next.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })) }),
-    onRepairSection: curveEditor.repairSection,
-    repairDisabledReason: store.editableCurves && (store.margin ?? 0) !== 0 ? "Set trace margin to zero to repair with editable curves. Use Bin clearance to adjust fit." : undefined,
     onBlankClick: () => { desktopPoint.clear(); },
     onPinchStart: () => {
       directEditor.cancel();
@@ -1297,12 +1281,12 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
                 <span className="text-xs">Hold and brush over points on one contour. Release to apply.</span>
                 {eraser.error && <span role="alert" className="text-xs text-destructive">{eraser.error}</span>}
               </> : selecting && !curveEditor.previewOpen ? <>
-                <span className="text-xs">Tap points or drag a box to select. Drag selected points to move them.</span>
+                <span className="text-xs">Tap points or drag a box to select. Drag the group to move it, or choose Delete selected points.</span>
                 {curveEditor.active ? curveEditor.selectionControls : pointSelection.controls}
               </> : curveEditor.active ? curveEditor.controls : <>
                 {curveEditor.startButton}
                 <span className="text-xs">{isMobile ? "Tap an edge to add a point. Drag a point to move it." : "Click an edge to add a point. Drag to move. Right-click to remove."}</span>
-                <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Select two endpoints for Repair section and preview a line or curve. Space-drag pans. Done leaves editing.</HelpHint>
+                <HelpHint label="point editing">Click an edge to add a point. Drag a point to move it, or right-click to delete it. Shift-click points or drag a selection box for a group. Drag the group to move it, or choose Delete selected points. Space-drag pans. Done leaves editing.</HelpHint>
                 {selection && !isMobile && <span className="text-xs font-medium">Contour {selection.shapeIndex + 1}{selection.ringIndex >= 0 && ` · Hole ${selection.ringIndex + 1}`}</span>}
                 {!isMobile && desktopPoint.selectedPoint && <Button size="sm" variant="outline" disabled={!desktopPoint.canDelete} onClick={deleteFocusedPoint}>Delete point</Button>}
                 {isMobile && directEditor.selectedPoint && <Button size="sm" variant="outline" disabled={!directEditor.canRemove} onClick={directEditor.removeSelected}>Delete point</Button>}

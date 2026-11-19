@@ -50,7 +50,7 @@ The following advanced controls are available in Trace with experimental feature
 - Shift-click toggles points. Drag empty space for a box selection. For tap selection,
   use **Select multiple** in Trace or **Select points** in Bin. Move or delete selected
   points together. Each ring keeps at least three points. **Add manual contour** starts a separate four-point trace.
-- **Repair section** accepts two endpoints or a continuous run. Preview a Line
+- In Bin, **Repair section** accepts two endpoints or a continuous run. Preview a Line
   or Smooth curve, choose Other side or adjust Bend, then Apply/Cancel. Repair
   intentionally replaces that section; it has no fitting-deviation claim.
 - Selection and navigation do not make history. Completed geometry gestures

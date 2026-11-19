@@ -83,7 +83,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps): JSX.Element
               to adjust sensitivity.
               <strong> Detected outline</strong> compares the earlier detection without changing your work;
               <strong> Use detected outline</strong> restores it as one Undo step.
-              Turn on <strong>Editable curves</strong> to drag curve handles. For the point eraser, multi-select, section repair, smoothing, or contour transforms, enable
+              Turn on <strong>Editable curves</strong> to drag curve handles. For the point eraser, multi-select, smoothing, or contour transforms, enable
               <strong> App settings → Enable experimental features</strong>.
               <strong> Restart outline detection</strong> resets detection settings while keeping the photo,
               scale, region, and margin. Undo restores the previous result.

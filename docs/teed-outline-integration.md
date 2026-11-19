@@ -144,8 +144,7 @@ outline or re-detect and replace edits; Undo can restore the previous source. De
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
-right-click a point to delete it. With experimental features on, Shift-click or box-select multiple points. **Select multiple** also works without a keyboard. Switch back to **Edit points** for individual edits, or choose **Done** to leave the editor. **Repair section** replaces a
-selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
+right-click a point to delete it. With experimental features on, Shift-click or box-select multiple points. In **Select multiple**, tap points or drag a box to select them. Drag the group to move it, or choose **Delete selected points**. Switch back to **Edit points** for individual edits, or choose **Done** to leave the editor. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,
 not from the physical tool and not pocket clearance. Review tool tips, recesses,
