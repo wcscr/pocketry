@@ -382,11 +382,14 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
   const curveTolerance = CURVE_TOLERANCE_MM / (mmPerPixel(calibration) ?? 0.1);
   const eraser = usePointEraser({
     enabled: erasing && !processing && !detectedReview.showing, source: cleanupSource, outline,
+    activeRing: selection,
     revision: history, scale: viewport.transform.scale, tolerance: curveTolerance,
     fromClient: toImage, viewport: viewport.handlers,
     onCommit: curves => dispatch({ type: "ERASE_OUTLINE_POINTS", curves, gesture: { history, outline } }),
   });
   const curveEditor = useCurveEditor({
+    activeRing: selection,
+    onSelectRing: ref => { if (!sameRingRef(ref, selection)) dispatch({ type: "SELECT_RING", selection: ref }); },
     selectMode: selecting, onExitSelectMode: exitSelectMode,
     advancedTools: advancedEditing,
     allowSectionTools: false,
@@ -401,7 +404,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     onCommit: (curves, label) => store.editableCurves || store.curves ? dispatch({ type: "CURVES_COMMITTED", curves, label }) : dispatch({ type: "OUTLINE_COMMITTED",
       outline: curves.map(s => ({ outer: s.outer.map(a => a.point), holes: s.holes.map(r => r.map(a => a.point)) })), label }),
   });
-  const pointSelection = usePointSelection({ source: cleanupSource, selectMode: selecting, onExitSelectMode: exitSelectMode,
+  const pointSelection = usePointSelection({ source: cleanupSource, activeRing: selection, selectMode: selecting, onExitSelectMode: exitSelectMode,
     enabled: (selecting || advancedEditing) && !curveEditor.active && editing && !erasing,
     contextKey: String(store.sourceRevision), scale: viewport.transform.scale, fromClient: toImage, toCanvas: p => p,
     viewport: viewport.handlers, panRequested: viewport.isSpaceHeld,

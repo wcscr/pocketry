@@ -14,6 +14,8 @@ import { useOutlineRepair, type RepairSection } from "./use-outline-repair";
 type Target = { kind: "edge" | "point" | "in" | "out"; index: number };
 interface Options {
   outline: Outline;
+  activeRing?: RingRef | null;
+  onSelectRing?: (ref: RingRef) => void;
   allowOutlineSimplification?: boolean;
   allowSectionTools?: boolean;
   curves?: CurveOutline;
@@ -49,12 +51,14 @@ function handlePosition(ring: CurveRing, index: number, side: "in" | "out"): Poi
 
 /** Shared editing interaction. All gesture drafts are local until pointer-up;
  * cancel, selection and pointer clicks never create source revisions. */
-export function useCurveEditor({ outline, curves, allowOutlineSimplification, allowSectionTools = true, enabled, contextKey, scale, tolerance,
+export function useCurveEditor({ outline, curves, activeRing, onSelectRing, allowOutlineSimplification, allowSectionTools = true, enabled, contextKey, scale, tolerance,
   fromClient, toCanvas = identity, onCommit, viewport, panRequested, startDisabled, startHint, onDone, allowCurves = true, advancedTools = true,
   fitUnitsPerUnit = 1, fitUnit = "mm", selectMode, onExitSelectMode }: Options) {
   const docked = selectMode !== undefined;
   const [started, setStarted] = useState(false);
-  const [ref, setRef] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
+  const [localRing, setLocalRing] = useState<RingRef>({ shapeIndex: 0, ringIndex: -1 });
+  const ref = activeRing ?? localRing;
+  const setRef = onSelectRing ?? setLocalRing;
   const [target, setTarget] = useState<Target>({ kind: "edge", index: 0 });
   const [draft, setDraft] = useState<CurveOutline | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +73,7 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, al
   const capture = useRef<SVGSVGElement | null>(null);
   const pointers = useRef(new Set<number>());
   const gesture = useRef<{ id: number; source: CurveOutline; ref: RingRef; target: Target; start: Point; client: Point; t: number; latest: CurveOutline | null } | null>(null);
-  useEffect(() => { cancel(); pointers.current.clear(); setStarted(false); setError(null); setSectionRequest(undefined); setRef({ shapeIndex: 0, ringIndex: -1 }); setTarget({ kind: "edge", index: 0 }); }, [contextKey, enabled, advancedTools]);
+  useEffect(() => { cancel(); pointers.current.clear(); setStarted(false); setError(null); setSectionRequest(undefined); setLocalRing({ shapeIndex: 0, ringIndex: -1 }); setTarget({ kind: "edge", index: 0 }); }, [contextKey, enabled, advancedTools]);
   useEffect(() => { setDraft(null); gesture.current = null; }, [curves, outline]);
   const cancel = () => { const drag = gesture.current; gesture.current = null; setDraft(null); if (drag && capture.current?.hasPointerCapture?.(drag.id)) capture.current.releasePointerCapture(drag.id); };
   useEffect(() => {
@@ -108,7 +112,8 @@ export function useCurveEditor({ outline, curves, allowOutlineSimplification, al
   useEffect(() => {
     if (sectionRequest && active) { if (sectionRequest.repair) repair.start(sectionRequest); else fitting.start("range", sectionRequest); setSectionRequest(undefined); }
   }, [sectionRequest, active]);
-  const points = usePointSelection({ source: base, enabled: active && (advancedTools || !!selectMode) && !previewOpen, contextKey, scale, selectMode, onExitSelectMode,
+  const points = usePointSelection({ source: base, activeRing: activeRing === undefined ? ringRef : activeRing,
+    enabled: active && (advancedTools || !!selectMode) && !previewOpen, contextKey, scale, selectMode, onExitSelectMode,
     fromClient, toCanvas, viewport, panRequested, onCommit: commit, onSmoothSection: allowSectionTools ? fitSection : undefined,
     onRepairSection: allowSectionTools ? repairSection : undefined,
     repairDisabledReason: startDisabled && (allowCurves || curves) ? startHint : undefined,

@@ -7,6 +7,7 @@ import type { Outline, Point, RingRef } from "@shared/geometry/types";
 import type { ViewportPointerHandlers } from "@/hooks/use-viewport-transform";
 import { syncCurveHoleEdits, traceRingKey } from "@/lib/geometry/ring-key";
 import { sameRingRef } from "@/lib/geometry/outline";
+import { compareRingHitOrder } from "@/lib/geometry/hit-test";
 
 type CanvasEvent = PointerEvent<SVGSVGElement>;
 interface Stroke {
@@ -23,8 +24,9 @@ interface Stroke {
 const RADIUS_PX = 10;
 
 /** Local gesture preview. Only release commits geometry, once for the entire stroke. */
-export function usePointEraser({ enabled, source, outline, revision, scale, tolerance, fromClient, viewport, onCommit }: {
+export function usePointEraser({ enabled, source, outline, activeRing, revision, scale, tolerance, fromClient, viewport, onCommit }: {
   enabled: boolean; source: CurveOutline; outline: Outline; revision: object; scale: number; tolerance: number;
+  activeRing: RingRef | null;
   fromClient: (x: number, y: number) => Point | null;
   viewport: ViewportPointerHandlers;
   onCommit: (next: CurveOutline) => void;
@@ -67,7 +69,7 @@ export function usePointEraser({ enabled, source, outline, revision, scale, tole
     }
     // Lock to the first touched ring so a stroke along a thin wall cannot
     // also erase points from a nearby hole or another tool.
-    hits.sort((a, b) => a.along - b.along || a.distance - b.distance);
+    hits.sort((a, b) => a.along - b.along || a.distance - b.distance || compareRingHitOrder(a.ref, b.ref, activeRing));
     for (const { ref } of hits) {
       current.ring ??= ref;
       if (!sameRingRef(current.ring, ref)) continue;

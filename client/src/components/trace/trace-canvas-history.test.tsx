@@ -269,15 +269,106 @@ describe("direct Trace contour edits", () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1, primary = true) {
+  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1, primary = true, modifiers: MouseEventInit = {}) {
     React.act(() => {
-      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y, ...modifiers });
       Object.defineProperties(event, {
         pointerType: { value: pointerType }, pointerId: { value: id }, isPrimary: { value: primary },
       });
       target.dispatchEvent(event);
     });
   }
+
+  it.each([
+    ["polygon", "Select multiple"], ["polygon", "Erase points"],
+    ["curves", "Select multiple"], ["curves", "Erase points"],
+  ])("targets the active overlapping %s contour with %s", (representation, tool) => {
+    React.act(() => {
+      if (representation === "curves") trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(trace.outline), label: "Curves" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+    });
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name)!;
+    const original = trace.outline;
+    const square = original[2].outer;
+    expect(original[1].outer).toEqual(square);
+    expect(trace.selection?.shapeIndex).toBe(2);
+    React.act(() => button(tool).click());
+    for (const active of [2, 1, 0]) {
+      React.act(() => trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: active, ringIndex: -1 } }));
+      // The last-painted curve anchor can belong to the ring above the active one.
+      const target = svg.querySelector('[data-curve-kind="point"][data-curve-shape="2"][data-curve-index="0"]') ?? svg;
+      pointer("pointerdown", square[0].x, square[0].y, target);
+      pointer("pointerup", square[0].x, square[0].y);
+      if (tool === "Select multiple") React.act(() => button("Delete point").click());
+      const changed = active === 1 ? 1 : 2; // With an unrelated ring active, the topmost square wins.
+      expect(trace.outline).toEqual(original.map((shape, i) => i === changed ? { ...shape, outer: square.slice(1) } : shape));
+      React.act(() => trace.undo());
+      expect(trace.outline).toEqual(original);
+    }
+  });
+
+  it.each(["Select multiple", "Erase points"])("keeps the nearer point when the active ring is also within reach of %s", tool => {
+    const square = detected[0].outer;
+    const offset = square.map(({ x, y }) => ({ x: x + 3, y }));
+    const outline = [{ outer: square, holes: [] }, { outer: offset, holes: [] }];
+    React.act(() => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline });
+      trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } });
+    });
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name)!;
+    React.act(() => button(tool).click());
+    pointer("pointerdown", offset[0].x, offset[0].y);
+    pointer("pointerup", offset[0].x, offset[0].y);
+    if (tool === "Select multiple") React.act(() => button("Delete point").click());
+    expect(trace.outline).toEqual([outline[0], { outer: offset.slice(1), holes: [] }]);
+  });
+
+  it("keeps the curve contour chosen by number when switching to the eraser", () => {
+    setExperimentalTools(true);
+    React.act(() => {
+      trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(trace.outline), label: "Curves" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+    });
+    const chooser = document.querySelector<HTMLSelectElement>('[aria-label="Curve contour"]')!;
+    expect(chooser.value).toBe("2:-1");
+    React.act(() => { chooser.value = "1:-1"; chooser.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(trace.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    const original = trace.outline;
+    React.act(() => Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Erase points")!.click());
+    const p = original[1].outer[0];
+    pointer("pointerdown", p.x, p.y);
+    pointer("pointerup", p.x, p.y);
+    expect(trace.outline[1].outer).toEqual(original[1].outer.slice(1));
+    expect(trace.outline[2]).toEqual(original[2]);
+  });
+
+  it.each(["polygon", "curves"])("adds %s points with a Shift-drag box without panning", representation => {
+    const outline = [{ outer: [{ x: 10, y: 10 }, { x: 40, y: 10 }, { x: 80, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    React.act(() => select.click());
+    const history = trace.history;
+    const scene = svg.querySelector("g[transform]")!;
+    const before = scene.getAttribute("transform");
+    pointer("pointerdown", 90, 90);
+    pointer("pointerup", 90, 90);
+    const shiftPointer = (type: string, x: number, y: number) => pointer(type, x, y, svg, "mouse", 1, true, { shiftKey: true });
+    shiftPointer("pointerdown", 25, 30);
+    shiftPointer("pointermove", 60, 15);
+    shiftPointer("pointermove", 85, 5);
+    shiftPointer("pointerup", 85, 5);
+    expect(scene.getAttribute("transform")).toBe(before);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(3);
+    expect(trace.history).toBe(history);
+    // Moving the group identifies the original point and both newly selected points.
+    pointer("pointerdown", 90, 90);
+    pointer("pointermove", 96, 96);
+    pointer("pointerup", 96, 96);
+    expect(trace.outline[0].outer).toEqual([{ x: 10, y: 10 }, { x: 46, y: 16 }, { x: 86, y: 16 }, { x: 96, y: 96 }, { x: 10, y: 90 }]);
+  });
 
   it.each(["polygon", "curves"])("switches tools in place and discards unfinished %s edits", representation => {
     const source = [{ outer: [10, 45, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]), holes: [] }];

@@ -57,11 +57,17 @@ export interface UseViewportTransformOptions extends FitInput {
   panEnabled?: boolean;
 }
 
+interface PointerDownOptions {
+  pan: boolean;
+  /** Selection boxes use Shift to add points and still register touches for pinch. */
+  allowShiftPan?: boolean;
+}
+
 export interface ViewportPointerHandlers {
   /** Hand an in-progress one-pointer edit gesture over to panning. */
   startPan: React.PointerEventHandler;
   /** An editor can explicitly pan a drag that missed its handles. */
-  onPointerDown: (event: React.PointerEvent, options?: { pan: boolean }) => void;
+  onPointerDown: (event: React.PointerEvent, options?: PointerDownOptions) => void;
   onPointerMove: React.PointerEventHandler;
   onPointerUp: React.PointerEventHandler;
   onPointerCancel: React.PointerEventHandler;
@@ -648,14 +654,14 @@ export function useViewportTransform(
   }, []);
 
   const onPointerDown = React.useCallback(
-    (event: React.PointerEvent, options?: { pan: boolean }) => {
+    (event: React.PointerEvent, options?: PointerDownOptions) => {
       if (!surfaceRef.current) surfaceRef.current = event.currentTarget;
       const pointers = pointersRef.current;
       const isTouch = event.pointerType === "touch";
       const isPrimaryButton = event.button === 0;
       const startsPan =
         event.button === 1 || // middle-drag: the universal pan chord
-        (isPrimaryButton && (event.shiftKey || spaceHeldRef.current)) ||
+        (isPrimaryButton && (spaceHeldRef.current || (event.shiftKey && options?.allowShiftPan !== false))) ||
         (isPrimaryButton && (options?.pan ?? live.current.panEnabled));
 
       // Touch pointers are implicitly captured by the browser, so their

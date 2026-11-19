@@ -2,15 +2,17 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { curveControls, curvePath, curveRing, evaluateCurve, type CurveOutline } from "@shared/geometry/curves";
 import { curvePoints, deleteCurvePoints, moveCurvePoints, pointSelectionKey, selectedCurveSection, type CurvePointRef } from "@shared/geometry/curve-point-selection";
 import { distanceToSegment } from "@shared/geometry/rings";
-import type { Point } from "@shared/geometry/types";
+import type { Point, RingRef } from "@shared/geometry/types";
 import type { ViewportPointerHandlers } from "@/hooks/use-viewport-transform";
 import { canHandleCanvasShortcut } from "@/lib/canvas-keyboard";
+import { compareRingHitOrder } from "@/lib/geometry/hit-test";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import type { RepairSection } from "./use-outline-repair";
 
 interface Options {
   source: CurveOutline;
+  activeRing?: RingRef | null;
   enabled: boolean;
   contextKey: string;
   /** Trace owns the tool choice. Other editors keep the local Select points toggle. */
@@ -115,7 +117,10 @@ export function usePointSelection(options: Options) {
     let hit: CurvePointRef | undefined, distance = radius;
     for (const ref of points) {
       const q = curveRing(source, ref)![ref.index].point, d = Math.hypot(q.x - p.x, q.y - p.y);
-      if (d < distance) { hit = ref; distance = d; }
+      if (d < distance || (d === distance && hit && compareRingHitOrder(ref, hit, options.activeRing ?? null) < 0)) {
+        hit = ref;
+        distance = d;
+      }
     }
     if (hit && event.shiftKey) { event.preventDefault(); toggle(hit); return true; }
     const selectedHit = hit && chosen.has(pointSelectionKey(hit));
@@ -139,7 +144,7 @@ export function usePointSelection(options: Options) {
     gesture.current = { id: event.pointerId, kind: hit ? "move" : "box", source, start: p,
       client: { x: event.clientX, y: event.clientY }, selection: selected, toggle: selectMode ? hit : undefined, moved: false };
     capture.current = event.currentTarget; event.currentTarget.setPointerCapture?.(event.pointerId);
-    viewport.onPointerDown(event, { pan: false });
+    viewport.onPointerDown(event, { pan: false, allowShiftPan: false });
     return true;
   };
   const move = (event: ReactPointerEvent<SVGSVGElement>): boolean => {
