@@ -34,6 +34,24 @@ Removal can still erase a short dark object wholly inside a text area or an
 object crossing a solid marker area. Use **Edit outline** to restore the
 missing edge over the photo.
 
+In the ruled area, removal follows the 100 mm bar and its ticks through a
+shadow. A handle's shadow is as dark as a gray handle, so the bar inside it was
+kept as a line beside a solid part and stayed attached to the outline. A handle
+hides the bar and a shadow does not. On the rows where the bar was erased, a
+kept stroke no taller than the bar is erased too, and so is a narrow upright
+stroke that stands on the bar and ends inside the area. When the region's edge
+cuts the bar off, ticks are taken from that edge instead. Nothing else beside a
+dark part is touched. A part of a tool thinner than about 1.25 mm that crosses
+the bar itself inside a shadow can still lose the bar's few rows.
+
+A thin spur can still stay attached where the edge of a soft shadow runs into
+the caption or the bar, for example a hook of about 12 mm under a handle tip.
+The shadow's edge is not printing, so there is nothing there to remove, and a
+thin part of the outline without color support is kept on purpose: it can be a
+bright metal tip. Removing such spurs inside the printed areas would shorten a
+thin bright tip that lies in a line of text, so the spur is left for the user to
+edit away.
+
 ## Reconstruction
 
 Paper is found by flooding inward from the region's border through pixels the
@@ -45,6 +63,45 @@ area lay behind it, such as a highlight on a dark part or a clear barrel, and
 the tool came out hollowed or with an interior loop. The cost is that a real
 opening that narrow is closed too. That can add a little material at a tight
 notch; it cannot remove any.
+
+A mask that meets two opposite sides of the region is treated as clipped by the
+region. That used to include a mask whose only contact was a thin line: a stroke
+of printing left on the paper, a shadow line, or the corner of a tool drawn
+close to the region's edge. The general recovery keeps only areas with color
+support, so a bright metal part was removed or the outline was refused, and
+color contrast, which cannot see bright metal on white paper, took over. A
+2 px change of the region decided between a whole outline and fragments.
+
+Now parts of the mask narrower than five model pixels count as lines. When
+nothing wider meets two opposite sides, lines without color support that reach a
+side are removed and the rest of the mask is kept (`thin-contact` in the
+detection report). The general recovery still decides when a wide part spans the
+region, when two such lines reach opposite sides at the same height or in the
+same column (one printed line crossing the region, which can close paper in with
+the tool), and when a line with color support still spans the region afterward.
+A tool the region cuts on one side is accepted as cut once the line on the other
+side is gone. Manual sensitivity does not run either recovery.
+
+Color evidence is not given up for a release. A line with color support on 7 %
+of its pixels is left alone, and the release of any other line stops at a
+connected run of at least eight color-supported pixels, the measure the general
+recovery uses for lost evidence. A shaft that is colored only near its handle
+loses its colorless outer end, as it does in the general recovery, and keeps
+the colored stretch.
+
+One faint line that crosses two tools at a slope is released at both ends, but
+its middle stretch reaches no side. A stretch without color support that stays
+on the straight course between two released contacts, and joins two wide,
+color-supported pieces, is removed as well, so the two tools are not traced as
+one outline. If a tool's own thin bright neck happens to lie on such a course,
+the neck is removed and the tool comes out in two pieces; nothing else is taken.
+
+Two limits remain. A faint line that crosses a gap in a single tool at a slope,
+such as a crease in the paper, keeps the paper it closes in: that paper cannot
+be told from a bright metal part. And a line that joins two tools is recognized
+only by its two released ends and removed only where it has no color support,
+so a bent line, one that ends at the second tool, or one that picks up color
+between the tools still joins them.
 
 One area-averaged retry still runs when automatic reconstruction leaves more
 than 5% of the seeded material uncovered. It costs a second inference and is

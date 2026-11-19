@@ -81,6 +81,49 @@ describe("eraseSheetInk", () => {
     for (let y = 0; y < 100; y++) { expect(at(result, 110, y)).toBe(TOOL); expect(at(result, 88, y)).toBe(120); }
   });
 
+  describe("where a handle's shadow lies across the ruled bar", () => {
+    const SHADOW = 130;
+    const bar: SheetInkRegion = { x: 10, y: 60, width: 200, height: 24, kind: "rule" };
+    const line = block(15, 78, 205, 80, INK);
+    // The handle ends above the bar and its shadow runs on down across it.
+    const handle = block(100, 0, 140, 50, TOOL), shadow = block(96, 50, 146, 100, SHADOW);
+
+    it("removes the bar and the ticks inside the shadow, down to the shadow's own tone", () => {
+      const ticks: Paint[] = [block(60, 64, 61, 78, INK), block(120, 64, 121, 78, INK), block(132, 72, 133, 78, INK)];
+      const result = eraseSheetInk(photo(220, 100, shadow, line, ...ticks, handle), ink(bar));
+      for (const x of [20, 60, 90, 150, 200]) expect(at(result, x, 78)).toBe(PAPER);
+      for (let x = 96; x < 146; x++) for (let y = 62; y < 84; y++) expect(at(result, x, y)).toBe(SHADOW);
+      expect(at(result, 60, 70)).toBe(PAPER);
+      // The handle and the rest of its shadow are untouched.
+      for (let y = 0; y < 50; y++) expect(at(result, 120, y)).toBe(TOOL);
+      for (let y = 84; y < 100; y++) expect(at(result, 120, y)).toBe(SHADOW);
+    });
+
+    it("removes tick stubs in the shadow when the photo ends above the bar", () => {
+      // The selection's lower edge cuts the printed area: the ticks are in view, the bar is not.
+      const ticks: Paint[] = [block(60, 64, 61, 76, INK), block(120, 64, 121, 76, INK)];
+      const result = eraseSheetInk(photo(220, 76, block(96, 50, 146, 76, SHADOW), ...ticks, handle), ink(bar));
+      for (let y = 62; y < 76; y++) { expect(at(result, 120, y)).toBe(SHADOW); expect(at(result, 60, y)).toBe(PAPER); }
+    });
+
+    it("keeps a thin part of a tool lying beside the bar in the shadow", () => {
+      // A wire through the tick zone, out of the shadow and out of the printed area.
+      const wire = block(96, 68, 220, 71, TOOL);
+      const result = eraseSheetInk(photo(220, 100, shadow, line, handle, wire), ink(bar));
+      for (let x = 96; x < 220; x++) expect(at(result, x, 69)).toBe(TOOL);
+      expect(at(result, 120, 78)).toBe(SHADOW);
+    });
+
+    it("keeps a thin tip that ends in the shadow short of the bar, and a wider dark part standing on it", () => {
+      const tip = block(118, 64, 121, 74, TOOL), foot = block(126, 70, 138, 78, TOOL);
+      const result = eraseSheetInk(photo(220, 100, shadow, line, handle, tip, foot), ink(bar));
+      for (let y = 64; y < 74; y++) expect(at(result, 119, y)).toBe(TOOL);
+      for (let y = 70; y < 78; y++) expect(at(result, 132, y)).toBe(TOOL);
+      // The bar is still followed through the rest of the shadow.
+      expect(at(result, 105, 78)).toBe(SHADOW);
+    });
+  });
+
   it("fills a marker with the paper around it", () => {
     const marker: SheetInkRegion = { x: 150, y: 10, width: 40, height: 40, kind: "solid" };
     const result = eraseSheetInk(photo(220, 100, block(152, 12, 188, 48, 0), block(160, 20, 170, 30, 255)), ink(marker));

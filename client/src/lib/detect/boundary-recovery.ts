@@ -2,6 +2,7 @@
 import {
   maskFromEdges, labelMaskComponents, scoreFromEdgeMask, type EdgeMask,
 } from "./edge-mask";
+import { morph } from "./edge-cleanup";
 
 export interface BoundaryRecoveryReport {
   status: 'unchanged' | 'recovered' | 'rejected';
@@ -92,6 +93,184 @@ function broadSeededBorder(mask: Uint8Array, seeds: Uint8Array, width: number, h
 }
 
 /**
+ * Connected runs of marked pixels that are evidence rather than noise: at least
+ * eight pixels, and at least eight pixels long. The lost-seed veto of the general
+ * recovery and the color support of a thin line share this measure.
+ */
+function longRuns(marked: Uint8Array, width: number, height: number): { labels: Int32Array; long: boolean[] } {
+  const runs = labelMaskComponents(marked, width, height);
+  const minX = new Int32Array(runs.sizes.length).fill(width), minY = new Int32Array(runs.sizes.length).fill(height);
+  const maxX = new Int32Array(runs.sizes.length), maxY = new Int32Array(runs.sizes.length);
+  for (let i = 0; i < marked.length; i++) if (runs.labels[i]) {
+    const id = runs.labels[i], x = i % width, y = Math.floor(i / width);
+    minX[id] = Math.min(minX[id], x); maxX[id] = Math.max(maxX[id], x);
+    minY[id] = Math.min(minY[id], y); maxY[id] = Math.max(maxY[id], y);
+  }
+  return { labels: runs.labels, long: runs.sizes.map((size, id) => id > 0 && size >= 8 &&
+    Math.max(maxX[id] - minX[id] + 1, maxY[id] - minY[id] + 1) >= 8) };
+}
+
+/** Parts of a mask narrower than this many model pixels across are lines, not the body of a tool. */
+const BODY_RADIUS = 2;
+
+/**
+ * A mask that meets two opposite selection sides only by thin lines is not a
+ * clipped tool.
+ *
+ * A tool the selection really cuts meets the side along a broad run. A printed
+ * stroke left on the paper, a shadow line, or the corner of a tool drawn close
+ * to the side meets it by a line a few pixels wide, and used to cost the whole
+ * outline: the general recovery below keeps only areas with color support, so
+ * a light metal part was removed, or the result was refused and color
+ * detection, which cannot see light metal on white paper, took over.
+ *
+ * Here the body is what survives an opening. When no component's body meets
+ * two opposite sides, the lines that stand clear of the body, reach a side and
+ * have no color support are released from that side inward, and everything else
+ * is kept as it was.
+ *
+ * Color evidence is not given up for this. A line with seeds on 7 % of its
+ * pixels is not touched, and a release stops at a long run of seeds on the line
+ * (`longRuns`): a shaft that is colored only near its handle loses its outer,
+ * colorless end, as it does in the general recovery, and keeps the colored
+ * stretch and everything behind it.
+ *
+ * One line that crosses two tools is released at both ends, but its middle
+ * stretch reaches no side. A stretch without color support that stays on the
+ * straight course between two released contacts, and is all that joins two
+ * wide, color-supported pieces, is taken out as well, so the tools are not
+ * traced as one outline. Only that stretch goes: the general recovery would
+ * separate the tools too, but at the cost of every part without color support.
+ *
+ * Returns `undefined`, leaving the case to the general recovery, when:
+ * - a body does span the selection: the tool is clipped, or an enclosure is false;
+ * - two released lines reach opposite sides at the same height or in the same
+ *   column: that is one printed line crossing the selection, which can close
+ *   paper in with the tool, and the general recovery takes the paper out;
+ * - the mask still meets two opposite sides afterward, by a line with color
+ *   support or one whose color lies at the side: a thin colored part the
+ *   selection cuts.
+ */
+function releaseThinContacts(mask: Uint8Array, seeds: Uint8Array, width: number, height: number): { mask: Uint8Array; removed: number; lostSeeds: number } | undefined {
+  const body = morph(morph(mask, width, height, BODY_RADIUS, false), width, height, BODY_RADIUS, true);
+  const whole = labelMaskComponents(mask, width, height), sides = new Uint8Array(whole.sizes.length);
+  /** Every border pixel with its side (1 top, 2 bottom, 4 left, 8 right) and its place along that side. */
+  const onBorder = (visit: (i: number, side: number, along: number) => void): void => {
+    for (let x = 0; x < width; x++) { visit(x, 1, x); visit(mask.length - width + x, 2, x); }
+    for (let y = 0; y < height; y++) { visit(y * width, 4, y); visit(y * width + width - 1, 8, y); }
+  };
+  onBorder((i, side) => { if (body[i]) sides[whole.labels[i]] |= side; });
+  if (sides.some((s, id) => id > 0 && ((s & 3) === 3 || (s & 12) === 12))) return undefined;
+
+  // A line: mask more than a pixel clear of every body, so the ragged fringe of an edge is not one.
+  const beside = morph(body, width, height, 1, true);
+  const thin = Uint8Array.from(mask, (v, i) => v && !beside[i] ? 1 : 0);
+  const lines = labelMaskComponents(thin, width, height);
+  const support = new Uint32Array(lines.sizes.length);
+  for (let i = 0; i < mask.length; i++) if (lines.labels[i] && seeds[i]) support[lines.labels[i]]++;
+  const unsupported = (id: number) => id > 0 && support[id] < Math.max(1, lines.sizes[id] * .07);
+  // Long runs of color on a line, widened to cover the line across: a release does not pass them.
+  const runs = longRuns(Uint8Array.from(thin, (v, i) => v && seeds[i] ? 1 : 0), width, height);
+  const colored = Uint8Array.from(thin, (_, i) => runs.long[runs.labels[i]] ? 1 : 0);
+  const stop = morph(colored, width, height, BODY_RADIUS + 1, true);
+
+  const gone = new Uint8Array(mask.length), queue = new Uint32Array(mask.length);
+  let tail = 0;
+  const contacts: Record<number, number[]> = { 1: [], 2: [], 4: [], 8: [] };
+  /** Where a released line meets a side: one entry for each unbroken run of its border pixels, summed for a mean. */
+  type End = { side: number; line: number; last: number; x: number; y: number; count: number };
+  const ends: End[] = [], open: Record<number, End | undefined> = {};
+  onBorder((i, side, along) => {
+    const id = lines.labels[i];
+    if (!unsupported(id) || stop[i]) return;
+    contacts[side].push(along);
+    if (!gone[i]) { gone[i] = 1; queue[tail++] = i; }
+    let end = open[side];
+    if (!end || end.line !== id || along !== end.last + 1) { end = open[side] = { side, line: id, last: along, x: 0, y: 0, count: 0 }; ends.push(end); }
+    end.last = along; end.x += i % width; end.y += Math.floor(i / width); end.count++;
+  });
+  const aligned = (a: number[], b: number[]) => a.some((p) => b.some((q) => Math.abs(p - q) <= 2 * BODY_RADIUS));
+  if (aligned(contacts[1], contacts[2]) || aligned(contacts[4], contacts[8])) return undefined;
+
+  // Release each of those lines from its side contacts inward, as far as it runs without a long run of color.
+  for (let head = 0; head < tail; head++) {
+    const p = queue[head], x = p % width, y = Math.floor(p / width), id = lines.labels[p];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+      const j = yy * width + xx;
+      if (lines.labels[j] === id && !stop[j] && !gone[j]) { gone[j] = 1; queue[tail++] = j; }
+    }
+  }
+  const released = Uint8Array.from(mask, (v, i) => v && !gone[i] ? 1 : 0);
+  if (oppositeClipping(released, width, height)) return undefined;
+
+  // Stretches of line that stay. One with color support is tool material, whatever its course.
+  const stay = labelMaskComponents(Uint8Array.from(thin, (v, i) => v && !gone[i] ? 1 : 0), width, height);
+  const stretches: number[][] = stay.sizes.map(() => []), seeded = new Uint32Array(stay.sizes.length), hasColor = new Uint8Array(stay.sizes.length);
+  for (let i = 0; i < mask.length; i++) {
+    const id = stay.labels[i];
+    if (!id) continue;
+    stretches[id].push(i); seeded[id] += seeds[i];
+    if (colored[i]) hasColor[id] = 1;
+  }
+  for (let id = 1; id < stretches.length; id++) if (seeded[id] >= Math.max(1, stretches[id].length * .07)) hasColor[id] = 1;
+  // Which of them lie wholly on the straight course between two released contacts on different sides.
+  const onCourse = new Uint8Array(stay.sizes.length);
+  for (let a = 0; a < ends.length; a++) for (let b = a + 1; b < ends.length; b++) {
+    const p = ends[a], q = ends[b];
+    if (p.side === q.side) continue;
+    const px = p.x / p.count, py = p.y / p.count, dx = q.x / q.count - px, dy = q.y / q.count - py, length = Math.hypot(dx, dy);
+    if (length < 1) continue;
+    const near = (i: number): boolean => {
+      const rx = i % width - px, ry = Math.floor(i / width) - py, along = (rx * dx + ry * dy) / length;
+      return along >= 0 && along <= length && Math.abs(rx * dy - ry * dx) / length <= BODY_RADIUS + 1;
+    };
+    for (let id = 1; id < stretches.length; id++) {
+      const pixels = stretches[id];
+      if (onCourse[id] || hasColor[id] || !near(pixels[0]) || !near(pixels[pixels.length - 1])) continue;
+      if (pixels.every(near)) onCourse[id] = 1;
+    }
+  }
+  if (onCourse.some(Boolean)) {
+    // Take those stretches away and see what falls apart: two or more wide,
+    // color-supported parts of one piece were tools of their own.
+    const apart = labelMaskComponents(Uint8Array.from(released, (v, i) => v && !onCourse[stay.labels[i]] ? 1 : 0), width, height);
+    const joined = labelMaskComponents(released, width, height);
+    const color = new Uint32Array(apart.sizes.length), wide = new Uint8Array(apart.sizes.length), piece = new Int32Array(apart.sizes.length);
+    for (let i = 0; i < released.length; i++) {
+      const id = apart.labels[i];
+      if (!id) continue;
+      color[id] += seeds[i]; wide[id] |= body[i]; piece[id] = joined.labels[i];
+    }
+    const tools = new Uint32Array(joined.sizes.length);
+    for (let id = 1; id < apart.sizes.length; id++) if (wide[id] && color[id] >= Math.max(3, apart.sizes[id] * .07)) tools[piece[id]]++;
+    // In such a piece, a stretch that touches two of the parts is a join; one that hangs from a single part stays.
+    for (let id = 1; id < stretches.length; id++) {
+      const pixels = stretches[id];
+      if (!onCourse[id] || tools[joined.labels[pixels[0]]] < 2) continue;
+      let first = 0, joins = false;
+      for (const i of pixels) {
+        const x = i % width, y = Math.floor(i / width);
+        for (let dy = -1; dy <= 1 && !joins; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+          const part = apart.labels[yy * width + xx];
+          if (!part) continue;
+          if (!first) first = part;
+          else if (part !== first) { joins = true; break; }
+        }
+        if (joins) break;
+      }
+      if (joins) for (const i of pixels) { released[i] = 0; gone[i] = 1; }
+    }
+  }
+  let removed = 0, lostSeeds = 0;
+  for (let i = 0; i < mask.length; i++) if (gone[i]) { removed++; lostSeeds += seeds[i]; }
+  return { mask: released, removed, lostSeeds };
+}
+
+/**
  * Fixed general candidate for opposite-side clipping failures only. It preserves
  * both raw and gap-repaired enclosed regions, plus seeded barrier pixels.
  * Guarded removals are a subset of the original mask, so they cannot merge two
@@ -107,6 +286,12 @@ export function recoverClippedBoundary(edges: Float32Array, width: number, heigh
   });
   const area = original.mask.reduce((n, v) => n + v, 0);
   if (area > original.mask.length * .92 || !oppositeClipping(original.mask, width, height)) return reject('not-an-isolated-clipping-retry');
+  const released = releaseThinContacts(original.mask, seeds, width, height);
+  if (released) {
+    return { mask: released.mask, score: scoreFromEdgeMask(released.mask, width, height), recovery: {
+      status: 'recovered', reason: 'thin-contact', removedPixels: released.removed, lostSupportedPixels: released.lostSeeds, requiresReview: true,
+    } };
+  }
   if (broadSeededBorder(original.mask, seeds, width, height)) return reject('substantial-foreground-at-crop-border');
   const barrier = Uint8Array.from(edges, value => value >= threshold ? 1 : 0);
   const closed = closeSmallGaps(barrier, width, height);
@@ -135,17 +320,8 @@ export function recoverClippedBoundary(edges: Float32Array, width: number, heigh
     }
   }
   const missing = Uint8Array.from(mask, (_, i) => original.mask[i] && seeds[i] && !fringe[i] ? 1 : 0);
-  const lost = labelMaskComponents(missing, width, height), lostTotal = missing.reduce((n, v) => n + v, 0);
-  const minX = new Int32Array(lost.sizes.length).fill(width), minY = new Int32Array(lost.sizes.length).fill(height);
-  const maxX = new Int32Array(lost.sizes.length), maxY = new Int32Array(lost.sizes.length);
-  for (let i = 0; i < missing.length; i++) if (lost.labels[i]) {
-    const id = lost.labels[i], x = i % width, y = Math.floor(i / width);
-    minX[id] = Math.min(minX[id], x); maxX[id] = Math.max(maxX[id], x);
-    minY[id] = Math.min(minY[id], y); maxY[id] = Math.max(maxY[id], y);
-  }
-  if (lost.sizes.some((size, id) => id > 0 && size >= 8 && Math.max(maxX[id] - minX[id] + 1, maxY[id] - minY[id] + 1) >= 8)) {
-    return reject('lost-local-foreground-evidence', lostTotal);
-  }
+  const lostTotal = missing.reduce((n, v) => n + v, 0);
+  if (longRuns(missing, width, height).long.some(Boolean)) return reject('lost-local-foreground-evidence', lostTotal);
   // Preserve every already accepted source component at the mask stage. The
   // downstream tracer retains its separate minimum-size/topology safeguards.
   const source = labelMaskComponents(original.mask, width, height), retained = new Uint32Array(source.sizes.length);
