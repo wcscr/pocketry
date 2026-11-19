@@ -269,9 +269,9 @@ describe("direct Trace contour edits", () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1, primary = true) {
+  function pointer(type: string, x: number, y: number, target: Element = svg, pointerType = "mouse", id = 1, primary = true, modifiers: MouseEventInit = {}) {
     React.act(() => {
-      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y, ...modifiers });
       Object.defineProperties(event, {
         pointerType: { value: pointerType }, pointerId: { value: id }, isPrimary: { value: primary },
       });
@@ -279,13 +279,307 @@ describe("direct Trace contour edits", () => {
     });
   }
 
+  it.each([
+    ["polygon", "Select multiple"], ["polygon", "Erase points"],
+    ["curves", "Select multiple"], ["curves", "Erase points"],
+  ])("targets the active overlapping %s contour with %s", (representation, tool) => {
+    React.act(() => {
+      if (representation === "curves") trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(trace.outline), label: "Curves" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+    });
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name)!;
+    const original = trace.outline;
+    const square = original[2].outer;
+    expect(original[1].outer).toEqual(square);
+    expect(trace.selection?.shapeIndex).toBe(2);
+    React.act(() => button(tool).click());
+    for (const active of [2, 1, 0]) {
+      React.act(() => trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: active, ringIndex: -1 } }));
+      // The last-painted curve anchor can belong to the ring above the active one.
+      const target = svg.querySelector('[data-curve-kind="point"][data-curve-shape="2"][data-curve-index="0"]') ?? svg;
+      pointer("pointerdown", square[0].x, square[0].y, target);
+      pointer("pointerup", square[0].x, square[0].y);
+      if (tool === "Select multiple") React.act(() => button("Delete point").click());
+      const changed = active === 1 ? 1 : 2; // With an unrelated ring active, the topmost square wins.
+      expect(trace.outline).toEqual(original.map((shape, i) => i === changed ? { ...shape, outer: square.slice(1) } : shape));
+      React.act(() => trace.undo());
+      expect(trace.outline).toEqual(original);
+    }
+  });
+
+  it.each(["Select multiple", "Erase points"])("keeps the nearer point when the active ring is also within reach of %s", tool => {
+    const square = detected[0].outer;
+    const offset = square.map(({ x, y }) => ({ x: x + 3, y }));
+    const outline = [{ outer: square, holes: [] }, { outer: offset, holes: [] }];
+    React.act(() => {
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline });
+      trace.dispatch({ type: "SELECT_RING", selection: { shapeIndex: 0, ringIndex: -1 } });
+    });
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name)!;
+    React.act(() => button(tool).click());
+    pointer("pointerdown", offset[0].x, offset[0].y);
+    pointer("pointerup", offset[0].x, offset[0].y);
+    if (tool === "Select multiple") React.act(() => button("Delete point").click());
+    expect(trace.outline).toEqual([outline[0], { outer: offset.slice(1), holes: [] }]);
+  });
+
+  it("keeps the curve contour chosen by number when switching to the eraser", () => {
+    setExperimentalTools(true);
+    React.act(() => {
+      trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(trace.outline), label: "Curves" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+      trace.dispatch({ type: "ADD_CONTOUR" });
+    });
+    const chooser = document.querySelector<HTMLSelectElement>('[aria-label="Curve contour"]')!;
+    expect(chooser.value).toBe("2:-1");
+    React.act(() => { chooser.value = "1:-1"; chooser.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(trace.selection).toEqual({ shapeIndex: 1, ringIndex: -1 });
+    const original = trace.outline;
+    React.act(() => Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Erase points")!.click());
+    const p = original[1].outer[0];
+    pointer("pointerdown", p.x, p.y);
+    pointer("pointerup", p.x, p.y);
+    expect(trace.outline[1].outer).toEqual(original[1].outer.slice(1));
+    expect(trace.outline[2]).toEqual(original[2]);
+  });
+
+  it.each(["polygon", "curves"])("returns keyboard shortcuts to the %s canvas after selecting from a focused toolbar", representation => {
+    const ring = [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+    const outline = [{ outer: ring, holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    select.focus();
+    React.act(() => select.click());
+    expect(document.activeElement).toBe(select);
+    pointer("pointerdown", 50, 10);
+    pointer("pointerup", 50, 10);
+    expect(document.activeElement).toBe(svg);
+    const key = (type: string, key: string, code: string) => React.act(() =>
+      document.activeElement!.dispatchEvent(new KeyboardEvent(type, { key, code, bubbles: true, cancelable: true })));
+    const transform = () => svg.querySelector("g[transform]")!.getAttribute("transform");
+    const before = transform(), history = trace.history;
+    key("keydown", " ", "Space");
+    pointer("pointerdown", 50, 10);
+    pointer("pointermove", 65, 20);
+    pointer("pointerup", 65, 20);
+    key("keyup", " ", "Space");
+    expect(transform()).not.toBe(before);
+    expect(trace.history).toBe(history);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(1);
+    key("keydown", "Delete", "Delete");
+    const anchors = trace.curves?.[0].outer.map(a => a.point) ?? trace.outline[0].outer;
+    expect(anchors).toEqual(ring.filter((_, i) => i !== 1));
+  });
+
+  it.each(["polygon", "curves"])("rejects a %s selection drag released in the same batch as Undo", representation => {
+    const outline = [{ outer: [{ x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    React.act(() => select.click());
+    const before = trace.history;
+    pointer("pointerdown", 50, 10);
+    pointer("pointermove", 65, 20);
+    React.act(() => {
+      trace.undo();
+      pointer("pointerup", 65, 20);
+    });
+    expect(trace.history.stack).toBe(before.stack);
+    expect(trace.history.index).toBe(before.index - 1);
+    expect(trace.outline).toBe(before.stack[before.index - 1].outline);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(0);
+  });
+
+  it.each(["polygon", "curves"])("adds %s points with a Shift-drag box without panning", representation => {
+    const outline = [{ outer: [{ x: 10, y: 10 }, { x: 40, y: 10 }, { x: 80, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    React.act(() => select.click());
+    const history = trace.history;
+    const scene = svg.querySelector("g[transform]")!;
+    const before = scene.getAttribute("transform");
+    pointer("pointerdown", 90, 90);
+    pointer("pointerup", 90, 90);
+    const shiftPointer = (type: string, x: number, y: number) => pointer(type, x, y, svg, "mouse", 1, true, { shiftKey: true });
+    shiftPointer("pointerdown", 25, 30);
+    shiftPointer("pointermove", 60, 15);
+    shiftPointer("pointermove", 85, 5);
+    shiftPointer("pointerup", 85, 5);
+    expect(scene.getAttribute("transform")).toBe(before);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(3);
+    expect(trace.history).toBe(history);
+    // Moving the group identifies the original point and both newly selected points.
+    pointer("pointerdown", 90, 90);
+    pointer("pointermove", 96, 96);
+    pointer("pointerup", 96, 96);
+    expect(trace.outline[0].outer).toEqual([{ x: 10, y: 10 }, { x: 46, y: 16 }, { x: 86, y: 16 }, { x: 96, y: 96 }, { x: 10, y: 90 }]);
+  });
+
+  it.each(["polygon", "curves"])("switches tools in place and discards unfinished %s edits", representation => {
+    const source = [{ outer: [10, 45, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]), holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(source), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: source }));
+    const dock = document.querySelector('[aria-label="Outline editing tools"]')!;
+    const buttons = () => Array.from(dock.querySelectorAll("button"));
+    const original = buttons();
+    expect(original.map(b => b.textContent)).toEqual(["Edit points", "Select multiple", "Erase points", "Done"]);
+    const [edit, select, erase] = original;
+    const chosen = () => dock.querySelector('[aria-pressed="true"]');
+    expect(chosen()).toBe(edit);
+    const history = trace.history;
+    React.act(() => select.click());
+    const tap = (x: number, y: number) => { pointer("pointerdown", x, y); pointer("pointerup", x, y); };
+    tap(28, 10); // An edge tap in Select multiple cannot insert a point.
+    tap(10, 10); tap(90, 10);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    React.act(() => svg.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })));
+    pointer("pointerdown", 10, 10); pointer("pointermove", 18, 20);
+    React.act(() => erase.click());
+    pointer("pointerup", 18, 20);
+    expect(chosen()).toBe(erase);
+    pointer("pointerdown", 45, 10);
+    React.act(() => select.click());
+    pointer("pointerup", 45, 10);
+    expect(chosen()).toBe(select);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(0);
+    expect(trace.history).toBe(history);
+    tap(10, 10); tap(45, 10); tap(90, 10);
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(3);
+    expect(Array.from(document.querySelectorAll("button"), b => b.textContent)).not.toContain("Simplify section");
+    expect(Array.from(document.querySelectorAll("button"), b => b.textContent)).not.toContain("Repair section");
+    React.act(() => edit.click());
+    expect(chosen()).toBe(edit);
+    expect(trace.history).toBe(history);
+    expect(buttons().every((b, i) => b === original[i])).toBe(true);
+    React.act(() => select.click());
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(chosen()).toBe(edit);
+    React.act(() => select.click());
+    setExperimentalTools(true); setExperimentalTools(false);
+    expect(chosen()).toBe(select);
+    React.act(() => buttons()[1].click());
+    React.act(() => buttons()[3].click());
+    expect(trace.mode).toBe("pan");
+    expect(document.contains(dock)).toBe(false);
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
+    expect(document.querySelector('[aria-label="Outline editing tools"] [aria-pressed="true"]')?.textContent).toBe("Edit points");
+  });
+
+  it.each(["polygon", "curves"])("moves and deletes selected %s points as separate undoable edits", representation => {
+    const ring = [{ x: 10, y: 10 }, { x: 40, y: 10 }, { x: 70, y: 10 }, { x: 90, y: 40 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+    const outline = [{ outer: ring, holes: [] }];
+    const curves = curvesFromOutline(outline);
+    curves[0].outer[0].out = { x: 20, y: 10 };
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves, label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+
+    const anchors = () => trace.curves?.[0].outer.map(anchor => anchor.point) ?? trace.outline[0].outer;
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name);
+    const before = trace.history.index;
+    React.act(() => button("Select multiple")!.click());
+    for (const { x, y } of ring.slice(0, 2)) {
+      pointer("pointerdown", x, y);
+      pointer("pointerup", x, y);
+    }
+    expect(svg.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(2);
+    expect(button("Repair section")).toBeUndefined();
+    expect(trace.history.index).toBe(before);
+
+    pointer("pointerdown", 40, 10);
+    pointer("pointermove", 45, 18);
+    pointer("pointerup", 45, 18);
+    const moved = [{ x: 15, y: 18 }, { x: 45, y: 18 }, ...ring.slice(2)];
+    expect(anchors()).toEqual(moved);
+    if (representation === "curves") expect(trace.curves![0].outer[0].out).toEqual({ x: 25, y: 18 });
+    expect(trace.history.index).toBe(before + 1);
+
+    React.act(() => button("Delete selected points")!.click());
+    expect(anchors()).toEqual(ring.slice(2));
+    expect(trace.history.index).toBe(before + 2);
+    React.act(() => trace.undo());
+    expect(anchors()).toEqual(moved);
+    React.act(() => trace.undo());
+    expect(anchors()).toEqual(ring);
+    if (representation === "curves") expect(trace.curves).toEqual(curves);
+  });
+
+  it.each(["polygon", "curves"])("deletes one selected %s point by touch with experimental features off", representation => {
+    const outline = [{ outer: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], holes: [] }];
+    if (representation === "curves") React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: curvesFromOutline(outline), label: "Curves" }));
+    else React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline }));
+    const button = (name: string) => Array.from(document.querySelectorAll("button")).find(b => b.textContent === name)!;
+    const hold = (x: number, y: number) => {
+      pointer("pointerdown", x, y, svg, "touch");
+      React.act(() => vi.advanceTimersByTime(700));
+      pointer("pointerup", x, y, svg, "touch");
+    };
+    vi.useFakeTimers();
+    React.act(() => button("Select multiple").click());
+    const before = trace.history.index;
+    hold(10, 10);
+    expect(trace.history.index).toBe(before);
+    expect(button("Delete point").disabled).toBe(false);
+    React.act(() => button("Delete point").click());
+    expect(trace.outline[0].outer).toEqual(outline[0].outer.slice(1));
+    hold(90, 10);
+    expect(button("Delete point").disabled).toBe(true);
+    expect(trace.history.index).toBe(before + 1);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(outline);
+  });
+
+  it("erases at the edge of the 20 px brush and leaves points just outside it", () => {
+    const ring = [{ x: 10, y: 10 }, { x: 40, y: 10 }, { x: 70, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: ring, holes: [] }] }));
+    React.act(() => Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Erase points")!.click());
+    for (const y of [21, 20]) {
+      pointer("pointerdown", 40, y);
+      pointer("pointerup", 40, y);
+      expect(trace.outline[0].outer).toHaveLength(y === 21 ? 5 : 4);
+    }
+    expect(trace.outline[0].outer).not.toContainEqual(ring[1]);
+  });
+
+  it("forgets an interrupted touch when its release lands on the toolbar", () => {
+    setExperimentalTools(true);
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[aria-label="Outline editing tools"] button'));
+    const [, select, erase] = buttons;
+    React.act(() => erase.click());
+    pointer("pointerdown", 45, 10, svg, "touch", 1);
+    React.act(() => select.click());
+    pointer("pointerup", 45, 10, select, "touch", 1);
+    const scene = svg.querySelector("g[transform]")!;
+    const transform = scene.getAttribute("transform");
+    pointer("pointerdown", 125, 125, svg, "touch", 2);
+    pointer("pointermove", 160, 160, svg, "touch", 2);
+    pointer("pointerup", 160, 160, svg, "touch", 2);
+    expect(scene.getAttribute("transform")).toBe(transform);
+  });
+
+  it.each([false, true])("cancels a desktop vertex drag on a tool switch without overwriting history (undo=%s)", undo => {
+    setExperimentalTools(true);
+    const original = trace.outline;
+    pointer("pointerdown", 10, 10); pointer("pointermove", 25, 25);
+    expect(trace.outline).not.toEqual(original);
+    if (undo) React.act(() => trace.undo());
+    const expected = undo ? trace.outline : original;
+    const history = trace.history;
+    const select = Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Select multiple")!;
+    React.act(() => select.click());
+    pointer("pointerup", 25, 25);
+    expect(trace.outline).toEqual(expected);
+    expect(trace.history).toBe(history);
+  });
+
   it.each(["mouse", "touch"])("sweeps several anchors in one undoable %s stroke and discards interrupted strokes", pointerType => {
     const outer = [10, 30, 50, 70, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
     const original = [{ outer, holes: [] }];
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original }));
-    const button = () => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser");
-    expect(button()).toBeUndefined();
-    setExperimentalTools(true);
+    const button = () => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points");
+    expect(button()).toBeDefined();
     React.act(() => button()!.click());
     const before = trace.history;
     const draw = () => {
@@ -313,7 +607,7 @@ describe("direct Trace contour edits", () => {
     React.act(() => trace.undo());
     expect(trace.outline).toEqual(original);
     draw();
-    setExperimentalTools(false);
+    React.act(() => Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Done")!.click());
     pointer("pointerup", 70, 10, svg, pointerType);
     expect(trace.outline).toEqual(original);
     expect(button()).toBeUndefined();
@@ -323,7 +617,7 @@ describe("direct Trace contour edits", () => {
     const outer = [10, 35, 60, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer, holes: [] }] }));
     setExperimentalTools(true);
-    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
     const before = trace.outline;
     pointer("pointerdown", 35, 10);
     pointer("pointermove", 60, 10);
@@ -341,7 +635,7 @@ describe("direct Trace contour edits", () => {
     const source = [{ outer, holes: [hole] }];
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: source }));
     setExperimentalTools(true);
-    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
     const history = trace.history;
     const rendered = () => svg.querySelector('[data-testid="detected-contour-stroke"]')!.getAttribute("d");
     let safe: string | null;
@@ -381,7 +675,7 @@ describe("direct Trace contour edits", () => {
     const original = [{ outer, holes: [hole] }, { outer: detected[0].outer, holes: [hole] }];
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original }));
     setExperimentalTools(true);
-    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
     pointer("pointerdown", 45, 35); pointer("pointerup", 45, 28);
     expect(trace.outline[0].outer).toEqual(outer);
     expect(trace.outline[0].holes[0]).toEqual(hole.slice(0, 4));
@@ -397,7 +691,7 @@ describe("direct Trace contour edits", () => {
     source[0].outer[4].out = { x: 67, y: 98 };
     React.act(() => trace.dispatch({ type: "CURVES_COMMITTED", curves: source, label: "Curved base" }));
     setExperimentalTools(true);
-    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Point eraser")!.click());
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
     pointer("pointerdown", 30, 10); pointer("pointerup", 50, 10);
     expect(trace.curves?.[0].outer).toHaveLength(4);
     expect(trace.curves?.[0].outer[2].out).toEqual(source[0].outer[4].out);
@@ -634,7 +928,7 @@ describe("TraceCanvas edit history", () => {
       pointer("pointerdown", 275, 275); pointer("pointermove", 255, 255); pointer("pointerup", 255, 255);
       expect(trace!.outline[2].outer[0]).toEqual({ x: 255, y: 255 });
       expect(trace!.outline[1].outer).toEqual(square);
-      expect(host.querySelector('[aria-label="Outline editing controls"]')?.querySelectorAll("button")).toHaveLength(1);
+      expect(Array.from(host.querySelectorAll('[aria-label="Outline editing tools"] button'), b => b.textContent)).toEqual(["Edit points", "Select multiple", "Erase points", "Done"]);
       expect(host.querySelector('[data-testid="selected-outline-point"]')).toBeNull();
       React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete" })));
       expect(trace!.outline[2].outer).toHaveLength(5);
@@ -716,7 +1010,7 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); restoreCoordinates(); }
   });
 
-  it.each(["auto", "range", "reconstruct", "reconstruct-edited"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
+  it.each(["auto", "reconstruct", "reconstruct-edited"])("keeps %s fitting opt-in and undoable through Trace recovery and Bin transfer", async mode => {
     setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -740,13 +1034,15 @@ describe("TraceCanvas edit history", () => {
       const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
       expect(trace!.curves).toBeUndefined();
       if (mode.startsWith("reconstruct")) await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} outlineToolRequest={{ tool: "smooth", sourceRevision: trace!.sourceRevision }} /></TooltipProvider></TraceProvider>));
-      else { click("Bend edges"); click(mode === "auto" ? "Auto-fit contour" : "Select a section"); }
-      if (mode === "range") {
-        for (const [label, value] of [["First fit point", "0"], ["Last fit point", "16"]]) React.act(() => {
-          const select = host.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
-          select.value = value; select.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        click("Preview fit");
+      else {
+        click("Bend edges");
+        expect(Array.from(host.querySelectorAll("button"), b => b.textContent)).not.toContain("Select a section");
+        click("Auto-fit contour");
+        expect(host.querySelector('[aria-label="Curve contour"]')).toBeNull();
+        expect(host.querySelector('[aria-label="Maximum change from current outline (mm)"]')).not.toBeNull();
+        click("Cancel fit");
+        expect(host.querySelector('[aria-label="Curve contour"]')).not.toBeNull();
+        click("Auto-fit contour");
       }
       expect(host.querySelector('[data-testid="curve-fit-preview"]')).not.toBeNull();
       expect(trace!.history.stack).toHaveLength(before); expect(trace!.curves).toBeUndefined();
@@ -847,38 +1143,6 @@ describe("TraceCanvas edit history", () => {
       React.act(() => trace.undo()); expect(trace.curves).toEqual(before); expect(trace.outline).toEqual(outline);
     } finally { React.act(() => root.unmount()); }
   });
-  it.each([{ editable: false, mode: "Line" }, { editable: false, mode: "Smooth curve" }, { editable: true, mode: "Line" }, { editable: true, mode: "Smooth curve" }])(
-    "previews and repairs a selected section with calibration and one undo: $mode, editable $editable", async ({ editable, mode }) => {
-      setExperimentalTools(true);
-      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
-      vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
-      const restore = installIdentitySvgCoordinates(), host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
-      let trace: TraceStore; function Probe() { trace = useTrace(); return null; }
-      const rounded: Outline = [{ outer: Array.from({ length: 48 }, (_, i) => ({ x: 50 + 40 * Math.cos(i * Math.PI / 24), y: 50 + 40 * Math.sin(i * Math.PI / 24) })), holes: [] }];
-      try {
-        await React.act(async () => root.render(<TraceProvider><SeedTrace /><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
-        React.act(() => { trace!.dispatch({ type: "OUTLINE_COMMITTED", outline: rounded }); trace!.dispatch({ type: "SET_EDITABLE_CURVES", enabled: editable }); trace!.dispatch({ type: "SET_MODE", mode: "edit" }); });
-        const before = trace!.history.index, calibration = trace!.calibration;
-        const click = (name: string) => React.act(() => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!.click());
-        const selectEndpoints = () => {
-          const svg = host.querySelector("svg")!;
-          for (const index of [6, 12]) for (const type of ["pointerdown", "pointerup"]) React.act(() => {
-            const p = rounded[0].outer[index], event = new MouseEvent(type, { bubbles: true, button: 0, clientX: p.x, clientY: p.y, shiftKey: true });
-            Object.defineProperties(event, { pointerType: { value: "mouse" }, pointerId: { value: 1 } }); svg.dispatchEvent(event);
-          });
-        };
-        selectEndpoints(); click("Repair section"); expect(host.querySelector('[data-testid="outline-repair-preview"]')).not.toBeNull();
-        expect(trace!.history.index).toBe(before); click("Cancel repair"); expect(trace!.outline).toEqual(rounded);
-        selectEndpoints(); click("Repair section"); click(mode); click("Apply repair");
-        expect(trace!.history.index).toBe(before + 1); expect(trace!.calibration).toEqual(calibration);
-        expect(!!trace!.curves).toBe(editable);
-        if (editable && mode === "Smooth curve") expect(trace!.curves![0].outer.some(a => a.in || a.out)).toBe(true);
-        const after = trace!.outline, curves = trace!.curves;
-        for (const index of [6, 12]) expect(after[0].outer).toContainEqual(rounded[0].outer[index]);
-        React.act(() => trace!.undo()); expect(trace!.outline).toEqual(rounded); expect(trace!.curves).toBeUndefined(); expect(trace!.calibration).toEqual(calibration);
-        React.act(() => trace!.redo()); expect(trace!.outline).toEqual(after); expect(trace!.curves).toEqual(curves);
-      } finally { React.act(() => root.unmount()); host.remove(); restore(); }
-    });
   it("opens curve editing on the real canvas and keeps an edge bend as one undoable source edit", async () => {
     setExperimentalTools(true);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -1764,7 +2028,7 @@ describe("desktop point focus", () => {
       pointer('pointermove', 12, 12);
       pointer('pointerup', 12, 12);
       expect(host.querySelector('[data-testid="contour-magnifier"]')).toBeNull();
-      expect([...host.querySelectorAll('button')].some(b => b.textContent === 'Point eraser')).toBe(true);
+      expect([...host.querySelectorAll('button')].some(b => b.textContent === 'Erase points')).toBe(true);
       expect(host.querySelector('[aria-label="Outline editing controls"]')?.className).toContain("flex-wrap");
       expect(host.querySelector('[data-vertex="0"]')!.getAttribute('data-point-selected')).toBe('true');
       expect(trace!.history.index).toBe(historyIndex);
@@ -1896,7 +2160,7 @@ describe("touch-accessible trace tools", () => {
       const svg = host.querySelector('svg[data-testid="trace-scene"]') ?? host.querySelector("svg");
       expect(host.querySelector('[aria-label="Correct"]')).toBeNull();
       React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit outline"]')!.click());
-      const eraser = () => [...host.querySelectorAll("button")].find(b => b.textContent === "Point eraser");
+      const eraser = () => [...host.querySelectorAll("button")].find(b => b.textContent === "Erase points");
       expect(eraser()!.getAttribute("aria-pressed")).toBe("false");
       React.act(() => eraser()!.click());
       expect(eraser()!.getAttribute("aria-pressed")).toBe("true");
@@ -1920,21 +2184,21 @@ describe("touch-accessible trace tools", () => {
       expect(trace!.outline).toEqual(pentagon);
       remove(500, 500);
       expect(trace!.outline).toEqual(pentagon);
-      React.act(() => eraser()!.click());
+      React.act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "Edit points")!.click());
       expect(trace!.mode).toBe("edit");
       expect(eraser()!.getAttribute("aria-pressed")).toBe("false");
       React.act(() => eraser()!.click());
       expect(trace!.mode).toBe("remove");
       setExperimentalTools(false);
-      expect(trace!.mode).toBe("edit");
+      expect(trace!.mode).toBe("remove");
       expect(trace!.outline).toEqual(pentagon);
-      expect(eraser()).toBeUndefined();
+      expect(eraser()!.getAttribute("aria-pressed")).toBe("true");
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "pan" }));
       expect(trace!.selection).not.toBeNull();
       expect(eraser()).toBeUndefined();
       React.act(() => trace!.dispatch({ type: "SET_MODE", mode: "edit" }));
       React.act(() => trace!.dispatch({ type: "SELECT_RING", selection: null }));
-      expect(eraser()).toBeUndefined();
+      expect(eraser()!.getAttribute("aria-pressed")).toBe("false");
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();

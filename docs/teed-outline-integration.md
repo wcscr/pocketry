@@ -127,7 +127,7 @@ the editor uses the full screen until you choose **Done**. Moving a point on a h
 updates every pocket that shares it. In standard point editing, using Undo or
 Redo during a drag ends the drag and restores the chosen history entry. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
 
-With experimental features enabled, **Edit outline → Point eraser** removes points from the first contour the brush touches. Hold and drag to see the new boundary. Points needed to keep a valid contour stay visible. Release to commit the deletions shown, press Escape to discard it, or use Undo to restore all its points. The same brush works on curve anchors.
+**Edit outline → Erase points** removes points from the first contour the brush touches. Hold and drag to see the new boundary. Points needed to keep a valid contour stay visible. Release to commit the deletions shown, press Escape to discard it, or use Undo to restore all its points. The same brush works on curve anchors.
 
 Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
@@ -202,8 +202,7 @@ outline or re-detect and replace edits; Undo can restore the previous source. De
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
-right-click a point to delete it. With experimental features on, Shift-click or box-select multiple points. **Select points** also works without a keyboard. **Repair section** replaces a
-selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
+right-click a point to delete it. In **Select multiple**, tap points or drag a box to select them. Drag the group to move it, or choose **Delete point** or **Delete selected points**. Switch back to **Edit points** for individual edits, or choose **Done** to leave the editor. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,
 not from the physical tool and not pocket clearance. Review tool tips, recesses,

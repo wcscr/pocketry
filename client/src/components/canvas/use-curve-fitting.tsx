@@ -23,6 +23,8 @@ interface Options {
   scale: number;
   toCanvas: (point: Point) => Point;
   allowOutlineSimplification?: boolean;
+  allowSectionFitting?: boolean;
+  compactControls?: boolean;
   editableCurves?: boolean;
   appliedSimplification?: AppliedOutlineSimplification;
   onCommit: (curves: CurveOutline, label: string, autoSimplification?: AppliedOutlineSimplification) => void;
@@ -43,7 +45,7 @@ interface Session {
 }
 
 /** Preview never writes to Trace/Bin. Only Apply invokes the single-commit path. */
-export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, editableCurves = true, appliedSimplification }: Options) {
+export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPerUnit, unit, scale, toCanvas, onCommit, allowOutlineSimplification, allowSectionFitting = true, compactControls = false, editableCurves = true, appliedSimplification }: Options) {
   const applied = appliedSimplification?.unitsPerUnit === unitsPerUnit && appliedSimplification.unit === unit ? appliedSimplification : undefined;
   // Same bounded search as the former Smoother choice: weaker candidates are
   // retained whenever they produce a smoother safe boundary.
@@ -59,7 +61,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const current = enabled && session?.source === source && session.contextKey === contextKey
     && session.unitsPerUnit === unitsPerUnit && session.unit === unit && session.ref.shapeIndex === ringRef.shapeIndex
     && session.ref.ringIndex === ringRef.ringIndex ? session : null;
-  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, allowOutlineSimplification, editableCurves]);
+  useEffect(() => { dismiss(); return stop; }, [source, enabled, contextKey, ringRef.shapeIndex, ringRef.ringIndex, unitsPerUnit, unit, allowOutlineSimplification, allowSectionFitting, editableCurves]);
   useEffect(() => {
     if (!current) return;
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); } };
@@ -105,6 +107,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     })();
   };
   const start = (mode: Session["mode"], range?: { start: number; end: number }) => {
+    if (mode === "range" && !allowSectionFitting) return;
     const next: Session = { source, ref: ringRef, contextKey, unitsPerUnit, unit, mode, start: null, end: null, deviation: String(mode === "reconstruct" ? automaticAllowance : unit === "mm" ? .1 : 1) };
     if (range) { next.start = range.start; next.end = range.end; }
     if (mode === "range" && !range) { stop(); setSession(next); } else performPreview(next);
@@ -136,7 +139,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
   const actions = !current && <>
     {allowOutlineSimplification &&
       <Button size="sm" variant="outline" title="Remove small bumps and review the result before applying." onClick={() => start("reconstruct")}>Smooth outline</Button>}
-    <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>
+    {allowSectionFitting && <Button size="sm" variant="outline" onClick={() => start("range")}>Select a section</Button>}
     <Button size="sm" variant="outline" onClick={() => start("auto")}>Auto-fit contour</Button>
   </>;
   const apply = () => {
@@ -145,6 +148,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
       current.mode === "reconstruct" ? { source: applied?.source ?? source, allowance: Number(current.deviation), unitsPerUnit, unit } : undefined);
     dismiss();
   };
+  const autoFitHelp = "Preview this contour only. Corners and existing curves are kept. Apply makes one undoable edit.";
   const controls = current && ring && (current.mode === "reconstruct" ? <OutlineSimplificationPanel
     alreadyApplied={applied?.allowance === automaticAllowance}
     result={current.result && { ...current.result, before: source.reduce((n, s) => n + s.outer.length + s.holes.reduce((m, r) => m + r.length, 0), 0) }}
@@ -152,9 +156,11 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
     onCompare={setShowOriginal} onApply={apply} onCancel={dismiss}
   /> : <>
     <span className="text-sm font-medium">{current.mode === "auto" ? "Auto-fit contour" : "Simplify selected section · preview"}</span>
-    <p className="w-full text-xs text-muted-foreground">{current.mode === "auto"
-      ? "Preview this contour only. Corners and existing curves are kept. Apply makes one undoable edit."
-      : "Choose the first and last point of one continuous section. The highlighted points are selected; Swap ends chooses the other way around the outline."}</p>
+    {current.mode === "auto" && compactControls
+      ? <HelpHint label="auto-fit contour">{autoFitHelp}</HelpHint>
+      : <p className="w-full text-xs text-muted-foreground">{current.mode === "auto"
+        ? autoFitHelp
+        : "Choose the first and last point of one continuous section. The highlighted points are selected; Swap ends chooses the other way around the outline."}</p>}
     {current.mode === "range" && <>
       {(["start", "end"] as const).map(key => <label key={key} className="flex items-center gap-1 text-xs">{key === "start" ? "First" : "Last"}
         <select aria-label={key === "start" ? "First fit point" : "Last fit point"} value={current[key] ?? ""}
@@ -167,7 +173,7 @@ export function useCurveFitting({ source, ringRef, enabled, contextKey, unitsPer
         onClick={() => change({ start: current.end, end: current.start })}>Swap ends</Button>
       {indices.length > 0 && <span className="text-xs">{indices.length} points selected</span>}
     </>}
-    <label className="flex flex-wrap items-center gap-1 text-xs">Maximum change from current outline ({unit})
+    <label className="flex flex-wrap items-center gap-1 text-xs">{compactControls ? "Max. change" : "Maximum change from current outline"} ({unit})
       <Input aria-label={`Maximum change from current outline (${unit})`} type="number" min="0" step="any" value={current.deviation}
         className="h-9 w-24" onChange={e => change({ deviation: e.target.value })} />
     </label><HelpHint label="section boundary allowance">Maximum distance from the current outline’s points and edges to the fitted replacement. Calibration converts the distance to millimeters. Smaller values preserve more detail; larger values allow more smoothing. This does not add pocket clearance.</HelpHint>

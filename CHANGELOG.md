@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-## 1.13.0 — 2026-11-18
+## 1.14.0 — 2026-11-19
 
 - Choose **Retry at higher resolution** in Trace to rerun Tool edges at 768 px when a thin shaft or printed rail is missing from the outline. The first trace still uses 512 px. Undo restores the previous outline.
+
+## 1.13.0 — 2026-11-18
+
+- Edit outline now offers Edit points, Select multiple, Erase points, and Done in a fixed toolbar. Move or delete a selection in one undoable edit, or brush over points with the smaller 20 px eraser. An interrupted box selection keeps the previous selection.
 
 ## 1.12.7 — 2026-11-18
 

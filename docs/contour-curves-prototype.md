@@ -43,14 +43,17 @@ restores any native curve handles. An already-used contour shows a checkmark and
 disables replacement. Hover/focus hints explain the controls without extra copy.
 Escape dismisses the preview. It cannot restore material segmentation missed.
 
-The following advanced controls are available in Trace with experimental features on. Choose **Edit outline → Bend edges** for edge bending. In Bin, choose **Edit contour → Bend edges** on an upright pocket. Tilted/profile pockets retain their editing restriction.
+Trace includes **Select multiple** and **Erase points** in **Edit outline**. For edge bending, enable experimental features and choose **Edit outline → Bend edges**. In Bin, choose **Edit contour → Bend edges** on an upright pocket. Tilted/profile pockets retain their editing restriction.
 
 - Drag an edge to bend it, an anchor to move it with its handles, or a handle to
   shape the curve. Click an edge to add a point; right-click an anchor to delete.
-- Shift-click toggles points; drag empty space for a box selection. **Select
-  points** enables tap selection. Move/delete a group together; at least three
-  points remain per ring. **Add manual contour** starts a separate four-point trace.
-- **Repair section** accepts two endpoints or a continuous run. Preview a Line
+- Shift-click toggles points. Drag empty space for a box selection, or hold Shift and drag to add to the selection. For tap selection,
+  use **Select multiple** in Trace or **Select points** in Bin. Move or delete selected
+  points together. Each ring keeps at least three points. **Add manual contour** starts a separate four-point trace.
+  Release the box to apply the highlighted selection. Starting a pinch or interrupting a drag keeps the previous selection.
+  After picking a point on the canvas, Delete removes the selection and Space-drag pans.
+  When Trace contours overlap, **Select multiple** and **Erase points** prefer the active contour for equally close points.
+- In Bin, **Repair section** accepts two endpoints or a continuous run. Preview a Line
   or Smooth curve, choose Other side or adjust Bend, then Apply/Cancel. Repair
   intentionally replaces that section; it has no fitting-deviation claim.
 - Selection and navigation do not make history. Completed geometry gestures

@@ -1,7 +1,15 @@
 import { distanceToSegment } from "@shared/geometry/rings";
 import type { Outline, Point, RingRef } from "@shared/geometry/types";
 
-import { iterateRings } from "./outline";
+import { iterateRings, sameRingRef } from "./outline";
+
+/** Break equal-distance hits in favor of the active ring, then the last ring painted. */
+export function compareRingHitOrder(a: RingRef, b: RingRef, active: RingRef | null): number {
+  if (sameRingRef(a, b)) return 0;
+  if (sameRingRef(a, active)) return -1;
+  if (sameRingRef(b, active)) return 1;
+  return b.shapeIndex - a.shapeIndex || b.ringIndex - a.ringIndex;
+}
 
 export interface VertexHit {
   ref: RingRef;
@@ -34,7 +42,7 @@ export function nearestVertex(
   let best: VertexHit | null = null;
 
   for (const { ref, ring } of iterateRings(outline)) {
-    if (restrictTo && !sameRef(ref, restrictTo)) continue;
+    if (restrictTo && !sameRingRef(ref, restrictTo)) continue;
     for (let index = 0; index < ring.length; index++) {
       const vertex = ring[index];
       const distance = Math.hypot(vertex.x - point.x, vertex.y - point.y);
@@ -58,7 +66,7 @@ export function nearestEdge(
   let best: EdgeHit | null = null;
 
   for (const { ref, ring } of iterateRings(outline)) {
-    if (restrictTo && !sameRef(ref, restrictTo)) continue;
+    if (restrictTo && !sameRingRef(ref, restrictTo)) continue;
     const n = ring.length;
     for (let i = 0; i < n; i++) {
       // Edge i runs from vertex i to vertex i+1, wrapping on the last.
@@ -90,8 +98,4 @@ export function nearestRing(outline: Outline, point: Point): RingRef | null {
   }
 
   return best;
-}
-
-function sameRef(a: RingRef, b: RingRef): boolean {
-  return a.shapeIndex === b.shapeIndex && a.ringIndex === b.ringIndex;
 }
