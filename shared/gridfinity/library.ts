@@ -8,7 +8,7 @@ export const storedProjectSchema = z.object({
   id: z.string().min(1).max(128),
   name: z.string().min(1).max(PROJECT_NAME_MAX_LENGTH),
   updatedAt: z.string().datetime(),
-  doc: z.record(z.unknown()),
+  doc: z.record(z.string(), z.unknown()),
 }).strict();
 
 export const projectLibrarySchema = z.object({

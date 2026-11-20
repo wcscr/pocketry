@@ -1,6 +1,6 @@
 {
   "name": "rest-express",
-  "version": "1.14.1",
+  "version": "1.14.2",
   "type": "module",
   "license": "AGPL-3.0-only",
   "engines": {
@@ -82,7 +82,7 @@
     "three": "^0.180.0",
     "vaul": "^1.1.0",
     "wouter": "^3.3.5",
-    "zod": "^3.23.8"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@techstark/opencv-js": "^4.11.0-release.1",

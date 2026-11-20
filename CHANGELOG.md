@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.14.2 — 2026-11-20
+
+- Reject oversized saved history and surface-label collections before expanding validation errors; preserve legacy project defaults and empty Trace recovery. Update dependencies used by SVG imports and local hosting/development.
+
 ## 1.14.1 — 2026-11-19
 
 - Restore **Symmetry & straighten** to Trace’s **Outline** panel and the phone’s **Adjust** controls by default.
