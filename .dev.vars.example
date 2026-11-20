@@ -1,0 +1,10 @@
+# Server-side settings for local Cloudflare development. Copy to .dev.vars.
+# Do not prefix secrets with VITE_; Vite values are public browser code.
+TURNSTILE_SITE_KEY=0x4AAAAAAFEX5UTaSUHC-qpj
+TURNSTILE_SECRET_KEY=
+TURNSTILE_HOSTNAMES=pocketry.xyz
+FEEDBACK_ACCOUNT_ID=83f2f573b101abdbbd8300b84c2cdbe9
+FEEDBACK_EMAIL_TOKEN=
+FEEDBACK_FROM=feedback@pocketry.xyz
+# Set to the actual verified Email Routing destination address, not its public alias.
+FEEDBACK_TO=

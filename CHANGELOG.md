@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-## 1.14.2 — 2026-11-20
+## 1.15.1 — 2026-11-20
 
 - Reject oversized saved history and surface-label collections before expanding validation errors; preserve legacy project defaults and empty Trace recovery. Update dependencies used by SVG imports and local hosting/development.
+
+## 1.15.0 — 2026-11-20
+
+- Add one Send feedback entry for account-free problem reports and suggestions with an optional reply address.
 
 ## 1.14.1 — 2026-11-19
 
