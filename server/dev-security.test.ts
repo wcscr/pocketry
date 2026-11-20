@@ -11,7 +11,12 @@ let vite: ViteDevServer;
 let baseUrl: string;
 const root = path.resolve(import.meta.dirname, "..");
 const canary = path.join(root, `.security-canary-${process.pid}.txt`);
+const deniedName = `.env.security-canary-${process.pid}`;
+const deniedCanary = path.join(root, "client", deniedName);
+const publicName = `security-public-${process.pid}.txt`;
+const publicCanary = path.join(root, "client", publicName);
 const secret = "not-a-public-pocketry-asset";
+const publicControl = "public-pocketry-asset-control";
 // Record entry without opening a desktop editor if the guard regresses.
 const viteEditorLauncher = vi.fn((_req: IncomingMessage, res: ServerResponse) => {
   res.end("Vite editor launcher reached");
@@ -19,6 +24,8 @@ const viteEditorLauncher = vi.fn((_req: IncomingMessage, res: ServerResponse) =>
 
 beforeAll(async () => {
   await writeFile(canary, secret);
+  await writeFile(deniedCanary, secret);
+  await writeFile(publicCanary, publicControl);
   const app = express();
   server = createServer(app);
   vite = await setupVite(app, server);
@@ -50,9 +57,28 @@ afterAll(async () => {
     });
   }
   await rm(canary, { force: true });
+  await rm(deniedCanary, { force: true });
+  await rm(publicCanary, { force: true });
 }, 30_000);
 
 describe("development security boundary", () => {
+  it.each(["?raw", "?import&raw", "?import&url&inline"])(
+    "keeps fs.deny effective inside an allowed directory with %s", async query => {
+      // A reachable control distinguishes file denial from a broken server.
+      const control = await fetch(`${baseUrl}/${publicName}${query}`);
+      expect(control.status).toBe(200);
+      const controlBody = await control.text();
+      expect(controlBody.includes(publicControl) || controlBody.includes(Buffer.from(publicControl).toString("base64"))).toBe(true);
+      for (const route of [`/${deniedName}`, `/@fs/${deniedCanary}`]) {
+        const response = await fetch(`${baseUrl}${route}${query}`);
+        expect(response.status).toBe(403);
+        const body = await response.text();
+        expect(body).not.toContain(secret);
+        expect(body).not.toContain(Buffer.from(secret).toString("base64"));
+      }
+    },
+  );
+
   it.each(["attacker.example", "localhost.attacker.example"])(
     "rejects untrusted Host %s, including with forged forwarding headers", async host => {
       const response = await new Promise<{status: number | undefined; body: string}>((resolve, reject) => {
