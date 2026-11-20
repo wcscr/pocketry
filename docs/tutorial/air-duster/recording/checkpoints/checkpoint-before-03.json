@@ -1,0 +1,117 @@
+[
+  {
+    "schemaVersion": 1,
+    "activeProjectId": "57a19b91-71eb-400f-b090-ee6383fd50bb",
+    "projects": [
+      {
+        "id": "57a19b91-71eb-400f-b090-ee6383fd50bb",
+        "name": "Air Duster Tutorial",
+        "updatedAt": "2026-09-15T20:08:42.643Z",
+        "doc": {
+          "schemaVersion": 17,
+          "name": "Air Duster Tutorial",
+          "keepBinSize": false,
+          "shapes": [],
+          "spec": {
+            "gridX": 2,
+            "gridY": 2,
+            "gridPitch": "full",
+            "footprint": {
+              "kind": "rectangle"
+            },
+            "heightUnits": 6,
+            "lip": "standard",
+            "fill": "solid",
+            "flatBottom": false,
+            "magnetHoles": false,
+            "magnetCrushRibs": false,
+            "screwHoles": false,
+            "labelTab": null
+          },
+          "cutouts": [],
+          "fingerHoles": [],
+          "history": {
+            "stack": [
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 2,
+                    "gridY": 2,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [],
+                  "fingerHoles": []
+                },
+                "label": "Project opened"
+              }
+            ],
+            "index": 0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 17,
+    "name": "Air Duster Tutorial",
+    "keepBinSize": false,
+    "shapes": [],
+    "spec": {
+      "gridX": 2,
+      "gridY": 2,
+      "gridPitch": "full",
+      "footprint": {
+        "kind": "rectangle"
+      },
+      "heightUnits": 6,
+      "lip": "standard",
+      "fill": "solid",
+      "flatBottom": false,
+      "magnetHoles": false,
+      "magnetCrushRibs": false,
+      "screwHoles": false,
+      "labelTab": null
+    },
+    "cutouts": [],
+    "fingerHoles": [],
+    "history": {
+      "stack": [
+        {
+          "doc": {
+            "spec": {
+              "gridX": 2,
+              "gridY": 2,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [],
+            "fingerHoles": []
+          },
+          "label": "Project opened"
+        }
+      ],
+      "index": 0
+    }
+  }
+]

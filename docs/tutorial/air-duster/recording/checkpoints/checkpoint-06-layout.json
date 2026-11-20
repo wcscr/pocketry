@@ -1,0 +1,2513 @@
+[
+  {
+    "schemaVersion": 1,
+    "activeProjectId": "57a19b91-71eb-400f-b090-ee6383fd50bb",
+    "projects": [
+      {
+        "id": "57a19b91-71eb-400f-b090-ee6383fd50bb",
+        "name": "Air Duster Tutorial",
+        "updatedAt": "2026-09-15T20:13:27.973Z",
+        "doc": {
+          "schemaVersion": 17,
+          "name": "Air Duster Tutorial",
+          "keepBinSize": true,
+          "shapes": [
+            {
+              "id": "969e50f7-f617-437c-80e2-d046e44cc720",
+              "name": "Air Duster",
+              "outlineMm": [
+                {
+                  "outer": [
+                    {
+                      "x": -15.046466827392578,
+                      "y": 81.01940155029297
+                    },
+                    {
+                      "x": -20.986316680908203,
+                      "y": 78.654296875
+                    },
+                    {
+                      "x": -25.023113250732422,
+                      "y": 74.75311279296875
+                    },
+                    {
+                      "x": -45.807559967041016,
+                      "y": 66.57209777832031
+                    },
+                    {
+                      "x": -46.622859954833984,
+                      "y": 65.80265045166016
+                    },
+                    {
+                      "x": -48.959224700927734,
+                      "y": 60.425537109375
+                    },
+                    {
+                      "x": -48.90273666381836,
+                      "y": 50.397682189941406
+                    },
+                    {
+                      "x": -46.962100982666016,
+                      "y": 43.11637878417969
+                    },
+                    {
+                      "x": -44.73756790161133,
+                      "y": 40.03179931640625
+                    },
+                    {
+                      "x": -22.50961685180664,
+                      "y": 32.081687927246094
+                    },
+                    {
+                      "x": -16.373424530029297,
+                      "y": 28.838531494140625
+                    },
+                    {
+                      "x": -14.72818374633789,
+                      "y": -61.04204559326172
+                    },
+                    {
+                      "x": -14.56259536743164,
+                      "y": -61.70384979248047
+                    },
+                    {
+                      "x": -10.070484161376953,
+                      "y": -70.49799346923828
+                    },
+                    {
+                      "x": -3.6669044494628906,
+                      "y": -76.34300994873047
+                    },
+                    {
+                      "x": 5.414012908935547,
+                      "y": -80.50450897216797
+                    },
+                    {
+                      "x": 14.874126434326172,
+                      "y": -81.01940155029297
+                    },
+                    {
+                      "x": 22.69070053100586,
+                      "y": -78.5535659790039
+                    },
+                    {
+                      "x": 28.848949432373047,
+                      "y": -74.15941619873047
+                    },
+                    {
+                      "x": 34.169368743896484,
+                      "y": -67.22393035888672
+                    },
+                    {
+                      "x": 36.919734954833984,
+                      "y": -59.63976287841797
+                    },
+                    {
+                      "x": 38.1834831237793,
+                      "y": 27.371803283691406
+                    },
+                    {
+                      "x": 39.36188888549805,
+                      "y": 29.016700744628906
+                    },
+                    {
+                      "x": 45.1884880065918,
+                      "y": 31.963966369628906
+                    },
+                    {
+                      "x": 45.905879974365234,
+                      "y": 32.7451171875
+                    },
+                    {
+                      "x": 47.74613571166992,
+                      "y": 37.43760681152344
+                    },
+                    {
+                      "x": 48.959224700927734,
+                      "y": 47.63690185546875
+                    },
+                    {
+                      "x": 48.838863372802734,
+                      "y": 67.4197998046875
+                    },
+                    {
+                      "x": 46.49326705932617,
+                      "y": 73.7529525756836
+                    },
+                    {
+                      "x": 38.24453353881836,
+                      "y": 79.40995025634766
+                    },
+                    {
+                      "x": 33.52915573120117,
+                      "y": 81.01798248291016
+                    }
+                  ],
+                  "holes": []
+                }
+              ],
+              "bboxMm": {
+                "minX": -48.959224700927734,
+                "minY": -81.01940155029297,
+                "maxX": 48.959224700927734,
+                "maxY": 81.01940155029297
+              },
+              "pointCount": 31,
+              "sourceMmPerPx": 0.25,
+              "traceMarginMm": 0
+            },
+            {
+              "id": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+              "name": "Adapters",
+              "outlineMm": [
+                {
+                  "outer": [
+                    {
+                      "x": -3.5812759399414062,
+                      "y": 64.24325942993164
+                    },
+                    {
+                      "x": -8.297515869140625,
+                      "y": 62.69752883911133
+                    },
+                    {
+                      "x": -8.965339660644531,
+                      "y": 61.97365951538086
+                    },
+                    {
+                      "x": -10.22119140625,
+                      "y": 46.13325119018555
+                    },
+                    {
+                      "x": -18.600784301757812,
+                      "y": 26.315006256103516
+                    },
+                    {
+                      "x": -18.709793090820312,
+                      "y": 23.889102935791016
+                    },
+                    {
+                      "x": -18.504898071289062,
+                      "y": 23.152698516845703
+                    },
+                    {
+                      "x": -17.981857299804688,
+                      "y": 22.624088287353516
+                    },
+                    {
+                      "x": -16.487503051757812,
+                      "y": 22.06796646118164
+                    },
+                    {
+                      "x": -17.147628784179688,
+                      "y": 20.070011138916016
+                    },
+                    {
+                      "x": -16.645263671875,
+                      "y": 18.935779571533203
+                    },
+                    {
+                      "x": -14.892791748046875,
+                      "y": 17.843204498291016
+                    },
+                    {
+                      "x": -9.518394470214844,
+                      "y": 17.22439956665039
+                    },
+                    {
+                      "x": -10.882377624511719,
+                      "y": -15.53213119506836
+                    },
+                    {
+                      "x": -18.889144897460938,
+                      "y": -35.44515609741211
+                    },
+                    {
+                      "x": -18.964889526367188,
+                      "y": -38.560054779052734
+                    },
+                    {
+                      "x": -18.029403686523438,
+                      "y": -39.89194869995117
+                    },
+                    {
+                      "x": -16.103614807128906,
+                      "y": -41.09048080444336
+                    },
+                    {
+                      "x": -16.063919067382812,
+                      "y": -42.4882926940918
+                    },
+                    {
+                      "x": -15.477928161621094,
+                      "y": -44.0000114440918
+                    },
+                    {
+                      "x": -18.80998992919922,
+                      "y": -52.53005599975586
+                    },
+                    {
+                      "x": -19.384613037109375,
+                      "y": -55.02399826049805
+                    },
+                    {
+                      "x": -18.973411560058594,
+                      "y": -56.19916915893555
+                    },
+                    {
+                      "x": -16.35333251953125,
+                      "y": -58.14895248413086
+                    },
+                    {
+                      "x": -15.708541870117188,
+                      "y": -60.59696578979492
+                    },
+                    {
+                      "x": -15.017196655273438,
+                      "y": -61.29533004760742
+                    },
+                    {
+                      "x": -2.85675048828125,
+                      "y": -64.42307662963867
+                    },
+                    {
+                      "x": 3.4250030517578125,
+                      "y": -64.22886276245117
+                    },
+                    {
+                      "x": 13.756942749023438,
+                      "y": -61.86640548706055
+                    },
+                    {
+                      "x": 15.411842346191406,
+                      "y": -60.326107025146484
+                    },
+                    {
+                      "x": 15.99627685546875,
+                      "y": -58.5905876159668
+                    },
+                    {
+                      "x": 15.898246765136719,
+                      "y": -57.61616134643555
+                    },
+                    {
+                      "x": 18.64080810546875,
+                      "y": -56.34879684448242
+                    },
+                    {
+                      "x": 18.950584411621094,
+                      "y": -55.73356246948242
+                    },
+                    {
+                      "x": 19.049049377441406,
+                      "y": -53.620113372802734
+                    },
+                    {
+                      "x": 18.71343994140625,
+                      "y": -52.299373626708984
+                    },
+                    {
+                      "x": 15.636734008789062,
+                      "y": -43.70499801635742
+                    },
+                    {
+                      "x": 16.44036102294922,
+                      "y": -42.29844284057617
+                    },
+                    {
+                      "x": 16.407485961914062,
+                      "y": -40.888607025146484
+                    },
+                    {
+                      "x": 18.460891723632812,
+                      "y": -39.6452751159668
+                    },
+                    {
+                      "x": 19.384613037109375,
+                      "y": -37.17100143432617
+                    },
+                    {
+                      "x": 11.502037048339844,
+                      "y": -16.123851776123047
+                    },
+                    {
+                      "x": 10.717308044433594,
+                      "y": 17.01578140258789
+                    },
+                    {
+                      "x": 15.777122497558594,
+                      "y": 17.41647720336914
+                    },
+                    {
+                      "x": 17.370216369628906,
+                      "y": 18.546924591064453
+                    },
+                    {
+                      "x": 17.72332763671875,
+                      "y": 19.743335723876953
+                    },
+                    {
+                      "x": 17.10576629638672,
+                      "y": 21.198322296142578
+                    },
+                    {
+                      "x": 18.70220184326172,
+                      "y": 21.82437515258789
+                    },
+                    {
+                      "x": 19.20983123779297,
+                      "y": 22.68326187133789
+                    },
+                    {
+                      "x": 18.855178833007812,
+                      "y": 25.531383514404297
+                    },
+                    {
+                      "x": 11.674476623535156,
+                      "y": 45.32845687866211
+                    },
+                    {
+                      "x": 11.500579833984375,
+                      "y": 60.97551345825195
+                    },
+                    {
+                      "x": 11.360130310058594,
+                      "y": 61.57363510131836
+                    },
+                    {
+                      "x": 10.674392700195312,
+                      "y": 62.27823257446289
+                    },
+                    {
+                      "x": 7.857002258300781,
+                      "y": 63.4111213684082
+                    },
+                    {
+                      "x": 3.0219802856445312,
+                      "y": 64.33134078979492
+                    },
+                    {
+                      "x": 0.0603485107421875,
+                      "y": 64.42307662963867
+                    }
+                  ],
+                  "holes": []
+                }
+              ],
+              "bboxMm": {
+                "minX": -19.384613037109375,
+                "minY": -64.42307662963867,
+                "maxX": 19.384613037109375,
+                "maxY": 64.42307662963867
+              },
+              "pointCount": 57,
+              "sourceMmPerPx": 0.25,
+              "traceMarginMm": 0
+            },
+            {
+              "id": "a943a4d8-db08-49d8-bd88-36b274613a38",
+              "name": "Angled Nozzle",
+              "outlineMm": [
+                {
+                  "outer": [
+                    {
+                      "x": -20.420616149902344,
+                      "y": 26.789505004882812
+                    },
+                    {
+                      "x": -23.928176879882812,
+                      "y": 18.911422729492188
+                    },
+                    {
+                      "x": -22.48804473876953,
+                      "y": 13.190948486328125
+                    },
+                    {
+                      "x": -12.963104248046875,
+                      "y": 0.2032012939453125
+                    },
+                    {
+                      "x": -7.8306732177734375,
+                      "y": -22.871795654296875
+                    },
+                    {
+                      "x": -8.099052429199219,
+                      "y": -23.532791137695312
+                    },
+                    {
+                      "x": -6.354728698730469,
+                      "y": -26.66290283203125
+                    },
+                    {
+                      "x": -3.5742263793945312,
+                      "y": -25.326217651367188
+                    },
+                    {
+                      "x": -1.789794921875,
+                      "y": -27.84503173828125
+                    },
+                    {
+                      "x": -0.6807327270507812,
+                      "y": -27.90155029296875
+                    },
+                    {
+                      "x": 0.4113616943359375,
+                      "y": -27.38568115234375
+                    },
+                    {
+                      "x": 23.85589599609375,
+                      "y": -9.094436645507812
+                    },
+                    {
+                      "x": 23.928176879882812,
+                      "y": -8.46466064453125
+                    },
+                    {
+                      "x": 23.817886352539062,
+                      "y": -7.3391876220703125
+                    },
+                    {
+                      "x": 22.112533569335938,
+                      "y": -5.1611480712890625
+                    },
+                    {
+                      "x": 23.274566650390625,
+                      "y": -4.1276397705078125
+                    },
+                    {
+                      "x": 23.8758544921875,
+                      "y": -2.739501953125
+                    },
+                    {
+                      "x": 23.860443115234375,
+                      "y": -2.0550689697265625
+                    },
+                    {
+                      "x": 22.738800048828125,
+                      "y": -1.08251953125
+                    },
+                    {
+                      "x": 0.00191497802734375,
+                      "y": 11.754776000976562
+                    },
+                    {
+                      "x": -12.569755554199219,
+                      "y": 26.018936157226562
+                    },
+                    {
+                      "x": -18.452171325683594,
+                      "y": 27.90155029296875
+                    }
+                  ],
+                  "holes": []
+                }
+              ],
+              "bboxMm": {
+                "minX": -23.928176879882812,
+                "minY": -27.90155029296875,
+                "maxX": 23.928176879882812,
+                "maxY": 27.90155029296875
+              },
+              "pointCount": 22,
+              "sourceMmPerPx": 0.25,
+              "traceMarginMm": 0
+            }
+          ],
+          "spec": {
+            "gridX": 4,
+            "gridY": 4,
+            "gridPitch": "full",
+            "footprint": {
+              "kind": "rectangle"
+            },
+            "heightUnits": 6.5,
+            "lip": "standard",
+            "fill": "solid",
+            "flatBottom": false,
+            "magnetHoles": false,
+            "magnetCrushRibs": false,
+            "screwHoles": false,
+            "labelTab": null
+          },
+          "cutouts": [
+            {
+              "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+              "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+              "position": {
+                "x": 30.249881286621104,
+                "y": 0
+              },
+              "rotationDeg": 0,
+              "mirrored": false,
+              "scaleX": 1,
+              "scaleY": 1,
+              "aspectRatioLocked": true,
+              "depth": {
+                "mode": "remaining",
+                "floorThicknessMm": 7
+              },
+              "clearanceMm": 0,
+              "cornerRoundMm": 1,
+              "topFilletMm": 1,
+              "bottomFilletMm": 2.8,
+              "fingerHoles": []
+            },
+            {
+              "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+              "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+              "position": {
+                "x": -21,
+                "y": -21
+              },
+              "rotationDeg": 0,
+              "mirrored": false,
+              "scaleX": 1,
+              "scaleY": 1,
+              "aspectRatioLocked": true,
+              "depth": {
+                "mode": "remaining",
+                "floorThicknessMm": 7
+              },
+              "clearanceMm": 0,
+              "cornerRoundMm": 1,
+              "topFilletMm": 1,
+              "bottomFilletMm": 2.8,
+              "fingerHoles": []
+            },
+            {
+              "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+              "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+              "position": {
+                "x": -44.7500057220459,
+                "y": 44.750102539062496
+              },
+              "rotationDeg": 0,
+              "mirrored": false,
+              "scaleX": 1,
+              "scaleY": 1,
+              "aspectRatioLocked": true,
+              "depth": {
+                "mode": "remaining",
+                "floorThicknessMm": 7
+              },
+              "clearanceMm": 0,
+              "cornerRoundMm": 1,
+              "topFilletMm": 1,
+              "bottomFilletMm": 2.8,
+              "fingerHoles": []
+            }
+          ],
+          "fingerHoles": [],
+          "history": {
+            "stack": [
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 2,
+                    "gridY": 2,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [],
+                  "fingerHoles": []
+                },
+                "label": "Project opened"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 6,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": -20.989613037109365,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": 50.56422470092774,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": 0,
+                        "y": -82.62440155029297
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Add 3 tool pockets"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 6,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": -20.989613037109365,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": 50.56422470092774,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": 0,
+                        "y": -82.62440155029297
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Change bin width"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 4,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": -20.989613037109365,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": 50.56422470092774,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": 0,
+                        "y": -82.62440155029297
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Change bin length"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 4,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6.5,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": -20.989613037109365,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": 50.56422470092774,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": 0,
+                        "y": -82.62440155029297
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Change bin height"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 4,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6.5,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": 30.249881286621104,
+                        "y": 0
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": 50.56422470092774,
+                        "y": 29.506550292968754
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": 0,
+                        "y": -82.62440155029297
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Move tool pocket"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 4,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6.5,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": 30.249881286621104,
+                        "y": 0
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": -21,
+                        "y": -21
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": 0,
+                        "y": -82.62440155029297
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Move tool pocket"
+              },
+              {
+                "doc": {
+                  "spec": {
+                    "gridX": 4,
+                    "gridY": 4,
+                    "gridPitch": "full",
+                    "footprint": {
+                      "kind": "rectangle"
+                    },
+                    "heightUnits": 6.5,
+                    "lip": "standard",
+                    "fill": "solid",
+                    "flatBottom": false,
+                    "magnetHoles": false,
+                    "magnetCrushRibs": false,
+                    "screwHoles": false,
+                    "labelTab": null
+                  },
+                  "cutouts": [
+                    {
+                      "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                      "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                      "position": {
+                        "x": 30.249881286621104,
+                        "y": 0
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                      "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                      "position": {
+                        "x": -21,
+                        "y": -21
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    },
+                    {
+                      "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                      "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                      "position": {
+                        "x": -44.7500057220459,
+                        "y": 44.750102539062496
+                      },
+                      "rotationDeg": 0,
+                      "mirrored": false,
+                      "scaleX": 1,
+                      "scaleY": 1,
+                      "aspectRatioLocked": true,
+                      "depth": {
+                        "mode": "remaining",
+                        "floorThicknessMm": 7
+                      },
+                      "clearanceMm": 0,
+                      "cornerRoundMm": 1,
+                      "topFilletMm": 1,
+                      "bottomFilletMm": 2.8,
+                      "fingerHoles": []
+                    }
+                  ],
+                  "fingerHoles": []
+                },
+                "label": "Move tool pocket"
+              }
+            ],
+            "index": 7
+          }
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 17,
+    "name": "Air Duster Tutorial",
+    "keepBinSize": true,
+    "shapes": [
+      {
+        "id": "969e50f7-f617-437c-80e2-d046e44cc720",
+        "name": "Air Duster",
+        "outlineMm": [
+          {
+            "outer": [
+              {
+                "x": -15.046466827392578,
+                "y": 81.01940155029297
+              },
+              {
+                "x": -20.986316680908203,
+                "y": 78.654296875
+              },
+              {
+                "x": -25.023113250732422,
+                "y": 74.75311279296875
+              },
+              {
+                "x": -45.807559967041016,
+                "y": 66.57209777832031
+              },
+              {
+                "x": -46.622859954833984,
+                "y": 65.80265045166016
+              },
+              {
+                "x": -48.959224700927734,
+                "y": 60.425537109375
+              },
+              {
+                "x": -48.90273666381836,
+                "y": 50.397682189941406
+              },
+              {
+                "x": -46.962100982666016,
+                "y": 43.11637878417969
+              },
+              {
+                "x": -44.73756790161133,
+                "y": 40.03179931640625
+              },
+              {
+                "x": -22.50961685180664,
+                "y": 32.081687927246094
+              },
+              {
+                "x": -16.373424530029297,
+                "y": 28.838531494140625
+              },
+              {
+                "x": -14.72818374633789,
+                "y": -61.04204559326172
+              },
+              {
+                "x": -14.56259536743164,
+                "y": -61.70384979248047
+              },
+              {
+                "x": -10.070484161376953,
+                "y": -70.49799346923828
+              },
+              {
+                "x": -3.6669044494628906,
+                "y": -76.34300994873047
+              },
+              {
+                "x": 5.414012908935547,
+                "y": -80.50450897216797
+              },
+              {
+                "x": 14.874126434326172,
+                "y": -81.01940155029297
+              },
+              {
+                "x": 22.69070053100586,
+                "y": -78.5535659790039
+              },
+              {
+                "x": 28.848949432373047,
+                "y": -74.15941619873047
+              },
+              {
+                "x": 34.169368743896484,
+                "y": -67.22393035888672
+              },
+              {
+                "x": 36.919734954833984,
+                "y": -59.63976287841797
+              },
+              {
+                "x": 38.1834831237793,
+                "y": 27.371803283691406
+              },
+              {
+                "x": 39.36188888549805,
+                "y": 29.016700744628906
+              },
+              {
+                "x": 45.1884880065918,
+                "y": 31.963966369628906
+              },
+              {
+                "x": 45.905879974365234,
+                "y": 32.7451171875
+              },
+              {
+                "x": 47.74613571166992,
+                "y": 37.43760681152344
+              },
+              {
+                "x": 48.959224700927734,
+                "y": 47.63690185546875
+              },
+              {
+                "x": 48.838863372802734,
+                "y": 67.4197998046875
+              },
+              {
+                "x": 46.49326705932617,
+                "y": 73.7529525756836
+              },
+              {
+                "x": 38.24453353881836,
+                "y": 79.40995025634766
+              },
+              {
+                "x": 33.52915573120117,
+                "y": 81.01798248291016
+              }
+            ],
+            "holes": []
+          }
+        ],
+        "bboxMm": {
+          "minX": -48.959224700927734,
+          "minY": -81.01940155029297,
+          "maxX": 48.959224700927734,
+          "maxY": 81.01940155029297
+        },
+        "pointCount": 31,
+        "sourceMmPerPx": 0.25,
+        "traceMarginMm": 0
+      },
+      {
+        "id": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+        "name": "Adapters",
+        "outlineMm": [
+          {
+            "outer": [
+              {
+                "x": -3.5812759399414062,
+                "y": 64.24325942993164
+              },
+              {
+                "x": -8.297515869140625,
+                "y": 62.69752883911133
+              },
+              {
+                "x": -8.965339660644531,
+                "y": 61.97365951538086
+              },
+              {
+                "x": -10.22119140625,
+                "y": 46.13325119018555
+              },
+              {
+                "x": -18.600784301757812,
+                "y": 26.315006256103516
+              },
+              {
+                "x": -18.709793090820312,
+                "y": 23.889102935791016
+              },
+              {
+                "x": -18.504898071289062,
+                "y": 23.152698516845703
+              },
+              {
+                "x": -17.981857299804688,
+                "y": 22.624088287353516
+              },
+              {
+                "x": -16.487503051757812,
+                "y": 22.06796646118164
+              },
+              {
+                "x": -17.147628784179688,
+                "y": 20.070011138916016
+              },
+              {
+                "x": -16.645263671875,
+                "y": 18.935779571533203
+              },
+              {
+                "x": -14.892791748046875,
+                "y": 17.843204498291016
+              },
+              {
+                "x": -9.518394470214844,
+                "y": 17.22439956665039
+              },
+              {
+                "x": -10.882377624511719,
+                "y": -15.53213119506836
+              },
+              {
+                "x": -18.889144897460938,
+                "y": -35.44515609741211
+              },
+              {
+                "x": -18.964889526367188,
+                "y": -38.560054779052734
+              },
+              {
+                "x": -18.029403686523438,
+                "y": -39.89194869995117
+              },
+              {
+                "x": -16.103614807128906,
+                "y": -41.09048080444336
+              },
+              {
+                "x": -16.063919067382812,
+                "y": -42.4882926940918
+              },
+              {
+                "x": -15.477928161621094,
+                "y": -44.0000114440918
+              },
+              {
+                "x": -18.80998992919922,
+                "y": -52.53005599975586
+              },
+              {
+                "x": -19.384613037109375,
+                "y": -55.02399826049805
+              },
+              {
+                "x": -18.973411560058594,
+                "y": -56.19916915893555
+              },
+              {
+                "x": -16.35333251953125,
+                "y": -58.14895248413086
+              },
+              {
+                "x": -15.708541870117188,
+                "y": -60.59696578979492
+              },
+              {
+                "x": -15.017196655273438,
+                "y": -61.29533004760742
+              },
+              {
+                "x": -2.85675048828125,
+                "y": -64.42307662963867
+              },
+              {
+                "x": 3.4250030517578125,
+                "y": -64.22886276245117
+              },
+              {
+                "x": 13.756942749023438,
+                "y": -61.86640548706055
+              },
+              {
+                "x": 15.411842346191406,
+                "y": -60.326107025146484
+              },
+              {
+                "x": 15.99627685546875,
+                "y": -58.5905876159668
+              },
+              {
+                "x": 15.898246765136719,
+                "y": -57.61616134643555
+              },
+              {
+                "x": 18.64080810546875,
+                "y": -56.34879684448242
+              },
+              {
+                "x": 18.950584411621094,
+                "y": -55.73356246948242
+              },
+              {
+                "x": 19.049049377441406,
+                "y": -53.620113372802734
+              },
+              {
+                "x": 18.71343994140625,
+                "y": -52.299373626708984
+              },
+              {
+                "x": 15.636734008789062,
+                "y": -43.70499801635742
+              },
+              {
+                "x": 16.44036102294922,
+                "y": -42.29844284057617
+              },
+              {
+                "x": 16.407485961914062,
+                "y": -40.888607025146484
+              },
+              {
+                "x": 18.460891723632812,
+                "y": -39.6452751159668
+              },
+              {
+                "x": 19.384613037109375,
+                "y": -37.17100143432617
+              },
+              {
+                "x": 11.502037048339844,
+                "y": -16.123851776123047
+              },
+              {
+                "x": 10.717308044433594,
+                "y": 17.01578140258789
+              },
+              {
+                "x": 15.777122497558594,
+                "y": 17.41647720336914
+              },
+              {
+                "x": 17.370216369628906,
+                "y": 18.546924591064453
+              },
+              {
+                "x": 17.72332763671875,
+                "y": 19.743335723876953
+              },
+              {
+                "x": 17.10576629638672,
+                "y": 21.198322296142578
+              },
+              {
+                "x": 18.70220184326172,
+                "y": 21.82437515258789
+              },
+              {
+                "x": 19.20983123779297,
+                "y": 22.68326187133789
+              },
+              {
+                "x": 18.855178833007812,
+                "y": 25.531383514404297
+              },
+              {
+                "x": 11.674476623535156,
+                "y": 45.32845687866211
+              },
+              {
+                "x": 11.500579833984375,
+                "y": 60.97551345825195
+              },
+              {
+                "x": 11.360130310058594,
+                "y": 61.57363510131836
+              },
+              {
+                "x": 10.674392700195312,
+                "y": 62.27823257446289
+              },
+              {
+                "x": 7.857002258300781,
+                "y": 63.4111213684082
+              },
+              {
+                "x": 3.0219802856445312,
+                "y": 64.33134078979492
+              },
+              {
+                "x": 0.0603485107421875,
+                "y": 64.42307662963867
+              }
+            ],
+            "holes": []
+          }
+        ],
+        "bboxMm": {
+          "minX": -19.384613037109375,
+          "minY": -64.42307662963867,
+          "maxX": 19.384613037109375,
+          "maxY": 64.42307662963867
+        },
+        "pointCount": 57,
+        "sourceMmPerPx": 0.25,
+        "traceMarginMm": 0
+      },
+      {
+        "id": "a943a4d8-db08-49d8-bd88-36b274613a38",
+        "name": "Angled Nozzle",
+        "outlineMm": [
+          {
+            "outer": [
+              {
+                "x": -20.420616149902344,
+                "y": 26.789505004882812
+              },
+              {
+                "x": -23.928176879882812,
+                "y": 18.911422729492188
+              },
+              {
+                "x": -22.48804473876953,
+                "y": 13.190948486328125
+              },
+              {
+                "x": -12.963104248046875,
+                "y": 0.2032012939453125
+              },
+              {
+                "x": -7.8306732177734375,
+                "y": -22.871795654296875
+              },
+              {
+                "x": -8.099052429199219,
+                "y": -23.532791137695312
+              },
+              {
+                "x": -6.354728698730469,
+                "y": -26.66290283203125
+              },
+              {
+                "x": -3.5742263793945312,
+                "y": -25.326217651367188
+              },
+              {
+                "x": -1.789794921875,
+                "y": -27.84503173828125
+              },
+              {
+                "x": -0.6807327270507812,
+                "y": -27.90155029296875
+              },
+              {
+                "x": 0.4113616943359375,
+                "y": -27.38568115234375
+              },
+              {
+                "x": 23.85589599609375,
+                "y": -9.094436645507812
+              },
+              {
+                "x": 23.928176879882812,
+                "y": -8.46466064453125
+              },
+              {
+                "x": 23.817886352539062,
+                "y": -7.3391876220703125
+              },
+              {
+                "x": 22.112533569335938,
+                "y": -5.1611480712890625
+              },
+              {
+                "x": 23.274566650390625,
+                "y": -4.1276397705078125
+              },
+              {
+                "x": 23.8758544921875,
+                "y": -2.739501953125
+              },
+              {
+                "x": 23.860443115234375,
+                "y": -2.0550689697265625
+              },
+              {
+                "x": 22.738800048828125,
+                "y": -1.08251953125
+              },
+              {
+                "x": 0.00191497802734375,
+                "y": 11.754776000976562
+              },
+              {
+                "x": -12.569755554199219,
+                "y": 26.018936157226562
+              },
+              {
+                "x": -18.452171325683594,
+                "y": 27.90155029296875
+              }
+            ],
+            "holes": []
+          }
+        ],
+        "bboxMm": {
+          "minX": -23.928176879882812,
+          "minY": -27.90155029296875,
+          "maxX": 23.928176879882812,
+          "maxY": 27.90155029296875
+        },
+        "pointCount": 22,
+        "sourceMmPerPx": 0.25,
+        "traceMarginMm": 0
+      }
+    ],
+    "spec": {
+      "gridX": 4,
+      "gridY": 4,
+      "gridPitch": "full",
+      "footprint": {
+        "kind": "rectangle"
+      },
+      "heightUnits": 6.5,
+      "lip": "standard",
+      "fill": "solid",
+      "flatBottom": false,
+      "magnetHoles": false,
+      "magnetCrushRibs": false,
+      "screwHoles": false,
+      "labelTab": null
+    },
+    "cutouts": [
+      {
+        "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+        "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+        "position": {
+          "x": 30.249881286621104,
+          "y": 0
+        },
+        "rotationDeg": 0,
+        "mirrored": false,
+        "scaleX": 1,
+        "scaleY": 1,
+        "aspectRatioLocked": true,
+        "depth": {
+          "mode": "remaining",
+          "floorThicknessMm": 7
+        },
+        "clearanceMm": 0,
+        "cornerRoundMm": 1,
+        "topFilletMm": 1,
+        "bottomFilletMm": 2.8,
+        "fingerHoles": []
+      },
+      {
+        "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+        "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+        "position": {
+          "x": -21,
+          "y": -21
+        },
+        "rotationDeg": 0,
+        "mirrored": false,
+        "scaleX": 1,
+        "scaleY": 1,
+        "aspectRatioLocked": true,
+        "depth": {
+          "mode": "remaining",
+          "floorThicknessMm": 7
+        },
+        "clearanceMm": 0,
+        "cornerRoundMm": 1,
+        "topFilletMm": 1,
+        "bottomFilletMm": 2.8,
+        "fingerHoles": []
+      },
+      {
+        "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+        "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+        "position": {
+          "x": -44.7500057220459,
+          "y": 44.750102539062496
+        },
+        "rotationDeg": 0,
+        "mirrored": false,
+        "scaleX": 1,
+        "scaleY": 1,
+        "aspectRatioLocked": true,
+        "depth": {
+          "mode": "remaining",
+          "floorThicknessMm": 7
+        },
+        "clearanceMm": 0,
+        "cornerRoundMm": 1,
+        "topFilletMm": 1,
+        "bottomFilletMm": 2.8,
+        "fingerHoles": []
+      }
+    ],
+    "fingerHoles": [],
+    "history": {
+      "stack": [
+        {
+          "doc": {
+            "spec": {
+              "gridX": 2,
+              "gridY": 2,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [],
+            "fingerHoles": []
+          },
+          "label": "Project opened"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 6,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": -20.989613037109365,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": 50.56422470092774,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": 0,
+                  "y": -82.62440155029297
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Add 3 tool pockets"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 6,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": -20.989613037109365,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": 50.56422470092774,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": 0,
+                  "y": -82.62440155029297
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Change bin width"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 4,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": -20.989613037109365,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": 50.56422470092774,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": 0,
+                  "y": -82.62440155029297
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Change bin length"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 4,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6.5,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": -20.989613037109365,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": 50.56422470092774,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": 0,
+                  "y": -82.62440155029297
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Change bin height"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 4,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6.5,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": 30.249881286621104,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": 50.56422470092774,
+                  "y": 29.506550292968754
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": 0,
+                  "y": -82.62440155029297
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Move tool pocket"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 4,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6.5,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": 30.249881286621104,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": -21,
+                  "y": -21
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": 0,
+                  "y": -82.62440155029297
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Move tool pocket"
+        },
+        {
+          "doc": {
+            "spec": {
+              "gridX": 4,
+              "gridY": 4,
+              "gridPitch": "full",
+              "footprint": {
+                "kind": "rectangle"
+              },
+              "heightUnits": 6.5,
+              "lip": "standard",
+              "fill": "solid",
+              "flatBottom": false,
+              "magnetHoles": false,
+              "magnetCrushRibs": false,
+              "screwHoles": false,
+              "labelTab": null
+            },
+            "cutouts": [
+              {
+                "id": "cutout-969e50f7-f617-437c-80e2-d046e44cc720-jwggor",
+                "shapeId": "969e50f7-f617-437c-80e2-d046e44cc720",
+                "position": {
+                  "x": 30.249881286621104,
+                  "y": 0
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-5cad9eb9-505e-4b85-a24d-4c82ba5464bf-m8n2n7",
+                "shapeId": "5cad9eb9-505e-4b85-a24d-4c82ba5464bf",
+                "position": {
+                  "x": -21,
+                  "y": -21
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              },
+              {
+                "id": "cutout-a943a4d8-db08-49d8-bd88-36b274613a38-60vyby",
+                "shapeId": "a943a4d8-db08-49d8-bd88-36b274613a38",
+                "position": {
+                  "x": -44.7500057220459,
+                  "y": 44.750102539062496
+                },
+                "rotationDeg": 0,
+                "mirrored": false,
+                "scaleX": 1,
+                "scaleY": 1,
+                "aspectRatioLocked": true,
+                "depth": {
+                  "mode": "remaining",
+                  "floorThicknessMm": 7
+                },
+                "clearanceMm": 0,
+                "cornerRoundMm": 1,
+                "topFilletMm": 1,
+                "bottomFilletMm": 2.8,
+                "fingerHoles": []
+              }
+            ],
+            "fingerHoles": []
+          },
+          "label": "Move tool pocket"
+        }
+      ],
+      "index": 7
+    }
+  }
+]

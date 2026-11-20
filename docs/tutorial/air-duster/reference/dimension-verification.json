@@ -1,0 +1,161 @@
+{
+  "capturedAppMainCommit": "ec985ed85bed71ad9e24adce24bedb1948241d55",
+  "reference3mfSha256": "d52906adfcc2cc4a4c8cf5af9591a611d2d8700c600376cab4cba981b780974b",
+  "referenceToolWalls": {
+    "zMm": 20.05,
+    "exclusions": "bin perimeter and bounding boxes of the two independent finger openings",
+    "referenceSamples": 3364,
+    "currentSamples": 3359,
+    "maxToolWallDeviationMm": 4.247818989358991e-06
+  },
+  "referenceSectionComparisons": [
+    {
+      "zMm": 6.05,
+      "referenceSegments": 586,
+      "currentSegments": 574,
+      "referenceToCurrentMaxMm": 4.623199393899083e-06,
+      "currentToReferenceMaxMm": 4.63721648235438e-06,
+      "referenceP99Mm": 3.4896240935093053e-06
+    },
+    {
+      "zMm": 9.05,
+      "referenceSegments": 890,
+      "currentSegments": 837,
+      "referenceToCurrentMaxMm": 4.247818989391016e-06,
+      "currentToReferenceMaxMm": 4.2181868770570005e-06,
+      "referenceP99Mm": 3.4896242384685706e-06
+    },
+    {
+      "zMm": 11.55,
+      "referenceSegments": 2176,
+      "currentSegments": 2139,
+      "referenceToCurrentMaxMm": 0.05568000950801848,
+      "currentToReferenceMaxMm": 0.06033197551938494,
+      "referenceP99Mm": 3.729526173498956e-06
+    },
+    {
+      "zMm": 12.05,
+      "referenceSegments": 2174,
+      "currentSegments": 2133,
+      "referenceToCurrentMaxMm": 0.03484442887206945,
+      "currentToReferenceMaxMm": 0.03575177818485427,
+      "referenceP99Mm": 0.00745211008445957
+    },
+    {
+      "zMm": 20.05,
+      "referenceSegments": 2070,
+      "currentSegments": 2032,
+      "referenceToCurrentMaxMm": 0.02461679918997376,
+      "currentToReferenceMaxMm": 0.026651697010810143,
+      "referenceP99Mm": 0.016102126552779168
+    },
+    {
+      "zMm": 40.05,
+      "referenceSegments": 2523,
+      "currentSegments": 2478,
+      "referenceToCurrentMaxMm": 0.012539421011334375,
+      "currentToReferenceMaxMm": 0.012722780579221393,
+      "referenceP99Mm": 0.007643254862162
+    },
+    {
+      "zMm": 43.35,
+      "referenceSegments": 3909,
+      "currentSegments": 3862,
+      "referenceToCurrentMaxMm": 0.012232150901046946,
+      "currentToReferenceMaxMm": 0.01272278057921542,
+      "referenceP99Mm": 0.0064886030570806795
+    },
+    {
+      "zMm": 44.25,
+      "referenceSegments": 3749,
+      "currentSegments": 3694,
+      "referenceToCurrentMaxMm": 0.012212478893175659,
+      "currentToReferenceMaxMm": 0.012722780579215259,
+      "referenceP99Mm": 0.007797061096966717
+    }
+  ],
+  "referencePocketDimensions": [
+    {
+      "name": "Air Duster",
+      "widthMm": 87.82631006600229,
+      "lengthMm": 145.56834893741282,
+      "scaleX": 0.9,
+      "scaleY": 0.905
+    },
+    {
+      "name": "Adapters",
+      "widthMm": 36.74417015075684,
+      "lengthMm": 113.31980651132763,
+      "scaleX": 0.88,
+      "scaleY": 0.87
+    },
+    {
+      "name": "Angled Nozzle",
+      "widthMm": 45.42907167691737,
+      "lengthMm": 52.7459243774414,
+      "scaleX": 0.8999999999999999,
+      "scaleY": 0.8999999999999999
+    },
+    {
+      "name": "USB Cable",
+      "widthMm": 17.443820488259206,
+      "lengthMm": 103.58980533791943,
+      "scaleX": 1.19,
+      "scaleY": 0.92
+    }
+  ],
+  "finalDepthAdjustment": {
+    "pocketDepthMm": 38.5,
+    "floorColorThicknessMm": 0.6,
+    "remainingFloorMm": 5.8,
+    "warnings": [],
+    "solidStatus": "NoError",
+    "volumeMm3": 672005.5026833203,
+    "floorColorBounds": {
+      "min": [
+        -66.28599368780851,
+        -75.82290031760931,
+        5.1999999999999975
+      ],
+      "max": [
+        76.2022318392992,
+        75.13695602118969,
+        10.299999999999997
+      ]
+    },
+    "outlineTest": {
+      "status": "NoError",
+      "bounds": {
+        "min": [
+          -73.48642594367266,
+          -83.02332686632872,
+          0
+        ],
+        "max": [
+          83.40225107222795,
+          82.33695688098669,
+          1.2000000000000028
+        ]
+      },
+      "triangles": 107538,
+      "volumeMm3": 7620.194738849645
+    },
+    "materialParts": [
+      {
+        "name": "Bin body",
+        "triangles": 193470
+      },
+      {
+        "name": "Pocket floors",
+        "triangles": 2964
+      },
+      {
+        "name": "Stacking rim",
+        "triangles": 3814
+      }
+    ]
+  },
+  "finalCheckpointOnlyChange": "Air Duster depth.value: 39 -> 38.5 mm",
+  "stlByteLength": 5376984,
+  "stlTriangles": 107538
+}

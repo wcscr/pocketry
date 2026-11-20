@@ -1,0 +1,15 @@
+{
+  "durationSeconds": 425.3,
+  "frames": 12759,
+  "resolution": [
+    1440,
+    900
+  ],
+  "fps": 30,
+  "audioTracks": 0,
+  "fullDecode": "passed",
+  "americanEnglishCaptionScan": "passed",
+  "motionSamples": "4 intervals passed; at least 3 distinct frames per interval",
+  "chapterFramesReviewed": 20,
+  "sha256": "e772d22cdbe727e4ed91cba567722612293d1364c362e8e2987af72044594922"
+}
