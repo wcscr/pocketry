@@ -12,7 +12,7 @@ export function createDetectionClient(spawn: () => MessageEndpoint) {
   let client: WorkerClient | undefined;
   let active: (() => void) | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  async function invoke<T>(method: string, prepare: () => { payload: unknown; transfer?: Transferable[] }, signal?: AbortSignal): Promise<T> {
+  async function invoke<T>(method: string, prepare: () => { payload: unknown; transfer?: Transferable[] }, signal?: AbortSignal, releaseAfter = false): Promise<T> {
     if (signal?.aborted) throw new WorkerCancelledError();
     clearTimeout(idleTimer);
     active?.();
@@ -38,7 +38,10 @@ export function createDetectionClient(spawn: () => MessageEndpoint) {
       if (active === stop) active = undefined;
       // OpenCV's WASM heap cannot shrink. Keep slider/retrace bursts warm,
       // then release the entire idle worker, particularly on mobile Safari.
-      if (!active && client === current) idleTimer = setTimeout(stop, 30_000);
+      if (!active && client === current) {
+        if (releaseAfter) stop(); // Release the larger one-shot WASM heap immediately.
+        else idleTimer = setTimeout(stop, 30_000);
+      }
     }
   }
   return {
@@ -51,7 +54,7 @@ export function createDetectionClient(spawn: () => MessageEndpoint) {
         // Preserve caller pixels for calibration, editing and retry.
         const data = image.data.slice();
         return { payload: { image: { width: image.width, height: image.height, data }, options: wireOptions }, transfer: [data.buffer] };
-      }, signal);
+      }, signal, options.highDetail);
     },
     reconstruct(payload: ReconstructionRequest, signal?: AbortSignal): Promise<ReconstructionResult> {
       return invoke("reconstruct", () => ({ payload }), signal);

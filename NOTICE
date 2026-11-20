@@ -157,9 +157,9 @@ respective ownership.
 README screenshots — project-owned documentation
 ================================================================================
 
-`docs/images/trace-outline.jpg` was captured on 2026-10-08 from Pocketry's
-current default Workflow + properties layout in headless Chrome at 1600 x 1000.
-It demonstrates a fresh trace of the project's original air-duster photograph.
+`docs/images/trace-outline.jpg` was captured on 2026-11-18 from Pocketry's
+Workflow + properties layout in headless Chrome at 1440 x 900. It shows the
+standard Edit outline controls on a fresh trace of the original Wolfbox air-duster photograph.
 
 `docs/images/bin-layout.jpg` and `docs/images/ruler-check.jpg` were captured in
 the same UI after importing the exact contributor-supplied printed-bin project:
@@ -514,13 +514,17 @@ The runtime serves Pocketry's LICENSE.txt and NOTICE.txt alongside the app.
 TEED learned edge model — MIT
 ================================================================================
 
-Optional, on-device outer-outline detection bundles a fixed 512x512 ONNX export
+Optional, on-device outer-outline detection bundles 512x512 and 768x768 ONNX exports
 of TEED's BIPED checkpoint checkpoints/BIPED/5/5_model.pth.
 Source: https://github.com/xavysp/TEED
 Revision: 40fa4b1391dc6424f88989d0ca75d5b592c8681d
 Checkpoint SHA-256: 0322caf70f588355aaaf59c2bf5872b21a4b7e9f679971a7a3bb1f69b56a01ba
 ONNX SHA-256: f1a4f305356f9752e1a9af0f43f067ecb93ab4f27c8a5ed7beb9b37970797837
 Asset: /models/teed/teed-512-f1a4f305.onnx
+High-detail ONNX SHA-256: b50a01b1f5cf2b4e345fa62ada8ed5e30370f9aebf7a25312eb118f9fbb8ca3c
+High-detail asset: /models/teed/teed-768-b50a01b1.onnx
+Pocketry changed the input and output height and width declarations to 768
+for the high-detail graph. Both exports use the same operators and weights.
 Conversion: fixed FP32 NCHW input, ONNX opset 13, fused output with sigmoid.
 The upstream repository distributes this checkpoint alongside its MIT license;
 no separate weights license or model card is provided. No training dataset or

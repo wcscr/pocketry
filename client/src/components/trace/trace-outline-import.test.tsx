@@ -248,7 +248,7 @@ describe("TraceOutlineImport", () => {
     expect(fitSwitch()?.getAttribute("aria-checked")).toBe("true");
     expect(summary()).toContain("40.00 × 65.00 mm, 1 contour.");
     expect(summary()).toMatch(/turned -?90\.0° to fit the current outline \(typical gap 0\.00 mm\)/);
-    expect(summary()).toContain("Move & rotate outline adjusts it afterward.");
+    expect(summary()).not.toContain("Move & rotate outline");
 
     React.act(() => fitSwitch()!.click());
     expect(summary()).toContain("true size in the center of the region");

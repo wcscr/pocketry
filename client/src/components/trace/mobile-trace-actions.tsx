@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from "@/state/experimental-features";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 
@@ -25,6 +26,7 @@ export interface MobileTraceActionsProps {
   onOpenSettings: (sectionId: string) => void;
   onApplyPerspective: (proposal: PerspectiveProposal, template: TemplateVariant, scale?: boolean | Calibration) => void;
   onDetectMarkers: () => void;
+  onCorrectOutline?: () => void;
   onReprocess: (settings: DetectionSettings) => void;
 }
 
@@ -32,7 +34,8 @@ type TraceStep = "photo" | "scale" | "region" | "outline";
 const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
-export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onReprocess }: MobileTraceActionsProps): JSX.Element {
+export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onCorrectOutline, onReprocess }: MobileTraceActionsProps): JSX.Element {
+  const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
@@ -81,9 +84,10 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
   else if (trace.mode === "region") guidance = hasRegion
     ? "Keep this region or drag a new box around the tool." : "Drag a box around the whole tool to detect its outline.";
   else if (trace.mode === "navigate") guidance = "Drag to pan. Pinch or use + / − to zoom.";
-  else if ((trace.mode === "edit" || trace.mode === "remove") && !trace.selection) guidance = "Tap a contour to select it for editing.";
-  else if (trace.mode === "edit" || trace.mode === "remove") guidance = "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom.";
-  else if (calibration && trace.outline.length) guidance = "Choose Adjust to refine the outline, or Edit contours to move points.";
+  else if (trace.mode === "remove") guidance = "Hold and brush over points on one contour. Release to apply.";
+  else if (trace.mode === "edit" && !trace.selection) guidance = "Tap a contour to select it for editing.";
+  else if (trace.mode === "edit") guidance = advancedEditing ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom." : "Tap an edge to add a point. Drag to move. Touch and hold a point to remove it.";
+  else if (calibration && trace.outline.length) guidance = "Choose Adjust to refine the outline, or Edit outline to move points.";
   else if (calibration && hasRegion) guidance = "No outline found. Adjust sensitivity or go back to redraw the region.";
   else if (calibration) guidance = "Select the tool's region to detect its outline.";
 
@@ -98,7 +102,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
       </WorkflowHint>
     </MobileCanvasOverlay>
     {hasTuning && adjustOpen && <MobileAdjustmentTray title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
-      <TraceDetectionControls compact onReprocess={onReprocess} />
+      <TraceDetectionControls compact onReprocess={onReprocess} onCorrectOutline={onCorrectOutline && (() => { setAdjustOpen(false); onCorrectOutline(); })} />
       <div className="mt-1 grid grid-cols-2 gap-1">
         <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
         <Button variant="ghost" className="h-11 whitespace-normal leading-tight" disabled={!trace.outline.length || processing || !!pendingAutoCalibration || replacingRuler}

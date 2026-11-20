@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import * as React from "react";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
+import { setExperimentalTools } from "./trace-experimental.test-support";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -203,7 +205,7 @@ beforeEach(() => {
       <TooltipProvider>
         <ShapeLibraryProvider>
           <TraceProvider>
-            <Harness />
+            <ExperimentalFeaturesProvider><Harness /></ExperimentalFeaturesProvider>
           </TraceProvider>
         </ShapeLibraryProvider>
       </TooltipProvider>,
@@ -212,6 +214,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setExperimentalTools(false);
   React.act(() => root.unmount());
   host.remove();
   vi.restoreAllMocks();
@@ -252,7 +255,29 @@ it("adds a square from the Outline controls after empty detection and guards pro
   expect(trace.outline).toHaveLength(2);
 });
 
+it("keeps Editable curves and Symmetry & straighten available while advanced outline tools follow the app preference", async () => {
+  await prepareOutline();
+  const advanced = ["button-position-contour", "button-smooth-outline"];
+  const tools = () => advanced.map(id => host.querySelector(`[data-testid="${id}"]`));
+  const symmetry = () => [...host.querySelectorAll<HTMLButtonElement>("#trace-settings-detect button")]
+    .find(button => button.textContent === "Symmetry & straighten");
+  expect(host.querySelector("#editable-curves")).not.toBeNull();
+  expect(symmetry()?.disabled).toBe(false);
+  expect(symmetry()?.closest("[hidden]")).toBeNull();
+  expect(tools()).toEqual([null, null]);
+  const history = trace.history;
+  setExperimentalTools(true);
+  expect(tools().every(Boolean)).toBe(true);
+  expect(symmetry()?.disabled).toBe(false);
+  setExperimentalTools(false);
+  expect(tools()).toEqual([null, null]);
+  expect(host.querySelector("#editable-curves")).not.toBeNull();
+  expect(symmetry()?.disabled).toBe(false);
+  expect(trace.history).toBe(history);
+});
+
 it("keeps optional smoothing inside Manual detection settings", async () => {
+  setExperimentalTools(true);
   await prepareOutline();
   const ring = [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }];
   React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: trace.imageUrl, outline: [{ outer: ring, holes: [] }], rawOutline: [{ outer: ring, holes: [] }], svg: "", region: trace.region }));
@@ -279,6 +304,7 @@ it("keeps optional smoothing inside Manual detection settings", async () => {
 });
 
 it("offers focused action hints without opening tools or changing the outline", async () => {
+  setExperimentalTools(true);
   await prepareOutline();
   expect(host.querySelector('[data-testid="button-import-outline"]')?.textContent).toBe("Import outline from file");
   expect(host.querySelector('[data-testid="button-position-contour"]')?.textContent).toBe("Move & rotate outline");
@@ -288,8 +314,8 @@ it("offers focused action hints without opening tools or changing the outline", 
     ["adding a manual contour", "different pocket depth in Bin"],
     ["importing an outline from file", "Load a closed SVG outline"],
     ["moving and rotating the outline", "The photo stays fixed"],
-    ["editing the outline", "Move, add, or remove outline points"],
-    ["manual detection settings", "Most traces won't need these settings"],
+    ["editing the outline", "Click an edge to add a point"],
+    ["manual detection settings", "Adjust sensitivity"],
     ["restarting outline detection", "keeping the photo, scale, and region"],
   ];
   for (const [label, description] of hints) {
@@ -564,6 +590,7 @@ describe("TraceControlsPanel guided workflow", () => {
 
     expect(section("scale")?.dataset.state).toBe("open");
     expect(host.textContent).toContain("Scale detected from the sheet");
+    expect(host.textContent).toContain("put a measurement aid on the tool at the height you need to fit");
     expect(host.textContent).not.toContain("0.500 mm/px");
     expect([...host.querySelectorAll("button")].filter((button) => button.textContent === "Accuracy with thick objects")).toHaveLength(1);
     const accept = host.querySelector<HTMLButtonElement>(

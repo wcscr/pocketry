@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import * as React from "react";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
+import { setExperimentalTools } from "./trace-experimental.test-support";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
@@ -46,9 +48,10 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  React.act(() => root.render(<MobileCanvasOverlayContext.Provider value={overlay}><PanelProvider><TraceProvider><Harness /></TraceProvider></PanelProvider></MobileCanvasOverlayContext.Provider>));
+  React.act(() => root.render(<MobileCanvasOverlayContext.Provider value={overlay}><PanelProvider><TraceProvider><ExperimentalFeaturesProvider><Harness /></ExperimentalFeaturesProvider></TraceProvider></PanelProvider></MobileCanvasOverlayContext.Provider>));
 });
 afterEach(() => {
+  setExperimentalTools(false);
   React.act(() => root.unmount());
   host.remove(); overlay.remove();
   vi.unstubAllGlobals();
@@ -139,14 +142,25 @@ describe("Mobile trace progression", () => {
     React.act(() => dialogButton("Keep working").click());
     expect(trace.outline).toBe(outline);
     React.act(() => button("Start over").click());
-    React.act(() => dialogButton("Clear trace and start over").click());
+    React.act(() => dialogButton("Clear trace for new photo").click());
     expect(startOver).toHaveBeenCalledOnce();
     expect(trace.imageUrl).toBeNull();
     expect(trace.outline).toEqual([]);
     expect(button("Choose a photo")).toBeDefined();
   });
 
+  it("opens Symmetry & straighten from Adjust by default", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    expect(host.querySelector("#mobile-detail")).toBeNull();
+    React.act(() => button("Symmetry & straighten").click());
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector("h2")?.textContent).toBe("Symmetry & straighten");
+    expect(dialog?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe("Straighten only");
+  });
+
   it("adjusts sensitivity and detail inline and protects manual edits on re-detection", async () => {
+    setExperimentalTools(true);
     readyOutline();
     const adjust = async (id: string) => React.act(async () => {
       host.querySelector(`#${id} [role="slider"]`)!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));

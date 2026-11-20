@@ -3,7 +3,7 @@
 This integration starts from `claude/outline-detection-pathologies` at
 `5aefd804`. It keeps the same dark-on-paper segmentation, TEED inference, and
 fallback decisions, and adds geometric preservation checks, source-photo
-sampling, and explicit user corrections. Four later changes are described
+sampling, and an experimental solver for user-supplied marks. Four later changes are described
 where they apply below: the sheet layout is read from the photo, paper no longer
 reaches into a tool through a narrow gap, the default smoothing fills dips
 without multiplying points, and small dips are bridged with a straight line
@@ -14,26 +14,15 @@ source-edge fitting stage.
 
 New sessions default to **Tool edges · white sheet**. Automatic background
 selection and Color contrast remain available; saved drafts retain their method.
-Sensitivity, point simplification, optional **Smooth outline**, and the
-**Detected outline** comparison are under **Manual detection settings**, below
-the contour list. **Editable curves** sits below the main outline actions.
+Sensitivity and the **Detected outline** comparison are under **Manual detection settings**, below the contour list. Turning on experimental features adds point simplification and **Smooth outline**. **Editable curves** sits below the main outline actions.
 See [the control guide](teed-outline-integration.md) for current interaction details.
 
 The automatic detector still receives Claude's copy with inferred sheet ink
-removed. It preserves the original input separately. **Correct → Add** or
-**Remove** supplies local tool/paper hard seeds to a bounded region solve using that
-original appearance. Tool marks permit additions; paper marks permit removals.
-Unmarked distant pixels retain the automatic proposal. Marks are checked again
-against the final contour before clearance. An unsatisfied mark produces an error
-and leaves the previous contour intact.
-
-The correction controls support mouse/touch strokes, cancellation of an unfinished
-stroke, Undo of a completed stroke, and **Clear correction marks**. **Done** hides
-marks while retaining their effect; each completed stroke re-detects. Undo manual contour edits before correcting a
-detection. Marks survive draft recovery and photo rotation; a new selected region
-clears them. Appearance alone still cannot distinguish all shadows, reflections,
-printing, or transparent parts. A stroke is an explicit constraint, not proof
-that the surrounding inferred boundary is correct.
+removed. It preserves the original input separately. In Trace, users adjust
+the result with **Edit outline**. The experimental **Correct** brushes can supply tool and paper marks. Standard re-detection starts from the photo.
+The diagnostic evaluator can still supply tool and paper marks to the
+experimental solver with `--hints`. It uses the original pixels around each
+mark and checks the result against the final contour before clearance.
 
 Sheet-print removal knows both printed layouts. v2 and v3 sheets share markers
 and dimensions but print different text in different places. After perspective
@@ -42,9 +31,26 @@ text in the stretches that only one layout prints; removal then uses that
 layout's areas alone. When the photo does not settle it (a tool covers those
 stretches, or the print is too faint), the areas of both layouts are used.
 Removal can still erase a short dark object wholly inside a text area or an
-object crossing a solid marker area. Correction can recover such material from
-the retained pixels, but automatic detection is still subject to those
-limitations.
+object crossing a solid marker area. Use **Edit outline** to restore the
+missing edge over the photo.
+
+In the ruled area, removal follows the 100 mm bar and its ticks through a
+shadow. A handle's shadow is as dark as a gray handle, so the bar inside it was
+kept as a line beside a solid part and stayed attached to the outline. A handle
+hides the bar and a shadow does not. On the rows where the bar was erased, a
+kept stroke no taller than the bar is erased too, and so is a narrow upright
+stroke that stands on the bar and ends inside the area. When the region's edge
+cuts the bar off, ticks are taken from that edge instead. Nothing else beside a
+dark part is touched. A part of a tool thinner than about 1.25 mm that crosses
+the bar itself inside a shadow can still lose the bar's few rows.
+
+A thin spur can still stay attached where the edge of a soft shadow runs into
+the caption or the bar, for example a hook of about 12 mm under a handle tip.
+The shadow's edge is not printing, so there is nothing there to remove, and a
+thin part of the outline without color support is kept on purpose: it can be a
+bright metal tip. Removing such spurs inside the printed areas would shorten a
+thin bright tip that lies in a line of text, so the spur is left for the user to
+edit away.
 
 ## Reconstruction
 
@@ -58,6 +64,45 @@ the tool came out hollowed or with an interior loop. The cost is that a real
 opening that narrow is closed too. That can add a little material at a tight
 notch; it cannot remove any.
 
+A mask that meets two opposite sides of the region is treated as clipped by the
+region. That used to include a mask whose only contact was a thin line: a stroke
+of printing left on the paper, a shadow line, or the corner of a tool drawn
+close to the region's edge. The general recovery keeps only areas with color
+support, so a bright metal part was removed or the outline was refused, and
+color contrast, which cannot see bright metal on white paper, took over. A
+2 px change of the region decided between a whole outline and fragments.
+
+Now parts of the mask narrower than five model pixels count as lines. When
+nothing wider meets two opposite sides, lines without color support that reach a
+side are removed and the rest of the mask is kept (`thin-contact` in the
+detection report). The general recovery still decides when a wide part spans the
+region, when two such lines reach opposite sides at the same height or in the
+same column (one printed line crossing the region, which can close paper in with
+the tool), and when a line with color support still spans the region afterward.
+A tool the region cuts on one side is accepted as cut once the line on the other
+side is gone. Manual sensitivity does not run either recovery.
+
+Color evidence is not given up for a release. A line with color support on 7 %
+of its pixels is left alone, and the release of any other line stops at a
+connected run of at least eight color-supported pixels, the measure the general
+recovery uses for lost evidence. A shaft that is colored only near its handle
+loses its colorless outer end, as it does in the general recovery, and keeps
+the colored stretch.
+
+One faint line that crosses two tools at a slope is released at both ends, but
+its middle stretch reaches no side. A stretch without color support that stays
+on the straight course between two released contacts, and joins two wide,
+color-supported pieces, is removed as well, so the two tools are not traced as
+one outline. If a tool's own thin bright neck happens to lie on such a course,
+the neck is removed and the tool comes out in two pieces; nothing else is taken.
+
+Two limits remain. A faint line that crosses a gap in a single tool at a slope,
+such as a crease in the paper, keeps the paper it closes in: that paper cannot
+be told from a bright metal part. And a line that joins two tools is recognized
+only by its two released ends and removed only where it has no color support,
+so a bent line, one that ends at the second tool, or one that picks up color
+between the tools still joins them.
+
 One area-averaged retry still runs when automatic reconstruction leaves more
 than 5% of the seeded material uncovered. It costs a second inference and is
 kept only when it passes the existing acceptance checks.
@@ -69,7 +114,7 @@ silhouette traced without smoothing. It is never shown; smoothing,
 simplification, and final curve cleanup are all checked against it. The
 **detected outline** is that silhouette after the bounded outward smoothing that
 removes pixel stair-steps. Compare and restore show it, and manual detail
-settings start from it, so neither brings the stair-steps back. With correction
+settings start from it, so neither brings the stair-steps back. In diagnostic runs with correction
 marks, the detected outline falls back to the material reference if smoothing
 would carry it across a mark.
 
@@ -87,7 +132,7 @@ reject a result they cannot certify within it.
 When a refinement is rejected, the fallbacks are tried in order: a conservative
 simplification without smoothing, the smoothed detected outline, and only then
 the material reference. Specks below the size limits are dropped in every case,
-except a small part the user marked as tool or a small hole marked as paper.
+except in diagnostic runs where a mark identifies a small tool part or hole.
 These checks protect detected material; they cannot recover material
 segmentation already missed. User clearance is applied afterward.
 
@@ -95,8 +140,8 @@ The default polish after cleanup (up to 0.2 mm) moves the boundary outward to
 fill dips and allows a quarter of that inward, so it rounds a ripple without
 shaving the tool. Its result is thinned again within the remaining allowance,
 which keeps the point count close to the cleaned outline's instead of tripling
-it. If the polish would cross a correction mark, the app keeps the detected
-outline and says so.
+it. In diagnostic runs, the detector keeps the detected outline if polishing
+would cross a correction mark.
 
 Before that polish, **outward straightening**
 (`shared/geometry/outline-straightening.ts`) replaces small dips with the

@@ -2,9 +2,42 @@
 
 ## Unreleased
 
-## 1.13.0 — 2026-11-17
+## 1.15.0 — 2026-11-20
 
-- Add one private feedback entry for account-free problem reports and suggestions with an optional reply address.
+- Add one Send feedback entry for account-free problem reports and suggestions with an optional reply address.
+
+## 1.14.1 — 2026-11-19
+
+- Restore **Symmetry & straighten** to Trace’s **Outline** panel and the phone’s **Adjust** controls by default.
+
+## 1.14.0 — 2026-11-19
+
+- Choose **Retry at higher resolution** in Trace to rerun Tool edges at 768 px when a thin shaft or printed rail is missing from the outline. The first trace still uses 512 px. Undo restores the previous outline.
+
+## 1.13.0 — 2026-11-18
+
+- Edit outline now offers Edit points, Select multiple, Erase points, and Done in a fixed toolbar. Move or delete a selection in one undoable edit, or brush over points with the smaller 20 px eraser. An interrupted box selection keeps the previous selection.
+
+## 1.12.7 — 2026-11-18
+
+- Keep bright metal parts in a Tool edges trace when a stray line of sheet printing or shadow reaches the region's edge; such traces no longer fall back to Color contrast and lose the part.
+- Remove the calibration sheet's 100 mm bar where a tool's shadow lies across it, so long pieces of the bar no longer stay attached to the outline.
+
+## 1.12.6 — 2026-11-18
+
+- New Trace point outlines replace nearly straight runs with one edge when all intervening vertices are within 0.30 mm of that edge by default. Adjust this tolerance in App settings → Advanced settings. Sharp corners stay available for editing. A rejected edge no longer restores points already removed elsewhere.
+- Experimental outline editing includes a point eraser. Hold and drag over points on one contour. Points needed to preserve the contour stay visible, and release commits the deletions shown in the preview as one undoable edit.
+- Recognize a calibration sheet whose printed markers have thin light streaks, instead of reporting it as incomplete or rejecting its geometry.
+
+## 1.12.5 — 2026-11-18
+
+- Simplify Trace’s Edit outline controls and keep them visible without scrolling. Click an edge to add a point, drag a point to move it, or right-click to remove it. Turn on Editable curves to shape an edge with handles.
+- Move Correct brushes, multi-select, section repair, manual smoothing, and contour transforms behind the experimental features switch. Find Correct under Manual detection settings or the mobile Adjust tray.
+
+## 1.12.4 — 2026-11-17
+
+- Keep Trace contours editable after an empty click and clarify point editing, the next-photo action, and scale guidance for thick tools.
+- Frame pockets outside the bin in Layout, rotate an overlapping pocket selected from the object list, and clarify arrange and snap controls.
 
 ## 1.12.3 — 2026-11-16
 

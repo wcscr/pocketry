@@ -9,10 +9,10 @@ lines and rounded sections, producing points sampled from the fitted curves. Ena
 existing detection asks whether to keep that outline or re-detect from the photo
 and replace edits. Undo restores the previous outline. The switch enables native
 curves for re-detection or the next adjustment; it does not discard current edits
-without that choice. Detection and cleanup form one Undo step.
+without that choice. In the standard **Edit outline** tool, select a point to see its handles and drag a handle to shape the edge. A straight edge stays straight until you move a handle. Detection and cleanup form one Undo step.
 
 Default detection includes bounded smoothing after line and curve reconstruction.
-Under **Manual detection settings**, **Smooth outline** prepares an optional
+With experimental features enabled in **App settings**, **Manual detection settings → Smooth outline** prepares an optional
 preview of the current outline, including manual edits. **Original / Preview**
 compares it with the accepted outline. Apply saves one Undo step; Cancel or Escape
 keeps the outline. Sensitivity and the point simplification slider share this section.
@@ -43,15 +43,17 @@ restores any native curve handles. An already-used contour shows a checkmark and
 disables replacement. Hover/focus hints explain the controls without extra copy.
 Escape dismisses the preview. It cannot restore material segmentation missed.
 
-Use **Edit outline → Bend edges** in Trace, or **Edit contour → Bend edges** on an
-upright Bin pocket. Tilted/profile pockets retain their editing restriction.
+Trace includes **Select multiple** and **Erase points** in **Edit outline**. For edge bending, enable experimental features and choose **Edit outline → Bend edges**. In Bin, choose **Edit contour → Bend edges** on an upright pocket. Tilted/profile pockets retain their editing restriction.
 
 - Drag an edge to bend it, an anchor to move it with its handles, or a handle to
   shape the curve. Click an edge to add a point; right-click an anchor to delete.
-- Shift-click toggles points; drag empty space for a box selection. **Select
-  points** enables tap selection. Move/delete a group together; at least three
-  points remain per ring. **Add manual contour** starts a separate four-point trace.
-- **Repair section** accepts two endpoints or a continuous run. Preview a Line
+- Shift-click toggles points. Drag empty space for a box selection, or hold Shift and drag to add to the selection. For tap selection,
+  use **Select multiple** in Trace or **Select points** in Bin. Move or delete selected
+  points together. Each ring keeps at least three points. **Add manual contour** starts a separate four-point trace.
+  Release the box to apply the highlighted selection. Starting a pinch or interrupting a drag keeps the previous selection.
+  After picking a point on the canvas, Delete removes the selection and Space-drag pans.
+  When Trace contours overlap, **Select multiple** and **Erase points** prefer the active contour for equally close points.
+- In Bin, **Repair section** accepts two endpoints or a continuous run. Preview a Line
   or Smooth curve, choose Other side or adjust Bend, then Apply/Cancel. Repair
   intentionally replaces that section; it has no fitting-deviation claim.
 - Selection and navigation do not make history. Completed geometry gestures

@@ -1,4 +1,6 @@
 import * as React from "react";
+import { ExperimentalFeaturesProvider } from "@/state/experimental-features";
+import { setExperimentalTools } from "./trace-experimental.test-support";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { initialTraceState, TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
@@ -12,7 +14,11 @@ class NoopResizeObserver implements ResizeObserver {
   disconnect() {}
 }
 
-afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => {
+  setExperimentalTools(false);
+  vi.unstubAllGlobals();
+  document.body.replaceChildren();
+});
 
 it("makes editable curves discoverable and opt-in, with undoable conversion and recovery", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("ResizeObserver", NoopResizeObserver);
@@ -98,6 +104,46 @@ it("explains hole detection for each method and keeps the switch available unles
     React.act(() => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "data:new", fileName: "next tool" }));
     expect(trace.boundaryMethod).toBe("teed");
     expect(trace.includeInteriorHoles).toBe(false);
+  } finally { React.act(() => root.unmount()); }
+});
+
+it.each([false, true])("offers a one-shot retry after detection and protects edited outlines (compact=%s)", async compact => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  let trace!: TraceStore;
+  const reprocess = vi.fn();
+  function Harness() { trace = useTrace(); return <TraceDetectionControls compact={compact} onReprocess={reprocess} />; }
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const button = (label: string) => [...document.querySelectorAll("button")].find(item => item.textContent === label);
+  const retry = () => button("Retry at higher resolution");
+  try {
+    await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
+    const region = { x: 0, y: 0, width: 80, height: 80 };
+    const outline = [{ outer: [{ x: 2, y: 2 }, { x: 70, y: 2 }, { x: 35, y: 70 }], holes: [] }];
+    React.act(() => {
+      trace.dispatch({ type: "SOURCE_LOADED", imageUrl: "photo", fileName: "Tool" });
+      trace.dispatch({ type: "SET_REGION", region });
+    });
+    expect(retry()).toBeUndefined();
+    React.act(() => trace.dispatch({ type: "DETECTED", imageUrl: "photo", region, outline, rawOutline: outline, svg: "" }));
+    React.act(() => retry()!.click());
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 128, includeInteriorHoles: false, highDetail: true });
+    reprocess.mockClear();
+    React.act(() => {
+      trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 96 });
+      trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ ...outline[0], outer: outline[0].outer.map(point => ({ ...point, x: point.x + 1 })) }], label: "Edit contour" });
+    });
+    React.act(() => retry()!.click());
+    expect(reprocess).not.toHaveBeenCalled();
+    React.act(() => button("Keep my edits")!.click());
+    expect(reprocess).not.toHaveBeenCalled();
+    React.act(() => retry()!.click());
+    React.act(() => button("Replace manual edits")!.click());
+    expect(reprocess).toHaveBeenCalledExactlyOnceWith({ sensitivity: 96, includeInteriorHoles: false, highDetail: true });
+    React.act(() => trace.dispatch({ type: "SET_BOUNDARY_METHOD", method: "color" }));
+    expect(retry()).toBeUndefined();
   } finally { React.act(() => root.unmount()); }
 });
 
@@ -193,8 +239,10 @@ it.each([false, true])("names point reduction consistently in drawer and compact
   const root = createRoot(host);
   try {
     await React.act(async () => {
-      root.render(<TraceProvider><TraceDetectionControls compact={compact} onReprocess={() => {}} /></TraceProvider>);
+      root.render(<ExperimentalFeaturesProvider><TraceProvider><TraceDetectionControls compact={compact} onReprocess={() => {}} /></TraceProvider></ExperimentalFeaturesProvider>);
     });
+    expect(host.querySelector('[aria-label="Simplification"]')).toBeNull();
+    setExperimentalTools(true);
     const slider = host.querySelector(`[id="${compact ? "mobile-detail" : "detail"}"]`);
     expect(slider?.getAttribute("aria-label")).toBe("Simplification");
     expect(host.textContent).not.toContain("Higher values use fewer points and may omit small features");

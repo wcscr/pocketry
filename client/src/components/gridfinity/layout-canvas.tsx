@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -426,6 +427,45 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
     [fingerHoles],
   );
 
+  // The bin is not always the whole layout: fixed-size bins and rejected
+  // arrivals can leave editable pockets outside its footprint.
+  const layoutFit = useMemo(() => {
+    let minX = -widthMm / 2, maxX = widthMm / 2;
+    let minY = -lengthMm / 2, maxY = lengthMm / 2;
+    for (const item of placed) {
+      const bounds = outlineBounds(item.outline);
+      if (!bounds) continue;
+      minX = Math.min(minX, bounds.minX); maxX = Math.max(maxX, bounds.maxX);
+      minY = Math.min(minY, bounds.minY); maxY = Math.max(maxY, bounds.maxY);
+    }
+    for (const { ring } of placedFingerHoles) for (const point of ring) {
+      minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+      minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y);
+    }
+    return {
+      outsideBin: minX < -widthMm / 2 || maxX > widthMm / 2 || minY < -lengthMm / 2 || maxY > lengthMm / 2,
+      rect: { x: minX + widthMm / 2 + footprintEditorPaddingMm,
+        y: lengthMm / 2 - maxY + footprintEditorPaddingMm,
+        width: maxX - minX, height: maxY - minY },
+    };
+  }, [widthMm, lengthMm, placed, placedFingerHoles, footprintEditorPaddingMm]);
+  const layoutFitRef = useRef(layoutFit);
+  layoutFitRef.current = layoutFit;
+  const currentLayoutRect = useCallback(() => layoutFitRef.current.rect, []);
+  const fitLayout = () => layoutFit.outsideBin ? viewport.fitToRect(layoutFit.rect, { followResizes: true, getCurrentRect: currentLayoutRect }) : viewport.fit();
+  const seenPocketIds = useRef<Set<string>>(new Set());
+  const fitNewPocket = useRef(false);
+  useEffect(() => {
+    const next = new Set(placed.map(item => item.cutout.id));
+    if ([...next].some(id => !seenPocketIds.current.has(id))) fitNewPocket.current = true;
+    seenPocketIds.current = next;
+  }, [placed]);
+  useEffect(() => {
+    if (!fitNewPocket.current || !containerSize.width || !containerSize.height) return;
+    if (layoutFit.outsideBin) viewport.fitToRect(layoutFit.rect, { followResizes: true, getCurrentRect: currentLayoutRect });
+    fitNewPocket.current = false;
+  }, [layoutFit, containerSize.width, containerSize.height, viewport.fitToRect, currentLayoutRect]);
+
   const layoutIssues = useMemo(
     () => validateLayout(spec, cutouts, shapesById, fingerHoles),
     [spec, cutouts, shapesById, fingerHoles],
@@ -618,6 +658,12 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   }, [hasPlacedObjects, editorMode]);
 
   const hitCutout = (point: Point): CutoutPlacement | null => {
+    // In Rotate mode, an already selected pocket stays grabbable even when a
+    // later pocket covers it. The object list can select either layer.
+    if (rotateActive) {
+      const selectedPocket = placed.find(item => item.cutout.id === selectedCutoutId);
+      if (selectedPocket && pointInOutline(selectedPocket.outline, point)) return selectedPocket.cutout;
+    }
     // Use the same order as rendering: retained holes sit above pocket bodies.
     for (let i = placed.length - 1; i >= 0; i--) {
       if (pointInOutline(placed[i].outline, point)) return placed[i].cutout;
@@ -1790,6 +1836,8 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
   return (
     <>
       <svg
+        tabIndex={-1}
+        aria-label="Bin layout canvas"
         ref={svgRef}
         className={cn("absolute inset-0 block h-full w-full touch-none select-none", splitEditor.active && "cursor-crosshair")}
         style={{ cursor }}
@@ -1799,7 +1847,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onLostPointerCapture={event => { basicPocket.cancel(); curveEditor.lostCapture(event); }}
+        onLostPointerCapture={event => { basicPocket.cancel(); curveEditor.lostCapture(event); mobileEditor.lostCapture(event); }}
         onContextMenu={handleContextMenu}
       >
         <g
@@ -2235,7 +2283,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
         <Button variant="ghost" size="icon" className={cn("h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", panActive && "bg-accent text-accent-foreground ring-1 ring-inset ring-primary/40")} aria-label="Pan layout" aria-pressed={panActive}
           onClick={() => { setPanActive(active => !active); setRulerActive(false); }}><Hand className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-11 w-11 rounded-none border-b md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" aria-label="Fit layout to screen"
-          onClick={viewport.fit}><Maximize2 className="h-4 w-4" /></Button>
+          onClick={fitLayout}><Maximize2 className="h-4 w-4" /></Button>
         {rulerButton}
         {!inspector && !isMobile && <Button variant="ghost" size="icon"
           className={cn("h-11 w-11 rounded-none border-t md:h-9 md:w-9 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11", objectControlsOpen && !rulerActive && !panActive && "bg-accent text-accent-foreground")}
@@ -2277,7 +2325,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
       {(inspector || toolbar) && <SelectionToolButtons count={selection.length} inactive={rulerActive} panning={panActive} onActivate={() => { setPanActive(false); setRulerActive(false); dispatch({ type: "SET_EDITOR_MODE", editorMode: "placement" }); }} ruler={rulerButton}
         navigation={[
           { label: panActive ? "Stop panning" : "Pan layout", onSelect: () => { setPanActive(active => !active); setRulerActive(false); } },
-          { label: "Fit layout to screen", onSelect: viewport.fit },
+          { label: "Fit layout to screen", onSelect: fitLayout },
           ...(selected && (editorMode === "placement" || editorMode === "contour") ? [{ label: editorMode === "contour" ? "Finish contour editing" : "Edit contour", testId: "button-layout-edit-contour",
             disabled: panActive || !!selected.cutout.profileBottom || hasPocketTilt(selected.cutout),
             onSelect: () => { setRulerActive(false); setMeasurementPoints([]); dispatch({ type: "SET_EDITOR_MODE", editorMode: editorMode === "contour" ? "placement" : "contour" }); } }] : []),
@@ -2365,7 +2413,7 @@ function LayoutStage({ onEditPocket, onSelectSurfaceText, edgeBandColor, textPos
             ? isMobile ? "Drag the finger access to move. Drag its white handle to resize." : "Finger access · drag moves · white handle resizes · arrows nudge · Del removes"
             : selectedCutoutId
               ? selected && (hasProfileRotation(selected.cutout) || hasPocketTilt(selected.cutout)) ? "Object · drag to move · round handle rotates · edit dimensions in Depth and Size & scale"
-                : isMobile ? "Drag the object to move. Drag corners to resize or the round handle to rotate." : "Object · drag edges/corners to resize · Option resizes from center · round handle rotates"
+                : isMobile ? "Drag the object to move. Drag corners to resize or the round handle to rotate." : "Drag to move · Option skips position snap · corners resize (Option from center) · round handle rotates"
               : spec.surfaceTexts.length > 0 ? "Drag text to move · Drag the round handle to rotate · Double-click to edit text"
               : isMobile ? "Tap an object to select it. Use the hand to pan and pinch to zoom." : "Click an object to select · Shift-drag pans · Ctrl-scroll zooms"}
       </WorkflowHint>

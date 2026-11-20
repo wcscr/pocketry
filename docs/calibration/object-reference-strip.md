@@ -142,7 +142,27 @@ the same pixels using OpenCV's contour-based corner fit. This estimates the
 corners from the outer marker edges, reducing sensitivity to isolated corner
 defects. Both passes must identify the same unique pair; mixed, duplicate and
 multiple aids remain rejected. The same eight-corner, edge, baseline and paper
-perspective checks apply to both estimates. Paper detection is unchanged.
+perspective checks apply to both estimates.
+
+Paper detection has its own second look, for prints with thin light streaks
+(banding) across the markers. A streak through a marker's black border can
+hide that marker or place one of its edges on the streak, so a sheet that is
+in the photo fails as incomplete or as the wrong geometry. When the first pass
+finds at least one Pocketry paper marker but no valid sheet, detection runs
+once more after filling light lines thinner than about a third of a marker
+cell (3 to 9 pixels; the 3 pixel minimum is a larger share of a cell for
+markers under about 60 pixels wide, where the second look may find nothing).
+A marker with clear paper around it keeps its outer corners: they moved by
+0 pixels on clean synthetic sheets and under 0.1 pixel on a photographed
+streaked sheet. The second result is used only when it shows all four signature
+markers and passes the same 16-corner geometry check; otherwise the first
+result and its notice stand. The second look can add a marker or move its
+corners, but it cannot hide one: filling light lines can also join a marker to
+a dark shape beside it. A repeated marker ID in the first pass therefore stays
+rejected without a second look, and every marker the first pass found must be
+found again in the same place. Photos in which the first pass finds no paper
+marker are not looked at again, so a print whose streaks hide all four markers
+still reports no markers.
 
 Marker detection normally reads the photo at a maximum of 1600 pixels per
 side. If an aid is still detected but rejected, Pocketry retries once using the

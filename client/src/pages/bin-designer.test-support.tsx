@@ -244,13 +244,15 @@ function ExperimentalProbe({ children }: { children: React.ReactNode }) {
 }
 
 const renderCleanups: (() => void)[] = [];
-function render(ui: React.ReactElement, { mobile = false, experimental = true } = {}) {
+function render(ui: React.ReactElement, { mobile = false, experimental = true, resizeObserver = NoopResizeObserver }: {
+  mobile?: boolean; experimental?: boolean; resizeObserver?: typeof ResizeObserver;
+} = {}) {
   localStorage.setItem(EXPERIMENTAL_FEATURES_KEY, String(experimental));
   // Most workflow cases exercise a deliberate Single panel choice. Layout
   // links still override it; implicit viewport defaults have provider tests.
   if (!localStorage.getItem("pocketry:editor-layout")) localStorage.setItem("pocketry:editor-layout", "standard");
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+  vi.stubGlobal("ResizeObserver", resizeObserver);
   if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => {};
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: mobile,
@@ -330,7 +332,7 @@ beforeEach(() => {
   );
 });
 
-function renderPage(options: { mobile?: boolean; experimental?: boolean } = {}) {
+function renderPage(options: { mobile?: boolean; experimental?: boolean; resizeObserver?: typeof ResizeObserver } = {}) {
   return render(
     <PanelProvider>
       <ShapeLibraryProvider>

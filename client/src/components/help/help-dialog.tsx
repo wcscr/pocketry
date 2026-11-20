@@ -68,30 +68,27 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               <strong> Automatic · match background</strong> under <strong>Find the outline using</strong>.
               If perspective correction crops the tool, enable
               <strong> Show full photo</strong> beside the canvas. In
-              <strong> Outline</strong>, use <strong>Edit outline</strong> to correct points.
+              <strong> Outline</strong>, choose <strong>Edit outline</strong>. Click an edge to add a point, drag a point to move it, or right-click a point to remove it. On a touchscreen, touch and hold a point to remove it.
               Choose <strong>Add manual contour</strong> to start another trace with a four-point
               square, then drag its corners and add points on its edges. Trace an inner feature
               separately when it needs a different pocket depth in Bin.
               Choose <strong>Import outline from file</strong> to bring in a closed SVG outline and edit its points
               over the photo: an outline exported from this photo returns to its place, and any other
               is placed at true size and turned to fit the current outline.
-              <strong> Move &amp; rotate outline</strong> shifts or turns a contour while the photo stays fixed.
             </p>
             <p className="mt-1 text-muted-foreground">
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
-              and amber estimated edges. Before editing points, use <strong>Correct → Add</strong> to mark
-              missing tool material or <strong>Remove</strong> to mark unwanted background.
-              Each stroke re-detects and can be undone; <strong>Done</strong> keeps the corrections.
-              Undo manual outline edits before returning to brush corrections.
+              and amber estimated edges against the photo.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
               With Tool edges selected, confirm switching to <strong>Color contrast</strong>{" "}
               and re-detecting the outline; <strong>Automatic</strong> selects Color contrast for holes.
               For extra cleanup, open <strong>Manual detection settings</strong> below the contour list
-              to adjust sensitivity, point simplification, or preview <strong>Smooth outline</strong>.
+              to adjust sensitivity.
               <strong> Detected outline</strong> compares the earlier detection without changing your work;
               <strong> Use detected outline</strong> restores it as one Undo step.
-              <strong> Editable curves</strong> enables handles and <strong>Edit outline → Bend edges</strong>.
-              <strong> Restart outline detection</strong> resets tuning and corrections while keeping the photo,
+              Turn on <strong>Editable curves</strong> to drag curve handles. Choose <strong>Select multiple</strong> to move or delete a selection, or <strong>Erase points</strong> to brush over points. For smoothing or contour transforms, enable
+              <strong> App settings → Enable experimental features</strong>.
+              <strong> Restart outline detection</strong> resets detection settings while keeping the photo,
               scale, region, and margin. Undo restores the previous result.
             </p>
             <p className="mt-1 text-muted-foreground">
@@ -104,7 +101,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               Holes remain separate objects in Bin: select one to move, resize, edit its contour, or remove it.
               New pockets default to <strong>To bin floor</strong>.{" "}
               Adjust the depth in Bin as needed before printable export.
-              Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. <strong>Start Over</strong> clears the trace after confirmation; pockets already added to Bin stay in the project.
+              Choose <strong>Export Tool Outline</strong> to save SVG (the default), DXF, or STL. Choose <strong>New photo</strong> to trace another tool for this bin. The current trace clears after confirmation; pockets already added to Bin stay in the project.
             </p>
           </li>
           <li className="pl-1">

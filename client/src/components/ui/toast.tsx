@@ -14,6 +14,7 @@ const ToastViewport = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const isMobile = useIsMobile()
   return <ToastPrimitives.Viewport
+    data-toast-layout={isMobile ? "mobile" : "desktop"}
     ref={ref}
     className={cn(
       "pointer-events-none fixed z-[100] flex w-full flex-col",

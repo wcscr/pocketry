@@ -1,3 +1,4 @@
+import { MAX_DETECTION_HINTS, MAX_HINT_POINTS } from "./geometry/detection-hints";
 import { z } from "zod";
 import { curveOutlineSchema } from "./geometry/curve-schema";
 import { CURVE_TOLERANCE_MM, normalizeCurves, sampleCurves } from "./geometry/curves";
@@ -12,7 +13,7 @@ const imageSize = z.object({ width: finite.positive(), height: finite.positive()
 const imageAlignment = z.object({ sourceSize: imageSize, size: imageSize,
   matrix: z.tuple([finite, finite, finite, finite, finite, finite]).refine(m => Math.abs(m[0]*m[3]-m[1]*m[2]) > 1e-12),
 });
-const detectionHints = z.array(z.object({ kind: z.enum(["tool", "paper"]), points: z.array(vec2Schema).min(1).max(4096), radius: finite.positive() })).max(100);
+const detectionHints = z.array(z.object({ kind: z.enum(["tool", "paper"]), points: z.array(vec2Schema).min(1).max(MAX_HINT_POINTS), radius: finite.positive() })).max(MAX_DETECTION_HINTS);
 const margin = finite.min(0).max(5).nullable();
 const calibrationFields = {
   startX: finite, startY: finite, endX: finite, endY: finite, lengthMm: finite.positive(),

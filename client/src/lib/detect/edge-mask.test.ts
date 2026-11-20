@@ -144,7 +144,7 @@ describe("learned outer silhouette reconstruction", () => {
     const { edges, seeds } = fixture(rectangle);
     edges[5] = NaN;
     expect(() => maskFromEdges(edges, width, height, seeds)).toThrow("probability");
-    expect(() => maskFromEdges(new Float32Array(513 * 513), 513, 513, new Uint8Array(513 * 513))).toThrow("Invalid edge field");
+    expect(() => maskFromEdges(new Float32Array(769 * 769), 769, 769, new Uint8Array(769 * 769))).toThrow("Invalid edge field");
   });
   it("rejects an enclosure clipped across opposite selection sides", () => {
     const across = (_x: number, y: number) => y >= 20 && y <= 60;

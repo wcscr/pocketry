@@ -21,6 +21,8 @@ export type DetectEngine = "opencv" | "js";
 export interface DetectOptions {
   /** Optional learned outer silhouettes for tools on white calibration sheets. */
   boundary?: "color" | "teed";
+  /** User-requested, one-shot 768 px tool-edge inference. Ordinary detections use 512 px. */
+  highDetail?: boolean;
   /**
    * The background is known to be white paper (a recognised calibration
    * sheet), so anything at most half as light as it counts as the object
@@ -166,13 +168,14 @@ export const DETECT_DEFAULTS = {
 export interface EdgeSensitivityReport {
   /** An area-averaged retry recovered material missed by bilinear sampling. */
   inputSampling?: "area-recovery";
-  /** At most one additional inference for an incomplete automatic detection. */
+  /** An incomplete automatic detection also tried area-averaged input at the same size. */
   samplingRetry?: boolean;
   /** Additional reconstruction accepted after the coarse sensitivity search. */
-  edgeReconstruction?: "clipped-boundary-recovery" | "fine-threshold-confirmation";
+  edgeReconstruction?: "clipped-boundary-recovery" | "fine-threshold-confirmation" | "cross-scale-recovery";
   /** Clipped-region retry diagnostics; thin unseeded features still need review. */
   boundaryRecovery?: BoundaryRecoveryReport;
   edgeThreshold: number;
+  /** Threshold-search evaluations. Cross-scale confirmation reuses the selected threshold. */
   edgeThresholdTrials: number;
   automaticSensitivity: boolean;
   seedCoverage: number;

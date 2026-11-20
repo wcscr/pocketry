@@ -1,10 +1,11 @@
+import { STRAIGHT_RUN_TOLERANCES_MM, straightRunToleranceMm } from "@shared/geometry/edit-point-spacing";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { EDITOR_LAYOUTS, useExperimentalFeatures } from "@/state/experimental-features";
 
 export function ExperimentalFeaturesDialog(): JSX.Element {
-  const { enabled, setEnabled, editorLayout, setEditorLayout, settingsOpen, setSettingsOpen, persistenceUnavailable } = useExperimentalFeatures();
+  const { enabled, setEnabled, editorLayout, setEditorLayout, straightRunTolerance, setStraightRunTolerance, settingsOpen, setSettingsOpen, persistenceUnavailable } = useExperimentalFeatures();
   return <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
       <DialogHeader>
@@ -24,12 +25,28 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <Switch id="experimental-features" checked={enabled} onCheckedChange={setEnabled} aria-describedby="experimental-features-description" />
         </div>
         <ul id="experimental-features-description" className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>Advanced Trace editing, including Correct brushes, smoothing, and contour transforms</li>
           <li>Slanted bin walls</li>
           <li>Linked pockets and finger access with shared size, shape, and depth</li>
           <li>Grouped objects that move and rotate together</li>
         </ul>
         <p className="mt-3 text-xs text-muted-foreground">Off by default. Saved designs remain visible and exportable.</p>
       </div>
+      <details className="rounded-lg border p-4">
+        <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>
+        <div className="mt-3 space-y-2">
+          <Label htmlFor="straight-run-tolerance">Straight-line tolerance</Label>
+          <select id="straight-run-tolerance" className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+            value={straightRunTolerance} aria-describedby="straight-run-description"
+            onChange={event => setStraightRunTolerance(straightRunToleranceMm(event.target.value))}>
+            {STRAIGHT_RUN_TOLERANCES_MM.map(mm => <option key={mm} value={mm}>{mm.toFixed(2)} mm</option>)}
+          </select>
+          <p id="straight-run-description" className="text-xs text-muted-foreground">
+            Applies the next time you detect a point outline. Higher values allow longer straight edges.
+            Without calibration the limit is {Number((straightRunTolerance * 5).toFixed(1))} px. Detection detail can cap either limit.
+          </p>
+        </div>
+      </details>
       {persistenceUnavailable && <p role="status" className="text-sm text-muted-foreground">This preference applies for this tab only because browser storage is unavailable.</p>}
     </DialogContent>
   </Dialog>;

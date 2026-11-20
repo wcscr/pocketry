@@ -2,8 +2,8 @@
 
 The [1.9 → 1.10 release comparison](outline-detection-1.9-to-1.10.md) shows the default output on every entry in the maintainer-selected reference set, including improvements, remaining errors and tradeoffs.
 
-The [combined detector](outline-combined-detector.md) adds geometry preservation,
-tool/paper correction strokes, and original-photo sampling to Claude's detector.
+The [combined detector](outline-combined-detector.md) adds geometry preservation
+and original-photo sampling to Claude's detector.
 The [Craftsman follow-up](outline-craftsman-fix-2026-11-11.md) and
 [original-photo UI comparison](outline-ui-validation-2026-11-11.md) preserve earlier
 branch evidence. The November 15 release comparison above records the 1.9/1.10
@@ -17,6 +17,64 @@ light neutral paper uses **Tool edges · white sheet**; recognized sheet markers
 also support shaded neutral paper. Dark, colored or uncertain
 surroundings use **Color contrast**. Either method can be selected manually.
 Existing saved method choices are preserved, including older color-only drafts.
+
+After a **Tool edges** detection, choose **Retry at higher resolution** in Outline
+(or Adjust outline on mobile) to run the same region through the 768 px edge
+model. It uses the current sensitivity and correction marks. Review the
+result against the photo. Undo and Redo compare the two outlines. If the model
+fails or rejects the boundary, the current outline and history are retained.
+The next ordinary detection starts at 512 px. The high-detail worker is released
+after each attempt to free its larger WebAssembly heap.
+
+With automatic sensitivity, an incomplete 768 px enclosure can use edges
+from the 512 px model to close a break in the outer boundary. For example,
+the finer model can mistake printed graduations for the edge of a metal rail.
+Recovery requires material evidence inside the missing region. It preserves
+the fine outline, distinct seeded tools and recognized occlusions, and rejects
+growth into exterior paper beyond a two-pixel allowance around observed edges
+or material. The worker reuses a 512 px edge map when the input pixels and
+dimensions match, and can compute it again after a reload. A nondefault
+sensitivity still uses its selected edge threshold directly.
+
+The first November 18 desktop Chrome prototype check covered all 36 library
+selections and the supplied Milwaukee cutter. The retry produced an outline
+on 33 library selections and the cutter. It kept the existing outline on the
+clear-hub dispensing needle, the second of five grouped Wiha drivers, and
+the angled Wolfbox nozzle. Undo and Redo restored both outlines on all 34
+applied retries. Rejected retries preserved edit history.
+
+On the cutter’s reference selection, sampled solid-head coverage rose from
+62% to 100%. Both sizes included the blade center. A tighter 732 × 803 px
+selection reproduced a poor retry seen in Edge. It split the solid head into
+three contours along the blade and slider. Expanding the selection on all
+sides to 752 × 833 px produced one outline and preserved the gap between
+the handles. Coverage of the first grouped Wiha driver's sampled
+shaft core rose from 13% to 100%. The larger model also lost part of the
+caliper rail, split the pink needle hub and fragmented the flux syringe.
+Of four tools with a reviewed SVG in the same image frame, three had a lower
+95th-percentile boundary error at 768 px and one had a higher error. Across
+all 37 attempts, median detection-worker time was 1.37 s at 512 px and
+2.17 s at 768 px. These measurements cover this desktop and photo set.
+
+In the follow-up, the revised retry covered 100% of 2,550 sampled caliper
+rail points, up from 85% with the first retry. The 10 ml flux syringe changed
+from three outlines to one. Sampled barrel coverage rose from 43% to 100%
+and the nozzle remained included. The 512 px defaults covered 100% of the
+rail and 59% of the barrel on these selections.
+
+The full rerun matched all 37 previous default outlines exactly. The revised
+retry changed four results. It recovered the rail and barrel, kept the pink
+hub and needle together, and produced a connected angled Wolfbox nozzle
+where the previous retry had kept the default. The other 33 retry results
+matched exactly, including the cutter and all eight Wiha selections. Undo
+and Redo restored every applied retry. Both declined retries preserved the
+default outline and its history.
+
+The rail still has a small outward bump near its markings. Widening the
+selection by 0.5% of its long dimension on each side gave 92% rail coverage
+at both sizes. The updated syringe still covered all the sampled barrel
+points in the wider selection. These interior checks do not measure
+whole-boundary accuracy or physical fit.
 
 [Before/after comparisons for all single-tool white-sheet subjects](../client/public/reports/outline-comparison/index.html)
 are included as a portable HTML report, with one view per distinct tool or
@@ -62,25 +120,23 @@ were tested separately.
 
 ## Editing
 
-**Correct** opens a compact toolbar in place of the ordinary canvas tools.
-**Add** marks missing tool material in green; **Remove** marks unwanted background
-or shadow in red. The active button and brush cursor identify the current tool.
-Each completed stroke re-detects with the existing settings and creates one
-**Correct outline** Undo step. The hand tool pans without drawing; Space-drag also
-pans. The trash button clears correction marks and re-detects, undoably.
-**Done** or Escape leaves correction mode and hides marks without removing them;
-a checkmark on Correct indicates retained corrections. Hover/focus hints explain
-the tools without a persistent instruction banner. Manual outline edits must be
-undone before correcting detection, so strokes cannot silently replace them.
-Changing region, photo or editing mode cancels an unfinished stroke. Detected
-outline review and smoothing previews are separate from correction drawing.
+Choose **Edit outline** to adjust the contour over the photo. Drag a point to
+move it, click an edge to add a point, or right-click a point to remove it.
+With **Editable curves** on, select a point and drag its handles to shape the adjacent edges. The controls wrap to fit the canvas. On phones and short windows,
+the editor uses the full screen until you choose **Done**. Moving a point on a hole
+updates every pocket that shares it. In standard point editing, using Undo or
+Redo during a drag ends the drag and restores the chosen history entry. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
+
+**Edit outline → Erase points** removes points from the first contour the brush touches. Hold and drag to see the new boundary. Points needed to keep a valid contour stay visible. Release to commit the deletions shown, press Escape to discard it, or use Undo to restore all its points. The same brush works on curve anchors.
+
+Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
 Detection finds a boundary, reconstructs supported lines and rounded sections,
 and applies the bounded smoothing pass automatically. The finishing pass permits
 up to 0.2 mm of movement (2 px without calibration) from the reconstructed outline.
 It must also stay within the original material-detail allowance and must not add
 broader boundary ripples. A rejected proposal keeps the reconstructed boundary.
-Point mode samples fitted curves; Editable curves is off by default.
+New point outlines thin the sampled polygon for hand editing. Nearby points on shallow turns have a 4 mm spacing target (16 px without calibration). Corners turning 30° or more stay pinned, and a shallow curve keeps closer points wherever thinning would move the boundary by more than 0.10 mm (0.5 px without calibration). A second pass replaces nearly straight runs with a single edge when every intervening vertex on the fitted outline lies within 0.30 mm of that segment by default (up to 1.5 px without calibration). Choose 0.10, 0.20, 0.30, 0.50, or 1.00 mm in **App settings → Advanced settings → Straight-line tolerance**. This browser preference applies on the next point detection, including an explicit restart. Both passes respect the detection detail setting. Straight-line simplification builds on the points already removed at a tighter tolerance. When a proposed edge cuts into the tool, crosses a correction mark, or breaks a contour, Pocketry keeps the last accepted edits and checks other runs separately. Editable curves keep their fitted anchors and handles.
 
 **Include interior holes** stays available with every detection method. Enabling
 it with **Tool edges** asks to switch to **Color contrast** and re-detect, explaining
@@ -89,11 +145,12 @@ outline and settings unchanged; Undo restores them after successful detection.
 **Automatic** uses Color contrast when holes are enabled. Help icons beside the main
 actions explain their purpose on hover, keyboard focus, or tap. **Add manual
 contour** can trace an inner feature for a different pocket depth in Bin.
-**Import outline from file** loads an SVG, and **Move & rotate outline** adjusts
-contours over the fixed photo.
+**Import outline from file** loads an SVG. Once an outline is available, use
+**Symmetry & straighten** in **Outline** or the phone’s **Adjust** controls.
+Enable experimental features in **App settings** to move and rotate entire
+contours or clean up several contours at once.
 
-**Manual detection settings**, below the contour list, contains sensitivity,
-point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
+**Manual detection settings**, below the contour list, contains sensitivity and the detected-outline comparison. Turning on experimental features adds point simplification and **Smooth outline**. Optional smoothing previews the current accepted outline,
 including manual edits, with Original/Preview comparison and one undoable Apply.
 A checkmark indicates smoothing already applied during detection or a previous
 Apply; Apply is disabled. A dash marks a preview that would make no change.
@@ -105,19 +162,19 @@ source. Fresh detection establishes its own automatically smoothed result.
 **Restart outline detection**, at the bottom of the Outline section, starts again
 from the current photo within the selected region. Switching detection methods
 uses the same restart flow. Switching an untouched detection needs no confirmation;
-switching asks only when it would discard manual tuning, tool/paper corrections,
+switching asks only when it would discard manual tuning,
 outline edits, or an incompatible interior-hole setting. Explicit Restart still
 asks before replacing an existing outline.
 Sensitivity returns to Auto, Simplification to 1.2 px, and detection smoothing
-to its default. Outline edits and tool/paper correction strokes are replaced.
+to its default. The new contour replaces the previous edits.
 Photo selection, rotation/perspective correction, calibration, region and margin
 are retained, as is the editable-curve preference. The interior-hole preference
 is retained where supported; Tool edges turns it off.
 
 Method-specific tuning is reset because a sensitivity bias or point tolerance
 chosen for one detector need not suit another. Within a method, sensitivity and
-interior-hole changes re-read the photo with the current tuning and correction
-strokes; they ask before replacing manual edits. The manual Simplification slider
+interior-hole changes re-read the photo with the current tuning. They ask
+before replacing manual point edits. With experimental features enabled, tuning reuses brush marks for the same region. Standard re-detection, a new region, or a restart clears them. The manual Simplification slider
 works from the accepted refinement base, including committed edits. Optional smoothing
 starts from the currently displayed boundary and retains that source until
 another edit or detection establishes a new one. It smooths small bumps within its
@@ -127,9 +184,7 @@ The earlier silhouette is retained as `rawOutline` in working-photo coordinates,
 after the pipeline's bounded outward smoothing but before simplification,
 line/curve fitting, small-dip straightening, and finishing polish. The separate
 unsmoothed `materialOutline` guards later geometry changes; it is not the displayed
-comparison. Correction marks can force the comparison back to that material
-reference if smoothing would cross a mark. The comparison includes segmentation,
-corrections, and accepted occlusion repair. It can expose detail removed by fitting,
+comparison. The comparison includes segmentation and accepted occlusion repair. It can expose detail removed by fitting,
 but cannot recover material segmentation never detected. Shadows or slits may remain. **Detected outline** under Manual detection settings
 previews this contour in green without changing saved/exported geometry. The
 conditional **Use detected outline** action replaces the current outline and edits
@@ -150,9 +205,7 @@ outline or re-detect and replace edits; Undo can restore the previous source. De
 step. Unsupported fits keep the detected boundary; cleanup never guesses across rejected topology.
 
 **Add manual contour** starts a four-point contour. Click an edge to add a point;
-right-click a point to delete it. Shift-click or box-select multiple points;
-**Select points** also works without a keyboard. **Repair section** replaces a
-selected run with a previewed line or curve. See [curve editing](contour-curves-prototype.md).
+right-click a point to delete it. In **Select multiple**, tap points or drag a box to select them. Drag the group to move it, or choose **Delete point** or **Delete selected points**. Switch back to **Edit points** for individual edits, or choose **Done** to leave the editor. See [curve editing](contour-curves-prototype.md).
 
 The smoothing allowance measures movement from the current accepted outline,
 not from the physical tool and not pocket clearance. Review tool tips, recesses,
@@ -195,7 +248,7 @@ experimental records are kept outside the repository.
 
 ## Model provenance
 
-The fixed 512×512 TEED ONNX model is **248,782 bytes**, loaded only when needed.
+Each fixed-size TEED ONNX model is **248,782 bytes**. The 768×768 graph is loaded on demand for a high-detail retry. Only its input and output shape declarations differ from the 512×512 graph.
 It uses the existing OpenCV CPU/WASM runtime and adds no npm dependency.
 Source revision `40fa4b1391dc6424f88989d0ca75d5b592c8681d` includes the BIPED
 checkpoint under repository-level MIT terms (Xavier Soria Poma, 2022), without a

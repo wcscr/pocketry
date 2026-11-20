@@ -15,16 +15,16 @@ function Harness({ placed = false, rotated = false, pan = false, context = "sour
     fromClient: (x, y) => rotated ? { x: ((x - 200) * c + (y - 200) * s) / 2, y: (-(x - 200) * s + (y - 200) * c) / .75 } : placed ? { x: (200 - x) / 2, y: (300 - y) / 2 } : { x, y },
     toCanvas: p => rotated ? { x: 200 + 2 * p.x * c - .75 * p.y * s, y: 200 + 2 * p.x * s + .75 * p.y * c } : placed ? { x: 200 - p.x * 2, y: 300 - p.y * 2 } : p, panRequested: pan,
     onCommit: (next, label) => { commit(next, label); setSource(next); }, onSmoothSection: smooth });
-  return <><svg onPointerDown={selection.down} onPointerMove={selection.move} onPointerUp={selection.end} onPointerCancel={selection.end} onLostPointerCapture={selection.lostCapture}>{selection.overlay}</svg>{selection.controls}<output data-testid="selected-indices">{selection.selection.map(p => p.index).join(",")}</output><input aria-label="Other field" /></>;
+  return <><svg tabIndex={-1} onPointerDown={selection.down} onPointerMove={selection.move} onPointerUp={selection.end} onPointerCancel={selection.end} onLostPointerCapture={selection.lostCapture}>{selection.overlay}</svg>{selection.controls}<output data-testid="selected-indices">{selection.selection.map(p => p.index).join(",")}</output><input aria-label="Other field" /></>;
 }
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.clearAllMocks(); host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 const button = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === name)!;
-function pointer(type: string, x: number, y: number, shift = false, id = 1, touch = false) {
+function pointer(type: string, x: number, y: number, shift = false, id = 1, touch = false, target: Element = host.querySelector("svg")!) {
   React.act(() => { const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y, shiftKey: shift });
-    Object.defineProperties(event, { pointerId: { value: id }, pointerType: { value: touch ? "touch" : "mouse" } }); host.querySelector("svg")!.dispatchEvent(event); });
+    Object.defineProperties(event, { pointerId: { value: id }, pointerType: { value: touch ? "touch" : "mouse" } }); target.dispatchEvent(event); });
 }
 const clickPoint = (x: number, y: number, shift = true) => { pointer("pointerdown", x, y, shift); pointer("pointerup", x, y, shift); };
 it.each([false, true])("Shift-selects, toggles and drags a group once in its own frame (placed: %s)", placed => {
@@ -42,6 +42,7 @@ it.each([false, true])("Shift-selects, toggles and drags a group once in its own
 it("box-selects a section, exposes simplification and deletes as one edit", () => {
   React.act(() => root.render(<Harness />)); pointer("pointerdown", -10, -10); pointer("pointermove", 105, 25); pointer("pointerup", 105, 25);
   expect(host.textContent).toContain("3 points selected"); expect(commit).not.toHaveBeenCalled();
+  expect(button("Delete selected points")).toBeDefined();
   React.act(() => button("Simplify section").click()); expect(smooth).toHaveBeenCalledWith({ ref: { shapeIndex: 0, ringIndex: -1 }, start: 0, end: 2 });
   React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true })));
   expect(commit).toHaveBeenCalledTimes(1); expect(saved[0].outer.map(a => a.point)).toEqual(initial[0].outer.slice(3).map(a => a.point));
@@ -58,6 +59,16 @@ it("uses the visible Select points toggle for touch and cancels a group drag on 
   expect(host.textContent).toContain("2 points selected"); pointer("pointerdown", 10, 10, false, 1, true); pointer("pointermove", 30, 25, false, 1, true);
   pointer("pointerdown", 90, 90, false, 2, true); pointer("pointerup", 30, 25, false, 1, true); pointer("pointerup", 90, 90, false, 2, true);
   expect(commit).not.toHaveBeenCalled(); expect(saved).toEqual(initial);
+});
+it("releases pointer focus after selecting points while preserving keyboard focus", () => {
+  React.act(() => root.render(<Harness />));
+  const select = button("Select points");
+  select.focus();
+  React.act(() => select.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 })));
+  expect(document.activeElement).not.toBe(select);
+  select.focus();
+  React.act(() => select.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 })));
+  expect(document.activeElement).toBe(select);
 });
 it.each(["Escape", "pointercancel", "lostpointercapture", "blur"])("cancels a draft on %s without history", kind => {
   React.act(() => root.render(<Harness />)); clickPoint(10, 10); clickPoint(50, 10); pointer("pointerdown", 10, 10); pointer("pointermove", 30, 30);
@@ -79,4 +90,74 @@ it("leaves Space-pan to the viewport and clears stale selection on a source chan
   React.act(() => root.render(<Harness pan />)); pointer("pointerdown", -10, -10); pointer("pointermove", 105, 105); pointer("pointerup", 105, 105);
   expect(host.textContent).toContain("2 points selected"); expect(commit).not.toHaveBeenCalled();
   React.act(() => root.render(<Harness context="new photo" />)); expect(host.querySelectorAll('[data-testid="selected-outline-point"]')).toHaveLength(0);
+});
+
+const highlighted = () => host.querySelectorAll('[data-testid="selected-outline-point"]').length;
+const committed = () => host.querySelector('[data-testid="selected-indices"]')!.textContent;
+const deleteKey = () => React.act(() => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true })));
+
+it.each(["pointercancel", "lostpointercapture", "blur", "pinch"])("discards a box on %s and deletes only the previously selected point", interruption => {
+  React.act(() => root.render(<Harness />));
+  React.act(() => button("Select points").click());
+  clickPoint(10, 90, false);
+  const touch = (type: string, x: number, y: number, id = 3) => pointer(type, x, y, false, id, true);
+  touch("pointerdown", -25, -25);
+  touch("pointermove", 105, 25);
+  expect(highlighted()).toBe(3);
+  expect(committed()).toBe("5");
+  deleteKey();
+  expect(saved).toBe(initial);
+  if (interruption === "blur") React.act(() => window.dispatchEvent(new Event("blur")));
+  else if (interruption === "pinch") touch("pointerdown", 80, 80, 4);
+  else touch(interruption, 105, 25);
+  expect(highlighted()).toBe(1);
+  if (interruption === "pinch") touch("pointerup", 80, 80, 4);
+  touch("pointerup", 105, 25);
+  expect(committed()).toBe("5");
+  deleteKey();
+  expect(saved[0].outer.map(a => a.point)).toEqual(initial[0].outer.slice(0, -1).map(a => a.point));
+  expect(commit).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the original selection when a group drag adds an anchor and is interrupted", () => {
+  React.act(() => root.render(<Harness />));
+  React.act(() => button("Select points").click());
+  clickPoint(10, 90, false);
+  pointer("pointerdown", 50, 10);
+  pointer("pointermove", 65, 20);
+  expect(highlighted()).toBe(2);
+  pointer("pointercancel", 65, 20);
+  pointer("pointerup", 65, 20);
+  expect(committed()).toBe("5");
+  expect(saved).toBe(initial);
+});
+
+it("ignores a descendant's capture loss, uses release coordinates, and accepts the next touch after genuine loss", () => {
+  React.act(() => root.render(<Harness />));
+  React.act(() => button("Select points").click());
+  pointer("pointerdown", -25, -25, false, 3, true);
+  pointer("pointermove", 60, 25, false, 3, true);
+  pointer("lostpointercapture", 60, 25, false, 3, true, host.querySelector("svg g")!);
+  expect(highlighted()).toBe(2);
+  pointer("pointerup", 105, 25, false, 3, true);
+  expect(committed()).toBe("0,1,2");
+  pointer("pointerdown", -25, -25, false, 4, true);
+  pointer("lostpointercapture", -25, -25, false, 4, true);
+  pointer("pointerdown", 10, 90, false, 5, true);
+  pointer("pointerup", 10, 90, false, 5, true);
+  expect(committed()).toBe("0,1,2,5");
+});
+
+it("lets only the owning pointer finish a box and discards old indices when the context changes", () => {
+  React.act(() => root.render(<Harness />));
+  pointer("pointerdown", -25, -25);
+  pointer("pointermove", 105, 25);
+  pointer("pointerup", 105, 25, false, 2);
+  expect(highlighted()).toBe(3);
+  expect(committed()).toBe("");
+  React.act(() => root.render(<Harness context="replacement" />));
+  pointer("pointerup", 105, 25);
+  expect(highlighted()).toBe(0);
+  expect(committed()).toBe("");
+  expect(commit).not.toHaveBeenCalled();
 });

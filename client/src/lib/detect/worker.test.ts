@@ -74,6 +74,23 @@ describe("photo worker lifecycle", () => {
     client.dispose();expect(e.terminate).toHaveBeenCalledOnce();
   });
 
+  it("releases the high-detail worker immediately and starts the next detection with defaults", async () => {
+    const first = endpoint(), next = endpoint();
+    const spawn = vi.fn().mockReturnValueOnce(first.port).mockReturnValueOnce(next.port);
+    const client = createDetectionClient(spawn);
+    const retry = client.detect(image, { boundary: "teed", highDetail: true });
+    expect(first.sent[0]).toMatchObject({ payload: { options: { boundary: "teed", highDetail: true } } });
+    first.reply({ id: 1, kind: "result", payload: "detail" });
+    await expect(retry).resolves.toBe("detail");
+    expect(first.terminate).toHaveBeenCalledOnce();
+    const normal = client.detect(image, { boundary: "teed" });
+    expect(next.sent[0]).toMatchObject({ payload: { options: { boundary: "teed" } } });
+    next.reply({ id: 1, kind: "result", payload: "normal" });
+    await normal;
+    expect(next.terminate).not.toHaveBeenCalled();
+    client.dispose();
+  });
+
   it("terminates synchronous work when superseded and discards its late reply", async () => {
     const first = endpoint(), second = endpoint();
     const spawn = vi.fn().mockReturnValueOnce(first.port).mockReturnValueOnce(second.port);

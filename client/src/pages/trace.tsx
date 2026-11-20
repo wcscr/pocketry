@@ -1,3 +1,4 @@
+import type { DetectionSettings } from "@/components/trace/trace-detection-controls";
 import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
@@ -14,7 +15,7 @@ import { useExperimentalFeatures } from "@/state/experimental-features";
 import { TraceHandoffOptions, useTraceHandoff } from "@/components/trace/trace-handoff";
 import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { TraceCanvas } from "@/components/trace/trace-canvas";
+import { TraceCanvas, type OutlineToolRequest } from "@/components/trace/trace-canvas";
 import { TracePhotoBoundsControl } from "@/components/trace/trace-photo-bounds-control";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
@@ -109,11 +110,22 @@ function TraceWorkspace(): JSX.Element {
   const [, navigate] = useLocation();
   const { panelOpen, setPanelOpen, setSampleLibraryRequested } = usePanelState();
   const isMobile = useIsMobile();
-  const { inspectorEnabled } = useExperimentalFeatures();
+  const { enabled: advancedEditing, inspectorEnabled, straightRunTolerance } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
+  const editingOutline = store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove");
+  useEffect(() => {
+    // Entering compact layout can carry over an open desktop properties panel.
+    if (isMobile && editingOutline) setPanelOpen(false);
+  }, [isMobile, editingOutline, setPanelOpen]);
   const handoff = useTraceHandoff(() => setPanelOpen(!isMobile));
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
-  const [outlineCleanupRequest, setOutlineCleanupRequest] = useState<{ id: number; sourceRevision: number }>();
+  const [outlineToolRequest, setOutlineToolRequest] = useState<OutlineToolRequest>();
+  const requestOutlineTool = (tool: OutlineToolRequest["tool"]) => {
+    if (!advancedEditing) return;
+    store.detectedOutlineReview.close();
+    dispatch({ type: "SET_MODE", mode: "pan" });
+    setOutlineToolRequest({ tool, sourceRevision: store.sourceRevision });
+  };
   const openSettings = (id: string) => {
     setSettingsSectionRequest({ id });
     setPanelOpen(true);
@@ -132,6 +144,8 @@ function TraceWorkspace(): JSX.Element {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const detectionRequest = useRef(0);
   const detectionAbort = useRef<AbortController | null>(null);
+  const brushDetection = useRef<AbortController | null>(null);
+  useEffect(() => { if (!advancedEditing) brushDetection.current?.abort(); }, [advancedEditing]);
   useEffect(() => () => detectionAbort.current?.abort(), [store.sourceRevision]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -203,14 +217,7 @@ function TraceWorkspace(): JSX.Element {
     [toast],
   );
 
-  const runDetection = useCallback(async (settings?: {
-    editableCurves?: boolean;
-    hints?: DetectionHint[];
-    sensitivity: number;
-    includeInteriorHoles: boolean;
-    boundary?: "auto" | "color" | "teed";
-    restart?: boolean;
-  }, requestedRegion?: Rect) => {
+  const runDetection = useCallback(async (settings?: DetectionSettings & { hints?: DetectionHint[] }, requestedRegion?: Rect) => {
     if (source.status !== "ready") return;
 
     // Tool detection is deliberately gated on an explicit region. Image load
@@ -223,10 +230,12 @@ function TraceWorkspace(): JSX.Element {
         : null;
     if (!region) return;
 
+    const hints = advancedEditing && !requestedRegion && !settings?.restart ? settings?.hints ?? store.detectionHints : [];
     const request = ++detectionRequest.current;
     detectionAbort.current?.abort();
     const controller = new AbortController();
     detectionAbort.current = controller;
+    brushDetection.current = settings?.hints !== undefined || hints.length > 0 ? controller : null;
     const sourceRevision = store.sourceRevision;
     const requestedBoundary = settings?.boundary ?? store.boundaryMethod;
     const includeInteriorHoles = settings?.includeInteriorHoles ?? store.includeInteriorHoles;
@@ -239,7 +248,6 @@ function TraceWorkspace(): JSX.Element {
       const candidateFrame = requestedBoundary !== "color" ? await getToolDetectionFrame(region, controller.signal) : null;
       const initialPixels = candidateFrame?.imageData ?? getImageData(region);
       if (!initialPixels || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision || controller.signal.aborted) return;
-      const hints = requestedRegion || settings?.restart ? [] : settings?.hints ?? store.detectionHints;
       // Re-read the current photo, including any rotation/perspective warp.
       // This also works after draft recovery or choosing a manual/paper scale;
       // the carrier footprint is independent of the accepted scale ruler.
@@ -267,7 +275,7 @@ function TraceWorkspace(): JSX.Element {
       } catch {
         // Optional reference recognition must not disable ordinary tracing.
       }
-      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      if (controller.signal.aborted || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
       const boundary = requestedBoundary === "auto"
         ? !includeInteriorHoles && hasWhitePaperBackground(initialPixels, recognizedSheet) ? "teed" : "color"
         : requestedBoundary;
@@ -280,6 +288,7 @@ function TraceWorkspace(): JSX.Element {
       const sheetInk = rectifiedSheetInkRegions(store.perspectiveCorrection, store.imageRotation === 0 && !store.imageAlignment, wholeSheet);
       const result = await processImage(imageData, {
         autoCleanup: true,
+        straightRunToleranceMm: straightRunTolerance,
         smoothBoundary: true,
         sheetInk,
         editableCurves: settings?.editableCurves ?? store.editableCurves,
@@ -290,7 +299,7 @@ function TraceWorkspace(): JSX.Element {
         margin: store.margin,
         calibration: store.calibration,
         detect: {
-          boundary, hints,
+          boundary, hints, highDetail: settings?.highDetail,
           signal: controller.signal,
           occlusions,
           sensitivity: detectionSettings.sensitivity,
@@ -300,7 +309,8 @@ function TraceWorkspace(): JSX.Element {
         onNotice: notice,
       });
 
-      if (request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      if (controller.signal.aborted || request !== detectionRequest.current || latestStore.current.sourceRevision !== sourceRevision) return;
+      if (settings?.highDetail && !result.outline.length) throw new Error("High detail found no outline in this region.");
       dispatch({
         type: "DETECTED",
         expectedOutline: store.outline,
@@ -313,22 +323,24 @@ function TraceWorkspace(): JSX.Element {
         estimatedEdgeRegions: result.estimatedEdgeRegions,
         detectionHints: hints,
         settings: detectionSettings,
-        label: settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
-          : settings?.hints ? settings.hints.length ? "Correct outline" : "Clear corrections" : undefined,
+        label: settings?.highDetail ? "High-detail outline" : settings?.restart ? requestedBoundary !== store.boundaryMethod ? "Change detection method" : "Restart outline detection"
+          : settings?.hints ? hints.length ? "Correct outline" : "Clear corrections" : undefined,
         svg: result.svg,
         region,
       });
+      if (settings?.highDetail) notice("High-detail outline ready", "Use Undo to compare with your previous outline.");
       // The legacy fire-and-forget POST /api/images is gone (design doc:
       // "opt-in or removed"): nothing ever read the copies back, and silently
       // uploading every trace is the wrong default for local tooling.
     } catch (error) {
-      if (request !== detectionRequest.current || controller.signal.aborted) return;
+      if (request !== detectionRequest.current || controller.signal.aborted || latestStore.current.sourceRevision !== sourceRevision) return;
       toast({
-        title: "Tracing failed",
+        title: settings?.highDetail ? "Kept the previous outline" : "Tracing failed",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
     } finally {
+      if (brushDetection.current === controller) brushDetection.current = null;
       if (request === detectionRequest.current) dispatch({ type: "SET_PROCESSING", processing: false });
     }
     // `store.region` is read through a ref-free closure on purpose: the caller
@@ -347,8 +359,10 @@ function TraceWorkspace(): JSX.Element {
     store.sensitivity,
     store.includeInteriorHoles,
     store.boundaryMethod,
-    store.editableCurves,
+    advancedEditing,
+    straightRunTolerance,
     store.detectionHints,
+    store.editableCurves,
     store.perspectiveCorrection,
     store.imageRotation,
     store.imageAlignment,
@@ -462,8 +476,8 @@ function TraceWorkspace(): JSX.Element {
                 description: strip
                   ? `${summary}. Marker edge measurements differ by ${(solution.maxDeviation * 100).toFixed(1)}%. Small markers or camera tilt can cause this. Review the scale; for clearer markers, fill more of the photo with the tool and shoot straight down.`
                   : `${fallback}${summary}. Marker distances disagree by ${(solution.maxDeviation * 100).toFixed(1)}%. ${perspective ? "Perspective correction is available in Scale." : "Shoot straight down for accurate millimetres."}`,
-                variant: "destructive",
-                duration: 8000,
+                className: "border-amber-500/50 bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-100",
+                duration: 5000,
               });
             } else if (fallback) {
               calibrationNotice.current = toast({ title: "Paper reference available", description: fallback });
@@ -823,6 +837,7 @@ function TraceWorkspace(): JSX.Element {
           onChoosePhoto={() => photoInputRef.current?.click()}
           onStartOver={startOver}
           onReprocess={(settings) => void runDetection(settings)}
+          onCorrectOutline={() => requestOutlineTool("correct")}
           onOpenSettings={openSettings}
           onDetectMarkers={() => void detectMarkers(true)}
           onApplyPerspective={(proposal, template, scale) => void applyPerspective(proposal, template, scale)}
@@ -833,10 +848,8 @@ function TraceWorkspace(): JSX.Element {
             active={workflowLayout || panelOpen}
             settingsSectionRequest={settingsSectionRequest}
             onCanvasInteraction={showCanvas}
-            onSmoothOutline={() => {
-              dispatch({ type: "SET_MODE", mode: "pan" });
-              setOutlineCleanupRequest(previous => ({ id: (previous?.id ?? 0) + 1, sourceRevision: store.sourceRevision }));
-            }}
+            onSmoothOutline={() => requestOutlineTool("smooth")}
+            onCorrectOutline={() => requestOutlineTool("correct")}
             onReplaceImage={() => photoInputRef.current?.click()}
             onStartOver={startOver}
             onRotateImage={handleRotateImage}
@@ -871,14 +884,15 @@ function TraceWorkspace(): JSX.Element {
                 dispatch({ type: "SET_MODE", mode: "edit" });
                 setEstimatedEdgeFocusRequest(value => value + 1);
               }}>Edit this edge</Button>
-              <HelpHint label="repairing the estimated edge">Select two points on the visible outline on either side of the hidden section, then choose Repair section. Preview a line or smooth curve against the photo before applying. The amber area remains an estimate even after editing.</HelpHint>
+              <HelpHint label="repairing the estimated edge">Move points on the estimated edge to match the visible tool. The amber area remains an estimate after editing.</HelpHint>
             </div>}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
-                  outlineCleanupRequest={outlineCleanupRequest}
+                  outlineToolRequest={outlineToolRequest}
+                  onOutlineToolHandled={() => setOutlineToolRequest(undefined)}
+                  onCorrection={advancedEditing ? hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints }) : undefined}
                   estimatedEdgeFocusRequest={estimatedEdgeFocusRequest}
                   onReprocess={(region) => void runDetection(undefined, region)}
-                  onCorrection={hints => void runDetection({ sensitivity: store.sensitivity, includeInteriorHoles: store.includeInteriorHoles, hints })}
                   emptyState={
                     <div className="flex h-full min-h-[24rem] w-full flex-col gap-3 text-center">
                       <div className="w-full max-w-2xl self-center">
