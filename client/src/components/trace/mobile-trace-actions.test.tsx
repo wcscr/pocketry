@@ -153,10 +153,50 @@ describe("Mobile trace progression", () => {
     readyOutline();
     React.act(() => button("Adjust").click());
     expect(host.querySelector("#mobile-detail")).toBeNull();
+    const tray = host.querySelector<HTMLElement>(".mobile-adjustment-tray")!;
+    expect(tray.className).toContain("max-h-[min(264px,40dvh)]");
+    expect(tray.className).toContain("overscroll-contain");
     React.act(() => button("Symmetry & straighten").click());
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.querySelector("h2")?.textContent).toBe("Symmetry & straighten");
     expect(dialog?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe("Straighten only");
+  });
+
+  it("preserves sensitivity during vertical touch swipes while keeping horizontal touch dragging usable", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    const slider = host.querySelector<HTMLElement>("#mobile-sensitivity")!;
+    const thumb = slider.querySelector<HTMLElement>('[role="slider"]')!;
+    vi.spyOn(slider, "getBoundingClientRect").mockReturnValue({
+      x: 16, y: 520, left: 16, top: 520, width: 358, height: 32, right: 374, bottom: 552, toJSON: () => ({}),
+    } as DOMRect);
+    const pointer = (el: Element, type: string, x: number, y: number) => React.act(() => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: "touch" }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } });
+      el.dispatchEvent(event);
+    });
+
+    // Vertical swipe starting on the track (reproducing issue #252).
+    pointer(slider, "pointerdown", 242, 536);
+    pointer(slider, "pointermove", 242, 446);
+    pointer(slider, "pointerup", 242, 446);
+    expect(thumb.getAttribute("aria-valuenow")).toBe("0");
+    expect(reprocess).not.toHaveBeenCalled();
+
+    // Vertical swipe starting on the thumb.
+    pointer(thumb, "pointerdown", 195, 536);
+    pointer(slider, "pointermove", 196, 460);
+    pointer(slider, "pointerup", 196, 460);
+    expect(thumb.getAttribute("aria-valuenow")).toBe("0");
+    expect(reprocess).not.toHaveBeenCalled();
+
+    // Intentional horizontal touch drag adjusts and commits sensitivity once.
+    pointer(thumb, "pointerdown", 195, 536);
+    pointer(slider, "pointermove", 242, 536);
+    expect(reprocess).not.toHaveBeenCalled();
+    pointer(slider, "pointerup", 242, 536);
+    expect(reprocess).toHaveBeenCalledOnce();
+    expect(Number(thumb.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
   });
 
   it("adjusts sensitivity and detail inline and protects manual edits on re-detection", async () => {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.15.1 — 2026-11-20
+
+- Prevent vertical scrolling over sliders on phones from changing **Sensitivity** and rerunning outline detection, expand the phone **Adjust outline** tray so **Symmetry & straighten** is immediately visible, and pin **Cancel** and **Apply** at the bottom of the **Symmetry & straighten** dialog.
+
 ## 1.15.0 — 2026-11-20
 
 - Add one Send feedback entry for account-free problem reports and suggestions with an optional reply address.
