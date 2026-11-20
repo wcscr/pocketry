@@ -1,4 +1,4 @@
-import { Github, Lightbulb, Mail, MessageSquare } from "lucide-react";
+import { Github, Mail, MessageSquare } from "lucide-react";
 import type { FeedbackKind } from "@/components/help/feedback-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,14 +15,11 @@ const FEEDBACK_LABEL = "Report an Issue / Provide Feedback";
 export function FeedbackMenuItems({ onFeedbackClick }: { onFeedbackClick?: (kind: FeedbackKind) => void }): JSX.Element {
   return (
     <>
-      {onFeedbackClick && <>
+      {onFeedbackClick && (
         <DropdownMenuItem className="min-h-11" onSelect={() => onFeedbackClick("problem")}>
-          <MessageSquare className="h-4 w-4" aria-hidden /> Report a problem privately
+          <MessageSquare className="h-4 w-4" aria-hidden /> Send feedback
         </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11" onSelect={() => onFeedbackClick("suggestion")}>
-          <Lightbulb className="h-4 w-4" aria-hidden /> Make a suggestion privately
-        </DropdownMenuItem>
-      </>}
+      )}
       <DropdownMenuItem asChild className="min-h-11">
         <a href="mailto:feedback@pocketry.xyz">
           <Mail className="h-4 w-4" aria-hidden />

@@ -220,8 +220,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
           <p><Link href="/help/ultim8" className="text-primary underline underline-offset-4" onClick={() => onOpenChange(false)}>ULTIM8-compatible fixture guide</Link></p>
           <section aria-label="Feedback" className="flex flex-wrap gap-x-5 text-xs">
             {onFeedbackClick && <div className="flex w-full flex-wrap gap-2 py-2">
-              <Button variant="outline" className="min-h-11" onClick={() => onFeedbackClick("problem")}>Report a Problem</Button>
-              <Button variant="outline" className="min-h-11" onClick={() => onFeedbackClick("suggestion")}>Make a Suggestion</Button>
+              <Button variant="outline" className="min-h-11" onClick={() => onFeedbackClick("problem")}>Send feedback</Button>
             </div>}
             <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens a new tab)</span></a>
           </section>

@@ -84,7 +84,7 @@ export function FeedbackDialog({ open, kind: initialKind, onOpenChange }: {
       onOpenAutoFocus={() => { returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
       onCloseAutoFocus={(event) => { event.preventDefault(); if (returnFocus.current?.isConnected) returnFocus.current.focus(); }}>
       <DialogHeader>
-        <DialogTitle>{kind === "problem" ? "Report a Problem" : "Make a Suggestion"}</DialogTitle>
+        <DialogTitle>Send feedback</DialogTitle>
         <DialogDescription>Send a private message to the Pocketry team. No account required.</DialogDescription>
       </DialogHeader>
       {sent ? <div className="space-y-4">

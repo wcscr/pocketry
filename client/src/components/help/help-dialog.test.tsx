@@ -8,16 +8,18 @@ import Ultim8Help from "@/pages/ultim8-help";
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
-it("opens each private feedback kind from Help", async () => {
+it("offers one private feedback entry from Help", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div"); document.body.appendChild(host);
   const root = createRoot(host); const feedback = vi.fn();
   try {
     await React.act(async () => { root.render(<HelpDialog open onOpenChange={() => {}} onFeedbackClick={feedback} />); });
-    for (const text of ["Report a Problem", "Make a Suggestion"]) {
-      React.act(() => Array.from(document.querySelectorAll("button")).find((button) => button.textContent === text)!.click());
-    }
-    expect(feedback.mock.calls).toEqual([["problem"], ["suggestion"]]);
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const entry = buttons.filter(button => button.textContent === "Send feedback");
+    expect(entry).toHaveLength(1);
+    expect(buttons.some(button => ["Report a Problem", "Make a Suggestion"].includes(button.textContent ?? ""))).toBe(false);
+    React.act(() => entry[0].click());
+    expect(feedback.mock.calls).toEqual([["problem"]]);
   } finally { React.act(() => root.unmount()); }
 });
 

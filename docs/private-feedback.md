@@ -1,9 +1,9 @@
 # Private feedback on Cloudflare Pages
 
-Pocketry offers **Report a problem** and **Make a suggestion** from Help and the
-header feedback menu. The visitor enters a summary, message, and optional reply
-email. No account is required; leaving the reply address blank does not identify
-the visitor to Pocketry. Cloudflare still processes normal request and Turnstile
+Pocketry offers one **Send feedback** option from Help and the header
+feedback menu. In the shared form, the visitor chooses a problem report or
+suggestion and enters a summary, message, and optional reply email. No account is
+required; leaving the reply address blank does not identify the visitor to Pocketry. Cloudflare still processes normal request and Turnstile
 metadata. Photos, projects, browser details, and URLs are never attached to the
 submission. Draft text stays in memory after closing or a failed send, but a page
 reload clears it.

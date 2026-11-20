@@ -141,8 +141,9 @@ describe("App", () => {
     expect(trigger!.parentElement?.classList.contains("hidden")).toBe(false);
     act(() => trigger!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     const menu = document.querySelector('[role="menu"]');
-    expect(menu?.textContent).toContain("Report a problem privately");
-    expect(menu?.textContent).toContain("Make a suggestion privately");
+    expect([...menu!.querySelectorAll('[role="menuitem"]')].filter(item => item.textContent?.trim() === "Send feedback")).toHaveLength(1);
+    expect(menu?.textContent).not.toContain("Report a problem privately");
+    expect(menu?.textContent).not.toContain("Make a suggestion privately");
     const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:feedback@pocketry.xyz"]');
     expect(email?.textContent).toContain("Email feedback@pocketry.xyz");
     const github = menu?.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]');

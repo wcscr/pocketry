@@ -47,14 +47,22 @@ it("does not fetch configuration or load Turnstile until opened", async () => {
   expect(window.turnstile!.render).not.toHaveBeenCalled();
 });
 
-it("sends only explicit form fields, allows no email, and confirms success", async () => {
+it.each(["problem", "suggestion"])("sends a %s from the shared form without requiring an email", async kind => {
   await render(); complete();
+  expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Send feedback");
+  const choice = document.getElementById("feedback-kind") as HTMLSelectElement;
+  React.act(() => {
+    choice.value = kind;
+    choice.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(document.querySelector('label[for="feedback-message"]')?.textContent)
+    .toBe(kind === "problem" ? "What happened?" : "What would you like to see?");
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(document.body.textContent).toContain("Photos and projects stay on your device");
   fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
   await submit();
   expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
-    kind: "problem", subject: "Export stopped", message: "I clicked export but nothing downloaded.",
+    kind, subject: "Export stopped", message: "I clicked export but nothing downloaded.",
     replyEmail: "", website: "", turnstileToken: "valid-token",
   });
   expect(document.querySelector('[role="status"]')?.textContent).toContain("submitted");
