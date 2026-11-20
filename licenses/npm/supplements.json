@@ -1,11 +1,13 @@
 [
   {
     "packages": [
-      "@nodable/entities@3.0.0"
+      "@nodable/entities@3.0.0",
+      "@nodable/entities@3.1.0"
     ],
     "file": "nodable-entities.txt",
     "sources": [
-      "https://github.com/nodable/val-parsers/blob/d2070d76a8ba07e6c7fa142caeb51ffd756e47eb/LICENSE"
+      "https://github.com/nodable/val-parsers/blob/d2070d76a8ba07e6c7fa142caeb51ffd756e47eb/LICENSE",
+      "https://github.com/nodable/val-parsers/blob/ac48e7ea591da372be023a481875c747535812b3/LICENSE"
     ]
   },
   {

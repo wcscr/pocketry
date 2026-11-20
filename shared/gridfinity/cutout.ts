@@ -232,7 +232,7 @@ export const fingerHoleSchema = z
   .superRefine((hole, context) => {
     if (["oblong-deep-scoop", "flat-ended-scoop", "oblong-straight", "flat-ended-straight"].includes(hole.kind) &&
         hole.diameterMm > MAX_FINGER_SLOT_WIDTH_MM) {
-      context.addIssue({ code: z.ZodIssueCode.too_big, type: "number", maximum: MAX_FINGER_SLOT_WIDTH_MM,
+      context.addIssue({ code: z.ZodIssueCode.too_big, origin: "number", maximum: MAX_FINGER_SLOT_WIDTH_MM,
         inclusive: true, path: ["diameterMm"], message: "Slot width cannot exceed 80 mm." });
     }
   })
