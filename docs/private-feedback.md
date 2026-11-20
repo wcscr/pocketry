@@ -17,9 +17,9 @@ API to send plain text to one **verified Email Routing destination address**.
 The reports live in that inbox, with no application database or public issue.
 Cloudflare Email Service currently permits sends to verified destinations on
 Workers Free, even when the account only uses Email Routing. A public alias such
-as `issues@pocketry.xyz` is a routing address, not necessarily the verified
+as `feedback@pocketry.xyz` is a routing address, not necessarily the verified
 destination; send to the actual verified inbox address to stay within the free
-exception. Arbitrary recipients require Workers Paid. `issues@pocketry.xyz`
+exception. Arbitrary recipients require Workers Paid. `feedback@pocketry.xyz`
 is the public address and fixed sender; its forwarding destination is configured
 separately as a secret.
 
@@ -32,12 +32,12 @@ the account before enabling it; Email Sending remains a beta service.
 ## Production setup
 
 1. In **Compute → Email Service → Email Routing → Destination Addresses**, find
-   the inbox that receives mail forwarded from `issues@pocketry.xyz`. Confirm
+   the inbox that receives mail forwarded from `feedback@pocketry.xyz`. Confirm
    that this **destination** is verified. If no suitable destination is verified,
    add one and complete its verification email. Keep its actual address private.
-2. Create the `issues@pocketry.xyz` routing address and confirm it forwards to
+2. Create the `feedback@pocketry.xyz` routing address and confirm it forwards to
    that inbox. Confirm `pocketry.xyz` is onboarded for Email Sending. The fixed
-   sender is `issues@pocketry.xyz`. Create a dedicated Cloudflare API token for this
+   sender is `feedback@pocketry.xyz`. Create a dedicated Cloudflare API token for this
    account with **Email Sending: Edit**. Do not use a general deployment token.
 3. Keep the existing Turnstile widget site key in `wrangler.jsonc`. Confirm its
    hostname list includes `pocketry.xyz`. Do not use Turnstile test keys in

@@ -24,9 +24,9 @@ export function FeedbackMenuItems({ onFeedbackClick }: { onFeedbackClick?: (kind
         </DropdownMenuItem>
       </>}
       <DropdownMenuItem asChild className="min-h-11">
-        <a href="mailto:issues@pocketry.xyz">
+        <a href="mailto:feedback@pocketry.xyz">
           <Mail className="h-4 w-4" aria-hidden />
-          Email issues@pocketry.xyz
+          Email feedback@pocketry.xyz
         </a>
       </DropdownMenuItem>
       <DropdownMenuItem asChild className="min-h-11">
