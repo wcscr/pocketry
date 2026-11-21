@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+body {
+  max-width: 55rem;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 5vw, 3rem) 3rem;
+}
+
+header, footer {
+  padding: 1rem 0;
+  border-block-end: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+
+footer {
+  margin-top: 2.5rem;
+  border-block-start: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-block-end: 0;
+}
+
+nav, .links {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.25rem;
+  row-gap: 0.5rem;
+  align-items: baseline;
+}
+
+.brand {
+  color: inherit;
+  font: 700 1.25rem Rockwell, "American Typewriter", Georgia, serif;
+}
+
+a {
+  text-underline-offset: 0.2em;
+}
+
+h1, h2, h3 {
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+h1 {
+  margin: 2.25rem 0 0.75rem;
+  font-size: clamp(2rem, 6vw, 3rem);
+}
+
+h2 {
+  margin-block-start: 2rem;
+}
+
+figure {
+  margin: 1.75rem 0;
+}
+
+figure img {
+  display: block;
+  width: min(100%, 36rem);
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.sample-list {
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.sample-list li {
+  padding: 0.75rem 0;
+  border-block-start: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.sample-list h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}

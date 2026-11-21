@@ -61,6 +61,16 @@ afterAll(async () => {
   await rm(publicCanary, { force: true });
 }, 30_000);
 
+it.each([
+  ["/quick-start/", "Turn a tool photo into a Gridfinity bin"],
+  ["/samples/", "Pocketry sample projects"],
+])("serves the static guide at %s before the development app fallback", async (route, heading) => {
+  const response = await fetch(`${baseUrl}${route}`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toContain("text/html");
+  expect(await response.text()).toContain(`<h1>${heading}</h1>`);
+});
+
 describe("development security boundary", () => {
   it.each(["?raw", "?import&raw", "?import&url&inline"])(
     "keeps fs.deny effective inside an allowed directory with %s", async query => {
