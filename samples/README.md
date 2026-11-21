@@ -7,7 +7,7 @@ Browse the editable Pocketry designs, supplied 3MF exports, and photos below.
 Start with a project to see how its pockets are arranged, or download a 3MF to
 open in your slicer.
 
-[Open Pocketry](https://pocketry.xyz) · [Back to the project](../README.md)
+[Open Pocketry](https://pocketry.xyz) · [Sample downloads](https://pocketry.xyz/samples/) · [Back to the project](../README.md)
 
 In Pocketry, choose **Open sample projects** on Welcome or **Open sample projects or library** in Trace. In **Library**, choose **Sample Library** to open one editable sample or add all 17 projects alongside your existing library. Save or export existing work when prompted.
 
@@ -41,6 +41,8 @@ export the updated projects to print these labels.
 
 Check each project page for its dimensions, fit and stacking notes, and any
 recommended changes before printing.
+
+When adding a sample, include its editable project and 3MF in the [public sample index](../client/public/samples/index.html).
 
 ## Using a sample
 

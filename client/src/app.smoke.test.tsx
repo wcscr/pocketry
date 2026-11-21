@@ -158,6 +158,27 @@ describe("App", () => {
     expect(() => renderApp()).not.toThrow();
   });
 
+  it.each(["/feedback", "/feedback/"])("opens the private form from %s on a first visit", async (path) => {
+    localStorage.removeItem("pocketry:welcome:1.1.1");
+    window.history.replaceState(null, "", path);
+    const fetchFeedback = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
+    vi.stubGlobal("fetch", fetchFeedback);
+
+    await act(async () => renderApp());
+
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0].querySelector("h2")?.textContent).toBe("Send feedback");
+    expect(dialogs[0].querySelector("form")).not.toBeNull();
+    expect(document.title).toBe("Send feedback · Pocketry");
+    expect(fetchFeedback.mock.calls).toEqual([["/api/feedback", { signal: expect.any(AbortSignal), cache: "no-store" }]]);
+
+    const close = [...dialogs[0].querySelectorAll("button")].find(button => button.textContent === "Close")!;
+    act(() => close.click());
+    expect(window.location.pathname).toBe("/");
+    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Welcome to Pocketry");
+  });
+
   it("renders the shell chrome", () => {
     renderApp();
     expect(container.textContent).not.toContain("ToolTrace");
@@ -309,8 +330,10 @@ describe("App", () => {
     expect(container.textContent).not.toContain("Replace image");
   });
 
-  it("opens the first-bin guide with calibration, saving, and export actions", () => {
+  it("opens the first-bin guide and lets users send feedback without leaving the workspace", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
     renderApp();
+    const trace = container.querySelector('[aria-label="Trace properties"]');
     act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="Help"]')!.click();
     });
@@ -329,6 +352,11 @@ describe("App", () => {
     expect(help?.textContent).not.toContain("All settings");
     expect(help?.textContent).toContain("Save this draft to Library");
     expect(help?.textContent).toContain("Import Project");
+
+    await act(async () => help!.querySelector<HTMLAnchorElement>('a[href="/feedback"]')!.click());
+    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Send feedback");
+    expect(window.location.pathname).toBe("/");
+    expect(container.querySelector('[aria-label="Trace properties"]')).toBe(trace);
   });
 
   it("fills the viewport instead of a fixed-width column", () => {

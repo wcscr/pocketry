@@ -3,12 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Trace tool photos into editable outlines, shadow boards, and 3D-printable Gridfinity bins. Pocketry runs locally in your browser." />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48 64x64 256x256" />
     <link rel="icon" type="image/png" href="/pocketry-icon.png" sizes="512x512" />
+    <link rel="describedby" href="/llms.txt" />
     <title>Pocketry - Tool Cutout and Gridfinity Bin Designer</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main style="max-width: 42rem; margin: 3rem auto; padding: 0 1rem; font: 1rem/1.55 system-ui, sans-serif">
+        <h1>Pocketry</h1>
+        <p>Turn tool photos into editable outlines, shadow boards, and 3D-printable Gridfinity or flat-bottom bins. Image processing and project storage stay in your browser.</p>
+        <nav aria-label="Pocketry guides">
+          <ul>
+            <li><a href="/quick-start/">Turn a tool photo into a Gridfinity bin</a></li>
+            <li><a href="/samples/">Browse sample projects</a></li>
+            <li><a href="https://github.com/wcscr/pocketry">Pocketry on GitHub</a></li>
+          </ul>
+        </nav>
+        <noscript><p>Enable JavaScript to use the editor.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

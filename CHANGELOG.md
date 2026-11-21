@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.16.0 — 2026-11-21
+
+- Open the private feedback form directly at `/feedback`. Help and the README invite AI assistants to draft reports for users to review.
+- Browse a photo-to-bin quick start and sample project downloads on the public site.
+
 ## 1.15.2 — 2026-11-21
 
 - **Erase points** keeps the points a stroke has already erased when the press ends without a release, for example when the browser cancels it, the window loses focus or is resized, or the view zooms. Those points used to come back with no message. Escape still discards the stroke, and a note appears when a stroke cannot be applied.

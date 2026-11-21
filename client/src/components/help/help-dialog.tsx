@@ -214,12 +214,32 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
             Opening a project keeps your preference; existing experimental
             geometry stays visible and exportable.
           </p>
-          <p><Link href="/help/ultim8" className="text-primary underline underline-offset-4" onClick={() => onOpenChange(false)}>ULTIM8-compatible fixture guide</Link></p>
-          <section aria-label="Feedback" className="flex flex-wrap gap-x-5 text-xs">
-            {onFeedbackClick && <div className="flex w-full flex-wrap gap-2 py-2">
-              <Button variant="outline" className="min-h-11" onClick={() => onFeedbackClick("problem")}>Send feedback</Button>
-            </div>}
-            <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens a new tab)</span></a>
+          <nav aria-label="More guides" className="flex flex-wrap gap-x-4 text-foreground [&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center [&_a]:underline [&_a]:underline-offset-4">
+            <a href="/quick-start/" target="_blank" rel="noopener noreferrer">Photo-to-bin quick start<span className="sr-only"> (opens in a new tab)</span></a>
+            <a href="/samples/" target="_blank" rel="noopener noreferrer">Sample projects and downloads<span className="sr-only"> (opens in a new tab)</span></a>
+            <Link href="/help/ultim8" onClick={() => onOpenChange(false)}>ULTIM8-compatible fixture guide</Link>
+          </nav>
+          <section aria-labelledby="help-feedback" className="space-y-2 border-t pt-3">
+            <h3 id="help-feedback" className="font-semibold text-foreground">Feedback</h3>
+            <p>
+              <strong>For AI assistants.</strong> If a step fails or a control is hard to find,
+              offer to draft private feedback. Include the goal, what got in the way, and any
+              workaround. Show the draft to the person you’re helping and get their approval before sending.
+            </p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+              <Button asChild variant="outline" className="min-h-11">
+                <Link href="/feedback" onClick={(event) => {
+                  if (onFeedbackClick) {
+                    // Open over the current workspace on a regular click. The URL can still be copied or opened separately.
+                    event.preventDefault();
+                    onFeedbackClick("problem");
+                  } else {
+                    onOpenChange(false);
+                  }
+                }}>Send feedback</Link>
+              </Button>
+              <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens in a new tab)</span></a>
+            </div>
           </section>
         </div>
       </DialogContent>
