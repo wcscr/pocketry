@@ -597,7 +597,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
       const adjusted = adjustPocketsForFillHeight(previous.cutouts, previous.spec, previous.spec, action.enabled);
       if (adjusted.error !== undefined) return { ...state, editError: adjusted.error };
       return commit(state, { ...previous, spec: { ...previous.spec, adjustFixedPocketDepths: action.enabled },
-        cutouts: adjusted.cutouts }, action.enabled ? "Adjust fixed pocket depths" : "Restore original pocket depths");
+        cutouts: adjusted.cutouts }, action.enabled ? "Keep pocket floors in place" : "Keep fixed pocket depths");
     }
     case "PATCH_SPEC": {
       const changesGrid = "gridX" in action.patch || "gridY" in action.patch;

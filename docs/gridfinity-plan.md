@@ -29,6 +29,11 @@ section disclosures are independent; hiding a setting must not discard its saved
 value. New tabs default to **Each sub-bin**, with adjustable recess, front rim,
 inward depth, and partial width. Existing designs retain their saved choices.
 
+In **Construction → Interior**, **Keep fixed pocket depths** defaults to on.
+Fixed depths stay the same below the fill surface as fill height changes. Turn
+the option off to hold pocket floors in place by adjusting their depths. Turning
+it back on restores the original depths. Projects retain their saved setting.
+
 Slanted-wall editing, linked designs, and grouped objects require **App settings
 → Enable experimental features**. Saved designs remain visible and exportable
 with that preference off. The dedicated `/ultim8` entry exposes fixture controls
