@@ -1,6 +1,6 @@
 {
   "name": "rest-express",
-  "version": "1.15.4",
+  "version": "1.15.5",
   "type": "module",
   "license": "AGPL-3.0-only",
   "engines": {

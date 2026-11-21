@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.15.5 — 2026-11-21
+
+- Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.
+
 ## 1.15.4 — 2026-11-21
 
 - Open the private feedback form directly at `/feedback`. Help and the README invite AI assistants to draft reports for users to review.

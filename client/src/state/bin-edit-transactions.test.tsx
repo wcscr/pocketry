@@ -65,13 +65,13 @@ it("follows height with experimental tools off, while explicit walls remain fixe
   expect(binWallThicknessMm(ui.bin().spec)).toBe(1.6);
 });
 const pocket = parseCutoutPlacement({ id: "a", shapeId: "shape", position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 }, designLink: { id: "shared", tilt: true } });
-function linkedFixture(ui: ReturnType<typeof mount>) {
-  ui.dispatch({ type: "HYDRATE", spec: ui.bin().spec, cutouts: [pocket, { ...pocket, id: "b", position: { x: 20, y: 0 } }],
+function linkedFixture(ui: ReturnType<typeof mount>, adjustFixedPocketDepths = ui.bin().spec.adjustFixedPocketDepths) {
+  ui.dispatch({ type: "HYDRATE", spec: { ...ui.bin().spec, adjustFixedPocketDepths }, cutouts: [pocket, { ...pocket, id: "b", position: { x: 20, y: 0 } }],
     fingerHoles: ["f", "g"].map(id => fingerHoleSchema.parse({ id, center: { x: 0, y: 0 }, depthMm: 20, diameterMm: 20, designLink: { id: "fingers" } })) });
 }
 
 it("Escape rolls back linked depths and dependent floors without touching redo or committed exports", () => {
-  const ui = mount(); ui.enable(true); linkedFixture(ui);
+  const ui = mount(); ui.enable(true); linkedFixture(ui, true);
   ui.dispatch({ type: "PATCH_SPEC", patch: { heightUnits: 7 } }); ui.dispatch({ type: "UNDO" });
   const before = getCommittedBinDoc(ui.bin()), history = ui.bin().history;
   ui.fill("75");
@@ -133,11 +133,20 @@ it.each([
   (s: BinStore): BinAction => ({ type: "DUPLICATE_LINKED", kind: "pocket", id: "a", newId: "c", linkId: "new" }),
   (s: BinStore): BinAction => ({ type: "UNLINK_DESIGNS", kind: "pocket", ids: ["a"] }),
 ])("rejects a shared geometry command atomically while opted out %#", command => {
-  const ui = mount(); linkedFixture(ui);
+  const ui = mount(); linkedFixture(ui, true);
   const doc = getCommittedBinDoc(ui.bin()), history = ui.bin().history;
   ui.dispatch(command(ui.bin()));
   expect(ui.bin().cutouts).toEqual(doc.cutouts); expect(ui.bin().fingerHoles).toEqual(doc.fingerHoles); expect(ui.bin().spec).toEqual(doc.spec);
   expect(ui.bin().history).toBe(history); expect(ui.bin().editError).toContain("Enable experimental tools");
+  expect(ui.preferences().enabled).toBe(false);
+});
+
+it("allows fill changes that keep fixed linked depths while experimental tools are off", () => {
+  const ui = mount(); linkedFixture(ui);
+  ui.dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } });
+  expect(ui.bin().editError).toBeNull();
+  expect(ui.bin().spec.fillHeightPercent).toBe(75);
+  expect(ui.bin().cutouts.map(cutout => cutout.depth)).toEqual([pocket.depth, pocket.depth]);
   expect(ui.preferences().enabled).toBe(false);
 });
 

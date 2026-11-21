@@ -100,8 +100,8 @@ export const binSpecSchema = z
     }).strict().nullable().default(null),
     /** Percentage of available fill height above the fixed base; retained while hollow. */
     fillHeightPercent: z.number().min(1).max(100).default(100),
-    /** Resize existing fixed depths with fill edits; unchecking restores their baseline. */
-    adjustFixedPocketDepths: z.boolean().default(true),
+    /** Resize fixed depths to hold their floors in place. The UI checkbox uses the inverse of this saved setting. */
+    adjustFixedPocketDepths: z.boolean().default(false),
     /** Smooth underside without Gridfinity sockets; preserves outer size and pocket heights. */
     flatBottom: z.boolean().default(false),
     /** Arbitrary sizing applied this flat bottom; an explicit bottom choice clears it. */

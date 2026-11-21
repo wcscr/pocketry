@@ -1762,19 +1762,17 @@ export function BinControlsPanel({
                 value={spec.fillHeightPercent}
                 onChange={(fillHeightPercent, transient) => patchSpec({ fillHeightPercent }, transient)}
               />
-              <div className="flex items-start gap-2">
+              <div className="flex items-center gap-2">
                 <Checkbox
-                  id="adjust-fixed-pocket-depths"
-                  checked={adjustFixedPocketDepths}
-                  onCheckedChange={(checked) => dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: checked === true })}
-                  aria-describedby="adjust-fixed-pocket-depths-help"
+                  id="keep-fixed-pocket-depths"
+                  checked={!adjustFixedPocketDepths}
+                  onCheckedChange={(checked) => dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: checked === false })}
                 />
-                <div className="space-y-1">
-                  <Label htmlFor="adjust-fixed-pocket-depths" className="text-xs">Adjust fixed pocket depths</Label>
-                  <p id="adjust-fixed-pocket-depths-help" className="text-[11px] text-muted-foreground">
-                    Keep pocket floors in place. Uncheck to restore original depths.
-                  </p>
-                </div>
+                <SettingLabel
+                  label="Keep fixed pocket depths"
+                  htmlFor="keep-fixed-pocket-depths"
+                  hint="Keep the same depth below the fill surface as fill height changes. Turn off to keep pocket floors in place. Turn back on to restore the original depths."
+                />
               </div>
               {editError && <p role="alert" className="text-xs text-destructive">{editError}</p>}
             </div>

@@ -323,7 +323,7 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each([false, true])("offers checked-by-default fixed-depth adjustment under Construction fill height (experimental=%s)", async experimental => {
+  it.each([false, true])("keeps fixed depths by default under Construction fill height (experimental=%s)", async experimental => {
     const pocket = parseCutoutPlacement({ id: "fixed", shapeId: "s", position: { x: 0, y: 0 }, depth: { mode: "mm", value: 20 } });
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [rectangularShape("s", "Fixed")], cutouts: [pocket] });
     const { container, unmount } = renderPage({ experimental });
@@ -331,10 +331,14 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       openConstructionSettings(container);
       const construction = container.querySelector("#bin-settings-construction")!;
-      const checkbox = construction.querySelector<HTMLButtonElement>('#adjust-fixed-pocket-depths')!;
+      const checkbox = construction.querySelector<HTMLButtonElement>('#keep-fixed-pocket-depths')!;
       expect(checkbox.getAttribute("data-state")).toBe("checked");
-      expect(construction.querySelector('label[for="adjust-fixed-pocket-depths"]')?.textContent).toBe("Adjust fixed pocket depths");
+      expect(construction.querySelector('label[for="keep-fixed-pocket-depths"]')?.textContent).toBe("Keep fixed pocket depths");
       expect(construction.querySelector('[data-testid="fill-height-control"]')!.compareDocumentPosition(checkbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(construction.textContent).not.toContain("Turn off to keep pocket floors in place");
+      const help = construction.querySelector<HTMLButtonElement>('[aria-label="About keep fixed pocket depths"]')!;
+      React.act(() => help.click());
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Turn off to keep pocket floors in place");
       const setFill = (value: string) => {
         const input = construction.querySelector<HTMLInputElement>('[aria-label="Fill height percentage"]')!;
         React.act(() => {
@@ -345,22 +349,23 @@ describe("BinDesignerPage", () => {
         React.act(() => input.blur());
       };
       setFill("75");
-      const adjusted = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0];
-      expect(resolvePocketDepth({ ...EMPTY_PROJECT.spec, fillHeightPercent: 75 }, adjusted.depth).floorZ).toBeCloseTo(20.8, 9);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
       React.act(() => checkbox.click());
       expect(checkbox.getAttribute("data-state")).toBe("unchecked");
-      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
-      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(75);
+      const [spec, , options] = vi.mocked(useBinGeometry).mock.lastCall!;
+      expect(spec.fillHeightPercent).toBe(75);
+      expect(resolvePocketDepth(spec, options!.cutouts[0].depth).floorZ).toBeCloseTo(20.8, 9);
       React.act(() => checkbox.click());
-      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0]).toEqual(adjusted);
-      React.act(() => checkbox.click());
-      setFill("100");
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
       React.act(() => checkbox.click());
       setFill("25");
-      expect(construction.querySelector('[role="alert"]')?.textContent).toContain("no depth");
-      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(100);
-      expect(construction.querySelector<HTMLInputElement>('[aria-label="Fill height percentage"]')!.value).toBe("100");
+      expect(construction.querySelector('[role="alert"]')?.textContent).toContain("use Keep fixed pocket depths");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(75);
+      expect(construction.querySelector<HTMLInputElement>('[aria-label="Fill height percentage"]')!.value).toBe("75");
+      React.act(() => checkbox.click());
+      setFill("25");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0].fillHeightPercent).toBe(25);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
     } finally { unmount(); }
   });
 
@@ -775,9 +780,14 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it.each(["standard", "workflow"])("checks fixed pocket adjustment before applying ULTIM8 thickness in the %s layout", async layout => {
+  it.each([
+    { layout: "standard", adjustFixedPocketDepths: false },
+    { layout: "workflow", adjustFixedPocketDepths: false },
+    { layout: "standard", adjustFixedPocketDepths: true },
+    { layout: "workflow", adjustFixedPocketDepths: true },
+  ])("validates fixed depths before applying ULTIM8 thickness ($layout, adjustment=$adjustFixedPocketDepths)", async ({ layout, adjustFixedPocketDepths }) => {
     window.history.replaceState(null, "", `/bin?layout=${layout}`);
-    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 3, lip: "none", flatBottom: true });
+    const original = parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 3, lip: "none", flatBottom: true, adjustFixedPocketDepths });
     const shape = rectangularShape("tool", "Tool");
     const pocket = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "mm", value: 10 } });
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec: original, shapes: [shape], cutouts: [pocket] });
@@ -786,14 +796,18 @@ describe("BinDesignerPage", () => {
       openUltim8Setup(container);
       enterJigThickness("8.5");
       expect(jigDialogButton("Use jig settings").disabled).toBe(true);
-      expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain("fixed pocket with no depth");
+      expect(document.querySelector('[role="alertdialog"] [role="alert"]')!.textContent).toContain(
+        adjustFixedPocketDepths ? "fixed pocket with no depth" : "deeper than the bin itself",
+      );
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(original);
       expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual(pocket.depth);
       enterJigThickness("14");
       expect(jigDialogButton("Use jig settings").disabled).toBe(false);
       React.act(() => jigDialogButton("Use jig settings").click());
       expect(vi.mocked(useBinGeometry).mock.lastCall![0].heightUnits * 7).toBe(14);
-      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual({ mode: "mm", value: 3 });
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts[0].depth).toEqual({
+        mode: "mm", value: adjustFixedPocketDepths ? 3 : 10,
+      });
     } finally { unmount(); }
   });
 

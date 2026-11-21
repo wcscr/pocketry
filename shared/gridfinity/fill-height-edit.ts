@@ -45,7 +45,7 @@ export function adjustPocketsForFillHeight(
       depths: [resize(splitDepths[0]), resize(splitDepths[1])] as [DepthSpec, DepthSpec],
     } : undefined;
     if ([depth, ...(split?.depths ?? [])].some(d => d.mode === "mm" && d.value <= POCKET_DEPTH_EPSILON_MM)) {
-      return { error: "This fill height would leave a fixed pocket with no depth. Increase the fill height or pocket depth, or uncheck Adjust fixed pocket depths." };
+      return { error: "This fill height would leave a fixed pocket with no depth. Increase the fill height or pocket depth, or use Keep fixed pocket depths." };
     }
     adjusted.push({ ...cutout, depth, ...(split ? { split } : {}), fillHeightReference: { ...reference },
       // The mouth follows the same tilted shaft; its floor stays fixed in XY too.
@@ -53,7 +53,7 @@ export function adjustPocketsForFillHeight(
     });
   }
   if (designLinkErrors({ cutouts: adjusted, fingerHoles: [] }).length) {
-    return { error: "Linked pockets with different tilts need different depth adjustments. Unlink their geometry or uncheck Adjust fixed pocket depths." };
+    return { error: "Linked pockets with different tilts need different depth adjustments. Unlink their geometry or use Keep fixed pocket depths." };
   }
   return { cutouts: adjusted };
 }

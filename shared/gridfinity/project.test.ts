@@ -254,14 +254,14 @@ describe("parseProjectDoc", () => {
     expect(migrated.transformOrigins!.pockets[0].spec.autoFlatBottom).toBe(false);
     expect(gridSizeFromArbitrary(migrated.spec, "full")?.flatBottom).toBe(true);
   });
-  it("migrates released v25 fill-depth references and settings without changing history", () => {
+  it.each([true, false])("preserves released v25 fill-depth references and history (adjustment=%s)", adjustFixedPocketDepths => {
     const original = parseProjectDoc(VALID)!;
-    const spec = { ...original.spec, fillHeightPercent: 75, adjustFixedPocketDepths: false };
-    const cutouts = [{ ...original.cutouts[0], depth: { mode: "mm" as const, value: 20 },
+    const spec = { ...original.spec, fillHeightPercent: 75, adjustFixedPocketDepths };
+    const cutouts = [{ ...original.cutouts[0], depth: { mode: "mm" as const, value: adjustFixedPocketDepths ? 11.55 : 20 },
       fillHeightReference: { topZ: 40.8, position: { x: 0, y: 0 }, depth: { mode: "mm" as const, value: 20 } } }];
     const doc = { spec, cutouts, fingerHoles: [] };
     const legacy = { ...original, ...doc, schemaVersion: 25,
-      history: { stack: [{ doc, label: "Restore original pocket depths" }], index: 0 },
+      history: { stack: [{ doc, label: adjustFixedPocketDepths ? "Adjust fixed pocket depths" : "Restore original pocket depths" }], index: 0 },
       transformOrigins: { pockets: [{ cutout: cutouts[0], spec }], fingerHoles: [] } };
     const migrated = parseProjectDoc(JSON.parse(JSON.stringify(legacy)))!;
     expect(migrated).toEqual({ ...legacy, schemaVersion: PROJECT_SCHEMA_VERSION });
@@ -301,8 +301,9 @@ describe("parseProjectDoc", () => {
       history: { stack: [{ doc, label: "Start" }], index: 0 } };
     const migrated = parseProjectDoc(legacy)!;
     expect(migrated).not.toBeNull();
-    expect(migrated.spec.adjustFixedPocketDepths).toBe(true);
-    expect(migrated.history!.stack[0].doc.spec.adjustFixedPocketDepths).toBe(true);
+    expect(migrated.spec.adjustFixedPocketDepths).toBe(false);
+    expect(migrated.history!.stack[0].doc.spec.adjustFixedPocketDepths).toBe(false);
+    expect(migrated.transformOrigins!.pockets[0].spec.adjustFixedPocketDepths).toBe(false);
     expect(migrated.cutouts).toEqual(cutouts);
     expect(migrated.transformOrigins!.pockets[0].cutout).toEqual(cutouts[0]);
     expect(migrated.cutouts[0].fillHeightReference).toBeUndefined();
@@ -390,7 +391,7 @@ describe("parseProjectDoc", () => {
     const original = JSON.stringify(airdusterV9);
     const doc = parseProjectDoc(airdusterV9);
     const { liteBase: _removed, ...spec } = airdusterV9.spec;
-    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, bottomFilletRadiusMm: 0, compartments: { rows: 1, columns: 1, dividerThicknessMm: 1.2, scoop: false }, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: true, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
+    expect(doc).toEqual({ ...airdusterV9, spec: { ...spec, bottomFilletRadiusMm: 0, compartments: { rows: 1, columns: 1, dividerThicknessMm: 1.2, scoop: false }, flatBottom: false, autoFlatBottom: false, arbitrarySizeMm: null, pegBottom: null, fillHeightPercent: 100, adjustFixedPocketDepths: false, surfaceTexts: [], textColor: null, wallThicknessMm: null, wallSlant: null }, schemaVersion: PROJECT_SCHEMA_VERSION });
     expect(doc!.shapes).toHaveLength(7);
     expect(doc!.cutouts).toHaveLength(4);
     expect(doc!.fingerHoles).toHaveLength(2);
