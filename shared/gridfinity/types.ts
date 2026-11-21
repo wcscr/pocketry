@@ -88,7 +88,7 @@ export const binSpecSchema = z
       columns: z.number().int().min(1).max(MAX_COMPARTMENTS_PER_AXIS).default(1),
       dividerThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).default(D_DIV),
       scoop: z.boolean().default(false),
-    }).strict().default({}),
+    }).strict().prefault({}),
     /** Null follows bin height; a number fixes hollow-wall thickness, retained while solid. */
     wallThicknessMm: z.number().min(D_WALL).max(MAX_HOLLOW_WALL_THICKNESS_MM).nullable().default(null),
     /** Prototype: tilt one or both opposing walls above the fixed base along one axis. */
@@ -190,7 +190,7 @@ export const binSpecSchema = z
       if (spec[axis] > maximum) {
         context.addIssue({
           code: z.ZodIssueCode.too_big,
-          type: "number",
+          origin: "number",
           maximum,
           inclusive: true,
           path: [axis],

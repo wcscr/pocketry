@@ -28,6 +28,23 @@ const calibrated = () => {
 beforeEach(() => { storage.clear(); vi.clearAllMocks(); });
 
 describe("browser-local Trace recovery", () => {
+  it("rejects an oversized invalid history before accumulating per-entry errors", async () => {
+    const snapshot = traceDraftSnapshot(calibrated())!;
+    const stored = { ...snapshot, state: { ...snapshot.state,
+      history: { stack: Array(10_000).fill(null), index: 0 },
+    } };
+    storage.set(TRACE_DRAFT_KEY, stored);
+    const result = traceDraftSchema.safeParse(stored);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("Oversized history was accepted");
+    expect(result.error.issues).toMatchObject([{ code: "too_big", path: ["state", "history", "stack"] }]);
+    expect(result.error.issues).toHaveLength(1);
+    await expect(loadTraceDraft()).rejects.toThrow("could not be recovered");
+    expect(storage.get(TRACE_DRAFT_KEY)).toBe(stored);
+    storage.set(TRACE_DRAFT_KEY, snapshot);
+    await expect(loadTraceDraft()).resolves.toMatchObject({ state: { outline } });
+  });
+
   it("preserves color detection for legacy drafts that predate tool edges", () => {
     const snapshot = traceDraftSnapshot(calibrated())!;
     const { boundaryMethod: _method, ...legacyState } = snapshot.state;

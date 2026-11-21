@@ -22,8 +22,14 @@ interface Stroke {
 }
 
 const RADIUS_PX = 10;
+const KEPT_POINTS = "Some points were kept to preserve a valid contour.";
+const OUTLINE_CHANGED = "The outline changed during that stroke, so no points were erased.";
+const SECOND_TOUCH = "A second touch canceled that stroke, so no points were erased.";
 
-/** Local gesture preview. Only release commits geometry, once for the entire stroke. */
+/**
+ * Local gesture preview. A stroke commits its geometry once, when it ends: on
+ * release, or when something other than the user's own cancel interrupts it.
+ */
 export function usePointEraser({ enabled, source, outline, activeRing, revision, scale, tolerance, fromClient, viewport, onCommit }: {
   enabled: boolean; source: CurveOutline; outline: Outline; revision: object; scale: number; tolerance: number;
   activeRing: RingRef | null;
@@ -43,16 +49,42 @@ export function usePointEraser({ enabled, source, outline, activeRing, revision,
     setDraft(undefined);
     setCursor(null);
   }, []);
+  // Ends the stroke. The preview only ever holds validated geometry, so `keep`
+  // saves exactly the deletions it shows. A stroke that cannot be saved says so
+  // instead of silently restoring its points.
+  const finish = (keep: boolean, dropped: string) => {
+    const current = stroke.current;
+    if (current?.draft) {
+      if (keep && enabled && current.source === source && current.revision === revision) onCommit(current.draft);
+      else setError(dropped);
+    }
+    cancel();
+  };
+  // Window listeners and the zoom effect need the latest render's commit target.
+  const interrupted = useRef(() => {});
+  useEffect(() => { interrupted.current = () => finish(true, OUTLINE_CHANGED); });
+  // The contour or tool changed underneath the stroke, for example through
+  // Undo. Its preview no longer describes the current outline.
   useEffect(() => {
     if (!enabled) return;
-    window.addEventListener("blur", cancel);
-    window.addEventListener("resize", cancel);
     return () => {
-      window.removeEventListener("blur", cancel);
-      window.removeEventListener("resize", cancel);
+      if (stroke.current?.draft) setError(OUTLINE_CHANGED);
       cancel();
     };
-  }, [enabled, source, revision, scale, cancel]);
+  }, [enabled, source, revision, cancel]);
+  // A browser can end a press without a release: the window loses focus or is
+  // resized, or the view zooms under a held pointer. Keep what the preview shows.
+  useEffect(() => interrupted.current(), [scale]);
+  useEffect(() => {
+    if (!enabled) return;
+    const interrupt = () => interrupted.current();
+    window.addEventListener("blur", interrupt);
+    window.addEventListener("resize", interrupt);
+    return () => {
+      window.removeEventListener("blur", interrupt);
+      window.removeEventListener("resize", interrupt);
+    };
+  }, [enabled]);
   useEffect(() => setError(""), [enabled]);
 
   const anchors = useMemo(() => enabled ? curvePoints(source).map(ref => ({
@@ -120,12 +152,13 @@ export function usePointEraser({ enabled, source, outline, activeRing, revision,
     const before = current.removed.size;
     apply([...pending.values()]);
     if (current.removed.size - before < pending.size) {
-      setError("Some points were kept to preserve a valid contour.");
+      setError(KEPT_POINTS);
     }
   };
   const down = (e: CanvasEvent, pan: boolean) => {
     viewport.onPointerDown(e, { pan });
-    if (e.pointerType === "touch" && e.isPrimary === false) { cancel(); return; }
+    // A second finger starts a pinch, so the first finger's stroke was not an edit.
+    if (e.pointerType === "touch" && e.isPrimary === false) { finish(false, SECOND_TOUCH); return; }
     if (!enabled || pan || e.button !== 0 || stroke.current) return;
     const p = fromClient(e.clientX, e.clientY);
     if (!p) return;
@@ -154,16 +187,19 @@ export function usePointEraser({ enabled, source, outline, activeRing, revision,
   };
   const end = (e: CanvasEvent) => {
     const current = stroke.current;
-    if (enabled && current && current.id === e.pointerId && current.source === source && current.revision === revision && e.type === "pointerup") {
-      const p = fromClient(e.clientX, e.clientY);
-      if (p && (p.x !== current.last.x || p.y !== current.last.y)) {
-        const pending = new Map<number, CurvePointRef>();
-        sweep(current, p, pending);
-        applyHits(current, pending);
+    if (current?.id === e.pointerId) {
+      // A release finishes the sweep at the pointer. A canceled press reports no
+      // reliable position, so it keeps the preview as it stands.
+      if (e.type === "pointerup" && enabled && current.source === source && current.revision === revision) {
+        const p = fromClient(e.clientX, e.clientY);
+        if (p && (p.x !== current.last.x || p.y !== current.last.y)) {
+          const pending = new Map<number, CurvePointRef>();
+          sweep(current, p, pending);
+          applyHits(current, pending);
+        }
       }
-      if (current.draft) onCommit(current.draft);
+      finish(true, OUTLINE_CHANGED);
     }
-    if (current?.id === e.pointerId) cancel();
     viewport.onPointerUp(e);
   };
   const dots = useMemo(() => enabled ? (draft?.anchors ?? source).flatMap(s => [s.outer, ...s.holes])
@@ -172,6 +208,7 @@ export function usePointEraser({ enabled, source, outline, activeRing, revision,
     <path d={dots} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" className="stroke-primary"/>
     {cursor && <circle cx={cursor.x} cy={cursor.y} r={radius} strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="fill-destructive/10 stroke-destructive"/>}
   </g>;
+  // `cancel` is the user's own discard (Escape, or choosing another tool) and stays silent.
   return { down, move, end, preview: draft?.polygon, error, overlay, cancel, leave: () => setCursor(null),
-    lostCapture: (id: number) => { if (stroke.current?.id === id) cancel(); } };
+    lostCapture: (id: number) => { if (stroke.current?.id === id) finish(true, OUTLINE_CHANGED); } };
 }

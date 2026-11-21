@@ -574,7 +574,9 @@ describe("direct Trace contour edits", () => {
     expect(trace.history).toBe(history);
   });
 
-  it.each(["mouse", "touch"])("sweeps several anchors in one undoable %s stroke and discards interrupted strokes", pointerType => {
+  const eraserNote = () => document.querySelector('[aria-label="Outline editing controls"] [role="alert"]')?.textContent;
+
+  it.each(["mouse", "touch"])("sweeps several anchors in one undoable %s stroke and discards a stroke the user cancels", pointerType => {
     const outer = [10, 30, 50, 70, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
     const original = [{ outer, holes: [] }];
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original }));
@@ -588,18 +590,21 @@ describe("direct Trace contour edits", () => {
     };
     draw();
     expect(trace.history).toBe(before);
-    pointer("pointercancel", 70, 10, svg, pointerType);
-    draw();
-    pointer("lostpointercapture", 70, 10, svg, pointerType);
+    // Escape is the user's own cancel: nothing is saved and nothing needs explaining.
+    React.act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     pointer("pointerup", 70, 10, svg, pointerType);
+    expect(eraserNote()).toBeUndefined();
     if (pointerType === "touch") {
       draw();
       pointer("pointerdown", 90, 15, svg, "touch", 2, false);
+      expect(eraserNote()).toBe("A second touch canceled that stroke, so no points were erased.");
       pointer("pointerup", 90, 15, svg, "touch", 2, false);
       pointer("pointerup", 70, 10, svg, "touch");
     }
     expect(trace.history).toBe(before);
+    expect(trace.outline).toEqual(original);
     draw();
+    expect(eraserNote()).toBeUndefined();
     pointer("pointerup", 70, 10, svg, pointerType);
     expect(trace.outline[0].outer).toEqual([outer[0], ...outer.slice(4)]);
     expect(trace.curves).toBeUndefined();
@@ -613,6 +618,84 @@ describe("direct Trace contour edits", () => {
     expect(button()).toBeUndefined();
   });
 
+  // A press can end without a release. The points the preview shows as erased
+  // stay erased; they used to come back with no explanation.
+  it.each([
+    "pointercancel", "lostpointercapture", "window blur", "window resize", "zoom",
+  ])("keeps the previewed erasure as one undoable edit when %s interrupts a stroke", interruption => {
+    const outer = [10, 30, 50, 70, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
+    const original = [{ outer, holes: [] }];
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: original }));
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
+    const before = trace.history;
+    const rendered = () => svg.querySelector('[data-testid="detected-contour-stroke"]')!.getAttribute("d");
+    pointer("pointerdown", 30, 10);
+    pointer("pointermove", 50, 10);
+    const preview = rendered();
+    expect(trace.history).toBe(before);
+    if (interruption === "window blur") React.act(() => window.dispatchEvent(new Event("blur")));
+    else if (interruption === "window resize") React.act(() => window.dispatchEvent(new Event("resize")));
+    else if (interruption === "zoom") {
+      const scene = svg.querySelector("g[transform]")!;
+      const transform = scene.getAttribute("transform");
+      React.act(() => document.querySelector<HTMLButtonElement>('[aria-label="Zoom in (+)"]')!.click());
+      expect(scene.getAttribute("transform")).not.toBe(transform);
+    } else pointer(interruption, 0, 0);
+    const kept = [outer[0], ...outer.slice(3)];
+    expect(trace.outline[0].outer).toEqual(kept);
+    expect(rendered()).toBe(preview);
+    expect(trace.history.index).toBe(before.index + 1);
+    expect(trace.history.stack[trace.history.index].label).toBe("Erase outline points");
+    expect(eraserNote()).toBeUndefined();
+    // The interrupted press is over: moving on and releasing later erases nothing more.
+    const saved = trace.history;
+    pointer("pointermove", 70, 10);
+    pointer("pointerup", 70, 10);
+    pointer("lostpointercapture", 70, 10);
+    expect(trace.history).toBe(saved);
+    React.act(() => trace.undo());
+    expect(trace.outline).toEqual(original);
+    // The next press starts a normal stroke.
+    pointer("pointerdown", 70, 10);
+    pointer("pointerup", 70, 10);
+    expect(trace.outline[0].outer).toEqual([...outer.slice(0, 3), ...outer.slice(4)]);
+  });
+
+  it("saves nothing when an interrupted stroke had erased no points", () => {
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
+    const before = trace.history;
+    pointer("pointerdown", 50, 50);
+    pointer("pointermove", 55, 55);
+    pointer("pointercancel", 0, 0);
+    expect(trace.history).toBe(before);
+    expect(eraserNote()).toBeUndefined();
+  });
+
+  it("says so when Undo changes the outline under a stroke, and clears the note on the next stroke", () => {
+    const seeded = trace.outline;
+    const outer = [10, 35, 60, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
+    React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer, holes: [] }] }));
+    React.act(() => [...document.querySelectorAll("button")].find(b => b.textContent === "Erase points")!.click());
+    // A stroke that has erased nothing has nothing to report.
+    pointer("pointerdown", 50, 50);
+    React.act(() => { trace.undo(); });
+    expect(eraserNote()).toBeUndefined();
+    pointer("pointerup", 50, 50);
+    React.act(() => { trace.redo(); });
+    pointer("pointerdown", 35, 10);
+    pointer("pointermove", 60, 10);
+    React.act(() => { trace.undo(); });
+    expect(trace.outline).toEqual(seeded);
+    expect(eraserNote()).toBe("The outline changed during that stroke, so no points were erased.");
+    const history = trace.history;
+    for (const type of ["pointerup", "lostpointercapture"]) pointer(type, 60, 10);
+    expect(trace.history).toBe(history);
+    pointer("pointerdown", 50, 50);
+    expect(eraserNote()).toBeUndefined();
+    pointer("pointerup", 50, 50);
+    expect(trace.history).toBe(history);
+  });
+
   it("discards an unfinished erasure when undo and redo return to the same geometry", () => {
     const outer = [10, 35, 60, 90].map(x => ({ x, y: 10 })).concat([{ x: 90, y: 90 }, { x: 10, y: 90 }]);
     React.act(() => trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer, holes: [] }] }));
@@ -624,6 +707,7 @@ describe("direct Trace contour edits", () => {
     React.act(() => { trace.undo(); trace.redo(); });
     const history = trace.history;
     expect(trace.outline).toBe(before);
+    expect(eraserNote()).toBe("The outline changed during that stroke, so no points were erased.");
     pointer("pointerup", 60, 10);
     expect(trace.history).toBe(history);
     expect(trace.outline).toBe(before);

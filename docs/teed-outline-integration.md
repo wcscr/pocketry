@@ -127,7 +127,7 @@ the editor uses the full screen until you choose **Done**. Moving a point on a h
 updates every pocket that shares it. In standard point editing, using Undo or
 Redo during a drag ends the drag and restores the chosen history entry. Older drafts open with their saved outlines and edit history. Standard detection starts from the photo.
 
-**Edit outline → Erase points** removes points from the first contour the brush touches. Hold and drag to see the new boundary. Points needed to keep a valid contour stay visible. Release to commit the deletions shown, press Escape to discard it, or use Undo to restore all its points. The same brush works on curve anchors.
+**Edit outline → Erase points** removes points from the first contour the brush touches. Hold and drag to see the new boundary. Points needed to keep a valid contour stay visible. Release to commit the deletions shown, press Escape to discard it, or use Undo to restore all its points. If the press ends without a release, because the browser cancels it, the window loses focus or is resized, or the view zooms, the deletions shown are committed the same way. A stroke that cannot be applied, because the outline changed underneath it or a second finger started a pinch, restores its points and says so. The same brush works on curve anchors.
 
 Enable experimental features in **App settings** to open **Manual detection settings → Correct** (on phones, **Adjust → Correct**). Draw with **Add** on missing material or **Remove** on unwanted background. Each completed stroke reruns detection. **Undo** restores the previous result. **Done** closes the brushes. Switching experimental features off hides saved marks and cancels an unfinished stroke.
 
