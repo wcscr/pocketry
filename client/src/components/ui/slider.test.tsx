@@ -78,7 +78,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderControlled({ initial = 0, min = -127, max = 128, step = 1, onChange = vi.fn(), onCommit = vi.fn() } = {}) {
+function renderControlled({ initial = 0, min = -127, max = 128, step = 1, touchScrollGuard = true, onChange = vi.fn(), onCommit = vi.fn() } = {}) {
   function Harness() {
     const [val, setVal] = React.useState(initial);
     return (
@@ -88,6 +88,7 @@ function renderControlled({ initial = 0, min = -127, max = 128, step = 1, onChan
         min={min}
         max={max}
         step={step}
+        touchScrollGuard={touchScrollGuard}
         value={[val]}
         onValueChange={([next]) => { setVal(next); onChange(next); }}
         onValueCommit={([next]) => onCommit(next)}
@@ -102,8 +103,17 @@ function renderControlled({ initial = 0, min = -127, max = 128, step = 1, onChan
 }
 
 describe("Slider touch scroll protection", () => {
-  it("allows vertical touch panning via touch-pan-y instead of touch-none", () => {
-    const { slider } = renderControlled();
+  it("keeps default Radix touch-none behavior unless touchScrollGuard is enabled", () => {
+    const { slider, thumb, onChange } = renderControlled({ touchScrollGuard: false });
+    expect(slider.className).toContain("touch-none");
+    expect(slider.className).not.toContain("touch-pan-y");
+    dispatchPointer(slider, "pointerdown", { x: 250, y: 536 });
+    expect(onChange).toHaveBeenCalledWith(64);
+    expect(thumb.getAttribute("aria-valuenow")).toBe("64");
+  });
+
+  it("allows vertical touch panning via touch-pan-y instead of touch-none when opted in", () => {
+    const { slider } = renderControlled({ touchScrollGuard: true });
     expect(slider.className).toContain("touch-pan-y");
     expect(slider.className).not.toContain("touch-none");
   });

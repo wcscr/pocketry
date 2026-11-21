@@ -101,6 +101,7 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
         disabled={processing} onChange={(value) => setDraftSensitivity(128 - value)}
         onCommit={(value) => request({ sensitivity: 128 - value, includeInteriorHoles })}
         touchTarget={compact}
+        touchScrollGuard
         hint={compact ? undefined : trace.boundaryMethod !== "color"
           ? "Auto checks for missing foreground and chooses a stable edge sensitivity while protecting visible paper gaps and separate tools. Moving this slider overrides Auto. Higher includes more of the image. Updates on release and asks before replacing edits."
           : "Higher includes more of the image. Updates when you release the slider; asks before replacing manual edits."} />

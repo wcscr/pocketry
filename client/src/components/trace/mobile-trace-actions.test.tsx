@@ -199,6 +199,18 @@ describe("Mobile trace progression", () => {
     expect(Number(thumb.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
   });
 
+  it("limits touch scroll gesture interception to Sensitivity and leaves Simplification unchanged", () => {
+    setExperimentalTools(true);
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    const sensitivitySlider = host.querySelector<HTMLElement>("#mobile-sensitivity")!;
+    const simplificationSlider = host.querySelector<HTMLElement>("#mobile-detail")!;
+    expect(sensitivitySlider.className).toContain("touch-pan-y");
+    expect(sensitivitySlider.className).not.toContain("touch-none");
+    expect(simplificationSlider.className).toContain("touch-none");
+    expect(simplificationSlider.className).not.toContain("touch-pan-y");
+  });
+
   it("adjusts sensitivity and detail inline and protects manual edits on re-detection", async () => {
     setExperimentalTools(true);
     readyOutline();

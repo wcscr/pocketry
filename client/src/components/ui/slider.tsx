@@ -21,10 +21,13 @@ const Slider = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> & {
     /** Fill a signed horizontal control from zero, with a neutral-position tick. */
     centerOrigin?: boolean;
+    /** Allow vertical touch scrolling and roll back canceled drags; only use when live changes stay in draft state until commit. */
+    touchScrollGuard?: boolean;
   }
 >(({
   className,
   centerOrigin = false,
+  touchScrollGuard = false,
   value,
   defaultValue,
   onValueChange,
@@ -90,14 +93,14 @@ const Slider = React.forwardRef<
   const zero = position(0);
   const current = position(currentValue);
 
-  const interceptHorizontalTouch = isHorizontal && !props.disabled && values.length <= 1;
+  const interceptHorizontalTouch = touchScrollGuard && isHorizontal && !props.disabled && values.length <= 1;
 
   return (
   <SliderPrimitive.Root
     ref={setRootRef}
     className={cn(
       "relative flex w-full select-none items-center",
-      isHorizontal ? "touch-pan-y" : "touch-pan-x",
+      touchScrollGuard ? (isHorizontal ? "touch-pan-y" : "touch-pan-x") : "touch-none",
       className
     )}
     value={values}
