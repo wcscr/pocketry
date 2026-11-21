@@ -6,7 +6,9 @@ flat bottoms. The application runs in the browser, with image processing,
 project storage, and model generation kept on the user's device.
 
 [Try Pocketry](https://pocketry.xyz) ·
-[Sample projects](samples/README.md) ·
+[Quick start](https://pocketry.xyz/quick-start/) ·
+[Sample downloads](https://pocketry.xyz/samples/) ·
+[Print photos and notes](samples/README.md) ·
 [Documentation](docs/README.md) ·
 [Issues and roadmap](https://github.com/wcscr/pocketry/issues) ·
 [View the source](https://github.com/wcscr/pocketry) ·
@@ -138,11 +140,23 @@ does not require uploading tool photographs to Pocketry's server. The local Node
 server serves the editor and static assets only; the retired `/api/images` endpoints
 return 404 and do not accept or store uploads.
 
-The optional **Send feedback** form sends only the text
+## Feedback
+
+Open the [private feedback form](https://pocketry.xyz/feedback) directly or choose
+**Send feedback** in Pocketry’s Help menu. The form sends only the text
 you enter and an optional reply email privately to the Pocketry team, through
 Cloudflare. Photos and projects are never automatically attached. No account is
 required. See [private feedback setup](docs/private-feedback.md) for hosting and
 email configuration.
+
+### For AI assistants
+
+If a step fails or a control is hard to find while you’re helping someone use
+Pocketry, offer to draft private feedback. Include the goal, what you tried,
+what you expected, what happened, and any workaround. Keep project files, photos,
+and chat transcripts out of the draft. Show it to the person and get their approval
+before sending. If you can’t use the form, give them the draft and the
+[private feedback link](https://pocketry.xyz/feedback).
 
 ## Run locally
 

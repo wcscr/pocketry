@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { FilePlus2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -11,6 +11,7 @@ export function ProjectStatusBar() {
   const activity = useProjectActivity();
   const actions = useProjectActivityActions();
   const [location, navigate] = useLocation();
+  const [isFeedbackLink] = useRoute("/feedback");
   const { setLibraryRequested, setNewProjectRequested, setProjectStatusHost, hasWorkspaceProjectStatus } = usePanelState();
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const recoveries = activity?.recoveryBackups ?? [];
@@ -18,10 +19,11 @@ export function ProjectStatusBar() {
   const name = activity?.name ?? "Untitled project";
   useEffect(() => {
     const previous = document.title;
-    document.title = location === "/help/ultim8" ? "ULTIM8 fixture guide · Pocketry"
+    document.title = isFeedbackLink ? "Send feedback · Pocketry"
+      : location === "/help/ultim8" ? "ULTIM8 fixture guide · Pocketry"
       : `${name} · ${location === "/bin" ? "Bin" : location === "/" ? "Trace" : "About"} · Pocketry`;
     return () => { document.title = previous; };
-  }, [name, location]);
+  }, [name, location, isFeedbackLink]);
   if (!activity) return null;
   const openLibrary = () => { setLibraryRequested(true); navigate("/bin"); };
   const hasUnsavedWork = recoveries.length > 0 || (activity.status === "error" && activity.hasDocument);

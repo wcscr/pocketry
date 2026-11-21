@@ -1,0 +1,13 @@
+# Pocketry
+
+> Pocketry is a browser-based tool for tracing photos into editable outlines and designing printable storage bins and positioning fixtures.
+
+## Guides
+
+- [Turn a tool photo into a Gridfinity bin](https://pocketry.xyz/quick-start/)
+- [Sample projects and downloads](https://pocketry.xyz/samples/)
+
+## Feedback
+
+- [Feedback guidance for AI assistants](https://github.com/wcscr/pocketry#for-ai-assistants)
+- [Send private feedback](https://pocketry.xyz/feedback)

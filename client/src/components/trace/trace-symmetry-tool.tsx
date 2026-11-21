@@ -42,7 +42,7 @@ export function TraceSymmetryTool() {
     <HelpHint label="symmetry and straightening">Make both sides of a contour match, or straighten the photo and outline together. Useful for symmetric tools or a tilted photo.</HelpHint>
     </div>
     <Dialog open={session !== null} onOpenChange={open => { if (!open) setSession(null); }}>
-      {session && <DialogContent className="max-w-4xl gap-3 p-4 sm:p-6" onEscapeKeyDown={event => {
+      {session && <DialogContent className="flex max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:p-6" onEscapeKeyDown={event => {
         if (cancelDrag.current) { event.preventDefault(); cancelDrag.current(); }
       }}>
         <SymmetryEditor session={session} onClose={() => setSession(null)} cancelDrag={cancelDrag} />
@@ -145,11 +145,12 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
   useEffect(() => () => { cancelDrag.current = null; }, [cancelDrag]);
 
   return <>
-    <DialogHeader>
+    <DialogHeader className="shrink-0">
       <DialogTitle>Symmetry &amp; straighten</DialogTitle>
       <DialogDescription className="sr-only">Adjust the blue axis and preview straightening or symmetry before applying.</DialogDescription>
     </DialogHeader>
-    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px] sm:gap-4">
       <div className="min-w-0 overflow-hidden rounded-md border bg-muted/30">
         <div className="flex items-center gap-1 border-b px-2 py-1" role="group" aria-label="Preview controls">
           <Button variant="ghost" size="icon" aria-label="Zoom out symmetry preview" onClick={() => viewport.zoomBy(1 / 1.5)}><ZoomOut className="h-4 w-4" /></Button>
@@ -160,7 +161,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
           <HelpHint label="preview controls">Drag the blue handles to adjust the axis; arrow keys make small adjustments. Reset axis restores the suggestion. Scroll or pinch to zoom, drag the photo to pan, or choose Fit to see the full contour.</HelpHint>
         </div>
         <svg ref={svg}
-          className={`h-[42dvh] min-h-52 w-full touch-none sm:h-[60dvh] ${viewport.isPanning ? "cursor-grabbing" : "cursor-grab"}`} data-testid="symmetry-preview"
+          className={`h-[34dvh] min-h-44 w-full touch-none sm:h-[60dvh] sm:min-h-52 ${viewport.isPanning ? "cursor-grabbing" : "cursor-grab"}`} data-testid="symmetry-preview"
           aria-label="Symmetry preview with adjustable centerline"
           onPointerDown={event => {
             if (event.pointerType === "touch") touchPointers.current.add(event.pointerId);
@@ -259,7 +260,7 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
         {rotate && output.shape && uprightBounds && <figure className="rounded-md border bg-muted/30 p-2">
           <figcaption className="mb-1 text-center text-xs font-medium">Upright result</figcaption>
           <svg viewBox={`${uprightBounds.minX - uprightPadding} ${uprightBounds.minY - uprightPadding} ${uprightWidth + uprightPadding * 2} ${uprightHeight + uprightPadding * 2}`}
-            className="h-40 w-full" aria-label="Contour after upright rotation">
+            className="h-28 w-full sm:h-40" aria-label="Contour after upright rotation">
             {trace.imageUrl && <SourceImage url={trace.imageUrl} width={rotation.alignment.size.width}
               height={rotation.alignment.size.height} rotation={trace.imageRotation} alignment={rotation.alignment} />}
             <path d={uprightPath} data-testid="symmetry-upright-result" fill="#c026d31c" stroke="#c026d3" strokeWidth={2} vectorEffect="non-scaling-stroke" />
@@ -268,9 +269,10 @@ function SymmetryEditor({ session, onClose, cancelDrag }: {
         {output.error && <p role="status" className="text-sm text-destructive">{output.error}</p>}
       </div>
     </div>
-    <DialogFooter>
-      <Button variant="outline" onClick={onClose}>Cancel</Button>
-      <Button onClick={apply} disabled={!output.shape || stale}>Apply</Button>
+    </div>
+    <DialogFooter className="shrink-0 flex-row gap-2 border-t pt-3 sm:border-t-0 sm:pt-0">
+      <Button variant="outline" className="min-h-11 flex-1 sm:min-h-0 sm:flex-none" onClick={onClose}>Cancel</Button>
+      <Button className="min-h-11 flex-1 sm:min-h-0 sm:flex-none" onClick={apply} disabled={!output.shape || stale}>Apply</Button>
     </DialogFooter>
   </>;
 }

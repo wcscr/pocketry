@@ -62,6 +62,13 @@ export async function setupVite(app: Express, server: Server) {
 
   serveLegalFiles(app);
   app.use(vite.middlewares);
+  // Vite's public middleware serves exact filenames. Match the guide directory
+  // URLs as well, so development agrees with the production static host.
+  for (const guide of ["quick-start", "samples"]) {
+    app.get(`/${guide}/`, (_req, res) => {
+      res.sendFile(path.resolve(__dirname, "..", "client", "public", guide, "index.html"));
+    });
+  }
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 

@@ -372,5 +372,7 @@ No linter is configured yet (prefer ESLint when one lands).
 
 ## Human Oversight
 
-- Human reviewers own final merges.
-- Agents may propose and test PRs but must not merge.
+- Human maintainers own the decision to merge a pull request.
+- An agent may merge a specific pull request after a human maintainer explicitly
+  approves the agent performing that merge and the repository's review,
+  verification, and release requirements have been met.
