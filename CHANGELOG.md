@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.15.3 — 2026-11-21
+
+- Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.
+
 ## 1.15.2 — 2026-11-21
 
 - **Erase points** keeps the points a stroke has already erased when the press ends without a release, for example when the browser cancels it, the window loses focus or is resized, or the view zooms. Those points used to come back with no message. Escape still discards the stroke, and a note appears when a stroke cannot be applied.

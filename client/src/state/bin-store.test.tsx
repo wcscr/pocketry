@@ -285,6 +285,7 @@ describe("bin store", () => {
 
   it("freezes adjusted source dimensions when a pocket gains 3D placement", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
@@ -304,22 +305,22 @@ describe("bin store", () => {
     expect(store().cutouts[0]).toEqual(placed);
   });
 
-  it("defaults to adjusting fixed depths and commits a fill drag once with save/reload and undo/redo", () => {
+  it("keeps fixed depths by default and commits a fill drag once with save/reload and undo/redo", () => {
     const { store, act } = mountBin();
     const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
-    expect(store().adjustFixedPocketDepths).toBe(true);
+    expect(store().adjustFixedPocketDepths).toBe(false);
     const original = getCommittedBinDoc(store());
     const steps = store().history.stack.length;
     const floor = () => resolvePocketDepth(store().spec, store().cutouts[0].depth).floorZ;
     for (const fillHeightPercent of [75, 62.5, 90, 100, 75]) {
       act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent }, transient: true }));
-      expect(floor()).toBeCloseTo(20.8, 9);
+      expect(store().cutouts[0].depth).toEqual(fixed.depth);
       expect(getCommittedBinDoc(store())).toBe(original);
     }
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
     expect(store().history.stack).toHaveLength(steps + 1);
-    expect(floor()).toBeCloseTo(20.8, 9);
+    expect(floor()).toBeCloseTo(12.35, 9);
     const saved = parseProjectDoc(JSON.parse(JSON.stringify({ schemaVersion: PROJECT_SCHEMA_VERSION,
       shapes: [{ id: "s1", name: "Tool", sourceMmPerPx: 1, pointCount: 4,
         bboxMm: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
@@ -327,24 +328,25 @@ describe("bin store", () => {
       ...getCommittedBinDoc(store()), history: store().history })));
     expect(saved).not.toBeNull();
     act(() => store().dispatch({ type: "HYDRATE", ...saved! }));
-    expect(floor()).toBeCloseTo(20.8, 9);
+    expect(floor()).toBeCloseTo(12.35, 9);
     act(() => store().dispatch({ type: "UNDO" }));
     expect(getCommittedBinDoc(store())).toEqual(original);
     act(() => store().dispatch({ type: "REDO" }));
     expect(store().spec.fillHeightPercent).toBe(75);
+    expect(floor()).toBeCloseTo(12.35, 9);
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     expect(floor()).toBeCloseTo(20.8, 9);
-    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: false }));
-    expect(store().cutouts[0].depth).toEqual(fixed.depth);
     const unchecked = parseProjectDoc(JSON.parse(JSON.stringify({ ...saved, ...getCommittedBinDoc(store()), history: store().history })))!;
     expect(unchecked).not.toBeNull();
     act(() => store().dispatch({ type: "HYDRATE", ...unchecked }));
-    expect(store().adjustFixedPocketDepths).toBe(false);
-    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
-    expect(floor()).toBeCloseTo(20.8, 9);
+    expect(store().adjustFixedPocketDepths).toBe(true);
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: false }));
+    expect(store().cutouts[0].depth).toEqual(fixed.depth);
   });
 
-  it("restores original depths after multiple fill edits and reapplies them on recheck with undo/redo", () => {
+  it("switches between original depths and stationary floors after multiple fill edits with undo/redo", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
     for (const fillHeightPercent of [90, 75, 60]) {
@@ -373,6 +375,7 @@ describe("bin store", () => {
 
   it("preserves later translations and names while restoring tilted split depths", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     const fixed = parseCutoutPlacement({ ...CUTOUT, tilt: { xDeg: 0, yDeg: 30 }, depth: { mode: "mm", value: 25 },
       split: { boundary: [{ x: 0, y: -3 }, { x: 0, y: 3 }], depths: [{ mode: "mm", value: 25 }, { mode: "mm", value: 30 }] } });
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 4, gridY: 4 }));
@@ -390,6 +393,7 @@ describe("bin store", () => {
 
   it("uses explicit depth edits as the new baseline and keeps references after history eviction", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, depth: { mode: "mm", value: 20 } }], gridX: 3, gridY: 3 }));
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
     act(() => store().dispatch({ type: "UPDATE_CUTOUT", id: CUTOUT.id, patch: { depth: { mode: "mm", value: 18 } } }));
@@ -402,6 +406,7 @@ describe("bin store", () => {
 
   it("retains original depths in linked duplicates and rebases the group after an explicit depth edit", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     const fixed = { ...CUTOUT, depth: { mode: "mm" as const, value: 20 } };
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [fixed], gridX: 3, gridY: 3 }));
     act(() => store().dispatch({ type: "DUPLICATE_LINKED", kind: "pocket", id: fixed.id, newId: "copy", linkId: "group" }));
@@ -420,6 +425,7 @@ describe("bin store", () => {
 
   it("keeps fixed-depth behavior for other bin-height edits while retaining the toggle reference", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, depth: { mode: "mm", value: 20 } }], gridX: 3, gridY: 3 }));
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 75 } }));
     const depth = store().cutouts[0].depth;
@@ -434,6 +440,7 @@ describe("bin store", () => {
 
   it("rejects zero-depth fill commits without leaving an unsaved preview", () => {
     const { store, act } = mountBin();
+    act(() => store().dispatch({ type: "SET_ADJUST_FIXED_POCKET_DEPTHS", enabled: true }));
     act(() => store().dispatch({ type: "ADD_PLACED", cutouts: [{ ...CUTOUT, depth: { mode: "mm", value: 10 } }], gridX: 3, gridY: 3 }));
     const original = getCommittedBinDoc(store());
     act(() => store().dispatch({ type: "PATCH_SPEC", patch: { fillHeightPercent: 90 }, transient: true }));
