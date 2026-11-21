@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.16.0 — 2026-11-21
+## 1.15.3 — 2026-11-21
 
 - Open the private feedback form directly at `/feedback`. Help and the README invite AI assistants to draft reports for users to review.
 - Browse a photo-to-bin quick start and sample project downloads on the public site.
