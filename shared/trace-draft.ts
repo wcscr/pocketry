@@ -6,7 +6,9 @@ import { mmPerPixel } from "./geometry/scale";
 import { outlineSchema, vec2Schema } from "./gridfinity/cutout";
 
 const finite = z.number().finite();
-const outline = outlineSchema.min(0);
+// Trace can be empty before detection or after deletion. Zod 4 combines
+// chained bounds, so .min(0) would retain the Bin outline's .min(1).
+const outline = z.array(outlineSchema.element);
 const imageUrl = z.string().max(60_000_000).regex(/^data:image\/[a-z0-9.+-]+;base64,/i);
 const rotation = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
 const imageSize = z.object({ width: finite.positive(), height: finite.positive() });

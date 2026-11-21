@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BIN_HISTORY_LIMIT } from "./history";
+import { BIN_HISTORY_LIMIT, binHistorySchema } from "./history";
 import { parseProjectDoc } from "./project";
 import fixture from "./fixtures/ryobi-split-reload.pocketry.json";
 
@@ -14,6 +14,17 @@ const history = { stack: [
 const saved = { ...project, history };
 
 describe("portable project history", () => {
+  it("rejects an oversized invalid stack without creating an issue for every entry", () => {
+    const stack = Array(10_000).fill(null);
+    const result = binHistorySchema.safeParse({ stack, index: 0 });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("Oversized history was accepted");
+    expect(result.error.issues).toMatchObject([{ code: "too_big", path: ["stack"] }]);
+    expect(result.error.issues).toHaveLength(1);
+    expect(stack).toHaveLength(10_000);
+    expect(binHistorySchema.safeParse(history).success).toBe(true);
+  });
+
   it("round-trips labeled undo and redo states including split depths and finger access", () => {
     expect(parseProjectDoc(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
   });

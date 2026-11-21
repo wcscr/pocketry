@@ -199,7 +199,7 @@ const validatedProjectDocSchema = version16ProjectSchema.extend({
 export const projectDocSchema = z.unknown().transform((input, ctx) => withFontSourceValidationCache(() => {
   const result = validatedProjectDocSchema.safeParse(input);
   if (result.success) return result.data;
-  for (const issue of result.error.issues) ctx.addIssue(issue);
+  for (const issue of result.error.issues) ctx.addIssue({ ...issue });
   return z.NEVER;
 }));
 

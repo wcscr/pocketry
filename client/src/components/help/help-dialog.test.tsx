@@ -8,6 +8,21 @@ import Ultim8Help from "@/pages/ultim8-help";
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
+it("offers one private feedback entry from Help", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.appendChild(host);
+  const root = createRoot(host); const feedback = vi.fn();
+  try {
+    await React.act(async () => { root.render(<HelpDialog open onOpenChange={() => {}} onFeedbackClick={feedback} />); });
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const entry = buttons.filter(button => button.textContent === "Send feedback");
+    expect(entry).toHaveLength(1);
+    expect(buttons.some(button => ["Report a Problem", "Make a Suggestion"].includes(button.textContent ?? ""))).toBe(false);
+    React.act(() => entry[0].click());
+    expect(feedback.mock.calls).toEqual([["problem"]]);
+  } finally { React.act(() => root.unmount()); }
+});
+
 it("keeps GitHub feedback available in Help after the welcome has been dismissed", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div");
