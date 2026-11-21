@@ -18,6 +18,8 @@ interface LabelledSliderProps {
   hint?: string;
   className?: string;
   touchTarget?: boolean;
+  /** Opt in to vertical-scroll-safe touch handling (only for sliders whose onChange stays in draft state until onCommit). */
+  touchScrollGuard?: boolean;
 }
 
 export function LabelledSlider({
@@ -34,6 +36,7 @@ export function LabelledSlider({
   hint,
   className,
   touchTarget = false,
+  touchScrollGuard = false,
 }: LabelledSliderProps): JSX.Element {
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -48,6 +51,7 @@ export function LabelledSlider({
       </div>
       <Slider
         className={touchTarget ? "min-h-8" : undefined}
+        touchScrollGuard={touchScrollGuard}
         id={id}
         aria-label={label}
         min={min}

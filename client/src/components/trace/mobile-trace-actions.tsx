@@ -101,12 +101,14 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
         {guidance}
       </WorkflowHint>
     </MobileCanvasOverlay>
-    {hasTuning && adjustOpen && <MobileAdjustmentTray title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
-      <TraceDetectionControls compact onReprocess={onReprocess} onCorrectOutline={onCorrectOutline && (() => { setAdjustOpen(false); onCorrectOutline(); })} />
-      <div className="mt-1 grid grid-cols-2 gap-1">
-        <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
-        <Button variant="ghost" className="h-11 whitespace-normal leading-tight" disabled={!trace.outline.length || processing || !!pendingAutoCalibration || replacingRuler}
-          onClick={() => { setAdjustOpen(false); onExport(); }}>Export Tool Outline</Button>
+    {hasTuning && adjustOpen && <MobileAdjustmentTray className="max-h-[min(264px,40dvh)]" title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
+      <div className="space-y-2">
+        <TraceDetectionControls compact onReprocess={onReprocess} onCorrectOutline={onCorrectOutline && (() => { setAdjustOpen(false); onCorrectOutline(); })} />
+        <div className="grid grid-cols-2 gap-1">
+          <Button variant="ghost" className="h-11" onClick={() => openFullSettings("trace-settings-margin")}>Margin</Button>
+          <Button variant="ghost" className="h-11 whitespace-normal leading-tight" disabled={!trace.outline.length || processing || !!pendingAutoCalibration || replacingRuler}
+            onClick={() => { setAdjustOpen(false); onExport(); }}>Export Tool Outline</Button>
+        </div>
       </div>
     </MobileAdjustmentTray>}
     {step === "scale" && replacingRuler && <Button variant="outline" className="mb-2 min-h-11 w-full"
@@ -118,7 +120,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
     {step === "scale" && pendingAutoCalibration && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
       <AutoCalibrationOptions onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers} />
     </div>}
-    {step === "outline" && trace.outline.length > 0 && <div className="mb-1">{addToBinHint}</div>}
+    {step === "outline" && trace.outline.length > 0 && !adjustOpen && <div className="mb-1">{addToBinHint}</div>}
     <div className="flex min-h-11 items-stretch gap-2" role="group" aria-label={`Trace actions: ${step}`}>
       <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" disabled={step === "photo" || processing} aria-label={`Back to ${previousStep}`} onClick={back}>
         <ChevronLeft aria-hidden className="h-4 w-4" /><span className="sr-only">Back</span>

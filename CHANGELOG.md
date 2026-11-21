@@ -2,10 +2,14 @@
 
 ## Unreleased
 
-## 1.15.3 — 2026-11-21
+## 1.15.4 — 2026-11-21
 
 - Open the private feedback form directly at `/feedback`. Help and the README invite AI assistants to draft reports for users to review.
 - Browse a photo-to-bin quick start and sample project downloads on the public site.
+
+## 1.15.3 — 2026-11-21
+
+- Prevent vertical scrolling over **Sensitivity** on phones from changing it and rerunning outline detection, expand the phone **Adjust outline** tray so **Symmetry & straighten** is immediately visible, and pin **Cancel** and **Apply** at the bottom of the **Symmetry & straighten** dialog.
 
 ## 1.15.2 — 2026-11-21
 
