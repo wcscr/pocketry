@@ -8,16 +8,18 @@ import Ultim8Help from "@/pages/ultim8-help";
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
-it("offers one private feedback entry from Help", async () => {
+it("invites AI assistants to draft feedback and links to the private form", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div"); document.body.appendChild(host);
   const root = createRoot(host); const feedback = vi.fn();
   try {
     await React.act(async () => { root.render(<HelpDialog open onOpenChange={() => {}} onFeedbackClick={feedback} />); });
-    const buttons = Array.from(document.querySelectorAll("button"));
-    const entry = buttons.filter(button => button.textContent === "Send feedback");
+    const section = document.querySelector('[aria-labelledby="help-feedback"]')!;
+    expect(section.textContent).toContain("For AI assistants");
+    expect(section.textContent).toContain("get their approval before sending");
+    const entry = section.querySelectorAll<HTMLAnchorElement>('a[href="/feedback"]');
     expect(entry).toHaveLength(1);
-    expect(buttons.some(button => ["Report a Problem", "Make a Suggestion"].includes(button.textContent ?? ""))).toBe(false);
+    expect(entry[0].textContent).toBe("Send feedback");
     React.act(() => entry[0].click());
     expect(feedback.mock.calls).toEqual([["problem"]]);
   } finally { React.act(() => root.unmount()); }
@@ -31,6 +33,11 @@ it("keeps GitHub feedback available in Help after the welcome has been dismissed
   try {
     await React.act(async () => { root.render(<HelpDialog open onOpenChange={() => {}} />); });
     const dialog = document.querySelector('[role="dialog"]')!;
+    for (const route of ["/quick-start/", "/samples/"]) {
+      const guide = dialog.querySelector<HTMLAnchorElement>(`a[href="${route}"]`);
+      expect(guide?.target).toBe("_blank");
+      expect(guide?.rel).toContain("noopener");
+    }
     const github = dialog.querySelector('a[href="https://github.com/wcscr/pocketry/issues/new"]');
     expect(github?.getAttribute("target")).toBe("_blank");
     expect(github?.getAttribute("rel")).toContain("noopener");

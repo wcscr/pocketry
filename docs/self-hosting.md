@@ -67,6 +67,7 @@ shell to choose another port. It is a local development service, not a LAN host.
 
 Alternatively, copy the **contents of `dist/public`** to an existing static web
 host. Node is then needed only for building. Serve the app at a hostname's root,
+serve `/quick-start/` and `/samples/` from their static `index.html` files,
 route app URLs such as `/bin`, `/ultim8`, and `/help/ultim8` to `index.html`, return 404 for `/api` and missing
 assets, and serve JavaScript/CSS/WebAssembly with their correct MIME types
 (`application/wasm` for `.wasm`). Keep `LICENSE.txt` and `NOTICE.txt` with the app.

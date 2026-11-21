@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Trace and scale a tool photo, arrange pockets in a Gridfinity bin, and export a fit test and printable model in Pocketry." />
+    <link rel="canonical" href="https://pocketry.xyz/quick-start/" />
+    <link rel="describedby" href="/llms.txt" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="stylesheet" href="/guides.css" />
+    <title>Turn a tool photo into a Gridfinity bin | Pocketry</title>
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Pocketry">
+        <a class="brand" href="/">Pocketry</a>
+        <a href="/samples/">Sample projects</a>
+        <a href="https://github.com/wcscr/pocketry">GitHub</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Turn a tool photo into a Gridfinity bin</h1>
+      <p>Pocketry traces tool outlines from photos and turns them into pockets for printable bins. Your photo and editable design stay in your browser.</p>
+      <div class="links">
+        <a href="/">Open Trace</a>
+        <a href="/bin">Open Bin</a>
+        <a href="/samples/">Start with a sample project</a>
+      </div>
+      <figure>
+        <img src="https://raw.githubusercontent.com/wcscr/pocketry/main/samples/wolfbox-mf70-airduster-kit/photos/printed-bin-loaded.jpg"
+          alt="Printed Gridfinity bin holding a Wolfbox air duster, nozzle adapters, and USB cable" width="1200" height="1029" />
+        <figcaption>Printed Wolfbox MF70 air duster bin. <a href="/samples/#wolfbox-mf70-airduster-kit">Get the editable project and 3MF</a>.</figcaption>
+      </figure>
+      <ol>
+        <li>
+          <h2>Photograph and scale the tool</h2>
+          <p>Take a photo from directly above on a plain, contrasting background. Open the original PNG, JPEG, or WebP in <strong>Trace</strong>. For a detected <a href="https://github.com/wcscr/pocketry/blob/main/docs/calibration/object-reference-strip.md">calibration sheet or measurement aid</a>, choose <strong>Correct perspective &amp; use scale</strong> or <strong>Correct perspective &amp; use aid scale</strong>. Otherwise, choose <strong>Set scale</strong>, mark a known distance, and enter it in millimeters. Check the result against a real measurement.</p>
+        </li>
+        <li>
+          <h2>Trace the outline</h2>
+          <p>Choose <strong>Region → Set region</strong> and box the tool. Use <strong>Tool edges · white sheet</strong> on white paper or <strong>Color contrast</strong> for other backgrounds. Inspect the result with <strong>Edit outline</strong>. When it follows the tool, choose <strong>Add to Bin</strong>.</p>
+        </li>
+        <li>
+          <h2>Arrange the pockets</h2>
+          <p>Set <strong>Bin size</strong> and arrange the pockets in <strong>Layout</strong>. Set each pocket’s depth and add finger access where you need room to lift the tool. For a standalone bin, choose <strong>Construction → Base &amp; mounting → Bottom → Flat bottom</strong>.</p>
+        </li>
+        <li>
+          <h2>Check the fit and export</h2>
+          <p>Use <strong>Check fit</strong> to export a thin fit-check STL. Print it at 100% scale and try your tools in the openings. Review pocket depth and floor thickness in <strong>3D</strong>. When the design is ready, choose <strong>Export → Save 3MF</strong> or <strong>Save STL</strong>. Use <strong>Project → Export project</strong> to keep an editable backup.</p>
+        </li>
+      </ol>
+      <p>The <a href="https://github.com/wcscr/pocketry#basic-process">photo-to-bin tutorial on GitHub</a> walks through the Wolfbox example with screenshots.</p>
+    </main>
+    <footer>
+      <nav aria-label="Related pages">
+        <a href="/help/ultim8">ULTIM8 fixture guide</a>
+        <a href="/feedback">Send feedback</a>
+      </nav>
+    </footer>
+  </body>
+</html>

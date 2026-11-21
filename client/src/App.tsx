@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch, useLocation, useRoute } from "wouter";
 
 import { HelpDialog } from "@/components/help/help-dialog";
 import { FeedbackDialog, type FeedbackKind } from "@/components/help/feedback-dialog";
@@ -43,6 +43,8 @@ export function Router(): JSX.Element {
   return (
     <Switch>
       <Route path="/help/ultim8"><Ultim8Help /></Route>
+      {/* The shell opens the shared feedback dialog without mounting a workspace. */}
+      <Route path="/feedback">{null}</Route>
       {/* One route keeps the designer mounted while entry replaces the URL. */}
       <Route path={/^\/(?:bin|ultim8)\/?$/}><BinDesignerPage /></Route>
       {WORKSPACES.filter(workspace => workspace.path !== "/bin").map(({ path, component: Workspace }) => (
@@ -63,6 +65,8 @@ export function Router(): JSX.Element {
 
 function Shell() {
   const { panelOpen, setPanelOpen, traceRestart } = usePanelState();
+  const [, navigate] = useLocation();
+  const [isFeedbackLink] = useRoute("/feedback");
   const [helpOpen, setHelpOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>("problem");
@@ -89,7 +93,14 @@ function Shell() {
         <Router />
       </AppShell>
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} onFeedbackClick={openFeedback} />
-      <FeedbackDialog open={feedbackOpen} kind={feedbackKind} onOpenChange={setFeedbackOpen} />
+      <FeedbackDialog
+        open={feedbackOpen || isFeedbackLink}
+        kind={isFeedbackLink ? "problem" : feedbackKind}
+        onOpenChange={(open) => {
+          setFeedbackOpen(open);
+          if (!open && isFeedbackLink) navigate("/", { replace: true });
+        }}
+      />
       <ExperimentalFeaturesDialog />
       <AppWelcome />
     </>
