@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.15.3 — 2026-11-21
+
+- Prevent vertical scrolling over **Sensitivity** on phones from changing it and rerunning outline detection, expand the phone **Adjust outline** tray so **Symmetry & straighten** is immediately visible, and pin **Cancel** and **Apply** at the bottom of the **Symmetry & straighten** dialog.
+
 ## 1.15.2 — 2026-11-21
 
 - **Erase points** keeps the points a stroke has already erased when the press ends without a release, for example when the browser cancels it, the window loses focus or is resized, or the view zooms. Those points used to come back with no message. Escape still discards the stroke, and a note appears when a stroke cannot be applied.

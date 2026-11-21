@@ -382,4 +382,23 @@ describe("symmetry preview", () => {
     pointer(canvas, "pointercancel");
     expect(preview()).toEqual(initial); expect(trace.history).toBe(history);
   });
+
+  it("keeps Apply and Cancel pinned in a non-scrolling footer below an independently scrollable body", () => {
+    ready();
+    click("Symmetry & straighten");
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(dialog.className).toContain("flex-col");
+    expect(dialog.className).toContain("overflow-hidden");
+    const scrollBody = dialog.querySelector<HTMLElement>(".overflow-y-auto.overscroll-contain")!;
+    expect(scrollBody).not.toBeNull();
+    expect(scrollBody.contains(document.querySelector('[data-testid="symmetry-preview"]'))).toBe(true);
+    const applyButton = button("Apply");
+    const cancelButton = button("Cancel");
+    expect(scrollBody.contains(applyButton)).toBe(false);
+    expect(scrollBody.contains(cancelButton)).toBe(false);
+    const footer = applyButton.parentElement!;
+    expect(footer).toBe(cancelButton.parentElement);
+    expect(footer.className).toContain("shrink-0");
+    expect(footer.className).toContain("flex-row");
+  });
 });
