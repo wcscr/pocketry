@@ -121,7 +121,7 @@ export function AppWelcome(): JSX.Element {
             </div>
           </details>
           <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Projects save in this browser by default. In Bin, connect a local folder or use <strong>Export project</strong>{" "}
+            Projects save in this browser by default. Open Library to connect a local folder, or use <strong>Export project</strong>{" "}
             in Bin to keep a copy.
           </p>
         </div>

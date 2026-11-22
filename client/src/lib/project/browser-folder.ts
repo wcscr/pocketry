@@ -18,6 +18,7 @@ export type FolderIntent = { candidateRevision?: string } & (
   | { kind: "commit"; mutation: Mutation }
   | { kind: "keep-both"; requestId: string; projectId: string; expected: string[]; keep: string }
 );
+type SavedConnection = { directory: DirectoryHandle; parentName: string };
 const PENDING = "pocketry:connected-folder-request:";
 export const folderRequestId = (intent: FolderIntent) => intent.kind === "commit" ? intent.mutation.requestId : intent.requestId;
 type PendingRequest = { directory: DirectoryHandle; intent: FolderIntent };
@@ -35,14 +36,15 @@ function browserError(error: unknown): Error {
 }
 
 export class BrowserLibraryFolder implements LibraryFolder {
-  constructor(private readonly directory: DirectoryHandle) {}
-  get name() { return this.directory.name; }
+  constructor(private readonly directory: DirectoryHandle, private readonly parentName?: string) {}
+  get name() { return this.parentName ?? this.directory.name; }
 
   static supported() { return typeof pickDirectory() === "function"; }
 
   static async saved() {
-    const handle = await get<DirectoryHandle>(KEY);
-    return handle ? new BrowserLibraryFolder(handle) : null;
+    const saved = await get<DirectoryHandle | SavedConnection>(KEY);
+    if (!saved) return null;
+    return "directory" in saved ? new BrowserLibraryFolder(saved.directory, saved.parentName) : new BrowserLibraryFolder(saved);
   }
 
   static async choose() {
@@ -50,8 +52,8 @@ export class BrowserLibraryFolder implements LibraryFolder {
     if (!picker) throw new LibraryError("permission", "This browser does not support connecting a folder.");
     const parent = await picker.call(window, access);
     const handle = await parent.getDirectoryHandle("pocketry-library", { create: true }) as DirectoryHandle;
-    await set(KEY, handle);
-    return new BrowserLibraryFolder(handle);
+    await set(KEY, { directory: handle, parentName: parent.name } satisfies SavedConnection);
+    return new BrowserLibraryFolder(handle, parent.name);
   }
 
   static async disconnect() { await del(KEY); }

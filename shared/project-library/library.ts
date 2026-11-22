@@ -1,3 +1,5 @@
+import { LIBRARY_FILE_MAX_BYTES, withinImportLimits } from "../gridfinity/import-limits";
+import { PROJECT_LIBRARY_VERSION, type LibraryBackup } from "../gridfinity/library";
 import { serializeProjectDoc } from "../gridfinity/project";
 import { PublicationRejected, type LibraryFolder } from "./adapter";
 import {
@@ -204,6 +206,38 @@ export class ConnectedLibrary {
       .filter(project => project.conflicted || project.heads.some(head => !head.deleted));
   }
 
+  /** Portable backup of the visible named projects, pinned to one folder scan. */
+  async backup(): Promise<LibraryBackup> {
+    const index = await this.scan();
+    if ([...index.projects.values()].some(project => project.conflicted)) {
+      throw new LibraryError("conflict", "Resolve competing folder revisions before exporting the library.");
+    }
+    const backup: LibraryBackup = { format: "pocketry-library", schemaVersion: PROJECT_LIBRARY_VERSION, projects: [] };
+    let bytes = encode(JSON.stringify(backup)).byteLength;
+    const heads = new Map<string, string[]>();
+    for (const [id, project] of index.projects) {
+      const head = project.heads[0];
+      if (head.deleted) continue;
+      const ids = heads.get(head.revision) ?? [];
+      ids.push(id);
+      heads.set(head.revision, ids);
+    }
+    for (const [id, projects] of heads) {
+      const revision = index.revisions.get(id)!;
+      const publication = await this.readPublication(revision);
+      for (const projectId of projects) {
+        const { name, updatedAt, doc } = this.readChange(revision, publication, projectId);
+        const project = { id: projectId, name, updatedAt, doc: serializeProjectDoc(doc) };
+        bytes += encode(JSON.stringify(project)).byteLength + 1;
+        if (bytes > LIBRARY_FILE_MAX_BYTES) throw limit("The folder library is too large for a portable backup. Export projects individually.");
+        backup.projects.push(project);
+      }
+    }
+    backup.projects.sort((a, b) => a.id.localeCompare(b.id));
+    if (!withinImportLimits(backup, true)) throw limit("The folder library exceeds portable backup limits. Export projects individually.");
+    return backup;
+  }
+
   async read(projectId: string, revisionId?: string) {
     return this.readAt(await this.scan(), projectId, revisionId);
   }
@@ -220,15 +254,24 @@ export class ConnectedLibrary {
     if (!revision || !change || change.deleted) {
       throw new LibraryError("not-found", "The selected revision has no project document.", { projectId, revision: id });
     }
+    return { project, revision: id, ...this.readChange(revision, await this.readPublication(revision), projectId) };
+  }
+
+  private async readPublication(revision: Revision) {
     const file = await this.folder.read(revision.file, FOLDER_LIMITS.revisionBytes);
-    if (!file?.bytes.byteLength) throw new LibraryError("storage", "The selected revision disappeared while it was being read.", { revision: id });
+    if (!file?.bytes.byteLength) throw new LibraryError("storage", "The selected revision disappeared while it was being read.", { revision: revision.id });
     const parsed = parseRevisionFile(revision.file)!;
-    const value = await decodePublication(file.bytes, revision.file, id, parsed.requestKey);
-    const raw = value.changes.find(entry => entry.projectId === projectId)!.doc!;
+    return decodePublication(file.bytes, revision.file, revision.id, parsed.requestKey);
+  }
+
+  private readChange(revision: Revision, publication: Publication, projectId: string) {
+    const change = publication.changes.find(entry => entry.projectId === projectId)!;
+    const raw = change.doc!;
     const doc = readFolderProject(raw);
-    if (encode(canonicalJson(raw)).byteLength > FOLDER_LIMITS.projectBytes) throw limit("The saved project exceeds the byte limit.", { projectId, revision: id });
-    if (doc.name !== change.name) throw corruption("The stored project name disagrees with its revision.", { projectId, revision: id });
-    return { project, revision: id, name: change.name, updatedAt: revision.updatedAt, doc };
+    const details = { projectId, revision: revision.id };
+    if (encode(canonicalJson(raw)).byteLength > FOLDER_LIMITS.projectBytes) throw limit("The saved project exceeds the byte limit.", details);
+    if (doc.name !== change.name) throw corruption("The stored project name disagrees with its revision.", details);
+    return { name: change.name, updatedAt: revision.updatedAt, doc };
   }
 
   private async outcome(requestId: string, index: FolderIndex): Promise<RequestOutcome> {

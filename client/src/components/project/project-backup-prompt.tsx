@@ -12,6 +12,7 @@ interface ProjectBackupPromptProps {
   hasProject: boolean;
   hasLibrary: boolean;
   currentProjectName: string | null;
+  saveLabel?: string;
   onCancel: () => void;
   onContinue: () => void;
   onSave: (name: string) => Promise<boolean>;
@@ -20,7 +21,7 @@ interface ProjectBackupPromptProps {
 }
 
 /** Backups never navigate: the user explicitly continues after saving/exporting. */
-export function ProjectBackupPrompt({ open, busy, targetName, replacesProject, hasProject, hasLibrary, currentProjectName, onCancel, onContinue, onSave, onExportProject, onExportLibrary }: ProjectBackupPromptProps) {
+export function ProjectBackupPrompt({ open, busy, targetName, replacesProject, hasProject, hasLibrary, currentProjectName, saveLabel = "Save project to Library", onCancel, onContinue, onSave, onExportProject, onExportLibrary }: ProjectBackupPromptProps) {
   const [name, setName] = useState("");
   const [result, setResult] = useState<"saved" | "error" | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,7 +51,7 @@ export function ProjectBackupPrompt({ open, busy, targetName, replacesProject, h
       }}>
         <Label htmlFor="sample-backup-project-name">Project name</Label>
         <Input id="sample-backup-project-name" autoComplete="off" value={name} maxLength={80} disabled={working} onChange={event => { setName(event.target.value); setResult(null); }} />
-        <Button type="submit" variant="outline" disabled={working || !name.trim()} className="min-h-11 w-full">Save project to Library</Button>
+        <Button type="submit" variant="outline" disabled={working || !name.trim()} className="min-h-11 w-full">{saveLabel}</Button>
         {result === "saved" && <p role="status" className="text-sm">Project saved. Continue when you are ready.</p>}
         {result === "error" && <p role="alert" className="text-sm text-destructive">Could not save. Export a backup or cancel to keep working.</p>}
       </form>}

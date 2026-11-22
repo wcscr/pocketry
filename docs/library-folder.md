@@ -1,12 +1,22 @@
 # Connected project folders
 
-In Bin, open **Projects → Connected folder → Connect folder**, then choose a
-local folder. Pocketry creates a `pocketry-library` directory inside it.
-Enter a name and choose **Save as new folder project**. Open a saved revision
-from the folder list to continue editing it. **Save folder revision** commits
-the current editor state against the revision you opened or last saved. The
-browser library, backups, and editor autosaves work independently of this
-connection. The folder requires neither an account nor a network service.
+Open **Library** from the toolbar or the **Project** panel. The storage
+switch at the top shows where named projects will be saved and opened.
+
+- **Browser storage** keeps named projects in this browser and updates them
+  automatically as you work.
+- **Local folder** keeps named projects in a folder on your device. Choose
+  **Choose a folder**, then select where you want them. Pocketry creates a
+  `pocketry-library` directory inside it.
+
+Use **Save current project** in Library or **Save to local folder** in Project.
+When a folder project is open, its next save updates that project. Both
+**Save changes** and **Save as new project** are available for an open folder project.
+Each storage choice keeps its own projects. Use **Copy
+browser projects** to bring the existing browser library into the folder.
+Library backups and imports use the selected storage. Importing a backup into
+the folder adds up to 100 projects per operation. Individual project JSON
+backups open in either mode.
 
 A completed folder save is a named snapshot. Pointer gestures and uncommitted
 fields need to be finished before opening the dialog to save them. The save
@@ -23,13 +33,13 @@ the browser working draft. Open the desired folder revision again to establish
 a new base, or save the working draft as a new folder project. Switching to
 another project or disconnecting clears the current folder save target.
 
-Each browser and profile grants its own permission. Choose **Renew access**
+Each browser and profile grants its own permission. Choose **Restore folder access**
 when prompted. If the browser keeps file editing blocked, grant it in site
 settings or choose the same folder again. You can also disconnect and continue
 in the browser library. Clearing
 site data removes the saved handle, recovery requests, and browser-local work.
 The completed folder revisions remain on disk and reappear on reconnection.
-**Copy saved browser projects** copies up to 100 readable named projects in one
+**Copy browser projects** copies up to 100 readable named projects in one
 operation, preserving IDs and source data. It skips IDs already present and
 documents that require recovery or a newer version. Use the browser backup
 before repairing a corrupt or unreadable browser library.
@@ -163,7 +173,7 @@ Chrome, save a named project, commit a copy or edit with the Node CLI, then
 refresh and reopen the exact revision. In Edge, select the same parent and
 reopen that revision. Compare the layout, label wording, materials, and
 undo history. Revoke file editing for the test origin, reload, and attempt
-**Renew access**. If that browser retains the block, choose the folder again.
+**Restore folder access**. If that browser retains the block, choose the folder again.
 
 Close a disposable private profile or clear site data for the isolated test
 origin, then reconnect and confirm the named revisions remain. For interruption

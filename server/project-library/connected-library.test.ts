@@ -199,3 +199,18 @@ it("bounds enumeration and ancestry before work can grow without limit", async (
   await expect(folder.list()).rejects.toMatchObject({ code: "resource-limit" });
   expect(names.size).toBe(FOLDER_LIMITS.depth + 1);
 });
+
+it("backs up the current named documents from a single observed set of heads", async () => {
+  const adapter = await NodeLibraryFolder.connect(root);
+  const library = new ConnectedLibrary(adapter);
+  const second = folderFixture("Second tray", 3);
+  await library.commit({ requestId: "backup-two", changes: [
+    ...save("backup-two").changes,
+    { projectId: "second", name: second.name, parents: [], doc: second },
+  ] });
+  const backup = await library.backup();
+  expect(backup).toMatchObject({ format: "pocketry-library", schemaVersion: 1, projects: [
+    { id: "second", name: second.name, doc: { name: second.name, spec: { compartments: { columns: 3 } } } },
+    { id: "socket-bin", name: "Socket bin" },
+  ] });
+});

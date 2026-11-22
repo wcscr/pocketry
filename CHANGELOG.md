@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
-- Save and reopen named project revisions in an optional connected local folder.
+- Switch between browser storage and an optional local folder from Library.
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.
