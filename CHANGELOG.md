@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
-- Switch between browser storage and an optional local folder from Library.
+- See saved projects and their storage location in Library. Use Library Settings to switch storage or manage a local folder.
 - Resume editing the same local folder project after reloading Pocketry.
 ## 1.15.5 — 2026-11-21
 

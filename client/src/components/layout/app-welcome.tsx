@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Box, Camera, ScanLine } from "lucide-react";
 import { usePanelState } from "./panel-context";
 import { StartDesignActions } from "./start-design-actions";
@@ -120,10 +121,10 @@ export function AppWelcome(): JSX.Element {
               <CalibrationDownloads />
             </div>
           </details>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            Projects save in this browser by default. Open Library to connect a local folder, or use <strong>Export project</strong>{" "}
-            in Bin to keep a copy.
-          </p>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Project storage</span>
+            <HelpHint label="project storage">Projects save in this browser by default. Open Library to connect a local folder, or use Export project in Bin to keep a copy.</HelpHint>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

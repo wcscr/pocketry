@@ -26,7 +26,7 @@ import { projectLayoutIssues } from "@shared/gridfinity/project-validation";
 import { mergeValidationIssues } from "@shared/gridfinity/validation-issues";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
-import { FolderLibraryContent } from "@/components/project/folder-library";
+import { FolderLibraryContent, FolderLibrarySettings } from "@/components/project/folder-library";
 import { useFolderLibrary, useLibraryStorage } from "@/hooks/use-folder-library";
 import type { FolderDraft } from "@/lib/project/browser-folder";
 import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
@@ -1289,6 +1289,7 @@ function BinDesignerWorkspace(): JSX.Element {
             library={folderLibrary} active={folderProject} busy={!bin.hydrated || projectBusy}
             hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened}
             onSave={onSave} onExportDraft={handleExportProject} />}
+          renderFolderLibrarySettings={() => <FolderLibrarySettings library={folderLibrary} busy={!bin.hydrated || projectBusy} />}
           openedInFolder={!!folderProject}
           onExportLibrary={() => void handleExportLibrary()}
           onImportLibrary={handleImportLibrary}

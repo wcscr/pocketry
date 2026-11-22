@@ -31,6 +31,7 @@ import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation
 import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import {
   Box,
+  Check,
   ChevronDown,
   CircleDot,
   ClipboardCheck,
@@ -46,6 +47,7 @@ import {
   Magnet,
   MousePointerClick,
   Palette,
+  PanelTop,
   Pencil,
   Plus,
   RotateCcw,
@@ -53,6 +55,7 @@ import {
   Scaling,
   Save,
   Scissors,
+  Settings,
   Spline,
   Trash2,
   Upload,
@@ -248,6 +251,7 @@ export interface BinControlsPanelProps {
   onRefreshProjects: () => void;
   libraryStorage?: LibraryStorageControls;
   renderFolderLibrary?: (options: FolderLibraryActions) => React.ReactNode;
+  renderFolderLibrarySettings?: () => React.ReactNode;
   openedInFolder?: boolean;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
@@ -323,6 +327,7 @@ export function BinControlsPanel({
   onRefreshProjects,
   libraryStorage,
   renderFolderLibrary,
+  renderFolderLibrarySettings,
   openedInFolder,
   onExportLibrary,
   onImportLibrary,
@@ -2665,6 +2670,7 @@ export function BinControlsPanel({
             onRefreshProjects={onRefreshProjects}
             libraryStorage={libraryStorage}
             renderFolderLibrary={renderFolderLibrary}
+            renderFolderLibrarySettings={renderFolderLibrarySettings}
             openedInFolder={openedInFolder}
             onExportLibrary={onExportLibrary}
             onImportLibrary={onImportLibrary}
@@ -2942,6 +2948,7 @@ interface ProjectControlsProps {
   onRefreshProjects: () => void;
   libraryStorage?: LibraryStorageControls;
   renderFolderLibrary?: (options: FolderLibraryActions) => React.ReactNode;
+  renderFolderLibrarySettings?: () => React.ReactNode;
   openedInFolder?: boolean;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
@@ -2979,6 +2986,7 @@ function ProjectControls({
   onRefreshProjects,
   libraryStorage,
   renderFolderLibrary,
+  renderFolderLibrarySettings,
   openedInFolder,
   onExportLibrary,
   onImportLibrary,
@@ -2995,6 +3003,7 @@ function ProjectControls({
   const hasLibraryProjects = usingFolder ? libraryStorage.folderHasProjects : projects.length > 0;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [librarySettingsOpen, setLibrarySettingsOpen] = useState(false);
   const [samplesOpen, setSamplesOpen] = useState(false);
   const [sampleAction, setSampleAction] = useState<{ kind: "project"; doc: ProjectDoc } | { kind: "library"; library: SampleLibrary } | null>(null);
   const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
@@ -3026,7 +3035,7 @@ function ProjectControls({
   }, [ultim8Entry, ready, busy, isJig, hasDraftWork, activeProjectId, currentProjectName, onUltim8EntryComplete]);
   const returnToLibrary = useRef(false);
   const { settingsOpen } = useExperimentalFeatures();
-  useEffect(() => { if (settingsOpen) { setSamplesOpen(false); setSampleAction(null); setLibraryOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
+  useEffect(() => { if (settingsOpen) { setSamplesOpen(false); setSampleAction(null); setLibraryOpen(false); setLibrarySettingsOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
   useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
   const refreshSelectedLibrary = () => {
     if (usingFolder) void libraryStorage?.refresh();
@@ -3097,6 +3106,8 @@ function ProjectControls({
   const importProjectButtonRef = useRef<HTMLButtonElement | null>(null);
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null);
   const libraryDialogRef = useRef<HTMLDivElement | null>(null);
+  const librarySettingsRef = useRef<HTMLDivElement | null>(null);
+  const returnFromLibrarySettings = useRef(false);
   const openProjectSourceRef = useRef<HTMLElement | null>(null);
   const projectFileReadRevision = useRef(0);
   useEffect(() => () => { projectFileReadRevision.current += 1; }, []);
@@ -3179,7 +3190,7 @@ function ProjectControls({
             {renaming ? <Pencil className="h-3.5 w-3.5 shrink-0" /> : <Save className="h-3.5 w-3.5 shrink-0" />}
           </Button>
         </DialogTrigger>}
-        <DialogContent className="grid-cols-1" onCloseAutoFocus={event => {
+        <DialogContent aria-describedby={undefined} className="grid-cols-1" onCloseAutoFocus={event => {
           if (libraryOpen || returnToLibrary.current) event.preventDefault();
           if (!project) onSaveDialogCloseAutoFocus(event);
         }}>
@@ -3192,14 +3203,16 @@ function ProjectControls({
           }}>
             <DialogHeader className="min-w-0 [overflow-wrap:anywhere]">
               <DialogTitle>{renaming ? "Rename project" : usingFolder ? "Save project to local folder" : "Save project to library"}</DialogTitle>
-              <DialogDescription>
-                {project ? `Change the name of “${project.name}”.` : updatingFolderProject ? `Update “${currentProjectName}” or save the current design as a new project in your folder.`
-                  : usingFolder ? "Save the current design to your connected folder. Draft recovery stays in this browser."
-                  : "Named projects stay in this browser’s Pocketry library and update automatically as you work."}
-              </DialogDescription>
             </DialogHeader>
             <div className="min-w-0 space-y-2">
-              <Label htmlFor="project-library-name">Project name</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="project-library-name">Project name</Label>
+                <HelpHint label="saving this project">
+                  {project ? `Change the name of “${project.name}”.` : updatingFolderProject ? `Update “${currentProjectName}” or save the current design as a new project in your folder.`
+                    : usingFolder ? "Save the current design to your connected folder. Draft recovery stays in this browser."
+                    : "Named projects stay in this browser’s library and update automatically as you work."}
+                </HelpHint>
+              </div>
               <Input
                 id="project-library-name"
                 value={projectName}
@@ -3226,13 +3239,15 @@ function ProjectControls({
     );
   };
 
+  const librarySubdialogOpen = samplesOpen || sampleAction || saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen;
+
   const renderLibraryDialog = (): JSX.Element => (
     <Dialog
-      open={libraryOpen && !samplesOpen && !sampleAction && !saveOpen && !renameProjectId && !removeProject && !pendingLibraryFile && !pendingOpenProject && !settingsOpen}
+      open={libraryOpen && !librarySettingsOpen && !librarySubdialogOpen}
       onOpenChange={(open) => {
         setLibraryOpen(open);
-        if (open) setSelectedProjectId(activeProjectId);
-        if (open) refreshSelectedLibrary();
+        if (open) { setSelectedProjectId(activeProjectId); refreshSelectedLibrary(); }
+        else setLibrarySettingsOpen(false);
       }}
     >
       <DialogTrigger asChild>
@@ -3250,8 +3265,9 @@ function ProjectControls({
         </Button>
       </DialogTrigger>
       <DialogContent
+        aria-describedby={undefined}
         ref={libraryDialogRef}
-        onCloseAutoFocus={event => { if (samplesOpen || sampleAction || saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen) event.preventDefault(); }}
+        onCloseAutoFocus={event => { if (librarySettingsOpen || librarySubdialogOpen) event.preventDefault(); }}
         className="flex max-h-[85dvh] flex-col overflow-hidden p-4 sm:p-6 [&>button]:hidden [@media(max-height:500px)]:max-h-[calc(100dvh_-_2rem)] [@media(max-height:500px)]:overflow-y-auto [@media(max-height:500px)]:scroll-pt-[var(--library-header-height)]"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -3263,32 +3279,34 @@ function ProjectControls({
             '[data-testid="managed-project-list"] [data-project-id]',
           ) ?? [])];
           // Compare the data value rather than interpolating a saved ID into CSS.
-          const target = (usingFolder ? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="library-storage-folder"]') : undefined) ?? rows.find((row) => row.dataset.projectId === (selectedProjectId ?? activeProjectId)) ?? rows[0]
+          const settingsButton = libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-library-settings"]');
+          const target = (returnFromLibrarySettings.current ? settingsButton : undefined)
+            ?? (usingFolder ? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-save-folder-project"]:not(:disabled)') : undefined)
+            ?? rows.find((row) => row.dataset.projectId === (selectedProjectId ?? activeProjectId)) ?? rows[0]
             ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-save-draft-library"]')
-            ?? libraryDialogRef.current?.querySelector<HTMLElement>('[data-testid="button-export-library"]');
+            ?? settingsButton;
+          returnFromLibrarySettings.current = false;
           target?.focus({ preventScroll: true });
           target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         }}
       >
         <DialogHeader data-testid="library-manager-header" className="relative shrink-0 pr-10 bg-background before:pointer-events-none before:absolute before:-inset-x-4 before:-top-4 before:h-4 before:bg-background [@media(max-height:500px)]:sticky [@media(max-height:500px)]:top-0 [@media(max-height:500px)]:z-10">
-          <DialogTitle>Project Library</DialogTitle>
-          <DialogDescription>Choose where to save and open named projects.</DialogDescription>
+          <div className="flex flex-wrap items-center justify-between gap-x-2">
+            <DialogTitle>Project Library</DialogTitle>
+            <Button type="button" variant="ghost" size="sm" className="min-h-11" aria-haspopup="dialog"
+              data-testid="button-library-settings" onClick={() => setLibrarySettingsOpen(true)}>
+              <Settings className="h-4 w-4" aria-hidden />Settings
+            </Button>
+          </div>
+          <p className="w-fit max-w-full truncate rounded bg-muted px-2 py-1 text-xs text-muted-foreground" data-testid="library-active-storage">
+            {storageLabel}{usingFolder && libraryStorage.folderName ? ` · ${libraryStorage.folderName}` : ""}
+          </p>
           <DialogClose asChild>
             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 !mt-0 h-11 w-11" aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </DialogClose>
         </DialogHeader>
-        {libraryStorage && <div role="group" aria-label="Library storage" className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-          <Button type="button" variant={usingFolder ? "ghost" : "secondary"} aria-current={usingFolder ? undefined : true}
-            className={cn("min-h-11 h-auto whitespace-normal px-2", !usingFolder && "bg-background shadow-sm")}
-            data-testid="library-storage-browser" disabled={busy || folderBusy}
-            onClick={() => { libraryStorage.choose("browser"); onRefreshProjects(); }}>Browser storage</Button>
-          <Button type="button" variant={usingFolder ? "secondary" : "ghost"} aria-current={usingFolder || undefined}
-            className={cn("min-h-11 h-auto whitespace-normal px-2", usingFolder && "bg-background shadow-sm")}
-            data-testid="library-storage-folder" disabled={busy || folderBusy}
-            onClick={() => { libraryStorage.choose("folder"); void libraryStorage.refresh(); }}>Local folder</Button>
-        </div>}
         <ScrollArea
           type="auto"
           className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [@media(max-height:500px)]:shrink-0 [@media(max-height:500px)]:[&_[data-radix-scroll-area-viewport]]:max-h-none [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
@@ -3299,7 +3317,6 @@ function ProjectControls({
           onOpened: () => setLibraryOpen(false),
           onSave: saveDraftFromLibrary,
         }) : <>
-        <p className="mb-3 text-xs text-muted-foreground">Projects here are saved in this browser. Choose Local folder to keep named projects on your device.</p>
         {!libraryError && projects.length > 0 && <p className="mb-2 text-xs text-muted-foreground">{projects.length} saved {projects.length === 1 ? "project" : "projects"}</p>}
         <div className="space-y-2 pr-4" data-testid="managed-project-list">
           {libraryError ? (
@@ -3407,14 +3424,60 @@ function ProjectControls({
         </div>
         </>}
         </ScrollArea>
-        <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
+      </DialogContent>
+    </Dialog>
+  );
+
+  const renderLibrarySettings = (): JSX.Element => (
+    <Dialog open={libraryOpen && librarySettingsOpen && !librarySubdialogOpen} onOpenChange={open => {
+      if (!open) returnFromLibrarySettings.current = true;
+      setLibrarySettingsOpen(open);
+    }}>
+      <DialogContent aria-describedby={undefined} ref={librarySettingsRef} data-testid="library-settings"
+        onOpenAutoFocus={event => {
+          event.preventDefault();
+          const selected = librarySettingsRef.current?.querySelector<HTMLElement>('[aria-current="true"]:not(:disabled)');
+          (selected ?? librarySettingsRef.current?.querySelector<HTMLElement>('[data-testid="button-close-library-settings"]'))?.focus();
+        }} onCloseAutoFocus={event => event.preventDefault()}>
+        <DialogHeader>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle>Library settings</DialogTitle>
+            <HelpHint label="library storage">
+              <p><strong>Local folder</strong> saves named projects as files on your device. Use Save current project to write edits to the folder. Draft recovery uses this browser.</p>
+              <p className="mt-2"><strong>Browser storage</strong> autosaves named projects in this browser. Clearing site data can remove them.</p>
+            </HelpHint>
+          </div>
+        </DialogHeader>
+        {libraryStorage && <div role="group" aria-label="Library storage" className="grid shrink-0 grid-cols-2 gap-2">
+          {([
+            { mode: "folder", label: "Local folder", icon: FolderOpen },
+            { mode: "browser", label: "Browser storage", icon: PanelTop },
+          ] as const).map(({ mode, label, icon: Icon }) => {
+            const selected = libraryStorage.mode === mode;
+            return <Button key={mode} type="button" variant={selected ? "default" : "outline"}
+              aria-current={selected || undefined}
+              className="h-auto min-h-12 justify-start gap-2 whitespace-normal px-2.5 py-2 text-left"
+              data-testid={`library-storage-${mode}`} disabled={busy || folderBusy}
+              onClick={() => {
+                libraryStorage.choose(mode);
+                if (mode === "folder") void libraryStorage.refresh();
+                else onRefreshProjects();
+              }}>
+              <Icon className="hidden h-4 w-4 shrink-0 min-[420px]:block" aria-hidden />
+              <span className="min-w-0 leading-tight">{label}</span>
+              {selected && <Check className="ml-auto h-4 w-4 shrink-0" aria-hidden />}
+            </Button>;
+          })}
+        </div>}
+        {usingFolder && renderFolderLibrarySettings?.()}
+        {(!usingFolder || libraryStorage?.folderName) && <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Library backups" hint={usingFolder
               ? "Export the saved folder projects as one JSON file, or import a backup as new projects in the connected folder."
               : "Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging."} />
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy || folderBusy || (usingFolder && !libraryStorage?.folderName)}
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy || folderBusy}
               onClick={onExportLibrary} data-testid="button-export-library">
               <Download className="h-3.5 w-3.5 shrink-0" />Export library
             </Button>
@@ -3423,11 +3486,11 @@ function ProjectControls({
               <Upload className="h-3.5 w-3.5 shrink-0" />Import library
             </Button>
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
-              data-testid="button-open-sample-library" onClick={() => setSamplesOpen(true)}>
+              data-testid="button-open-sample-library" onClick={() => { setLibrarySettingsOpen(false); setSamplesOpen(true); }}>
               <LibraryBig className="h-3.5 w-3.5 shrink-0" />Sample Library
             </Button>
           </div>
-        </div>
+        </div>}
         <input ref={libraryImportInputRef} type="file" accept=".json,application/json"
           className="hidden" aria-label="Import library JSON" data-testid="input-import-library"
           onChange={(event) => {
@@ -3435,6 +3498,9 @@ function ProjectControls({
             event.currentTarget.value = "";
             if (file && !busy) { setLibraryImportMode("merge"); setPendingLibraryFile(file); }
           }} />
+        <DialogFooter>
+          <DialogClose asChild><Button type="button" className="min-h-11" data-testid="button-close-library-settings">Done</Button></DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -3557,6 +3623,7 @@ function ProjectControls({
         {usingFolder ? folderSaveBlocked ? "Set up local storage" : "Save to local folder" : "Save this draft to Library"}
       </Button>}
       {renderLibraryDialog()}
+      {renderLibrarySettings()}
       <SampleLibraryDialog open={samplesOpen && !sampleAction && !settingsOpen} busy={busy}
         onOpenChange={setSamplesOpen}
         onOpenSample={project => chooseSampleAction({ kind: "project", doc: project.doc })}
@@ -3583,7 +3650,7 @@ function ProjectControls({
       <Dialog open={pendingLibraryFile !== null} onOpenChange={(open) => { if (!open && !busy) setPendingLibraryFile(null); }}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto" onCloseAutoFocus={(event) => {
           event.preventDefault();
-          libraryDialogRef.current?.querySelector<HTMLButtonElement>('[data-testid="button-import-library"]')?.focus();
+          librarySettingsRef.current?.querySelector<HTMLButtonElement>('[data-testid="button-import-library"]')?.focus();
         }}>
           <DialogHeader>
             <DialogTitle>Import library</DialogTitle>
@@ -3624,7 +3691,10 @@ function ProjectControls({
             <Button variant={libraryImportMode === "replace" ? "destructive" : "default"} disabled={busy || folderBusy || folderSaveBlocked || !pendingLibraryFile}
               data-testid="button-confirm-import-library" onClick={async () => {
                 if (!pendingLibraryFile || busy) return;
-                if (await onImportLibrary(pendingLibraryFile, libraryImportMode)) setPendingLibraryFile(null);
+                if (await onImportLibrary(pendingLibraryFile, libraryImportMode)) {
+                  setPendingLibraryFile(null);
+                  setLibrarySettingsOpen(false);
+                }
               }}>{busy ? "Importing…" : usingFolder ? "Import to folder" : libraryImportMode === "replace" ? "Replace library" : "Merge library"}</Button>
           </DialogFooter>
         </DialogContent>

@@ -1,19 +1,20 @@
 # Connected project folders
 
-Open **Library** from the toolbar or the **Project** panel. The storage
-switch at the top shows where named projects will be saved and opened.
+Open **Library** from the toolbar or the **Project** panel to see saved projects
+and their location. Open **Settings** in Library to switch storage. The selected
+location has a checkmark.
 
-- **Browser storage** keeps named projects in this browser and updates them
-  automatically as you work.
 - **Local folder** keeps named projects in a folder on your device. Choose
   **Choose a folder**, then select where you want them. Pocketry creates a
   `pocketry-library` directory inside it.
+- **Browser storage** keeps named projects in this browser and updates them
+  automatically as you work.
 
 Use **Save current project** in Library or **Save to local folder** in Project.
 When a folder project is open, its next save updates that project. Both
 **Save changes** and **Save as new project** are available for an open folder project.
-Each storage choice keeps its own projects. Use **Copy
-browser projects** to bring the existing browser library into the folder.
+Each storage choice keeps its own projects. Open **Settings** in Library to
+change or disconnect the folder, refresh its project list, or copy browser projects into it.
 Library backups and imports use the selected storage. Importing a backup into
 the folder adds up to 100 projects per operation. Individual project JSON
 backups open in either mode.
@@ -25,7 +26,7 @@ Page hiding and navigation can flush the normal browser autosave. A Node
 reader sees the saved folder revision and cannot inspect editor state, its
 pending autosave, or an unnamed draft.
 
-**Refresh** rereads the folder without changing the open editor. To see an
+**Refresh project list** rereads the folder without changing the open editor. To see an
 assistant’s edit, select the project and open the new revision. Pocketry recovers
 the browser-local working draft and its folder project together after reload.
 Use **Save changes** to update the same project from the revision you were
@@ -33,7 +34,7 @@ editing. If another writer has saved a newer revision, you can keep your draft
 by choosing **Save as new project** or exporting it. Starting or opening another
 project replaces the working draft and its save target.
 
-Each browser and profile grants its own permission. Choose **Restore folder access**
+Each browser and profile grants its own permission. In Library **Settings**, choose **Restore folder access**
 when prompted. If the browser keeps file editing blocked, grant it in site
 settings or choose the same folder again. You can also disconnect and continue
 in the browser library. Clearing

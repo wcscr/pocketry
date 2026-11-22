@@ -8,7 +8,7 @@ starting the tool.
 ## Setup
 
 From a checkout with Node.js 26, run `npm ci` and `npm run build:automation`.
-Open **Library → Local folder**, choose a folder, and save a named project.
+Open **Library → Settings → Local folder**, choose a folder, and save a named project.
 Pass the absolute path to the resulting `pocketry-library` subdirectory.
 
 ```sh
