@@ -722,29 +722,6 @@ function BinDesignerWorkspace(): JSX.Element {
     }
   }, [toast, saveProject, currentProjectDoc, libraryStorage, folderLibrary]);
 
-  const handleRecoverOlderLibrary = async () => {
-    setProjectBusy(true);
-    try {
-      const backup = await folderLibrary.recoverBackup();
-      if (!backup) return false;
-      if (!backup.projects.length) {
-        toast({ title: "No saved projects to recover" });
-        return false;
-      }
-      const result = await importProjectLibrary(backup, "recover");
-      setProjectLibrary(result.library);
-      setLibraryStorage("browser");
-      toast({ title: result.imported ? `Recovered ${result.imported} ${result.imported === 1 ? "project" : "projects"}` : "Projects already recovered",
-        description: "Open the recovered projects from Browser storage." });
-      return true;
-    } catch (cause) {
-      toast({ title: "Could not recover projects", description: cause instanceof Error ? cause.message : "Browser storage could not save the recovered projects.", variant: "destructive" });
-      return false;
-    } finally {
-      setProjectBusy(false);
-    }
-  };
-
   /** Save while the outgoing named project still owns the autosave target. */
   const saveBeforeReplacingProject = useCallback(async () => {
     saveProject.cancel();
@@ -1314,7 +1291,7 @@ function BinDesignerWorkspace(): JSX.Element {
             hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened}
             onSave={onSave} onExportDraft={handleExportProject} />}
           renderFolderLibrarySettings={onRecovered => <FolderLibrarySettings library={folderLibrary} busy={!bin.hydrated || projectBusy}
-            onRecover={async () => { if (await handleRecoverOlderLibrary()) onRecovered(); }} />}
+            onRecover={async () => { if (await folderLibrary.recoverLegacy()) onRecovered(); }} />}
           openedInFolder={!!folderProject}
           onExportLibrary={() => void handleExportLibrary()}
           onImportLibrary={handleImportLibrary}

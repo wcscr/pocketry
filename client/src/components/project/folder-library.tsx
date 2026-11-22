@@ -38,7 +38,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
   };
 
   return <div className="space-y-3 px-0.5">
-    {library.legacyFolder && <p role="status" className="text-sm">Older library. Open Settings to recover projects.</p>}
+    {library.legacyFolder && <FolderRecovery disabled={disabled || !library.canWrite} onRecover={() => void library.recoverLegacy()} />}
     {!library.canWrite && <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
       {library.folder ? "Folder access needed" : library.supported ? "No folder connected" : "Local folders unavailable"}
     </p>}
@@ -111,6 +111,16 @@ function FolderFeedback({ library }: { library: FolderLibrary }) {
   </>;
 }
 
+function FolderRecovery({ disabled, onRecover }: { disabled: boolean; onRecover: () => void }) {
+  return <div className="space-y-2 rounded-md border p-3">
+    <p className="text-sm font-medium">Older Pocketry library</p>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Button size="sm" className="min-h-11" disabled={disabled} onClick={onRecover}>Recover projects</Button>
+      <HelpHint label="recovering older projects">Recover the saved projects into this local folder. Pocketry keeps the original files and opens the recovered library when it’s ready.</HelpHint>
+    </div>
+  </div>;
+}
+
 export function FolderLibrarySettings({ library, busy, onRecover }: { library: FolderLibrary; busy: boolean; onRecover: () => void }) {
   const disabled = busy || library.busy;
   return <div className="space-y-3">
@@ -132,15 +142,7 @@ export function FolderLibrarySettings({ library, busy, onRecover }: { library: F
           onClick={() => void library.disconnect()}>Disconnect folder</Button>}
       </div>
     </div>
-    {library.legacyFolder && <div className="space-y-2 rounded-md border p-3">
-      <p className="text-sm font-medium">Older Pocketry library</p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" className="min-h-11" disabled={disabled || !library.canWrite} onClick={onRecover}>
-          Recover to browser storage
-        </Button>
-        <HelpHint label="recovering older projects">Pocketry copies saved projects into Browser storage and keeps the original files. To use a new local folder, connect it in Settings and choose Copy browser projects.</HelpHint>
-      </div>
-    </div>}
+    {library.legacyFolder && <FolderRecovery disabled={disabled || !library.canWrite} onRecover={onRecover} />}
     {library.canWrite && !library.legacyFolder && <div className="flex flex-wrap items-center gap-1.5">
       <Button size="sm" variant="outline" className="min-h-11" disabled={disabled || library.pending.length > 0}
         onClick={() => void library.copyBrowserProjects()}>Copy browser projects</Button>

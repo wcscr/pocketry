@@ -204,6 +204,23 @@ export class ConnectedLibrary {
       .filter(project => project.conflicted || project.heads.some(head => !head.deleted));
   }
 
+  /** Recovery is complete only when every batch in one immutable plan exists. */
+  async hasCompletedLegacyRecovery(): Promise<boolean> {
+    const { requests } = await this.scan();
+    const plans = new Map<string, number>();
+    for (const [requestId, revisions] of requests) {
+      const match = /^legacy-recovery:([a-f0-9]{64}):([1-9]\d*):([1-9]\d*)$/.exec(requestId);
+      if (!match || revisions.length !== 1) continue;
+      const batch = Number(match[2]), total = Number(match[3]);
+      if (batch > total || total > FOLDER_LIMITS.revisions) continue;
+      const key = `${match[1]}:${total}`;
+      const complete = (plans.get(key) ?? 0) + 1;
+      if (complete === total) return true;
+      plans.set(key, complete);
+    }
+    return false;
+  }
+
   /** Portable backup of the visible named projects, pinned to one folder scan. */
   async backup(): Promise<LibraryBackup> {
     const index = await this.scan();

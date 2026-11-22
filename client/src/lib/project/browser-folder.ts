@@ -1,7 +1,7 @@
 import { del, get, keys, set, update } from "idb-keyval";
 import { z } from "zod";
 import { assertRevisionBasename, PublicationRejected, type FolderEntry, type LibraryFolder } from "@shared/project-library/adapter";
-import type { Mutation } from "@shared/project-library/library";
+import { ConnectedLibrary, type Mutation } from "@shared/project-library/library";
 import { legacyRevisionId, LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
 
 type PermissionOptions = { mode: "readwrite" };
@@ -15,6 +15,7 @@ const pickDirectory = () => (window as Window & {
 }).showDirectoryPicker;
 
 const KEY = "pocketry:connected-project-library-directory";
+const RECOVERED_DIRECTORY = "pocketry-recovered";
 export type FolderIntent = { candidateRevision?: string } & (
   | { kind: "commit"; mutation: Mutation }
   | { kind: "keep-both"; requestId: string; projectId: string; expected: string[]; keep: string }
@@ -72,7 +73,10 @@ export class BrowserLibraryFolder implements LibraryFolder {
     const picker = pickDirectory();
     if (!picker) throw new LibraryError("permission", "This browser does not support connecting a folder.");
     const parent = await picker.call(window, access);
-    const handle = await parent.getDirectoryHandle("pocketry-library", { create: true }) as DirectoryHandle;
+    const root = await parent.getDirectoryHandle("pocketry-library", { create: true }) as DirectoryHandle;
+    const source = new BrowserLibraryFolder(root, parent.name);
+    const recovered = await source.findCompletedRecovery();
+    const handle = recovered?.directory ?? root;
     const previous = await BrowserLibraryFolder.saved();
     const id = previous && await handle.isSameEntry(previous.directory) ? previous.id : crypto.randomUUID();
     await set(KEY, { directory: handle, parentName: parent.name, id } satisfies SavedConnection);
@@ -80,6 +84,40 @@ export class BrowserLibraryFolder implements LibraryFolder {
   }
 
   static async disconnect() { await del(KEY); }
+
+  async findCompletedRecovery() {
+    let directory: DirectoryHandle;
+    try { directory = await this.directory.getDirectoryHandle(RECOVERED_DIRECTORY) as DirectoryHandle; }
+    catch (cause) {
+      if (cause instanceof DOMException && cause.name === "NotFoundError") return null;
+      throw browserError(cause);
+    }
+    const recovered = new BrowserLibraryFolder(directory, this.name);
+    return await new ConnectedLibrary(recovered).hasCompletedLegacyRecovery() ? recovered : null;
+  }
+
+  async createRecoveryFolder() {
+    try {
+      const directory = await this.directory.getDirectoryHandle(RECOVERED_DIRECTORY, { create: true }) as DirectoryHandle;
+      return new BrowserLibraryFolder(directory, this.name);
+    } catch (cause) { throw browserError(cause); }
+  }
+
+  async activateRecovery(recovered: BrowserLibraryFolder) {
+    let active: SavedConnection | undefined;
+    await update<SavedConnection | DirectoryHandle | undefined>(KEY, saved => {
+      if (!saved) return saved;
+      const previous = connection(saved);
+      active = previous.id === this.id
+        ? { directory: recovered.directory, parentName: recovered.name, id: recovered.id }
+        : previous;
+      return active;
+    });
+    if (active?.id && await recovered.directory.isSameEntry(active.directory)) {
+      return new BrowserLibraryFolder(active.directory, active.parentName, active.id);
+    }
+    throw new LibraryError("storage", "The connection changed in another tab. Choose the original folder again to open the recovered library.");
+  }
 
   async remember(intent: FolderIntent) {
     await set(PENDING + folderRequestId(intent), { directory: this.directory, intent } satisfies PendingRequest);

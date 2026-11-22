@@ -5,7 +5,7 @@ import { BrowserLibraryFolder, folderRequestId, type FolderDraft, type FolderInt
 import { exportProjectLibrary } from "@/lib/project/persist";
 import { ConnectedLibrary, type FolderProject, type RequestOutcome } from "@shared/project-library/library";
 import { assignedProjectId, FOLDER_LIMITS, LegacyFolderError, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
-import { recoverLegacyBackup } from "@shared/project-library/legacy-recovery";
+import { publishRecoveredLibrary, recoverLegacyBackup } from "@shared/project-library/legacy-recovery";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
 export type LibraryStorage = "browser" | "folder";
@@ -205,8 +205,18 @@ export function useFolderLibrary(enabled = true) {
   return {
     supported, folder, projects, pending, canWrite, legacyFolder, busy, message, error, refresh, save, copyBrowserProjects, openProject, changeProject,
     importBackup,
-    recoverBackup: () => run(async () => {
-      if (folder && legacyFolder) return recoverLegacyBackup(folder);
+    recoverLegacy: () => run(async () => {
+      if (!folder || !legacyFolder) return;
+      let destination = await folder.findCompletedRecovery();
+      if (!destination) {
+        const backup = await recoverLegacyBackup(folder);
+        if (!backup.projects.length) throw new LibraryError("not-found", "No saved projects to recover.");
+        destination = await folder.createRecoveryFolder();
+        await publishRecoveredLibrary(backup, destination);
+      }
+      await load(await folder.activateRecovery(destination));
+      setMessage("Projects recovered to your local folder.");
+      return true;
     }),
     exportBackup: () => run(async () => {
       if (!folder || !await folder.canWrite()) throw new LibraryError("permission", "Restore folder access in Library before exporting.");

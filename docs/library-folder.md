@@ -71,11 +71,16 @@ array order define the canonical JSON used when this implementation writes.
 
 This schema is independent of the portable library backup format. The older
 folder format stored whole-library snapshots in UUID-named files. Open
-**Library → Settings → Recover to browser storage** to copy the projects
-from its latest completed snapshots. Recovery keeps distinct versions from
-competing snapshots and reuses IDs to avoid duplicating prior recoveries. The
-original folder remains an archive of the older revisions. To continue in
-local storage, connect a different folder and choose **Copy browser projects**.
+**Library → Recover projects** to copy the projects from its latest completed
+snapshots. Recovery keeps distinct versions from competing snapshots and leaves
+the original files in place. Pocketry opens the recovered projects in the same
+Library view after every batch has been verified. If a recovery is interrupted,
+click **Recover projects** again to finish it.
+
+Pocketry stores the recovered library in `pocketry-library/pocketry-recovered`
+inside the selected folder. Reconnecting to the same folder opens the completed
+recovery. For CLI or MCP access, use the `pocketry-recovered` directory as the
+library root. The original snapshots remain available as an archive.
 
 ## Publication and recovery
 

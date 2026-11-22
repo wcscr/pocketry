@@ -1,8 +1,10 @@
 import { expect, it } from "vitest";
 import { PROJECT_SCHEMA_VERSION } from "../../shared/gridfinity/project";
 import { parseBinSpec } from "../../shared/gridfinity/types";
-import { encode } from "../../shared/project-library/format";
-import { recoverLegacyBackup } from "../../shared/project-library/legacy-recovery";
+import { PublicationRejected } from "../../shared/project-library/adapter";
+import { encode, FOLDER_LIMITS } from "../../shared/project-library/format";
+import { publishRecoveredLibrary, recoverLegacyBackup } from "../../shared/project-library/legacy-recovery";
+import { ConnectedLibrary } from "../../shared/project-library/library";
 
 const revisionId = (index: number) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 const project = (id: string, width: number) => ({ id, name: id, updatedAt: "2026-11-22T00:00:00.000Z",
@@ -42,4 +44,31 @@ it("recovers divergent current snapshots and gives identical copies stable IDs",
 it("stops recovery when the old history has missing parents or a cycle", async () => {
   await expect(recoverLegacyBackup(source(revision(1, [2], [])))).rejects.toThrow("An older revision is missing");
   await expect(recoverLegacyBackup(source(revision(1, [2], []), revision(2, [1], [])))).rejects.toThrow("contains a cycle");
+});
+
+it("opens a recovery only after every batch and resumes without duplicating projects", async () => {
+  const projects = Array.from({ length: FOLDER_LIMITS.changes + 1 }, (_, index) => project(`Tray ${index}`, 2));
+  const backup = await recoverLegacyBackup(source(revision(1, [], projects)));
+  const files = new Map<string, Uint8Array>();
+  let interrupt = true;
+  const destination = {
+    async *entries() { for (const name of files.keys()) yield { name, kind: "file" as const }; },
+    async read(name: string) { return files.has(name) ? { bytes: files.get(name)!, modifiedAt: 0 } : null; },
+    async publish(name: string, bytes: Uint8Array) {
+      if (interrupt && files.size) throw new PublicationRejected(new Error("Interrupted"));
+      files.set(name, bytes);
+    },
+  };
+
+  await expect(publishRecoveredLibrary(backup, destination)).rejects.toThrow("Interrupted");
+  expect(files.size).toBe(1);
+  const reopened = new ConnectedLibrary(destination);
+  expect(await reopened.hasCompletedLegacyRecovery()).toBe(false);
+
+  interrupt = false;
+  await publishRecoveredLibrary(backup, destination);
+  await publishRecoveredLibrary(backup, destination);
+  expect(await reopened.hasCompletedLegacyRecovery()).toBe(true);
+  expect(await reopened.list()).toHaveLength(projects.length);
+  expect(files.size).toBe(2);
 });

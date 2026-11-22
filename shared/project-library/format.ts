@@ -28,7 +28,7 @@ export class LibraryError extends Error {
 
 export class LegacyFolderError extends LibraryError {
   constructor(file?: string) {
-    super("unsupported-version", "Older Pocketry library. Open Library Settings to recover its projects.", { file, version: 1 });
+    super("unsupported-version", "Older Pocketry library. Open Library in Pocketry and choose Recover projects.", { file, version: 1 });
   }
 }
 

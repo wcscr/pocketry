@@ -5,7 +5,7 @@
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
 - See saved projects and their storage location in Library. Use Library Settings to switch storage or manage a local folder.
 - Resume editing the same local folder project after reloading Pocketry.
-- Recover projects from older local libraries directly from Library Settings.
+- Recover older projects directly into the connected local library.
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.

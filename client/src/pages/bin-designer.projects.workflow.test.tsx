@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 import { BrowserLibraryFolder } from "@/lib/project/browser-folder";
 import { ConnectedLibrary, type FolderProject } from "@shared/project-library/library";
-import { encode, LegacyFolderError } from "@shared/project-library/format";
+import { encode } from "@shared/project-library/format";
 import {
   TraceHandoff,
   projectToast,
@@ -755,7 +755,7 @@ describe("BinDesignerPage", () => {
     }
   });
 
-  it("recovers an older folder into Browser storage from the settings warning", async () => {
+  it("recovers an older folder directly from the Library project list", async () => {
     vi.stubGlobal("crypto", webcrypto);
     localStorage.setItem("pocketry:library-storage", "folder");
     const id = "00000000-0000-4000-8000-000000000001";
@@ -763,6 +763,9 @@ describe("BinDesignerPage", () => {
     const tray = { id: "old-tray", name: "Recovered tray", doc: EMPTY_PROJECT, updatedAt: "2026-11-22T00:00:00.000Z" };
     const bytes = encode(JSON.stringify({ format: "pocketry-folder-revision", schemaVersion: 1, id, parents: [], projects: [tray] }));
     const folder = new BrowserLibraryFolder({ name: "Older library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const destination = new BrowserLibraryFolder({ name: "pocketry-recovered" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], folder.name);
+    const files = new Map<string, Uint8Array>();
+    const activate = vi.spyOn(folder, "activateRecovery").mockResolvedValue(destination);
     const mocks = [
       vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
       vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
@@ -770,31 +773,34 @@ describe("BinDesignerPage", () => {
       vi.spyOn(folder, "pending").mockResolvedValue([]),
       vi.spyOn(folder, "entries").mockImplementation(async function* () { yield { name, kind: "file" }; }),
       vi.spyOn(folder, "readLegacyRevision").mockResolvedValue({ bytes, modifiedAt: 0 }),
-      vi.spyOn(ConnectedLibrary.prototype, "list").mockRejectedValue(new LegacyFolderError(name)),
+      vi.spyOn(folder, "findCompletedRecovery").mockResolvedValue(null),
+      vi.spyOn(folder, "createRecoveryFolder").mockResolvedValue(destination),
+      vi.spyOn(destination, "canWrite").mockResolvedValue(true),
+      vi.spyOn(destination, "pending").mockResolvedValue([]),
+      vi.spyOn(destination, "entries").mockImplementation(async function* () {
+        for (const name of files.keys()) yield { name, kind: "file" };
+      }),
+      vi.spyOn(destination, "read").mockImplementation(async name => files.has(name) ? { bytes: files.get(name)!, modifiedAt: 0 } : null),
+      vi.spyOn(destination, "publish").mockImplementation(async (name, data) => { files.set(name, data); }),
     ];
-    vi.mocked(ProjectPersistence.importProjectLibrary).mockResolvedValueOnce({
-      library: { activeProjectId: null, projects: [tray] }, imported: 1, upgraded: 0, renamed: 0,
-    });
     const { container, unmount } = renderPage();
     try {
       await flushHydration();
       openSettingsSection(container, "project");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Open Settings to recover projects");
-      const settings = openLibrarySettings();
-      expect(settings.querySelector('[data-testid="button-export-library"]')).toBeNull();
-      expect(settings.querySelector('[data-testid="button-open-sample-library"]')).not.toBeNull();
-      const recover = [...settings.querySelectorAll("button")].find(button => button.textContent?.trim() === "Recover to browser storage")!;
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Older Pocketry library");
+      const recover = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+        .find(button => button.textContent?.trim() === "Recover projects")!;
       await React.act(async () => {
         recover.click();
-        await vi.waitFor(() => expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledOnce());
+        await vi.waitFor(() => expect(activate).toHaveBeenCalledWith(destination));
       });
-      expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ projects: [expect.objectContaining({ name: tray.name, doc: tray.doc })] }), "recover");
-      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Browser storage");
-      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(tray.name);
+      await vi.waitFor(() => expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain(tray.name));
+      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Local folder · Older library");
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
     } finally {
       unmount();
-      for (const mock of mocks) mock.mockRestore();
+      for (const mock of [activate, ...mocks]) mock.mockRestore();
       localStorage.removeItem("pocketry:library-storage");
     }
   });
