@@ -1,7 +1,7 @@
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
-import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS } from "@shared/gridfinity/compartments";
+import { compartmentLayout, compartmentLayoutError, compartmentsEnabled, MAX_COMPARTMENTS_PER_AXIS, updateCompartmentSettings } from "@shared/gridfinity/compartments";
 import { effectiveBottomFilletRadiusMm } from "@shared/gridfinity/bottom-fillet";
 import { SettingsGroup } from "@/components/layout/settings-group";
 import { LabelTabSizeControls } from "./label-tab-size-controls";
@@ -1859,9 +1859,7 @@ export function BinControlsPanel({
               <FeatureSwitch label="Internal compartments"
                 description="Rows run along the length (Y), columns along the width (X). Dividers follow the wall slant. Custom footprints clip the grid. Turning this off keeps your settings."
                 checked={internalCompartmentsOn}
-                onChange={enabled => patchSpec({ compartments: { ...spec.compartments, enabled,
-                  ...(enabled && spec.compartments.rows === 1 && spec.compartments.columns === 1 ? { rows: 2 } : {}),
-                } })}
+                onChange={enabled => patchSpec({ compartments: updateCompartmentSettings(spec.compartments, { enabled }) })}
                 />
                 {internalCompartmentsOn && <div className="space-y-2" data-testid="compartment-settings">
                   <div className="grid grid-cols-2 gap-3">

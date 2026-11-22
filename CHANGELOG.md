@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
 - Save and reopen named project revisions in an optional connected local folder.
 ## 1.15.5 — 2026-11-21
 

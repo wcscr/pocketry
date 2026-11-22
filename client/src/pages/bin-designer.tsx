@@ -5,7 +5,6 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { useLocation } from "wouter";
 import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
-import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
@@ -16,14 +15,14 @@ import { ToastAction } from "@/components/ui/toast";
 import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
-import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { binWallThicknessMm, defaultBinWallThicknessMm } from "@shared/gridfinity/standard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
 import { PocketClearanceDialog } from "@/components/gridfinity/pocket-clearance-dialog";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
-import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { projectLayoutIssues } from "@shared/gridfinity/project-validation";
 import { mergeValidationIssues } from "@shared/gridfinity/validation-issues";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
@@ -72,7 +71,7 @@ import {
 } from "@/lib/project/export";
 import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
-import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
+import { prepareModelExport, type ModelFormat } from "@/lib/project/model-export";
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
@@ -247,14 +246,9 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // One validation result drives both the canvas feedback and export gates,
   // including when the controls are collapsed or the mobile drawer is closed.
-  const layoutIssues = useMemo(() => {
-    const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
-    return [
-      ...validateBinSpec(spec).issues,
-      ...validateLayout(spec, cutouts, shapesById, fingerHoles),
-      ...validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
-    ];
-  }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
+  const layoutIssues = useMemo(() => projectLayoutIssues({
+    spec, cutouts, fingerHoles, shapes: library.shapes, materials,
+  }), [spec, cutouts, fingerHoles, library.shapes, materials]);
   const revealIssue = (issue: ValidationIssue) => {
     const settings = issueSettingsTarget(issue.code);
     if (settings) {
@@ -1050,143 +1044,18 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => {
+    async (format: ModelFormat, includeProject: boolean) => {
       setExporting(true);
       try {
-        const label = binSizeLabel(exportProjectDoc.spec);
-        const prusaColorPreview = format === "3mf-prusa";
-        const slicerCompatible = format === "3mf-bambu" || prusaColorPreview;
-        const multicolor = format === "3mf-multicolor" || slicerCompatible;
-        const project = prepareProjectExport(
-          exportProjectDoc,
-          currentProjectName,
-          prusaColorPreview ? "prusa-color-preview" : slicerCompatible ? "compatible-multicolor" : multicolor ? "multicolor" : "",
-        );
-        const includePocketFloors =
-          multicolor &&
-          colorPocketFloors &&
-          (exportProjectDoc.spec.fill === "none" ||
-            exportProjectDoc.cutouts.some(hasColorablePocketSurfaces));
-        const includeLabelBackground = multicolor && labelBackgroundColor !== null && !!exportProjectDoc.spec.labelTab;
-        const includeStackingRim =
-          multicolor && colorStackingRim;
-        const result = await buildOnce(EXPORT_QUALITY, {
-          labelBackgroundMaterialThicknessMm: includeLabelBackground ? labelBackgroundThicknessMm : undefined,
-          pocketFloorMaterialThicknessMm: includePocketFloors
-            ? pocketFloorThicknessMm
-            : undefined,
-          stackingRimMaterialThicknessMm: includeStackingRim
-            ? stackingRimThicknessMm
-            : undefined,
-          ...(includeStackingRim && colorDividerTops ? { colorDividerTops: true } : {}),
-          borderWidthMm: includeStackingRim && exportProjectDoc.spec.lip === "none"
-            ? borderWidthMm : undefined,
-        });
-        const textObjects: ThreeMfObject[] = (result.textMeshes ?? []).map(part => ({
-          name: part.label.name ?? `Text: ${surfaceTextName(part.label)}`,
-          mesh: part.mesh,
-          material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
-        }));
-        if (multicolor) {
-          if (!result.materialMeshes && (includePocketFloors || includeStackingRim || includeLabelBackground)) {
-            throw new Error(
-              "This bin has no printable label background, floor, rim, or border color volume.",
-            );
-          }
-          const objects: ThreeMfObject[] = [
-            {
-              name: `Gridfinity bin ${label} body`,
-              mesh: result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh,
-              material: {
-                name: "Bin body",
-                displayColor: binColor as `#${string}`,
-              },
-            },
-          ];
-          if (includePocketFloors && result.materialMeshes?.pocketFloors) {
-            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : exportProjectDoc.cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
-            objects.push({
-              name: `Gridfinity bin ${label} ${floorName.toLowerCase()}`,
-              mesh: result.materialMeshes.pocketFloors,
-              material: {
-                name: floorName,
-                displayColor: pocketFloorColor as `#${string}`,
-              },
-            });
-          }
-          if (includeStackingRim && result.materialMeshes?.stackingRim) {
-            const rimName = exportProjectDoc.spec.lip === "standard" ? "Stacking rim top" : "Top border";
-            objects.push({
-              name: `Gridfinity bin ${label} ${rimName.toLowerCase()}`,
-              mesh: result.materialMeshes.stackingRim,
-              material: {
-                name: rimName,
-                displayColor: stackingRimColor as `#${string}`,
-              },
-            });
-          }
-          if (includeLabelBackground && result.materialMeshes?.labelBackground) {
-            objects.push({
-              name: `Gridfinity bin ${label} label backgrounds`,
-              mesh: result.materialMeshes.labelBackground,
-              material: { name: "Label background", displayColor: labelBackgroundColor as `#${string}` },
-            });
-          }
-          // A wide, deep border can color all of a small bin. Keep its chosen
-          // color and omit the now-empty body rather than exporting an empty mesh.
-          const printableObjects = objects.concat(textObjects).filter(object => object.mesh.indices.length > 0);
-          if (printableObjects.length === 0 || (printableObjects.length === 1 && printableObjects[0] === objects[0])) {
-            throw new Error(
-              "The selected color regions did not produce printable material volumes.",
-            );
-          }
-          const bytes = writeThreeMf(
-            printableObjects,
-            {
-              title: `Pocketry multi-color Gridfinity bin ${label}`,
-              assemble: true,
-              combineObjects: slicerCompatible,
-              prusaPaint: slicerCompatible,
-              prusaColorPreview,
-            },
-          );
-          downloadModelWithProject(
-            new Blob([bytes], { type: "model/3mf" }),
-            "3mf",
-            project,
-            includeProject,
-          );
-        } else if (format === "3mf") {
-          const bytes = writeThreeMf(
-            [
-              {
-                name: `Gridfinity bin ${label}`,
-                mesh: result.bodyMesh ?? result.mesh,
-                material: {
-                  name: "Bin body",
-                  displayColor: binColor as `#${string}`,
-                },
-              },
-              ...textObjects,
-            ],
-            { title: `Pocketry Gridfinity bin ${label}`, assemble: textObjects.length > 0 },
-          );
-          downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project, includeProject);
-        } else {
-          const stl = writeBinarySTL(
-            { positions: result.mesh.positions, indices: result.mesh.indices },
-            `Pocketry Gridfinity bin ${label}`,
-          );
-          downloadModelWithProject(
-            new Blob([stl], { type: "application/octet-stream" }),
-            "stl",
-            project,
-            includeProject,
-          );
-        }
+        const model = prepareModelExport(exportProjectDoc, format);
+        const project = prepareProjectExport(exportProjectDoc, currentProjectName, model.variant);
+        const bytes = model.serialize(await buildOnce(EXPORT_QUALITY, model.options));
+        downloadModelWithProject(new Blob([bytes], {
+          type: model.extension === "3mf" ? "model/3mf" : "application/octet-stream",
+        }), model.extension, project, includeProject);
         toast({
           title: "Saved",
-          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${prusaColorPreview ? "a Prusa color preview 3MF" : slicerCompatible ? "a Bambu multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${model.label} as ${model.displayFormat}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -1200,24 +1069,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setExporting(false);
       }
     },
-    [
-      exportProjectDoc,
-      currentProjectName,
-      buildOnce,
-      colorPocketFloors,
-      colorStackingRim,
-      colorDividerTops,
-      binColor,
-      pocketFloorColor,
-      pocketFloorThicknessMm,
-      stackingRimColor,
-      edgeBandColor,
-      stackingRimThicknessMm,
-      labelBackgroundColor,
-      labelBackgroundThicknessMm,
-      borderWidthMm,
-      toast,
-    ],
+    [exportProjectDoc, currentProjectName, buildOnce, toast],
   );
 
   const handleExportFitCheck = useCallback(
