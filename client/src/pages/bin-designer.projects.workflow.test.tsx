@@ -1,6 +1,7 @@
 import { webcrypto } from "node:crypto";
 import { BrowserLibraryFolder } from "@/lib/project/browser-folder";
 import { ConnectedLibrary, type FolderProject } from "@shared/project-library/library";
+import { encode, LegacyFolderError } from "@shared/project-library/format";
 import {
   TraceHandoff,
   projectToast,
@@ -703,6 +704,7 @@ describe("BinDesignerPage", () => {
       const settings = byId("library-settings");
       expect(settings.querySelector('h2')?.textContent).toBe("Library settings");
       expect(settings.textContent).toContain("Workshop projects");
+      expect(byId("library-file-backup").contains(byId("button-open-sample-library"))).toBe(false);
       for (const label of ["Change folder", "Refresh project list", "Disconnect folder", "Copy browser projects"]) {
         expect(settings.textContent).toContain(label);
       }
@@ -750,6 +752,50 @@ describe("BinDesignerPage", () => {
     } finally {
       unmount();
       for (const mock of [commit, list, pick, ...mocks]) mock.mockRestore();
+    }
+  });
+
+  it("recovers an older folder into Browser storage from the settings warning", async () => {
+    vi.stubGlobal("crypto", webcrypto);
+    localStorage.setItem("pocketry:library-storage", "folder");
+    const id = "00000000-0000-4000-8000-000000000001";
+    const name = `${id}.pocketry-library.json`;
+    const tray = { id: "old-tray", name: "Recovered tray", doc: EMPTY_PROJECT, updatedAt: "2026-11-22T00:00:00.000Z" };
+    const bytes = encode(JSON.stringify({ format: "pocketry-folder-revision", schemaVersion: 1, id, parents: [], projects: [tray] }));
+    const folder = new BrowserLibraryFolder({ name: "Older library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(folder, "entries").mockImplementation(async function* () { yield { name, kind: "file" }; }),
+      vi.spyOn(folder, "readLegacyRevision").mockResolvedValue({ bytes, modifiedAt: 0 }),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockRejectedValue(new LegacyFolderError(name)),
+    ];
+    vi.mocked(ProjectPersistence.importProjectLibrary).mockResolvedValueOnce({
+      library: { activeProjectId: null, projects: [tray] }, imported: 1, upgraded: 0, renamed: 0,
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Open Settings to recover projects");
+      const settings = openLibrarySettings();
+      expect(settings.querySelector('[data-testid="button-export-library"]')).toBeNull();
+      expect(settings.querySelector('[data-testid="button-open-sample-library"]')).not.toBeNull();
+      const recover = [...settings.querySelectorAll("button")].find(button => button.textContent?.trim() === "Recover to browser storage")!;
+      await React.act(async () => {
+        recover.click();
+        await vi.waitFor(() => expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledOnce());
+      });
+      expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ projects: [expect.objectContaining({ name: tray.name, doc: tray.doc })] }), "recover");
+      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Browser storage");
+      expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(tray.name);
+    } finally {
+      unmount();
+      for (const mock of mocks) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
     }
   });
 

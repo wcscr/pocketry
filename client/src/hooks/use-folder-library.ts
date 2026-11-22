@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserLibraryFolder, folderRequestId, type FolderDraft, type FolderIntent } from "@/lib/project/browser-folder";
 import { exportProjectLibrary } from "@/lib/project/persist";
 import { ConnectedLibrary, type FolderProject, type RequestOutcome } from "@shared/project-library/library";
-import { assignedProjectId, FOLDER_LIMITS, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
+import { assignedProjectId, FOLDER_LIMITS, LegacyFolderError, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
+import { recoverLegacyBackup } from "@shared/project-library/legacy-recovery";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
 export type LibraryStorage = "browser" | "folder";
@@ -27,6 +28,7 @@ export function useFolderLibrary(enabled = true) {
   const [projects, setProjects] = useState<FolderProject[]>([]);
   const [pending, setPending] = useState<FolderIntent[]>([]);
   const [canWrite, setCanWrite] = useState(false);
+  const [legacyFolder, setLegacyFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -42,6 +44,7 @@ export function useFolderLibrary(enabled = true) {
     try { return await operation(); }
     catch (cause) {
       if (cause instanceof LibraryError && cause.code === "permission") setCanWrite(false);
+      if (cause instanceof LegacyFolderError) setLegacyFolder(true);
       if (!(cause instanceof DOMException && cause.name === "AbortError")) {
         setError(cause instanceof Error ? cause.message : "The folder operation failed.");
       }
@@ -54,12 +57,17 @@ export function useFolderLibrary(enabled = true) {
   const load = useCallback(async (selected: BrowserLibraryFolder | null) => {
     setFolder(selected);
     setCanWrite(false);
+    setLegacyFolder(false);
     setProjects([]);
     setPending([]);
     if (!selected || !await selected.canWrite()) return;
     setCanWrite(true);
     setPending(await selected.pending());
-    setProjects(await new ConnectedLibrary(selected).list());
+    try { setProjects(await new ConnectedLibrary(selected).list()); }
+    catch (cause) {
+      if (!(cause instanceof LegacyFolderError)) throw cause;
+      setLegacyFolder(true);
+    }
   }, []);
   const refresh = useCallback(() => run(async () => load(await BrowserLibraryFolder.saved())), [run, load]);
   useEffect(() => { if (enabled && supported) void refresh(); }, [enabled, refresh, supported]);
@@ -106,6 +114,7 @@ export function useFolderLibrary(enabled = true) {
   };
 
   const writableFolder = async () => {
+    if (legacyFolder) throw new LegacyFolderError();
     if (!folder || !await folder.canWrite()) {
       throw new LibraryError("permission", "Connect a local folder or restore folder access in Library.");
     }
@@ -194,8 +203,11 @@ export function useFolderLibrary(enabled = true) {
   });
 
   return {
-    supported, folder, projects, pending, canWrite, busy, message, error, refresh, save, copyBrowserProjects, openProject, changeProject,
+    supported, folder, projects, pending, canWrite, legacyFolder, busy, message, error, refresh, save, copyBrowserProjects, openProject, changeProject,
     importBackup,
+    recoverBackup: () => run(async () => {
+      if (folder && legacyFolder) return recoverLegacyBackup(folder);
+    }),
     exportBackup: () => run(async () => {
       if (!folder || !await folder.canWrite()) throw new LibraryError("permission", "Restore folder access in Library before exporting.");
       return new ConnectedLibrary(folder).backup();

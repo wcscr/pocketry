@@ -2,7 +2,7 @@ import { del, get, keys, set, update } from "idb-keyval";
 import { z } from "zod";
 import { assertRevisionBasename, PublicationRejected, type FolderEntry, type LibraryFolder } from "@shared/project-library/adapter";
 import type { Mutation } from "@shared/project-library/library";
-import { LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
+import { legacyRevisionId, LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
 
 type PermissionOptions = { mode: "readwrite" };
 type DirectoryHandle = FileSystemDirectoryHandle & {
@@ -111,6 +111,15 @@ export class BrowserLibraryFolder implements LibraryFolder {
 
   async read(name: string, maxBytes: number) {
     assertRevisionBasename(name);
+    return this.readFile(name, maxBytes);
+  }
+
+  async readLegacyRevision(name: string, maxBytes: number) {
+    if (!legacyRevisionId(name)) throw new TypeError("Invalid older Pocketry revision filename.");
+    return this.readFile(name, maxBytes);
+  }
+
+  private async readFile(name: string, maxBytes: number) {
     try {
       const handle = await this.directory.getFileHandle(name);
       const file = await handle.getFile();

@@ -347,32 +347,35 @@ export async function importProjectToLibrary(input: ProjectDoc): Promise<OpenedL
  * Merge keeps existing entries; replace detaches the working copy as an unnamed
  * draft in the same transaction so autosave cannot overwrite an imported entry.
  */
-export async function importProjectLibrary(input: unknown, mode: LibraryImportMode = "merge", currentDoc?: ProjectDoc): Promise<LibraryImportResult> {
+export async function importProjectLibrary(input: unknown, mode: LibraryImportMode | "recover" = "merge", currentDoc?: ProjectDoc): Promise<LibraryImportResult> {
   if (!withinImportLimits(input, true)) throw new Error(IMPORT_LIMIT_ERROR);
   const backup = libraryBackupSchema.safeParse(input);
   if (!backup.success) {
     throw new Error("Not a supported Pocketry library JSON file. No designs were imported.");
   }
-  let upgraded = 0;
   const importedProjects = backup.data.projects.map((project) => {
     const doc = parseProjectDoc(project.doc);
     if (!doc) {
       throw new Error(`“${project.name}” is invalid or uses a newer Pocketry version. No designs were imported.`);
     }
-    if (project.doc.schemaVersion !== doc.schemaVersion) upgraded++;
-    return { ...project, name: cleanProjectName(project.name), doc };
+    return { ...project, name: cleanProjectName(project.name), doc, upgraded: project.doc.schemaVersion !== doc.schemaVersion };
   });
   return mutateLibrary(async (library, tx) => {
     const projects = mode === "replace" ? [] : [...library.projects];
     const ids = new Set(projects.map((project) => project.id));
-    let renamed = 0;
-    for (const project of importedProjects) {
+    let imported = 0, upgraded = 0, renamed = 0;
+    for (const { upgraded: needsUpgrade, ...project } of importedProjects) {
+      // Recovery IDs encode the original project and its contents, so a
+      // second recovery keeps any edits to the copy already in this browser.
+      if (mode === "recover" && ids.has(project.id)) continue;
       const name = availableProjectName(project.name, projects, "imported");
       if (name !== project.name) renamed++;
       let id = project.id;
       while (ids.has(id)) id = makeProjectId();
       ids.add(id);
       projects.push({ ...project, id, name, doc: { ...project.doc, name } });
+      imported++;
+      if (needsUpgrade) upgraded++;
     }
     const next = { ...library, activeProjectId: mode === "replace" ? null : library.activeProjectId, projects };
     if (mode === "replace") {
@@ -387,8 +390,8 @@ export async function importProjectLibrary(input: unknown, mode: LibraryImportMo
       } else {
         tx.set(PROJECT_LIBRARY_KEY, next);
       }
-    } else if (importedProjects.length > 0) tx.set(PROJECT_LIBRARY_KEY, next);
-    return { library: toSnapshot(next), imported: importedProjects.length, upgraded, renamed };
+    } else if (imported > 0) tx.set(PROJECT_LIBRARY_KEY, next);
+    return { library: toSnapshot(next), imported, upgraded, renamed };
   });
 }
 

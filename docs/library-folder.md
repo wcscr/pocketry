@@ -69,14 +69,13 @@ Pocketry's existing schema, migrations, embedded font sources, and serializer.
 File modification time is display metadata. Sorted object keys and meaningful
 array order define the canonical JSON used when this implementation writes.
 
-This schema is independent of the portable library backup format. Version 1
-of draft PR #145 stored complete snapshots in UUID-named files. Version 2
-refuses to write beside those files. Keep that directory as an archive, choose
-the version 1 revision you want to recover, and copy its `projects` array into
-a portable `{"format":"pocketry-library","schemaVersion":1,"projects":[…]}`
-backup. Import it in the browser, then copy the saved projects into a new
-folder. Review divergent version 1 heads separately. Automatic downgrade
-and conversion of draft history are outside version 2.
+This schema is independent of the portable library backup format. The older
+folder format stored whole-library snapshots in UUID-named files. Open
+**Library → Settings → Recover to browser storage** to copy the projects
+from its latest completed snapshots. Recovery keeps distinct versions from
+competing snapshots and reuses IDs to avoid duplicating prior recoveries. The
+original folder remains an archive of the older revisions. To continue in
+local storage, connect a different folder and choose **Copy browser projects**.
 
 ## Publication and recovery
 

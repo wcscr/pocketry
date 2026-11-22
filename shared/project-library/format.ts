@@ -26,6 +26,16 @@ export class LibraryError extends Error {
   }
 }
 
+export class LegacyFolderError extends LibraryError {
+  constructor(file?: string) {
+    super("unsupported-version", "Older Pocketry library. Open Library Settings to recover its projects.", { file, version: 1 });
+  }
+}
+
+export function legacyRevisionId(name: string): string | undefined {
+  return /^([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})\.pocketry-library\.json$/i.exec(name)?.[1];
+}
+
 export const projectIdSchema = z.string().min(1).max(128);
 export const requestIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/);
 export const revisionIdSchema = z.string().regex(/^[a-f0-9]{64}$/);

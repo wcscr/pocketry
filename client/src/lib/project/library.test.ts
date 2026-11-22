@@ -31,6 +31,20 @@ const backup = (docs: Record<string, unknown>[] = [DOC]): LibraryBackup => ({
 beforeEach(async () => { memory.clear(); await loadProjectDoc(); vi.clearAllMocks(); });
 
 describe("library JSON transfer", () => {
+  it("recovers a saved copy once and preserves edits made after recovery", async () => {
+    const legacy = backup();
+    const first = await importProjectLibrary(legacy, "recover");
+    expect(first.imported).toBe(1);
+    const [copy] = first.library.projects;
+    const opened = await openProjectFromLibrary(copy.id);
+    await saveProjectDoc({ ...opened.doc, keepBinSize: true }, copy.id);
+    const before = await exportProjectLibrary();
+    const second = await importProjectLibrary(legacy, "recover");
+    expect(second.imported).toBe(0);
+    expect(second.library.projects.map(project => project.id)).toEqual([copy.id]);
+    expect(await exportProjectLibrary()).toEqual(before);
+  });
+
   it("keeps independent colors through library backup, import, switches and reload", async () => {
     const first = { ...DOC, materials: { ...DEFAULT_BIN_MATERIALS,
       binColor: "#123456", pocketFloorColor: "#abcdef", stackingRimColor: "#654321",

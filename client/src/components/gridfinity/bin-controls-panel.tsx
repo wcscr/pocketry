@@ -251,7 +251,7 @@ export interface BinControlsPanelProps {
   onRefreshProjects: () => void;
   libraryStorage?: LibraryStorageControls;
   renderFolderLibrary?: (options: FolderLibraryActions) => React.ReactNode;
-  renderFolderLibrarySettings?: () => React.ReactNode;
+  renderFolderLibrarySettings?: (onRecovered: () => void) => React.ReactNode;
   openedInFolder?: boolean;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
@@ -2913,6 +2913,7 @@ interface LibraryStorageControls {
   refresh: () => Promise<unknown>;
   folderName?: string;
   folderHasProjects: boolean;
+  legacyFolder?: boolean;
   canSave: boolean;
   busy: boolean;
   error: string;
@@ -2948,7 +2949,7 @@ interface ProjectControlsProps {
   onRefreshProjects: () => void;
   libraryStorage?: LibraryStorageControls;
   renderFolderLibrary?: (options: FolderLibraryActions) => React.ReactNode;
-  renderFolderLibrarySettings?: () => React.ReactNode;
+  renderFolderLibrarySettings?: (onRecovered: () => void) => React.ReactNode;
   openedInFolder?: boolean;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
@@ -3261,7 +3262,7 @@ function ProjectControls({
         >
           <LibraryBig className="h-3.5 w-3.5 shrink-0" />
           <span>Library</span>
-          <span className="ml-auto text-muted-foreground">{storageLabel}{folderSaveBlocked ? libraryStorage?.folderName ? " · Check pending save" : " · Setup needed" : ""}</span>
+          <span className="ml-auto text-muted-foreground">{storageLabel}{folderSaveBlocked ? libraryStorage?.legacyFolder ? " · Recovery needed" : libraryStorage?.folderName ? " · Check pending save" : " · Setup needed" : ""}</span>
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -3469,14 +3470,14 @@ function ProjectControls({
             </Button>;
           })}
         </div>}
-        {usingFolder && renderFolderLibrarySettings?.()}
-        {(!usingFolder || libraryStorage?.folderName) && <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
+        {usingFolder && renderFolderLibrarySettings?.(() => setLibrarySettingsOpen(false))}
+        {(!usingFolder || (libraryStorage?.folderName && !libraryStorage.legacyFolder)) && <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Library backups" hint={usingFolder
               ? "Export the saved folder projects as one JSON file, or import a backup as new projects in the connected folder."
               : "Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging."} />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy || folderBusy}
               onClick={onExportLibrary} data-testid="button-export-library">
               <Download className="h-3.5 w-3.5 shrink-0" />Export library
@@ -3484,10 +3485,6 @@ function ProjectControls({
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy || folderBusy || folderSaveBlocked}
               onClick={() => libraryImportInputRef.current?.click()} data-testid="button-import-library">
               <Upload className="h-3.5 w-3.5 shrink-0" />Import library
-            </Button>
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy}
-              data-testid="button-open-sample-library" onClick={() => { setLibrarySettingsOpen(false); setSamplesOpen(true); }}>
-              <LibraryBig className="h-3.5 w-3.5 shrink-0" />Sample Library
             </Button>
           </div>
         </div>}
@@ -3498,7 +3495,11 @@ function ProjectControls({
             event.currentTarget.value = "";
             if (file && !busy) { setLibraryImportMode("merge"); setPendingLibraryFile(file); }
           }} />
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <Button size="sm" variant="ghost" className={projectActionClass} disabled={!ready || busy}
+            data-testid="button-open-sample-library" onClick={() => { setLibrarySettingsOpen(false); setSamplesOpen(true); }}>
+            <LibraryBig className="h-3.5 w-3.5 shrink-0" />Sample Library
+          </Button>
           <DialogClose asChild><Button type="button" className="min-h-11" data-testid="button-close-library-settings">Done</Button></DialogClose>
         </DialogFooter>
       </DialogContent>

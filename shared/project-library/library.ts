@@ -3,7 +3,7 @@ import { PROJECT_LIBRARY_VERSION, type LibraryBackup } from "../gridfinity/libra
 import { serializeProjectDoc } from "../gridfinity/project";
 import { PublicationRejected, type LibraryFolder } from "./adapter";
 import {
-  assignedProjectId, canonicalJson, digest, encode, FOLDER_FORMAT_VERSION, FOLDER_LIMITS, inputFingerprint, LibraryError,
+  assignedProjectId, canonicalJson, digest, encode, FOLDER_FORMAT_VERSION, FOLDER_LIMITS, inputFingerprint, legacyRevisionId, LegacyFolderError, LibraryError,
   parseRevisionFile, projectIdSchema, publicationSchema, readFolderProject, requestIdSchema,
   revisionFile, revisionIdSchema, type Change, type Publication,
 } from "./format";
@@ -163,9 +163,7 @@ export class ConnectedLibrary {
       if (++entries > FOLDER_LIMITS.entries) throw limit("There are too many entries in the connected folder.");
       const parsed = parseRevisionFile(entry.name);
       if (!parsed) {
-        if (/^[a-f0-9-]{36}\.pocketry-library\.json$/i.test(entry.name)) {
-          throw new LibraryError("unsupported-version", "This folder contains draft version 1 revisions. Recover them to a separate version 2 folder.", { file: entry.name, version: 1 });
-        }
+        if (legacyRevisionId(entry.name)) throw new LegacyFolderError(entry.name);
         continue;
       }
       if (++count > FOLDER_LIMITS.revisions) throw limit("There are too many revisions in the connected folder.");
