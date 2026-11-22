@@ -1,7 +1,8 @@
-import { del, get, keys, set } from "idb-keyval";
+import { del, get, keys, set, update } from "idb-keyval";
+import { z } from "zod";
 import { assertRevisionBasename, PublicationRejected, type FolderEntry, type LibraryFolder } from "@shared/project-library/adapter";
 import type { Mutation } from "@shared/project-library/library";
-import { LibraryError } from "@shared/project-library/format";
+import { LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
 
 type PermissionOptions = { mode: "readwrite" };
 type DirectoryHandle = FileSystemDirectoryHandle & {
@@ -18,7 +19,15 @@ export type FolderIntent = { candidateRevision?: string } & (
   | { kind: "commit"; mutation: Mutation }
   | { kind: "keep-both"; requestId: string; projectId: string; expected: string[]; keep: string }
 );
-type SavedConnection = { directory: DirectoryHandle; parentName: string };
+type SavedConnection = { directory: DirectoryHandle; parentName: string; id?: string };
+export const folderDraftSchema = z.object({
+  connectionId: z.uuid(), projectId: projectIdSchema, revision: revisionIdSchema, name: projectNameSchema,
+});
+export type FolderDraft = z.infer<typeof folderDraftSchema>;
+
+function connection(value: DirectoryHandle | SavedConnection): SavedConnection {
+  return "directory" in value ? value : { directory: value, parentName: value.name };
+}
 const PENDING = "pocketry:connected-folder-request:";
 export const folderRequestId = (intent: FolderIntent) => intent.kind === "commit" ? intent.mutation.requestId : intent.requestId;
 type PendingRequest = { directory: DirectoryHandle; intent: FolderIntent };
@@ -36,15 +45,27 @@ function browserError(error: unknown): Error {
 }
 
 export class BrowserLibraryFolder implements LibraryFolder {
-  constructor(private readonly directory: DirectoryHandle, private readonly parentName?: string) {}
+  constructor(private readonly directory: DirectoryHandle, private readonly parentName?: string,
+    readonly id: string = crypto.randomUUID()) {}
   get name() { return this.parentName ?? this.directory.name; }
 
   static supported() { return typeof pickDirectory() === "function"; }
 
   static async saved() {
-    const saved = await get<DirectoryHandle | SavedConnection>(KEY);
+    let saved = await get<DirectoryHandle | SavedConnection>(KEY);
     if (!saved) return null;
-    return "directory" in saved ? new BrowserLibraryFolder(saved.directory, saved.parentName) : new BrowserLibraryFolder(saved);
+    if (!connection(saved).id) {
+      // Legacy handles get one identity even if two tabs restore them together.
+      await update<DirectoryHandle | SavedConnection | undefined>(KEY, latest => {
+        if (!latest) { saved = undefined; return latest; }
+        const current = connection(latest);
+        saved = current.id ? current : { ...current, id: crypto.randomUUID() };
+        return saved;
+      });
+      if (!saved) return null;
+    }
+    const { directory, parentName, id } = connection(saved);
+    return new BrowserLibraryFolder(directory, parentName, id);
   }
 
   static async choose() {
@@ -52,13 +73,13 @@ export class BrowserLibraryFolder implements LibraryFolder {
     if (!picker) throw new LibraryError("permission", "This browser does not support connecting a folder.");
     const parent = await picker.call(window, access);
     const handle = await parent.getDirectoryHandle("pocketry-library", { create: true }) as DirectoryHandle;
-    await set(KEY, { directory: handle, parentName: parent.name } satisfies SavedConnection);
-    return new BrowserLibraryFolder(handle, parent.name);
+    const previous = await BrowserLibraryFolder.saved();
+    const id = previous && await handle.isSameEntry(previous.directory) ? previous.id : crypto.randomUUID();
+    await set(KEY, { directory: handle, parentName: parent.name, id } satisfies SavedConnection);
+    return new BrowserLibraryFolder(handle, parent.name, id);
   }
 
   static async disconnect() { await del(KEY); }
-
-  async sameDirectory(other: BrowserLibraryFolder) { return this.directory.isSameEntry(other.directory); }
 
   async remember(intent: FolderIntent) {
     await set(PENDING + folderRequestId(intent), { directory: this.directory, intent } satisfies PendingRequest);

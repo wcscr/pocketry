@@ -22,6 +22,7 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { folderDraftSchema, type FolderDraft } from "./browser-folder";
 
 /**
  * Project persistence over IndexedDB (`idb-keyval`, Apache-2.0).
@@ -47,13 +48,27 @@ function compactStoredValue(key: string, value: unknown): unknown {
   }
   return value;
 }
+
+// Keep the folder base in the same durable record as the edits it belongs to.
+// Only browser persistence recognizes this field, so exports keep their format.
+function workingCopy(value: unknown): { doc: unknown; folderDraft?: FolderDraft } {
+  if (!value || typeof value !== "object" || !("folderDraft" in value)) return { doc: value };
+  const { folderDraft, ...doc } = value;
+  const parsed = folderDraftSchema.safeParse(folderDraft);
+  return { doc, folderDraft: parsed.success ? parsed.data : undefined };
+}
+
 /** Stage all changes before the atomic compare-and-write. */
 class ProjectMutation {
   readonly entries = new Map<string, unknown>();
   constructor(readonly snapshot: ProjectStorageSnapshot) {}
-  get current(): unknown { return this.snapshot.current; }
+  get current(): unknown { return workingCopy(this.snapshot.current).doc; }
+  get folderDraft(): FolderDraft | undefined { return workingCopy(this.snapshot.current).folderDraft; }
   set(key: string, value: unknown): void { this.entries.set(key, compactStoredValue(key, value)); }
   setMany(entries: [string, unknown][]): void { for (const [key, value] of entries) this.set(key, value); }
+  setFolderDraft(doc: ProjectDoc, target: FolderDraft): void {
+    this.entries.set(CURRENT_PROJECT_KEY, { ...serializeProjectDoc({ ...doc, name: undefined }), folderDraft: target });
+  }
   nextSnapshot(): ProjectStorageSnapshot {
     return {
       current: this.entries.has(CURRENT_PROJECT_KEY) ? this.entries.get(CURRENT_PROJECT_KEY) : this.snapshot.current,
@@ -78,6 +93,7 @@ export interface ProjectLibraryItem {
 export interface ProjectLibrarySnapshot {
   activeProjectId: string | null;
   projects: ProjectLibraryItem[];
+  folderDraft?: FolderDraft;
 }
 
 export interface OpenedLibraryProject {
@@ -183,21 +199,23 @@ export async function loadProjectDoc(): Promise<ProjectDoc | null> {
   const snapshot = await readProjectStorage();
   expectedStorage = snapshot;
   if (snapshot.current == null) return null;
-  const doc = parseProjectDoc(snapshot.current);
+  const doc = parseProjectDoc(workingCopy(snapshot.current).doc);
   if (!doc) throw new Error("The saved project is unreadable or was saved by a newer Pocketry version. It has been kept intact. Reload with an up-to-date version to recover it.");
   return doc;
 }
 
 /** Read the header/destination without taking ownership of the autosave snapshot.
  * Only the Bin workspace may restore, recover, or establish a write baseline. */
-export async function readProjectOverview(): Promise<{ doc: ProjectDoc | null; activeProjectId: string | null }> {
+export async function readProjectOverview(): Promise<{ doc: ProjectDoc | null; activeProjectId: string | null; folderDraft?: FolderDraft }> {
   await libraryMutationQueue;
   const snapshot = await readProjectStorage();
-  const doc = snapshot.current == null ? null : parseProjectDoc(snapshot.current);
+  const copy = workingCopy(snapshot.current);
+  const doc = copy.doc == null ? null : parseProjectDoc(copy.doc);
   if (snapshot.current != null && !doc) throw new Error("The saved project could not be opened. It may need a newer Pocketry version. Stored work has been kept intact.");
   const library = readStoredLibrary(snapshot.library);
   const active = library.projects.find(project => project.id === library.activeProjectId);
-  return { doc: doc && active ? { ...doc, name: active.name } : doc, activeProjectId: library.activeProjectId };
+  return { doc: doc && active ? { ...doc, name: active.name } : doc, activeProjectId: library.activeProjectId,
+    ...(!active && doc && copy.folderDraft ? { folderDraft: copy.folderDraft } : {}) };
 }
 
 /** Normalize only defaults that hydration adds without an edit. A single
@@ -266,7 +284,9 @@ export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promi
         return toSnapshot(next);
       }
     }
-    return toSnapshot(library);
+    const result = toSnapshot(library);
+    if (restoredDoc && !library.activeProjectId && tx.folderDraft) result.folderDraft = tx.folderDraft;
+    return result;
   }, restoredDoc === undefined);
 }
 
@@ -400,7 +420,8 @@ export async function saveProjectDocResult(
       const unchanged = previousDoc && restoredDocumentKey(previousDoc) === restoredDocumentKey(doc);
       if (!library.activeProjectId) {
         if (unchanged) return;
-        tx.set(CURRENT_PROJECT_KEY, doc);
+        if (tx.folderDraft) tx.setFolderDraft(doc, tx.folderDraft);
+        else tx.set(CURRENT_PROJECT_KEY, doc);
         return;
       }
       const index = library.projects.findIndex(
@@ -573,6 +594,17 @@ export async function startNewProject(doc: ProjectDoc, saveDraft?: { doc: Projec
     }
     const next = { ...library, activeProjectId: null, projects };
     tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
+    return toSnapshot(next);
+  });
+}
+
+/** Open a folder revision or advance the base after a confirmed folder save. */
+export async function saveFolderDraft(doc: ProjectDoc, target: FolderDraft): Promise<ProjectLibrarySnapshot> {
+  return mutateLibrary(async (library, tx) => {
+    if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
+    const next = { ...library, activeProjectId: null };
+    tx.setFolderDraft(doc, target);
+    if (library.activeProjectId) tx.set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });
 }

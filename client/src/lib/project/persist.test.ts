@@ -31,6 +31,7 @@ import {
   openProjectFromLibrary,
   ProjectNameConflictError,
   renameProjectInLibrary,
+  saveFolderDraft,
   saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
@@ -59,6 +60,32 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("restores a folder draft and its pinned revision together, then clears the link on a new project", async () => {
+    const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "workshop-bin",
+      revision: "a".repeat(64), name: "Workshop bin" };
+    const original = await saveProjectToLibrary(DOC, "Browser bin", null);
+    await saveFolderDraft({ ...DOC, name: target.name }, target);
+    expect(await saveProjectDoc(WIDE_DOC, null)).toBe(true);
+
+    vi.resetModules();
+    const reloaded = await import("./persist");
+    const draft = await reloaded.loadProjectDoc();
+    expect(draft).toEqual(WIDE_DOC);
+    expect(await reloaded.loadProjectLibrary(draft)).toEqual({ activeProjectId: null,
+      projects: original.projects, folderDraft: target });
+    expect((await reloaded.readProjectOverview()).folderDraft).toEqual(target);
+
+    const newer = { ...target, revision: "b".repeat(64) };
+    await reloaded.saveFolderDraft(WIDE_DOC, newer);
+    // The stale editor's original snapshot must fail even with identical design data.
+    expect(await saveProjectDoc(DOC, null)).toBe(false);
+    expect((await reloaded.loadProjectLibrary(await reloaded.loadProjectDoc())).folderDraft).toEqual(newer);
+
+    await reloaded.startNewProject(DOC);
+    expect((await reloaded.loadProjectLibrary(await reloaded.loadProjectDoc())).folderDraft).toBeUndefined();
+    expect((await reloaded.openProjectFromLibrary(original.activeProjectId!)).doc.spec.gridX).toBe(2);
+  });
+
   it("reads the project overview without accepting another tab's write as our baseline", async () => {
     const library = await saveProjectToLibrary({ ...DOC, name: "Original" }, "Original", null);
     const external = { ...DOC, name: "External", spec: { ...DOC.spec, gridX: 7 } };

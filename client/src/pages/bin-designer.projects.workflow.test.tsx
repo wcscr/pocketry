@@ -640,7 +640,6 @@ describe("BinDesignerPage", () => {
       vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
       vi.spyOn(BrowserLibraryFolder, "saved").mockImplementation(async () => selected),
       vi.spyOn(folder, "canWrite").mockResolvedValue(true),
-      vi.spyOn(folder, "sameDirectory").mockResolvedValue(true),
       vi.spyOn(folder, "pending").mockResolvedValue([]),
       vi.spyOn(folder, "remember").mockResolvedValue(undefined),
       vi.spyOn(folder, "forget").mockResolvedValue(undefined),
@@ -720,6 +719,49 @@ describe("BinDesignerPage", () => {
     } finally {
       unmount();
       for (const mock of [commit, list, pick, ...mocks]) mock.mockRestore();
+    }
+  });
+
+  it("saves a recovered folder draft to its original revision without opening Library", async () => {
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const target = { connectionId: folder.id, projectId: "tray", revision: "a".repeat(64), name: "Socket tray" };
+    const edited = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+    const revision = "b".repeat(64);
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(folder, "remember").mockResolvedValue(undefined),
+      vi.spyOn(folder, "forget").mockResolvedValue(undefined),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]),
+    ];
+    const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async input => ({
+      status: "published", requestId: input.requestId, projects: [], requestCollision: false, pendingRevisions: [],
+      publications: [{ revision, fingerprint: "c".repeat(64), projectIds: [target.projectId] }],
+    }));
+    localStorage.setItem("pocketry:library-storage", "folder");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(edited);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: target });
+
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe(target.name);
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.click());
+      const save = document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!;
+      expect(save.textContent).toBe("Save changes");
+      await React.act(async () => save.click());
+
+      expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ projectId: target.projectId,
+        parents: [target.revision], name: target.name, doc: { spec: { gridX: 4 } } });
+      expect(ProjectPersistence.saveFolderDraft).toHaveBeenCalledWith(expect.objectContaining({ spec: expect.objectContaining({ gridX: 4 }) }),
+        { ...target, revision });
+      expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      for (const mock of [commit, ...mocks]) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
     }
   });
 

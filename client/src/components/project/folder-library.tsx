@@ -3,29 +3,29 @@ import { FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { folderRequestId, type BrowserLibraryFolder } from "@/lib/project/browser-folder";
-import type { FolderLibrary, OpenFolderProject } from "@/hooks/use-folder-library";
+import { folderRequestId, type FolderDraft } from "@/lib/project/browser-folder";
+import type { FolderLibrary } from "@/hooks/use-folder-library";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
 type Project = { projectId: string; revision: string; name: string };
 
 interface Props {
   library: FolderLibrary;
-  active: OpenFolderProject | null;
+  active: FolderDraft | null;
   busy: boolean;
   hasDraft: boolean;
-  onOpen: (doc: ProjectDoc, target: OpenFolderProject) => Promise<void>;
+  onOpen: (doc: ProjectDoc, target: FolderDraft) => Promise<void>;
   onOpened: () => void;
-  onFolderChanged?: (folder: BrowserLibraryFolder | null) => Promise<void>;
   onSave: () => void;
   onExportDraft: () => void;
 }
 
-export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onFolderChanged, onSave, onExportDraft }: Props) {
+export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onSave, onExportDraft }: Props) {
   const [selection, setSelection] = useState<(Project & { action: "open" | "rename" | "remove" }) | null>(null);
   const [name, setName] = useState("");
   const disabled = busy || library.busy;
   const blockedWrite = disabled || library.pending.length > 0;
+  const currentProject = active?.connectionId === library.folder?.id ? active : null;
 
   const finish = async () => {
     if (!selection) return;
@@ -52,14 +52,14 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
         <Button size="sm" variant={library.folder ? "outline" : "default"} className="min-h-11" disabled={disabled || !library.supported}
           onClick={() => {
             setSelection(null);
-            void library.connect().then(selected => { if (selected) return onFolderChanged?.(selected); });
+            void library.connect();
           }}>
           {library.folder ? library.canWrite ? "Change folder" : "Choose folder again" : "Choose a folder"}
         </Button>
         {library.folder && <Button size="sm" variant="ghost" className="min-h-11" disabled={disabled}
           onClick={() => {
             setSelection(null);
-            void library.disconnect().then(disconnected => { if (disconnected) return onFolderChanged?.(null); });
+            void library.disconnect();
           }}>Disconnect</Button>}
         {library.canWrite && <Button size="sm" variant="ghost" className="min-h-11" disabled={disabled}
           onClick={() => { setSelection(null); void library.refresh(); }}>Refresh</Button>}
@@ -82,7 +82,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
         {library.projects.map(project => <li key={project.projectId} className="space-y-2 rounded-md border p-3">
           {project.conflicted && <p className="text-sm font-medium">Competing revisions</p>}
           {project.heads.filter(head => !head.deleted).map(head => {
-            const current = active?.projectId === project.projectId && active.revision === head.revision;
+            const current = currentProject?.projectId === project.projectId && currentProject.revision === head.revision;
             const target = { projectId: project.projectId, ...head };
             const selected = selection?.projectId === project.projectId && selection.revision === head.revision;
             return <div key={head.revision} className="space-y-2">
@@ -100,7 +100,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
                     aria-label={`Rename ${head.name}`} onClick={() => { setName(head.name); setSelection({ ...target, action: "rename" }); }}>Rename</Button>
                   <Button size="sm" variant="outline" className="min-h-11" disabled={blockedWrite}
                     aria-label={`Copy ${head.name}`} onClick={() => void library.changeProject(project.projectId, head.revision, { kind: "copy" })}>Copy</Button>
-                  <Button size="sm" variant="ghost" className="min-h-11 text-destructive" disabled={blockedWrite || active?.projectId === project.projectId}
+                  <Button size="sm" variant="ghost" className="min-h-11 text-destructive" disabled={blockedWrite || currentProject?.projectId === project.projectId}
                     aria-label={`Remove ${head.name}`} onClick={() => setSelection({ ...target, action: "remove" })}>Remove</Button>
                 </>}
                 {project.heads.length > 1 && <Button size="sm" variant="outline" className="min-h-11" disabled={blockedWrite}

@@ -26,12 +26,12 @@ reader sees the saved folder revision and cannot inspect editor state, its
 pending autosave, or an unnamed draft.
 
 **Refresh** rereads the folder without changing the open editor. To see an
-assistant’s edit, select the project and open the new revision. Opening a
-folder revision makes a browser-local working draft and binds the next explicit
-folder save to the opened revision for that editor visit. Reloading restores
-the browser working draft. Open the desired folder revision again to establish
-a new base, or save the working draft as a new folder project. Switching to
-another project or disconnecting clears the current folder save target.
+assistant’s edit, select the project and open the new revision. Pocketry recovers
+the browser-local working draft and its folder project together after reload.
+Use **Save changes** to update the same project from the revision you were
+editing. If another writer has saved a newer revision, you can keep your draft
+by choosing **Save as new project** or exporting it. Starting or opening another
+project replaces the working draft and its save target.
 
 Each browser and profile grants its own permission. Choose **Restore folder access**
 when prompted. If the browser keeps file editing blocked, grant it in site

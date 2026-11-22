@@ -27,7 +27,8 @@ import { mergeValidationIssues } from "@shared/gridfinity/validation-issues";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { FolderLibraryContent } from "@/components/project/folder-library";
-import { useFolderLibrary, useLibraryStorage, type OpenFolderProject } from "@/hooks/use-folder-library";
+import { useFolderLibrary, useLibraryStorage } from "@/hooks/use-folder-library";
+import type { FolderDraft } from "@/lib/project/browser-folder";
 import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -84,6 +85,7 @@ import {
   loadProjectLibrary,
   openProjectFromLibrary,
   renameProjectInLibrary,
+  saveFolderDraft,
   saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
@@ -212,7 +214,7 @@ function BinDesignerWorkspace(): JSX.Element {
     labelBackgroundColor, labelBackgroundThicknessMm } = materials;
   const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
-  const [folderProject, setFolderProject] = useState<OpenFolderProject | null>(null);
+  const [folderProject, setFolderProject] = useState<FolderDraft | null>(null);
   const [libraryStorage, setLibraryStorage] = useLibraryStorage();
   const folderLibrary = useFolderLibrary(libraryStorage === "folder");
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
@@ -322,6 +324,7 @@ function BinDesignerWorkspace(): JSX.Element {
           description: `Your latest work was saved as “${restoredName}”. The earlier library version is still available.` });
       }
       if (doc) {
+        setFolderProject(saved.folderDraft ?? null);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.mergeShapes(doc.shapes);
@@ -729,9 +732,9 @@ function BinDesignerWorkspace(): JSX.Element {
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
   }, [saveProject, browserWorkingDoc, projectLibrary.activeProjectId]);
 
-  const loadFolderProject = useCallback(async (document: ProjectDoc, target: OpenFolderProject) => {
+  const loadFolderProject = useCallback(async (document: ProjectDoc, target: FolderDraft) => {
     const draft = { ...document, name: undefined };
-    const saved = await startNewProject(draft);
+    const saved = await saveFolderDraft(draft, target);
     setProjectLibrary(saved);
     setFolderProject(target);
     setActivityVisit(Symbol("Opened folder project"));
@@ -750,7 +753,7 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectRestoreFailed(false);
   }, [library, dispatch]);
 
-  const handleOpenFolderProject = async (document: ProjectDoc, target: OpenFolderProject) => {
+  const handleOpenFolderProject = async (document: ProjectDoc, target: FolderDraft) => {
     setProjectBusy(true);
     try {
       await saveBeforeReplacingProject();
@@ -894,13 +897,9 @@ function BinDesignerWorkspace(): JSX.Element {
         setFolderProject(target);
         setDraftName(null);
         try {
-          if (projectLibrary.activeProjectId) {
-            // Detach the working copy from browser-library autosave once the
-            // new folder project has been confirmed on disk.
-            const draft = { ...currentProjectDoc, name: undefined };
-            setProjectLibrary(await startNewProject(draft));
-            setRestoredDestination(projectDestinationKey(draft, null));
-          }
+          const draft = { ...currentProjectDoc, name: undefined };
+          setProjectLibrary(await saveFolderDraft(draft, target));
+          setRestoredDestination(projectDestinationKey(draft, null));
           setProjectRestoreFailed(false);
           toast({ title: "Project saved to local folder" });
         } catch {
@@ -1289,9 +1288,6 @@ function BinDesignerWorkspace(): JSX.Element {
           renderFolderLibrary={({ onOpened, onSave, hasDraft }) => <FolderLibraryContent
             library={folderLibrary} active={folderProject} busy={!bin.hydrated || projectBusy}
             hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened}
-            onFolderChanged={async selected => {
-              if (folderProject && (!selected || !await selected.sameDirectory(folderProject.folder))) setFolderProject(null);
-            }}
             onSave={onSave} onExportDraft={handleExportProject} />}
           openedInFolder={!!folderProject}
           onExportLibrary={() => void handleExportLibrary()}

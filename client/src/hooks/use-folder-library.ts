@@ -1,7 +1,7 @@
 import { IMPORT_LIMIT_ERROR, withinImportLimits } from "@shared/gridfinity/import-limits";
 import { libraryBackupSchema } from "@shared/gridfinity/library";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BrowserLibraryFolder, folderRequestId, type FolderIntent } from "@/lib/project/browser-folder";
+import { BrowserLibraryFolder, folderRequestId, type FolderDraft, type FolderIntent } from "@/lib/project/browser-folder";
 import { exportProjectLibrary } from "@/lib/project/persist";
 import { ConnectedLibrary, type FolderProject, type RequestOutcome } from "@shared/project-library/library";
 import { assignedProjectId, FOLDER_LIMITS, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
@@ -19,13 +19,6 @@ export function useLibraryStorage() {
     setStorage(next);
     try { localStorage.setItem(STORAGE_KEY, next); } catch { /* The choice still applies in this tab. */ }
   }] as const;
-}
-
-export interface OpenFolderProject {
-  folder: BrowserLibraryFolder;
-  projectId: string;
-  revision: string;
-  name: string;
 }
 
 /** One folder connection and mutation journal for every editor entry point. */
@@ -122,12 +115,12 @@ export function useFolderLibrary(enabled = true) {
     return folder;
   };
 
-  const save = (doc: ProjectDoc, name: string, active: OpenFolderProject | null = null) => run(async () => {
+  const save = (doc: ProjectDoc, name: string, active: FolderDraft | null = null) => run(async () => {
     const selected = await writableFolder();
     const projectName = projectNameSchema.safeParse(name.trim().replace(/\s+/g, " "));
     if (!projectName.success) throw new LibraryError("validation", "Enter a project name up to 80 characters.");
-    if (active && !await selected.sameDirectory(active.folder)) {
-      throw new LibraryError("stale-base", "Reopen the project from this folder before updating it, or save it as a new project.");
+    if (active && selected.id !== active.connectionId) {
+      throw new LibraryError("stale-base", "This draft is linked to a previous folder connection. Save it as a new project here, or export a backup to keep your changes.");
     }
     const requestId = crypto.randomUUID();
     const projectId = active?.projectId ?? await assignedProjectId(requestId);
@@ -135,7 +128,7 @@ export function useFolderLibrary(enabled = true) {
       projectId, parents: active ? [active.revision] : [], name: projectName.data, doc,
     }] } });
     if (outcome.status !== "published") return;
-    return { folder: selected, projectId, revision: outcome.publications[0].revision, name: projectName.data };
+    return { connectionId: selected.id, projectId, revision: outcome.publications[0].revision, name: projectName.data };
   });
 
   const copyBrowserProjects = () => run(async () => {
@@ -177,10 +170,10 @@ export function useFolderLibrary(enabled = true) {
     if (outcome.status === "published") return changes.length;
   });
 
-  const openProject = (projectId: string, revision: string, open: (doc: ProjectDoc, target: OpenFolderProject) => Promise<void>) => run(async () => {
+  const openProject = (projectId: string, revision: string, open: (doc: ProjectDoc, target: FolderDraft) => Promise<void>) => run(async () => {
     if (!folder) return;
     const value = await new ConnectedLibrary(folder).read(projectId, revision);
-    await open(value.doc, { folder, projectId, revision: value.revision, name: value.name });
+    await open(value.doc, { connectionId: folder.id, projectId, revision: value.revision, name: value.name });
     return true;
   });
 

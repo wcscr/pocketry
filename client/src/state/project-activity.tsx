@@ -73,10 +73,10 @@ export function ProjectActivityProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     let cancelled = false;
-    void readProjectOverview().then(({ doc, activeProjectId }) => {
+    void readProjectOverview().then(({ doc, activeProjectId, folderDraft }) => {
       if (cancelled || published.current) return;
       backup.current = doc;
-      setActivity({ name: doc?.name ?? null, activeProjectId, status: "saved", error: null, hasDocument: !!doc, destinationKey: projectDestinationKey(doc, activeProjectId) });
+      setActivity({ name: folderDraft?.name ?? doc?.name ?? null, activeProjectId, status: "saved", error: null, hasDocument: !!doc, destinationKey: projectDestinationKey(doc, activeProjectId) });
     }).catch(cause => {
       if (cancelled || published.current) return;
       setActivity({ ...INITIAL, status: "error", error: cause instanceof Error ? cause.message : "Could not read projects in this browser. Open the browser library to recover your work." });

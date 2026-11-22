@@ -176,6 +176,7 @@ vi.mock("@/lib/project/persist", () => ({
   readProjectOverview: vi.fn(async () => ({ doc: null, activeProjectId: null })),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectDoc: vi.fn(async () => true),
+  saveFolderDraft: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectToLibrary: vi.fn(),
   renameProjectInLibrary: vi.fn(),
   openProjectFromLibrary: vi.fn(),
