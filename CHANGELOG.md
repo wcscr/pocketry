@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Save and reopen named project revisions in an optional connected local folder.
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.

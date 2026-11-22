@@ -245,6 +245,7 @@ export interface BinControlsPanelProps {
   onOpenProject: (projectId: string) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
+  connectedFolder?: React.ReactNode;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: (saveDraftName?: string, fixture?: boolean) => Promise<boolean>;
@@ -317,6 +318,7 @@ export function BinControlsPanel({
   onOpenProject,
   onDeleteProject,
   onRefreshProjects,
+  connectedFolder,
   onExportLibrary,
   onImportLibrary,
   onNewProject,
@@ -2653,6 +2655,7 @@ export function BinControlsPanel({
             onOpenProject={onOpenProject}
             onDeleteProject={onDeleteProject}
             onRefreshProjects={onRefreshProjects}
+            connectedFolder={connectedFolder}
             onExportLibrary={onExportLibrary}
             onImportLibrary={onImportLibrary}
             onNewProject={onNewProject}
@@ -2910,6 +2913,7 @@ interface ProjectControlsProps {
   onOpenProject: (projectId: string) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onRefreshProjects: () => void;
+  connectedFolder?: React.ReactNode;
   onExportLibrary: () => void;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: (saveDraftName?: string, fixture?: boolean) => Promise<boolean>;
@@ -2944,6 +2948,7 @@ function ProjectControls({
   onOpenProject,
   onDeleteProject,
   onRefreshProjects,
+  connectedFolder,
   onExportLibrary,
   onImportLibrary,
   onNewProject,
@@ -3473,6 +3478,7 @@ function ProjectControls({
       </div>
       {!activeProjectId && <Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal" disabled={!ready || busy} onClick={() => setSaveOpen(true)}>Save this draft to Library</Button>}
       {renderLibraryDialog()}
+      {connectedFolder}
       <SampleLibraryDialog open={samplesOpen && !sampleAction && !settingsOpen} busy={busy}
         onOpenChange={setSamplesOpen}
         onOpenSample={project => chooseSampleAction({ kind: "project", doc: project.doc })}

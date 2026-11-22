@@ -12,6 +12,7 @@ and internal refactors usually need no changelog entry.
 
 ## Start here
 
+- [Connected project folders](library-folder.md)
 - [Photo-to-bin quick start](https://pocketry.xyz/quick-start/) and [sample downloads](https://pocketry.xyz/samples/).
 - [Photo-to-bin tutorial](../README.md#basic-process) and
   [tutorial image sources/capture steps](images/README.md).

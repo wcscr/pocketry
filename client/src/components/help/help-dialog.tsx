@@ -182,7 +182,8 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               first or export it separately. Keep the original Trace photo separately: project backups
               do not include it. Storage belongs to this browser and site address, including when
               self-hosting; changing the hostname or port opens a separate library. Keep backups to
-              move designs between browsers or devices.
+              move designs between browsers or devices. Use <strong>Connected folder</strong> in Projects
+              to save named revisions to a local folder in supported browsers.
             </p>
           </li>
         </ol>

@@ -87,7 +87,7 @@ describe("first-use welcome", () => {
     await render();
     expect(dialog()?.textContent).toContain("Design custom Gridfinity or flat-bottom bins, or create templates for laser etching and UV printing.");
     expect(dialog()!.querySelectorAll('ol[aria-label="From photo to bin"] li')).toHaveLength(3);
-    expect(dialog()?.textContent).toContain("Projects are saved only in this browser.");
+    expect(dialog()?.textContent).toContain("Projects save in this browser by default.");
     expect(dialog()?.textContent).toContain("Export project");
     expect(dialog()!.querySelectorAll('[aria-label="Get started"] button')).toHaveLength(3);
     expect(dialog()!.querySelector<HTMLDetailsElement>("details")?.open).toBe(false);
