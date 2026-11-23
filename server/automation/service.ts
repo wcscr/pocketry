@@ -11,6 +11,7 @@ import {
   projectIdSchema, projectNameSchema, readFolderProject, requestIdSchema, revisionIdSchema,
 } from "../../shared/project-library/format";
 import { ConnectedLibrary, type RequestOutcome } from "../../shared/project-library/library";
+import { ProjectBusyError, type ProjectEditLocks } from "./project-locks";
 
 export const AUTOMATION_VERSION = 1;
 export const MAX_DETAIL_BYTES = 4 * 1024 * 1024;
@@ -37,6 +38,9 @@ export interface CommandFailure {
 }
 
 export function commandFailure(cause: unknown): CommandFailure {
+  if (cause instanceof ProjectBusyError) {
+    return { ok: false, error: { code: "busy", message: cause.message, details: { projectId: cause.projectId } } };
+  }
   if (cause instanceof z.ZodError) {
     return { ok: false, error: { code: "validation", message: "Invalid project settings.", details: { issues: cause.issues.slice(0, 25) } } };
   }
@@ -56,6 +60,7 @@ const projectRef = z.strictObject({ projectId: projectIdSchema, revision: revisi
 const targetRef = projectRef.extend({ revision: revisionIdSchema.optional() });
 const editList = z.array(projectEditSchema).min(1).max(MAX_PROJECT_EDITS);
 const exportFormat = z.enum([...MODEL_FORMATS, "backup"]);
+const editTokenSchema = z.uuid().describe("Edit token from begin_edit in this MCP connection.");
 
 function checkLayoutSize(project: ProjectDoc) {
   if (project.cutouts.length + project.fingerHoles.length + project.spec.surfaceTexts.length > MAX_LAYOUT_OBJECTS) {
@@ -109,7 +114,8 @@ function tool<S extends z.ZodType, Output>(
 
 /** Both transports call these same typed definitions and validated operations. */
 export class AutomationService {
-  constructor(private readonly library: ConnectedLibrary, private readonly artifacts: AutomationArtifacts) {}
+  constructor(private readonly library: ConnectedLibrary, private readonly artifacts: AutomationArtifacts,
+    private readonly locks: ProjectEditLocks) {}
 
   readonly commands = {
     capabilities: tool(z.strictObject({}), "Discover local Pocketry commands and versions.", true, () => ({
@@ -118,6 +124,7 @@ export class AutomationService {
       projectSchemaVersion: PROJECT_SCHEMA_VERSION,
       reads: "completed named folder revisions",
       edits: projectEditSchema.options.map(option => option.shape.type.value),
+      editing: { lock: "per-project", sessionTools: ["begin_edit", "end_edit"], sessionTransport: "mcp" },
       exportFormats: exportFormat.options,
       limits: { ...FOLDER_LIMITS, edits: MAX_PROJECT_EDITS, page: 100, detailBytes: MAX_DETAIL_BYTES, exportTimeoutMs: EXPORT_TIMEOUT_MS, layoutObjects: MAX_LAYOUT_OBJECTS },
     })),
@@ -148,6 +155,18 @@ export class AutomationService {
         const saved = await this.library.read(projectId, revision);
         return { projectId, revision: saved.revision, validation: validationFor(saved.doc) };
       }),
+    begin_edit: tool(z.strictObject({ projectId: projectIdSchema }),
+      "Start an exclusive edit session for this project. Returns the current revision and an edit token. MCP only.", false,
+      async ({ projectId }, signal) => this.locks.begin(projectId, async () => {
+        const saved = await this.library.read(projectId);
+        checkCancellation(signal);
+        return { projectId, revision: saved.revision };
+      })),
+    end_edit: tool(z.strictObject({ projectId: projectIdSchema, editToken: editTokenSchema }),
+      "Release this worker’s project edit session. MCP only.", false, ({ projectId, editToken }) => {
+        this.locks.end(projectId, editToken);
+        return { projectId, released: true };
+      }),
     apply_edits: tool(projectRef.extend({ edits: editList }), "Preview a bounded semantic edit batch. Nothing is written. Pass the same base and edits to commit_project or copy_project.", true,
       async ({ projectId, revision, edits }) => {
         const saved = await this.library.read(projectId, revision);
@@ -171,7 +190,7 @@ export class AutomationService {
           heightUnits: heightUnits ?? INITIAL_BIN_SPEC.heightUnits, fill: fill ?? INITIAL_BIN_SPEC.fill,
         });
         const project = { schemaVersion: PROJECT_SCHEMA_VERSION, name, spec, shapes: [], cutouts: [], fingerHoles: [] };
-        return { project, projectId: await assignedProjectId(input.requestId), parents: [], requireValidLayout: true };
+        return { project, parents: [], requireValidLayout: true };
       })),
     import_project: tool(z.strictObject({
       name: projectNameSchema, requestId: requestIdSchema, expectedBase: z.null(),
@@ -181,7 +200,7 @@ export class AutomationService {
         // Guard raw imports before canonical hashing or replay lookup.
         const project = readFolderProject(input.document);
         return this.publish("import_project", input, signal, async () => ({
-          project: { ...project, name: input.name }, projectId: await assignedProjectId(input.requestId), parents: [],
+          project: { ...project, name: input.name }, parents: [],
         }));
       }),
     copy_project: tool(projectRef.extend({
@@ -192,29 +211,33 @@ export class AutomationService {
         const source = await this.library.read(input.projectId, input.revision);
         const project = input.edits ? (await this.edit(source.doc, input.edits)).project : source.doc;
         return {
-          project: { ...project, name: input.name }, projectId: await assignedProjectId(input.requestId),
+          project: { ...project, name: input.name },
           parents: [], requireValidLayout: !!input.edits,
         };
       })),
     commit_project: tool(z.strictObject({
       requestId: requestIdSchema, projectId: projectIdSchema, expectedBase: revisionIdSchema, edits: editList,
+      editToken: editTokenSchema.optional(),
     }), "Commit a validated batch against the expected single head, retaining one undo step.", false,
-      async (input, signal) => this.publish("commit_project", input, signal, async () => {
+      async ({ editToken, ...input }, signal) => this.publish("commit_project", input, signal, async () => {
         const source = await this.library.read(input.projectId, input.expectedBase);
         return {
           project: (await this.edit(source.doc, input.edits)).project,
-          projectId: input.projectId, parents: [input.expectedBase], requireValidLayout: true,
+          parents: [input.expectedBase], requireValidLayout: true,
         };
-      })),
+      }, { projectId: input.projectId, editToken })),
     inspect_request: tool(z.strictObject({ requestId: requestIdSchema, revision: revisionIdSchema.optional() }), "Find an operation’s durable publication and its current heads after a lost or uncertain reply.", true,
       async ({ requestId, revision }) => this.library.inspect(requestId, revision)),
     keep_both: tool(z.strictObject({
       requestId: requestIdSchema, projectId: projectIdSchema,
       expectedHeads: z.array(revisionIdSchema).min(2).max(FOLDER_LIMITS.parents),
-      keep: revisionIdSchema,
+      keep: revisionIdSchema, editToken: editTokenSchema.optional(),
     }), "Retain the chosen head under the original ID and copy competing live heads to new IDs.", false,
-      async ({ requestId, projectId, expectedHeads, keep }, signal) =>
-        this.library.keepBoth(requestId, projectId, expectedHeads, keep, () => checkCancellation(signal))),
+      async ({ requestId, projectId, expectedHeads, keep, editToken }, signal) =>
+        this.locks.run(projectId, editToken, async () => {
+          checkCancellation(signal);
+          return this.library.keepBoth(requestId, projectId, expectedHeads, keep, () => checkCancellation(signal));
+        })),
     export_revision: tool(projectRef.extend({ format: exportFormat }),
       "Export an exact saved revision to a local artifact. Formats include STL, 3MF, multicolor 3MF, and editable backup.", false,
       async ({ projectId, revision, format }, signal) => {
@@ -242,6 +265,8 @@ export class AutomationService {
     return this.commands[command as keyof typeof this.commands].execute(input, signal);
   }
 
+  close(): void { this.locks.close(); }
+
   private async edit(project: ProjectDoc, edits: readonly ProjectEdit[]) {
     checkLayoutSize(project);
     const result = await applyProjectEditBatch(project, edits);
@@ -254,7 +279,8 @@ export class AutomationService {
     command: string,
     input: { requestId: string },
     signal: AbortSignal,
-    prepare: () => Promise<{ project: ProjectDoc; projectId: string; parents: string[]; requireValidLayout?: boolean }>,
+    prepare: () => Promise<{ project: ProjectDoc; parents: string[]; requireValidLayout?: boolean }>,
+    target?: { projectId: string; editToken?: string },
   ): Promise<{ outcome: RequestOutcome; validation?: ReturnType<typeof validationFor> }> {
     const fingerprint = await inputFingerprint({ apiVersion: AUTOMATION_VERSION, command, input });
     const previous = await this.library.inspect(input.requestId);
@@ -262,17 +288,20 @@ export class AutomationService {
       if (previous.publications.some(publication => publication.fingerprint === fingerprint)) return { outcome: previous };
       throw new LibraryError("request-reused", "This request ID already has different input.", { requestId: input.requestId });
     }
-    checkCancellation(signal);
-    const { project, projectId, parents, requireValidLayout } = await prepare();
-    const validation = validationFor(project);
-    if (requireValidLayout && !validation.ok) {
-      throw new LibraryError("validation", "The batch would leave the project with design errors. No changes were published.", { validation });
-    }
-    checkCancellation(signal);
-    const outcome = await this.library.commit({
-      requestId: input.requestId, fingerprint,
-      changes: [{ projectId, parents, name: project.name!, doc: project }],
-    }, () => checkCancellation(signal));
-    return { outcome, validation };
+    const projectId = target?.projectId ?? await assignedProjectId(input.requestId);
+    return this.locks.run(projectId, target?.editToken, async () => {
+      checkCancellation(signal);
+      const { project, parents, requireValidLayout } = await prepare();
+      const validation = validationFor(project);
+      if (requireValidLayout && !validation.ok) {
+        throw new LibraryError("validation", "The batch would leave the project with design errors. No changes were published.", { validation });
+      }
+      checkCancellation(signal);
+      const outcome = await this.library.commit({
+        requestId: input.requestId, fingerprint,
+        changes: [{ projectId, parents, name: project.name!, doc: project }],
+      }, () => checkCancellation(signal));
+      return { outcome, validation };
+    });
   }
 }

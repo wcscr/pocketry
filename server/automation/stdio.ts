@@ -68,56 +68,58 @@ export async function serveMcp(service: AutomationService, input: Readable, outp
     annotations: { readOnlyHint: command.readOnly, openWorldHint: false },
   }));
 
-  for await (const line of lines(input)) {
-    if (output.writableNeedDrain) await once(output, "drain");
-    if (line === null) { error(null, -32000, "MCP message exceeds the byte limit."); continue; }
-    if (!line.trim()) continue;
-    let raw: unknown;
-    try { raw = JSON.parse(line); }
-    catch { error(null, -32700, "Invalid JSON."); continue; }
-    const message = rpcMessage.safeParse(raw);
-    if (!message.success) { error(null, -32600, "Invalid JSON-RPC message."); continue; }
+  try {
+    for await (const line of lines(input)) {
+      if (output.writableNeedDrain) await once(output, "drain");
+      if (line === null) { error(null, -32000, "MCP message exceeds the byte limit."); continue; }
+      if (!line.trim()) continue;
+      let raw: unknown;
+      try { raw = JSON.parse(line); }
+      catch { error(null, -32700, "Invalid JSON."); continue; }
+      const message = rpcMessage.safeParse(raw);
+      if (!message.success) { error(null, -32600, "Invalid JSON-RPC message."); continue; }
 
-    const { id, method, params } = message.data;
-    const active = session.active;
-    if (id === undefined) {
-      if (method === "notifications/initialized" && started) ready = true;
-      if (method === "notifications/cancelled" && active?.id === params?.requestId) active?.cancel.abort();
-      continue;
+      const { id, method, params } = message.data;
+      const active = session.active;
+      if (id === undefined) {
+        if (method === "notifications/initialized" && started) ready = true;
+        if (method === "notifications/cancelled" && active?.id === params?.requestId) active?.cancel.abort();
+        continue;
+      }
+      if (method === "ping") { reply(id, { result: {} }); continue; }
+      if (method === "initialize") {
+        if (started || !initialize.safeParse(params).success) { error(id, -32602, "Invalid or repeated initialization."); continue; }
+        started = true;
+        reply(id, { result: {
+          protocolVersion: MCP_VERSION,
+          capabilities: { tools: {} },
+          serverInfo: { name: "pocketry", version: "1.0.0" },
+        } });
+        continue;
+      }
+      if (method !== "tools/list" && method !== "tools/call") { error(id, -32601, "Method not found."); continue; }
+      if (!ready) { error(id, -32002, "Initialize the MCP connection first."); continue; }
+      if (method === "tools/list") { reply(id, { result: { tools } }); continue; }
+      const call = toolCall.safeParse(params);
+      if (!call.success) { error(id, -32602, "Use a tool name and an argument object."); continue; }
+      if (active?.id === id) { error(id, -32600, "A request with this ID is already active."); continue; }
+      if (active) {
+        const failure = commandFailure(new CommandError("busy", "Another command is active. Wait for it before retrying."));
+        reply(id, { result: { content: [{ type: "text", text: JSON.stringify(failure) }], structuredContent: failure, isError: true } });
+        continue;
+      }
+      const cancel = new AbortController();
+      const result = service.execute(call.data.name, call.data.arguments ?? {}, cancel.signal)
+        .then(result => ({ ok: true as const, result })).catch(commandFailure)
+        .then(result => {
+          if (!cancel.signal.aborted) {
+            reply(id, { result: { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result, isError: !result.ok } });
+          }
+        }).finally(() => { delete session.active; });
+      session.active = { id, cancel, result };
     }
-    if (method === "ping") { reply(id, { result: {} }); continue; }
-    if (method === "initialize") {
-      if (started || !initialize.safeParse(params).success) { error(id, -32602, "Invalid or repeated initialization."); continue; }
-      started = true;
-      reply(id, { result: {
-        protocolVersion: MCP_VERSION,
-        capabilities: { tools: {} },
-        serverInfo: { name: "pocketry", version: "1.0.0" },
-      } });
-      continue;
-    }
-    if (method !== "tools/list" && method !== "tools/call") { error(id, -32601, "Method not found."); continue; }
-    if (!ready) { error(id, -32002, "Initialize the MCP connection first."); continue; }
-    if (method === "tools/list") { reply(id, { result: { tools } }); continue; }
-    const call = toolCall.safeParse(params);
-    if (!call.success) { error(id, -32602, "Use a tool name and an argument object."); continue; }
-    if (active?.id === id) { error(id, -32600, "A request with this ID is already active."); continue; }
-    if (active) {
-      const failure = commandFailure(new CommandError("busy", "Another command is active. Wait for it before retrying."));
-      reply(id, { result: { content: [{ type: "text", text: JSON.stringify(failure) }], structuredContent: failure, isError: true } });
-      continue;
-    }
-    const cancel = new AbortController();
-    const result = service.execute(call.data.name, call.data.arguments ?? {}, cancel.signal)
-      .then(result => ({ ok: true as const, result })).catch(commandFailure)
-      .then(result => {
-        if (!cancel.signal.aborted) {
-          reply(id, { result: { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result, isError: !result.ok } });
-        }
-      }).finally(() => { delete session.active; });
-    session.active = { id, cancel, result };
+  } finally {
+    // Keep the worker’s edit lock through an active command when input ends.
+    await session.active?.result;
   }
-
-  // A caller closing stdin may still be draining its final response.
-  await session.active?.result;
 }

@@ -85,6 +85,8 @@ Example structured content for an empty folder.
 | `list_projects` | Compact summaries in project-ID order. Pass `nextAfter` back as `after`. |
 | `read_project` | Saved summary with optional pinned `revision`. Choose `detail: "geometry"` or `"history"` explicitly. |
 | `validate_project` | Document and layout findings without building solids |
+| `begin_edit` | Acquire an MCP edit session and return the current revision and an edit token |
+| `end_edit` | Release the edit session held by this MCP connection |
 | `apply_edits` | Preview a batch against a pinned revision and return validation findings |
 | `create_project` | Commit a new named Gridfinity project |
 | `import_project` | Commit an editable backup as a named project, preserving the design’s internal object IDs |
@@ -102,6 +104,30 @@ pin the source even if later edits have been saved. Inspect a lost reply
 before retrying with the same ID and arguments. The
 [folder publication contract](library-folder.md#publication-and-recovery)
 defines the status fields and concurrent reuse behavior.
+
+### Exclusive edit sessions
+
+To reserve a project across multiple MCP calls, pass its `projectId` to
+`begin_edit`. Preview or plan against the returned `revision`. Send that revision
+as `expectedBase` and the returned `editToken` with `commit_project`. Use
+`end_edit` with the project ID and token when you finish or abandon the edit.
+Each MCP connection holds at most one session. Retrying `begin_edit` on the same
+connection for that project returns its existing token after a lost reply.
+
+CLI mutations and MCP mutations outside a session acquire an automatic lock for
+the operation. Contending writers get `busy` with `details.projectId` and can try
+again once the lock releases. Other projects and reads stay available. `keep_both`
+locks the existing project and uses new IDs for copies. `editToken` identifies
+the live session and can change when retrying the same durable `requestId`.
+
+Workers use Node’s built-in SQLite to take a write lock on a stable file for
+each project under `.pocketry-locks` in the library. The operating system releases
+the lock on process exit, including a crash. Keep the directory and its files in
+place while workers are running. Workers must share the same files on a local
+filesystem. Browser edits use the revision and conflict checks, and those checks
+also apply when an automation worker has a lock. [Node SQLite API](https://nodejs.org/api/sqlite.html)
+
+### Edit batches
 
 A batch contains at most 16 semantic edits. It preserves pocket and finger
 placement, dimensions, footprints, and internal IDs. Compartment changes

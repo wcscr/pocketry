@@ -8,6 +8,7 @@ import { serializeProjectDoc } from "../../shared/gridfinity/project";
 import { NodeLibraryFolder } from "../project-library/node-folder";
 import { folderFixture, modelBrowserFolder } from "../project-library/folder.test-support";
 import { AutomationService } from "./service";
+import { nodeProjectEditLocks } from "./project-locks";
 
 let root: string;
 let folder: NodeLibraryFolder;
@@ -26,7 +27,7 @@ function makeService(target: ConnectedLibrary) {
   return new AutomationService(target, {
     write: (extension, bytes) => folder.publishArtifact(extension, bytes),
     model: async () => { throw new Error("Geometry is qualified separately."); },
-  });
+  }, nodeProjectEditLocks(folder));
 }
 
 describe("local automation commands", () => {
@@ -57,7 +58,7 @@ describe("local automation commands", () => {
     const restarted = makeService(new ConnectedLibrary(await NodeLibraryFolder.connect(root)));
     expect(await restarted.execute("copy_project", input)).toEqual({ outcome: copied.outcome });
     await expect(restarted.execute("copy_project", { ...input, name: "Other" })).rejects.toMatchObject({ code: "request-reused" });
-    expect(await readdir(root)).toHaveLength(2);
+    expect((await readdir(root)).filter(name => name.startsWith("pocketry-r"))).toHaveLength(2);
 
     const summary = await restarted.commands.read_project.execute({ projectId: id }, new AbortController().signal);
     expect(summary).toMatchObject({ projectId: id, revision, summary: { pockets: 2, labels: 1 } });
@@ -84,7 +85,7 @@ describe("local automation commands", () => {
     await expect(service.execute("commit_project", edit)).resolves.toMatchObject({ outcome: { status: "published" } });
     await expect(makeService(new ConnectedLibrary(folder)).execute("commit_project", edit)).resolves.toMatchObject({ outcome: { status: "published" } });
     await expect(service.execute("commit_project", { ...edit, requestId: "stale" })).rejects.toMatchObject({ code: "stale-base" });
-    expect(await readdir(root)).toHaveLength(2);
+    expect((await readdir(root)).filter(name => name.startsWith("pocketry-r"))).toHaveLength(2);
   });
 
   it("starts the same two-row grid as the browser when enabling unused compartments", async () => {

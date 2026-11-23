@@ -4,6 +4,7 @@ import type { LibraryFolder } from "../../shared/project-library/adapter";
 import { ConnectedLibrary } from "../../shared/project-library/library";
 import { folderFixture, raceFolders } from "../project-library/folder.test-support";
 import { AutomationService } from "./service";
+import { ProjectEditLocks } from "./project-locks";
 import { MCP_VERSION, readCliInput, serveMcp } from "./stdio";
 
 const artifacts = {
@@ -12,7 +13,7 @@ const artifacts = {
 };
 const service = new AutomationService(new ConnectedLibrary({
   async *entries() {}, async read() { return null; }, async publish() { throw new Error("Unexpected write"); },
-}), artifacts);
+}), artifacts, new ProjectEditLocks(async () => () => {}));
 
 describe("stdio automation", () => {
   it("negotiates MCP, publishes schemas, and runs a tool with protocol-only output", async () => {
@@ -76,7 +77,7 @@ describe("stdio automation", () => {
         yield* folder.entries();
       },
     };
-    const running = new AutomationService(new ConnectedLibrary(pausingFolder), artifacts);
+    const running = new AutomationService(new ConnectedLibrary(pausingFolder), artifacts, new ProjectEditLocks(async () => () => {}));
     const execute = running.execute.bind(running);
     vi.spyOn(running, "execute").mockImplementation((name, args, signal) => {
       signal?.addEventListener("abort", () => cancelled.resolve(), { once: true });
