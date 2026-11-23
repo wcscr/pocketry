@@ -17,12 +17,10 @@ form and a single-use Turnstile token, then uses Cloudflare Email Service's REST
 API to send plain text to one **verified Email Routing destination address**.
 The reports live in that inbox, with no application database or public issue.
 Cloudflare Email Service currently permits sends to verified destinations on
-Workers Free, even when the account only uses Email Routing. A public alias such
-as `feedback@pocketry.xyz` is a routing address, not necessarily the verified
-destination; send to the actual verified inbox address to stay within the free
-exception. Arbitrary recipients require Workers Paid. `feedback@pocketry.xyz`
-is the public address and fixed sender; its forwarding destination is configured
-separately as a secret.
+Workers Free, even when the account only uses Email Routing. The form sends to
+the verified destination `pocketryapp@gmail.com`, configured as the `FEEDBACK_TO`
+secret. `feedback@pocketry.xyz` remains the fixed sender for mail sent through
+Cloudflare. Arbitrary recipients require Workers Paid.
 
 Pages Functions share Workers Free's 100,000 requests/day and 10 ms CPU limit.
 Only feedback requests consume Function invocations. Turnstile Free includes
@@ -32,12 +30,10 @@ the account before enabling it; Email Sending remains a beta service.
 
 ## Production setup
 
-1. In **Compute → Email Service → Email Routing → Destination Addresses**, find
-   the inbox that receives mail forwarded from `feedback@pocketry.xyz`. Confirm
-   that this **destination** is verified. If no suitable destination is verified,
-   add one and complete its verification email. Keep its actual address private.
-2. Create the `feedback@pocketry.xyz` routing address and confirm it forwards to
-   that inbox. Confirm `pocketry.xyz` is onboarded for Email Sending. The fixed
+1. In **Compute → Email Service → Email Routing → Destination Addresses**, confirm
+   that `pocketryapp@gmail.com` is a verified destination. If it is pending,
+   complete its verification email before changing the form's destination.
+2. Confirm `pocketry.xyz` is onboarded for Email Sending. The fixed
    sender is `feedback@pocketry.xyz`. Create a dedicated Cloudflare API token for this
    account with **Email Sending: Edit**. Do not use a general deployment token.
 3. Keep the existing Turnstile widget site key in `wrangler.jsonc`. Confirm its
@@ -50,7 +46,7 @@ the account before enabling it; Email Sending remains a beta service.
    | --- | --- |
    | `TURNSTILE_SECRET_KEY` | Secret of the existing Turnstile widget |
    | `FEEDBACK_EMAIL_TOKEN` | Dedicated Email Sending API token |
-   | `FEEDBACK_TO` | Actual verified Email Routing destination address |
+   | `FEEDBACK_TO` | `pocketryapp@gmail.com`, after destination verification |
 
    `wrangler.jsonc` supplies the public runtime settings: the site key, exact
    allowed hostname, Cloudflare account ID, and fixed sender. Never use `VITE_*`
