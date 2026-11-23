@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
+import { LibraryProjectAction } from "@/components/project/library-project-action";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
@@ -52,34 +54,38 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
         <Button size="sm" className="min-h-11" data-testid="button-save-folder-project" disabled={blockedWrite} onClick={onSave}>Save current project</Button>
       </div>
       {library.projects.length === 0 && <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">No projects in this folder yet.</p>}
-      <ul className="space-y-2" aria-label="Projects in local folder">
-        {library.projects.map(project => <li key={project.projectId} className="space-y-2 rounded-md border p-3">
+      <ul className="space-y-1.5 pr-2" aria-label="Projects in local folder">
+        {library.projects.map(project => <li key={project.projectId} className="space-y-1.5 rounded-md border px-2 py-1">
           {project.conflicted && <p className="text-sm font-medium">Competing revisions</p>}
           {project.heads.filter(head => !head.deleted).map(head => {
             const current = currentProject?.projectId === project.projectId && currentProject.revision === head.revision;
             const target = { projectId: project.projectId, ...head };
             const selected = selection?.projectId === project.projectId && selection.revision === head.revision;
             return <div key={head.revision} className="space-y-2">
-              <p className="break-words text-sm font-medium">{head.name}
-                {project.conflicted && <small className="ml-1 text-muted-foreground">{head.revision.slice(0, 12)}</small>}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <Button size="sm" variant="outline" className="min-h-11" disabled={disabled || current} aria-label={current ? `${head.name} is currently open` : `Open ${head.name}`}
-                  onClick={() => {
-                    if (hasDraft) setSelection({ ...target, action: "open" });
-                    else void library.openProject(project.projectId, head.revision, onOpen).then(opened => { if (opened) onOpened(); });
-                  }}>{current ? "Current" : "Open"}</Button>
-                {!project.conflicted && <>
-                  <Button size="sm" variant="outline" className="min-h-11" disabled={blockedWrite || current}
-                    aria-label={`Rename ${head.name}`} onClick={() => { setName(head.name); setSelection({ ...target, action: "rename" }); }}>Rename</Button>
-                  <Button size="sm" variant="outline" className="min-h-11" disabled={blockedWrite}
-                    aria-label={`Copy ${head.name}`} onClick={() => void library.changeProject(project.projectId, head.revision, { kind: "copy" })}>Copy</Button>
-                  <Button size="sm" variant="ghost" className="min-h-11 text-destructive" disabled={blockedWrite || currentProject?.projectId === project.projectId}
-                    aria-label={`Remove ${head.name}`} onClick={() => setSelection({ ...target, action: "remove" })}>Remove</Button>
-                </>}
-                {project.heads.length > 1 && <Button size="sm" variant="outline" className="min-h-11" disabled={blockedWrite}
-                  onClick={() => void library.keepBoth(project, head.revision)}>Keep this as original</Button>}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium [@media(pointer:coarse)]:line-clamp-2 [@media(pointer:coarse)]:whitespace-normal [@media(pointer:coarse)]:break-words" title={head.name}>{head.name}</p>
+                  {project.conflicted && <p className="text-xs text-muted-foreground">{head.revision.slice(0, 12)}</p>}
+                </div>
+                <div className="flex shrink-0 items-center">
+                  <LibraryProjectAction action="open" icon={current ? Check : undefined} disabled={disabled || current}
+                    label={current ? `${head.name} is currently open` : `Open ${head.name}`}
+                    onClick={() => {
+                      if (hasDraft) setSelection({ ...target, action: "open" });
+                      else void library.openProject(project.projectId, head.revision, onOpen).then(opened => { if (opened) onOpened(); });
+                    }} />
+                  {!project.conflicted && <>
+                    <LibraryProjectAction action="copy" disabled={blockedWrite}
+                      label={`Copy ${head.name}`} onClick={() => void library.changeProject(project.projectId, head.revision, { kind: "copy" })} />
+                    <LibraryProjectAction action="rename" disabled={blockedWrite || current}
+                      label={`Rename ${head.name}`} onClick={() => { setName(head.name); setSelection({ ...target, action: "rename" }); }} />
+                    <LibraryProjectAction action="remove" disabled={blockedWrite || currentProject?.projectId === project.projectId}
+                      label={`Remove ${head.name}`} onClick={() => setSelection({ ...target, action: "remove" })} />
+                  </>}
+                </div>
               </div>
+              {project.heads.length > 1 && <Button size="sm" variant="outline" className="min-h-11" disabled={blockedWrite}
+                onClick={() => void library.keepBoth(project, head.revision)}>Keep this as original</Button>}
               {selected && <div className="space-y-2 rounded-md bg-muted p-3">
                 {selection.action === "rename" ? <>
                   <Label htmlFor="folder-rename-project">New project name</Label>

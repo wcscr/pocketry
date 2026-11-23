@@ -602,13 +602,19 @@ describe("BinDesignerPage", () => {
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       const dialog = document.querySelector('[role="dialog"]')!;
       expect(dialog.textContent).toContain("2 saved projects");
-      expect(dialog.textContent).toContain("Saved by a newer Pocketry version");
-      expect(dialog.textContent).toContain("could not be read by this version");
+      expect(dialog.textContent).toContain("Update Pocketry to open");
+      expect(dialog.textContent).toContain("Unreadable project");
       for (const project of projects) {
         for (const action of ["open", "rename", "duplicate"]) {
           expect(dialog.querySelector<HTMLButtonElement>(`[data-testid="button-${action}-project-${project.id}"]`)!.disabled).toBe(true);
         }
         const row = dialog.querySelector(`[data-testid="library-project-${project.id}"]`)!;
+        const hint = row.querySelector<HTMLButtonElement>('[aria-label="About this saved project"]')!;
+        await React.act(async () => hint.click());
+        const explanation = document.querySelector('[role="tooltip"]')?.textContent;
+        expect(explanation).toContain(project.id === "future" ? "Saved by a newer Pocketry version" : "could not be read by this version");
+        expect(explanation).toContain("included in library backups");
+        await React.act(async () => hint.click());
         await React.act(async () => {
           row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
           row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
@@ -681,7 +687,7 @@ describe("BinDesignerPage", () => {
     try {
       await flushHydration();
       await click([...container.querySelectorAll<HTMLAnchorElement>('nav a')].find(anchor => anchor.textContent === "Library")!);
-      expect(byId("library-active-storage").textContent).toBe("Browser storage");
+      expect(byId("library-active-storage").textContent).toBe("Storage: Browser storage");
       expect(byId("library-storage-browser")).toBeNull();
       expect(byId("button-export-library")).toBeNull();
       openLibrarySettings();
@@ -710,7 +716,7 @@ describe("BinDesignerPage", () => {
       }
       await click(button("Done"));
       expect(byId("library-settings")).toBeNull();
-      expect(byId("library-active-storage").textContent).toBe("Local folder · Workshop projects");
+      expect(byId("library-active-storage").textContent).toBe("Storage: Local folder · Workshop projects");
       expect(document.activeElement).toBe(byId("button-library-settings"));
       expect(button("Change folder")).toBeUndefined();
       expect(button("Copy browser projects")).toBeUndefined();
@@ -727,7 +733,11 @@ describe("BinDesignerPage", () => {
       });
       expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ name: "Folder project", parents: [] });
       expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
-      expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Folder project");
+      const folderRow = document.querySelector('[aria-label="Projects in local folder"] li')!;
+      expect(folderRow.textContent).toBe("Folder project");
+      expect([...folderRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
+        "Folder project is currently open", "Copy Folder project", "Rename Folder project", "Remove Folder project",
+      ]);
 
       await click(button("Save current project"));
       await click(byId("button-confirm-save-library"));
@@ -746,7 +756,7 @@ describe("BinDesignerPage", () => {
       await click(byId("library-storage-browser"));
       expect(byId("library-storage-browser").getAttribute("aria-current")).toBe("true");
       await click(button("Done"));
-      expect(byId("library-active-storage").textContent).toBe("Browser storage");
+      expect(byId("library-active-storage").textContent).toBe("Storage: Browser storage");
       expect(document.querySelector('[aria-label="Projects in local folder"]')).toBeNull();
       expect(localStorage.getItem("pocketry:library-storage")).toBe("browser");
     } finally {
@@ -796,7 +806,7 @@ describe("BinDesignerPage", () => {
         await vi.waitFor(() => expect(activate).toHaveBeenCalledWith(destination));
       });
       await vi.waitFor(() => expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain(tray.name));
-      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Local folder · Older library");
+      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Storage: Local folder · Older library");
       expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
     } finally {
       unmount();
@@ -1345,6 +1355,11 @@ describe("BinDesignerPage", () => {
     expect(picker.querySelector('[data-testid="button-export-library"]')).toBeNull();
     expect(picker.querySelector('[data-testid="button-import-library"]')).toBeNull();
     expect(picker.querySelector('[data-testid^="button-remove-project-"]')).not.toBeNull();
+    const savedRow = picker.querySelector('[data-testid="library-project-name-project-2"]')!;
+    expect(savedRow.textContent?.trim()).toBe("Pliers tray");
+    expect([...savedRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
+      "Open Pliers tray", "Duplicate Pliers tray", "Rename Pliers tray", "Remove Pliers tray from library",
+    ]);
     expect(
       (document.querySelector(
         '[data-testid="button-open-project-project-1"]',
@@ -1950,7 +1965,7 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     const rename = document.querySelector<HTMLButtonElement>(`[data-testid="button-rename-project-${id}"]`)!;
     expect(rename.disabled).toBe(false);
-    expect(rename.parentElement?.getAttribute("data-testid")).toBe(`library-project-name-${id}`);
+    expect(rename.closest(`[data-testid="library-project-name-${id}"]`)).not.toBeNull();
     React.act(() => rename.click());
     const input = document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
     expect(input.value).toBe(projects.find(project => project.id === id)!.name);

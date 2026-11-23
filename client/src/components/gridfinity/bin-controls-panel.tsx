@@ -16,6 +16,7 @@ import { readImportJson, withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/
 import { sameJsonData } from "@shared/json-data-equal";
 import { SampleLibraryDialog } from "@/components/project/sample-library-dialog";
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
+import { LibraryProjectAction } from "@/components/project/library-project-action";
 import type { SampleLibrary } from "@/lib/project/samples";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
@@ -33,6 +34,7 @@ import {
   Box,
   Check,
   ChevronDown,
+  CircleAlert,
   CircleDot,
   ClipboardCheck,
   Copy,
@@ -149,6 +151,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { HelpHint } from "@/components/ui/help-hint";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -3299,8 +3302,11 @@ function ProjectControls({
               <Settings className="h-4 w-4" aria-hidden />Settings
             </Button>
           </div>
-          <p className="w-fit max-w-full truncate rounded bg-muted px-2 py-1 text-xs text-muted-foreground" data-testid="library-active-storage">
-            {storageLabel}{usingFolder && libraryStorage.folderName ? ` · ${libraryStorage.folderName}` : ""}
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" data-testid="library-active-storage">
+            <span className="shrink-0">Storage:{" "}</span>
+            <span className="truncate rounded bg-muted px-2 py-1">
+              {storageLabel}{usingFolder && libraryStorage.folderName ? ` · ${libraryStorage.folderName}` : ""}
+            </span>
           </p>
           <DialogClose asChild>
             <Button variant="ghost" size="icon" className="absolute -right-2 -top-2 !mt-0 h-11 w-11" aria-label="Close">
@@ -3308,6 +3314,7 @@ function ProjectControls({
             </Button>
           </DialogClose>
         </DialogHeader>
+        <TooltipProvider delayDuration={300}>
         <ScrollArea
           type="auto"
           className="min-h-0 [&_[data-radix-scroll-area-viewport]]:max-h-[min(20rem,calc(85dvh_-_15rem))] [@media(max-height:500px)]:shrink-0 [@media(max-height:500px)]:[&_[data-radix-scroll-area-viewport]]:max-h-none [&_[data-orientation=vertical]]:bg-muted/50 [&_[data-orientation=vertical]>div]:bg-muted-foreground/50"
@@ -3319,7 +3326,7 @@ function ProjectControls({
           onSave: saveDraftFromLibrary,
         }) : <>
         {!libraryError && projects.length > 0 && <p className="mb-2 text-xs text-muted-foreground">{projects.length} saved {projects.length === 1 ? "project" : "projects"}</p>}
-        <div className="space-y-2 pr-4" data-testid="managed-project-list">
+        <div className="space-y-1.5 pr-2" data-testid="managed-project-list">
           {libraryError ? (
             <div className="rounded-md border border-destructive/40 p-3 text-sm" role="alert">
               <p>{libraryError}</p>
@@ -3333,13 +3340,14 @@ function ProjectControls({
           ) : (
             projects.map((project) => {
               const active = project.id === activeProjectId;
+              const updated = `Updated ${formatProjectTime(project.updatedAt)}`;
               const openLibraryProject = () => openProject({ kind: "library", project });
               return (
                 <div
                   key={project.id}
                   className={cn(
-                    "flex items-center gap-3 rounded-md border p-3",
-                    "flex-wrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "rounded-md border px-2 py-1",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                     (project.id === selectedProjectId) && "border-primary/50 bg-primary/5",
                   )}
                   data-testid={`library-project-${project.id}`}
@@ -3347,6 +3355,7 @@ function ProjectControls({
                   data-selected={project.id === selectedProjectId}
                   role="group"
                   aria-label={project.name}
+                  aria-description={updated}
                   tabIndex={0}
                   onFocus={(event) => {
                     if (event.currentTarget.contains(event.target)) setSelectedProjectId(project.id);
@@ -3368,56 +3377,38 @@ function ProjectControls({
                     void openLibraryProject();
                   }}
                 >
-                  <div className="min-w-0 basis-full">
-                    <div className="flex min-w-0 items-start gap-1" data-testid={`library-project-name-${project.id}`}>
-                      <p className="min-w-0 flex-1 whitespace-normal py-2 text-sm font-medium [overflow-wrap:anywhere]" title={project.name}>
-                        {project.name}
-                      </p>
-                      <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`} disabled={!ready || busy || !!project.unavailable}
-                        onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }}><Pencil className="h-4 w-4" /></Button>
+                  <div className="flex min-w-0 items-center gap-1.5" data-testid={`library-project-name-${project.id}`}>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium [@media(pointer:coarse)]:line-clamp-2 [@media(pointer:coarse)]:whitespace-normal [@media(pointer:coarse)]:break-words" title={`${project.name}\n${updated}`}>
+                      {project.name}
+                    </p>
+                    <div className="flex shrink-0 items-center">
+                      <LibraryProjectAction action="open" icon={project.unavailable ? CircleAlert : active ? Check : undefined}
+                        disabled={!ready || busy || active || !!project.unavailable}
+                        onClick={() => void openLibraryProject()}
+                        label={project.unavailable ? `${project.name} cannot be opened in this version` : active ? `${project.name} is currently open` : `Open ${project.name}`}
+                        data-testid={`button-open-project-${project.id}`} />
+                      <LibraryProjectAction action="copy" disabled={!ready || busy || !!project.unavailable}
+                        label={`Duplicate ${project.name}`} data-testid={`button-duplicate-project-${project.id}`}
+                        onClick={(event) => {
+                          event.currentTarget.closest<HTMLElement>('[role="group"]')?.focus();
+                          void onDuplicateProject(project.id);
+                        }} />
+                      <LibraryProjectAction action="rename" disabled={!ready || busy || !!project.unavailable}
+                        label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`}
+                        onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }} />
+                      <LibraryProjectAction action="remove" disabled={!ready || busy || active}
+                        label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)} />
                     </div>
-                    {active && <p className="text-xs text-muted-foreground">Current project</p>}
-                    {project.unavailable && <p className="mt-1 text-xs text-muted-foreground">
+                  </div>
+                  {project.unavailable && <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    {project.unavailable === "newer-version" ? "Update Pocketry to open" : "Unreadable project"}
+                    <HelpHint label="this saved project">
                       {project.unavailable === "newer-version"
                         ? "Saved by a newer Pocketry version. Reload Pocketry to update."
                         : "This project could not be read by this version of Pocketry."}
-                      {" "}Kept intact and included in library backups.
-                    </p>}
-                    <p className="text-[11px] text-muted-foreground">
-                      Updated {formatProjectTime(project.updatedAt)}
-                    </p>
-                  </div>
-                  <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
-                  <Button
-                    size="sm"
-                    variant={active ? "secondary" : "outline"}
-                    className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={!ready || busy || active || !!project.unavailable}
-                    onClick={() => void openLibraryProject()}
-                    aria-label={project.unavailable ? `${project.name} cannot be opened in this version` : active ? `${project.name} is currently open` : `Open ${project.name}`}
-                    data-testid={`button-open-project-${project.id}`}
-                  >
-                    {!active && !project.unavailable && <FolderOpen className="h-4 w-4" />}
-                    {project.unavailable ? "Unavailable" : active ? "Current" : "Open"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="min-h-11 gap-1.5 px-2 text-xs"
-                    disabled={!ready || busy || !!project.unavailable}
-                    aria-label={`Duplicate ${project.name}`}
-                    title="Duplicate project"
-                    data-testid={`button-duplicate-project-${project.id}`}
-                    onClick={(event) => {
-                      event.currentTarget.closest<HTMLElement>('[role="group"]')?.focus();
-                      void onDuplicateProject(project.id);
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />Copy
-                  </Button>
-                  <Button size="sm" variant="ghost" className="min-h-11 gap-1.5 px-2 text-xs text-destructive" disabled={!ready || busy || active}
-                    aria-label={`Remove ${project.name} from library`} data-testid={`button-remove-project-${project.id}`} onClick={() => setRemoveProject(project)}><Trash2 className="h-4 w-4" />Remove</Button>
-                  </div>
+                      {" "}The original is included in library backups.
+                    </HelpHint>
+                  </div>}
                 </div>
               );
             })
@@ -3425,6 +3416,7 @@ function ProjectControls({
         </div>
         </>}
         </ScrollArea>
+        </TooltipProvider>
       </DialogContent>
     </Dialog>
   );
