@@ -771,9 +771,9 @@ function BinDesignerWorkspace(): JSX.Element {
       try {
         await saveBeforeReplacingProject();
         if (libraryStorage === "folder") {
-          const target = await folderLibrary.save(input, input.name ?? "Imported project");
+          const target = await folderLibrary.save(input, input.name ?? "Imported project", null,
+            target => loadFolderProject({ ...input, name: target.name }, target));
           if (!target) throw new Error("Open Library to check the local folder before importing again.");
-          await loadFolderProject({ ...input, name: target.name }, target);
           return true;
         }
         const opened = await importProjectToLibrary(input);
@@ -817,6 +817,22 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast, libraryStorage, folderLibrary, loadFolderProject],
   );
 
+  const recordFolderSave = useCallback(async (target: FolderDraft) => {
+    const draft = { ...currentProjectDoc, name: undefined };
+    setProjectLibrary(await saveFolderDraft(draft, target));
+    setFolderProject(target);
+    setDraftName(null);
+    setRestoredDestination(projectDestinationKey(draft, null));
+    setProjectRestoreFailed(false);
+  }, [currentProjectDoc]);
+
+  const saveWorkingFolderDraft = useCallback(async (name: string, base: FolderDraft | null) => {
+    // An interrupted close can leave a verified save that still needs to advance
+    // this base. Preserve the draft first, and update it before clearing the request.
+    if (base) await saveFolderDraft(currentProjectDoc, base);
+    return folderLibrary.save(currentProjectDoc, name, base, recordFolderSave);
+  }, [currentProjectDoc, folderLibrary, recordFolderSave]);
+
   const handleNewProject = useCallback(async (saveDraftName?: string, fixture = false): Promise<boolean> => {
     const defaults = ultim8Defaults(INITIAL_BIN_SPEC, DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_BIN_MATERIALS.binColor, DEFAULT_ULTIM8_FOOTPRINT_MM);
     const doc: ProjectDoc = {
@@ -832,9 +848,8 @@ function BinDesignerWorkspace(): JSX.Element {
       await saveBeforeReplacingProject();
       const saveDraftToFolder = saveDraftName !== undefined && libraryStorage === "folder";
       if (saveDraftToFolder) {
-        const target = await folderLibrary.save(currentProjectDoc, saveDraftName, folderProject);
+        const target = await saveWorkingFolderDraft(saveDraftName, folderProject);
         if (!target) throw new Error("Open Library to check the local folder before starting a new project.");
-        setFolderProject(target);
       }
       const saved = saveDraftName === undefined || saveDraftToFolder ? await startNewProject(doc)
         : await startNewProject(doc, { doc: currentProjectDoc, name: saveDraftName });
@@ -873,7 +888,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast, libraryStorage, folderLibrary, folderProject]);
+  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast, libraryStorage, saveWorkingFolderDraft, folderProject]);
 
   /** Persist the exact fixture destination before Trace unmounts the designer. */
   const traceFixture = async (): Promise<void> => {
@@ -887,15 +902,6 @@ function BinDesignerWorkspace(): JSX.Element {
       toast({ title: "Could not open Trace", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
     } finally { setProjectBusy(false); }
   };
-
-  const recordFolderSave = useCallback(async (target: FolderDraft) => {
-    const draft = { ...currentProjectDoc, name: undefined };
-    setProjectLibrary(await saveFolderDraft(draft, target));
-    setFolderProject(target);
-    setDraftName(null);
-    setRestoredDestination(projectDestinationKey(draft, null));
-    setProjectRestoreFailed(false);
-  }, [currentProjectDoc]);
 
   const handleResumeFolderSave = async (intent: FolderIntent) => {
     setProjectBusy(true);
@@ -914,11 +920,7 @@ function BinDesignerWorkspace(): JSX.Element {
     saveProject.cancel();
     try {
       if (libraryStorage === "folder") {
-        const base = asNew ? null : folderProject;
-        // Persist the working draft before publishing. An interrupted close can
-        // leave a verified folder save that still needs to advance this base.
-        if (base) await saveFolderDraft(currentProjectDoc, base);
-        const target = await folderLibrary.save(currentProjectDoc, name, base, recordFolderSave);
+        const target = await saveWorkingFolderDraft(name, asNew ? null : folderProject);
         if (!target) return false;
         toast({ title: "Project saved to local folder" });
         return true;
@@ -947,7 +949,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast, libraryStorage, folderLibrary, folderProject, recordFolderSave]);
+  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast, libraryStorage, saveWorkingFolderDraft, folderProject]);
 
   const handleDuplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
     setProjectBusy(true);
