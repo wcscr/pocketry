@@ -1,10 +1,14 @@
 import { expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { PROJECT_SCHEMA_VERSION } from "../../shared/gridfinity/project";
 import { parseBinSpec } from "../../shared/gridfinity/types";
 import { PublicationRejected } from "../../shared/project-library/adapter";
 import { encode, FOLDER_LIMITS } from "../../shared/project-library/format";
 import { publishRecoveredLibrary, recoverLegacyBackup } from "../../shared/project-library/legacy-recovery";
 import { ConnectedLibrary } from "../../shared/project-library/library";
+import { modelBrowserFolder } from "./folder.test-support";
 
 const revisionId = (index: number) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 const project = (id: string, width: number) => ({ id, name: id, updatedAt: "2026-11-22T00:00:00.000Z",
@@ -71,4 +75,23 @@ it("opens a recovery only after every batch and resumes without duplicating proj
   expect(await reopened.hasCompletedLegacyRecovery()).toBe(true);
   expect(await reopened.list()).toHaveLength(projects.length);
   expect(files.size).toBe(2);
+});
+
+it("prioritizes the current root journal over a completed legacy recovery subfolder on reconnect", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pocketry-mixed-recovery-"));
+  try {
+    const folder = modelBrowserFolder(root).folder;
+    const active = new ConnectedLibrary(folder);
+    const current = project("current-tray", 3);
+    await active.commit({ requestId: "current", changes: [{ projectId: current.id, name: current.name, doc: current.doc, parents: [] }] });
+    const old = revision(1, [], [project("old-tray", 2)]);
+    await writeFile(join(root, `${old.id}.pocketry-library.json`), JSON.stringify(old));
+    const previousRecovery = await folder.createRecoveryFolder();
+    await publishRecoveredLibrary(await recoverLegacyBackup(folder), previousRecovery);
+    expect(await new ConnectedLibrary(previousRecovery).hasCompletedLegacyRecovery()).toBe(true);
+    expect(await folder.findCompletedRecovery()).toBeNull();
+    expect(await active.browse()).toMatchObject({ canRecoverLegacy: true, projects: [{ projectId: current.id }] });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

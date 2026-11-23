@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 import { BrowserLibraryFolder, type FolderIntent } from "@/lib/project/browser-folder";
 import { ConnectedLibrary, type FolderProject } from "@shared/project-library/library";
-import { encode } from "@shared/project-library/format";
+import { digest, encode, revisionFile } from "@shared/project-library/format";
 import {
   TraceHandoff,
   projectToast,
@@ -661,8 +661,9 @@ describe("BinDesignerPage", () => {
       vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
       vi.spyOn(folder, "canWrite").mockResolvedValue(true),
       vi.spyOn(folder, "pending").mockResolvedValue([]),
-      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([{ projectId: "tray", conflicted: false,
-        heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ hasPublishedRevisions: true, canRecoverLegacy: false,
+        projects: [{ projectId: "tray", conflicted: false,
+          heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }] }),
     ];
     const { container, unmount } = renderPage({ experimental: false });
     const storage = () => document.querySelector('[data-testid="library-active-storage"]')?.textContent;
@@ -706,8 +707,9 @@ describe("BinDesignerPage", () => {
       vi.spyOn(BrowserLibraryFolder, "saved").mockReturnValue(lookup),
       vi.spyOn(folder, "canWrite").mockImplementation(async () => granted),
       vi.spyOn(folder, "pending").mockResolvedValue([]),
-      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([{ projectId: "tray", conflicted: false,
-        heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ hasPublishedRevisions: true, canRecoverLegacy: false,
+        projects: [{ projectId: "tray", conflicted: false,
+          heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }] }),
     ];
     const { container, unmount } = renderPageWithHeader();
     const action = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
@@ -756,6 +758,9 @@ describe("BinDesignerPage", () => {
     const pick = vi.spyOn(BrowserLibraryFolder, "choose").mockImplementation(async () => (selected = folder));
     const projects: FolderProject[] = [];
     const list = vi.spyOn(ConnectedLibrary.prototype, "list").mockImplementation(async () => [...projects]);
+    const browse = vi.spyOn(ConnectedLibrary.prototype, "browse").mockImplementation(async () => ({
+      projects: [...projects], hasPublishedRevisions: !!projects.length, canRecoverLegacy: false,
+    }));
     let saves = 0;
     const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async mutation => {
       const change = mutation.changes[0];
@@ -827,6 +832,7 @@ describe("BinDesignerPage", () => {
         await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
       });
       expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ name: "Folder project", parents: [] });
+      expect(ProjectPersistence.prepareFolderSave).toHaveBeenCalledWith(expect.anything(), commit.mock.calls[0][0].requestId);
       expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
       const folderRow = document.querySelector('[aria-label="Projects in local folder"] li')!;
       expect(folderRow.textContent).toBe("Folder project");
@@ -856,11 +862,11 @@ describe("BinDesignerPage", () => {
       expect(localStorage.getItem("pocketry:library-storage")).toBe("browser");
     } finally {
       unmount();
-      for (const mock of [commit, list, pick, ...mocks]) mock.mockRestore();
+      for (const mock of [commit, list, browse, pick, ...mocks]) mock.mockRestore();
     }
   });
 
-  it("recovers an older folder directly from the Library project list", async () => {
+  it.each([false, true])("recovers older projects directly from Library (existing current journal: %s)", async mixed => {
     vi.stubGlobal("crypto", webcrypto);
     localStorage.setItem("pocketry:library-storage", "folder");
     const id = "00000000-0000-4000-8000-000000000001";
@@ -868,7 +874,7 @@ describe("BinDesignerPage", () => {
     const tray = { id: "old-tray", name: "Recovered tray", doc: EMPTY_PROJECT, updatedAt: "2026-11-22T00:00:00.000Z" };
     const bytes = encode(JSON.stringify({ format: "pocketry-folder-revision", schemaVersion: 1, id, parents: [], projects: [tray] }));
     const folder = new BrowserLibraryFolder({ name: "Older library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
-    const destination = new BrowserLibraryFolder({ name: "pocketry-recovered" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], folder.name);
+    const destination = mixed ? folder : new BrowserLibraryFolder({ name: "pocketry-recovered" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], folder.name);
     const files = new Map<string, Uint8Array>();
     const activate = vi.spyOn(folder, "activateRecovery").mockResolvedValue(destination);
     const mocks = [
@@ -876,31 +882,52 @@ describe("BinDesignerPage", () => {
       vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
       vi.spyOn(folder, "canWrite").mockResolvedValue(true),
       vi.spyOn(folder, "pending").mockResolvedValue([]),
-      vi.spyOn(folder, "entries").mockImplementation(async function* () { yield { name, kind: "file" }; }),
+      vi.spyOn(folder, "entries").mockImplementation(async function* () {
+        yield { name, kind: "file" };
+        if (mixed) for (const name of files.keys()) yield { name, kind: "file" };
+      }),
       vi.spyOn(folder, "readLegacyRevision").mockResolvedValue({ bytes, modifiedAt: 0 }),
       vi.spyOn(folder, "findCompletedRecovery").mockResolvedValue(null),
       vi.spyOn(folder, "createRecoveryFolder").mockResolvedValue(destination),
-      vi.spyOn(destination, "canWrite").mockResolvedValue(true),
-      vi.spyOn(destination, "pending").mockResolvedValue([]),
-      vi.spyOn(destination, "entries").mockImplementation(async function* () {
-        for (const name of files.keys()) yield { name, kind: "file" };
-      }),
+      ...(!mixed ? [
+        vi.spyOn(destination, "canWrite").mockResolvedValue(true),
+        vi.spyOn(destination, "pending").mockResolvedValue([]),
+        vi.spyOn(destination, "entries").mockImplementation(async function* () {
+          for (const name of files.keys()) yield { name, kind: "file" };
+        }),
+      ] : []),
       vi.spyOn(destination, "read").mockImplementation(async name => files.has(name) ? { bytes: files.get(name)!, modifiedAt: 0 } : null),
       vi.spyOn(destination, "publish").mockImplementation(async (name, data) => { files.set(name, data); }),
     ];
+    let currentRevision: string | undefined;
+    if (mixed) {
+      // The current journal and old snapshot are side by side when the editor opens.
+      const existing = { format: "pocketry-folder-revision", version: 2, requestId: "current", fingerprint: "a".repeat(64),
+        changes: [{ projectId: "current-tray", parents: [], name: "Current tray", doc: { ...EMPTY_PROJECT, name: "Current tray" } }] };
+      const data = encode(JSON.stringify(existing));
+      currentRevision = await digest(data);
+      files.set(revisionFile(await digest(encode(existing.requestId)), currentRevision), data);
+    }
     const { container, unmount } = renderPage();
     try {
       await flushHydration();
       openSettingsSection(container, "project");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Older Pocketry library");
+      if (mixed) expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Current tray");
       const recover = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
         .find(button => button.textContent?.trim() === "Recover projects")!;
       await React.act(async () => {
         recover.click();
-        await vi.waitFor(() => expect(activate).toHaveBeenCalledWith(destination));
+        await vi.waitFor(() => expect(files.size).toBe(mixed ? 2 : 1));
       });
       await vi.waitFor(() => expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain(tray.name));
+      if (mixed) {
+        expect(activate).not.toHaveBeenCalled();
+        expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Current tray");
+        expect((await new ConnectedLibrary(folder).read("current-tray")).revision).toBe(currentRevision);
+        expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Recover projects");
+      } else expect(activate).toHaveBeenCalledWith(destination);
       expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Storage: Local folder · Older library");
       expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
     } finally {
@@ -923,6 +950,7 @@ describe("BinDesignerPage", () => {
       vi.spyOn(folder, "remember").mockResolvedValue(undefined),
       vi.spyOn(folder, "forget").mockResolvedValue(undefined),
       vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [], hasPublishedRevisions: false, canRecoverLegacy: false }),
     ];
     const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async input => ({
       status: "published", requestId: input.requestId, projects: [], requestCollision: false, pendingRevisions: [],
@@ -953,13 +981,15 @@ describe("BinDesignerPage", () => {
     }
   });
 
-  it("resumes an interrupted folder save and keeps later draft edits on the new base", async () => {
+  it.each([false, true])("resumes an interrupted folder save and keeps later draft edits (first save: %s)", async firstSave => {
     const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
     const base = { connectionId: folder.id, projectId: "tray", revision: "a".repeat(64), name: "Socket tray" };
     const published = { ...base, revision: "b".repeat(64) };
     const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
-    let pending: FolderIntent[] = [{ kind: "commit", draftBase: base, candidateRevision: published.revision, mutation: {
-      requestId: "interrupted-save", changes: [{ projectId: base.projectId, parents: [base.revision], name: base.name, doc: EMPTY_PROJECT }],
+    const requestId = "interrupted-save";
+    let pending: FolderIntent[] = [{ kind: "commit", ...(firstSave ? { workingDraft: true } : { draftBase: base }),
+      candidateRevision: published.revision, mutation: {
+      requestId, changes: [{ projectId: base.projectId, parents: firstSave ? [] : [base.revision], name: base.name, doc: EMPTY_PROJECT }],
     } }];
     const receipt = (requestId: string, revision: string) => ({
       status: "published" as const, requestId, projects: [], requestCollision: false, pendingRevisions: [],
@@ -970,21 +1000,23 @@ describe("BinDesignerPage", () => {
       commit,
       vi.spyOn(ConnectedLibrary.prototype, "inspect").mockResolvedValue(receipt("interrupted-save", published.revision)),
       vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [], hasPublishedRevisions: false, canRecoverLegacy: false }),
       vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
       vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
       vi.spyOn(folder, "canWrite").mockResolvedValue(true),
       vi.spyOn(folder, "pending").mockImplementation(async () => pending),
       vi.spyOn(folder, "remember").mockImplementation(async intent => { pending = [intent]; }),
-      vi.spyOn(folder, "forget").mockImplementation(async requestId => {
-        if (requestId === "interrupted-save") {
-          expect(ProjectPersistence.saveFolderDraft).toHaveBeenCalledWith(expect.objectContaining({ spec: expect.objectContaining({ gridX: 4 }) }), published);
+      vi.spyOn(folder, "forget").mockImplementation(async completed => {
+        if (completed === requestId) {
+          expect(ProjectPersistence.saveFolderDraft).toHaveBeenCalledWith(
+            expect.objectContaining({ spec: expect.objectContaining({ gridX: 4 }) }), published, ...(firstSave ? [requestId] : []));
         }
         pending = [];
       }),
     ];
     localStorage.setItem("pocketry:library-storage", "folder");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
-    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: base });
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: firstSave ? undefined : base });
 
     const { container, unmount } = renderPageWithHeader();
     const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]

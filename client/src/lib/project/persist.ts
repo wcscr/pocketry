@@ -49,13 +49,14 @@ function compactStoredValue(key: string, value: unknown): unknown {
   return value;
 }
 
-// Keep the folder base in the same durable record as the edits it belongs to.
-// Only browser persistence recognizes this field, so exports keep their format.
-function workingCopy(value: unknown): { doc: unknown; folderDraft?: FolderDraft } {
-  if (!value || typeof value !== "object" || !("folderDraft" in value)) return { doc: value };
-  const { folderDraft, ...doc } = value;
+// Keep the folder base and pending save identity in the same durable record as
+// the edits they belong to. The metadata never enters an exported document.
+function workingCopy(value: unknown): { doc: unknown; folderDraft?: FolderDraft; folderSaveRequest?: string } {
+  if (!value || typeof value !== "object" || (!("folderDraft" in value) && !("folderSaveRequest" in value))) return { doc: value };
+  const { folderDraft, folderSaveRequest, ...doc } = value as { folderDraft?: unknown; folderSaveRequest?: unknown };
   const parsed = folderDraftSchema.safeParse(folderDraft);
-  return { doc, folderDraft: parsed.success ? parsed.data : undefined };
+  return { doc, folderDraft: parsed.success ? parsed.data : undefined,
+    folderSaveRequest: typeof folderSaveRequest === "string" ? folderSaveRequest : undefined };
 }
 
 /** Stage all changes before the atomic compare-and-write. */
@@ -64,10 +65,15 @@ class ProjectMutation {
   constructor(readonly snapshot: ProjectStorageSnapshot) {}
   get current(): unknown { return workingCopy(this.snapshot.current).doc; }
   get folderDraft(): FolderDraft | undefined { return workingCopy(this.snapshot.current).folderDraft; }
+  get folderSaveRequest(): string | undefined { return workingCopy(this.snapshot.current).folderSaveRequest; }
   set(key: string, value: unknown): void { this.entries.set(key, compactStoredValue(key, value)); }
   setMany(entries: [string, unknown][]): void { for (const [key, value] of entries) this.set(key, value); }
-  setFolderDraft(doc: ProjectDoc, target: FolderDraft): void {
-    this.entries.set(CURRENT_PROJECT_KEY, { ...serializeProjectDoc({ ...doc, name: undefined }), folderDraft: target });
+  setWorkingCopy(doc: ProjectDoc, target?: FolderDraft, requestId?: string): void {
+    this.entries.set(CURRENT_PROJECT_KEY, {
+      ...serializeProjectDoc(target ? { ...doc, name: undefined } : doc),
+      ...(target ? { folderDraft: target } : {}),
+      ...(requestId ? { folderSaveRequest: requestId } : {}),
+    });
   }
   nextSnapshot(): ProjectStorageSnapshot {
     return {
@@ -420,8 +426,7 @@ export async function saveProjectDocResult(
       const unchanged = previousDoc && restoredDocumentKey(previousDoc) === restoredDocumentKey(doc);
       if (!library.activeProjectId) {
         if (unchanged) return;
-        if (tx.folderDraft) tx.setFolderDraft(doc, tx.folderDraft);
-        else tx.set(CURRENT_PROJECT_KEY, doc);
+        tx.setWorkingCopy(doc, tx.folderDraft, tx.folderSaveRequest);
         return;
       }
       const index = library.projects.findIndex(
@@ -436,7 +441,8 @@ export async function saveProjectDocResult(
         doc,
         updatedAt: new Date().toISOString(),
       };
-      tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, { ...library, projects }]]);
+      tx.setWorkingCopy(doc, undefined, tx.folderSaveRequest);
+      tx.set(PROJECT_LIBRARY_KEY, { ...library, projects });
     });
     // Clear only queued shapes whose placements have reached durable storage.
     try {
@@ -598,12 +604,23 @@ export async function startNewProject(doc: ProjectDoc, saveDraft?: { doc: Projec
   });
 }
 
+/** Record the draft before the folder write can publish. */
+export async function prepareFolderSave(doc: ProjectDoc, requestId: string): Promise<void> {
+  return mutateLibrary(async (_library, tx) => {
+    if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
+    tx.setWorkingCopy(doc, tx.folderDraft, requestId);
+  });
+}
+
 /** Open a folder revision or advance the base after a confirmed folder save. */
-export async function saveFolderDraft(doc: ProjectDoc, target: FolderDraft): Promise<ProjectLibrarySnapshot> {
+export function saveFolderDraft(doc: ProjectDoc, target: FolderDraft): Promise<ProjectLibrarySnapshot>;
+export function saveFolderDraft(doc: ProjectDoc, target: FolderDraft, requestId: string): Promise<ProjectLibrarySnapshot | undefined>;
+export async function saveFolderDraft(doc: ProjectDoc, target: FolderDraft, requestId?: string): Promise<ProjectLibrarySnapshot | undefined> {
   return mutateLibrary(async (library, tx) => {
+    if (requestId !== undefined && tx.folderSaveRequest !== requestId) return;
     if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
     const next = { ...library, activeProjectId: null };
-    tx.setFolderDraft(doc, target);
+    tx.setWorkingCopy(doc, target);
     if (library.activeProjectId) tx.set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });

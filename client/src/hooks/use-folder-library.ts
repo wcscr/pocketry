@@ -30,6 +30,7 @@ export function useFolderLibrary(enabled = true) {
   const [pending, setPending] = useState<FolderIntent[]>([]);
   const [canWrite, setCanWrite] = useState(false);
   const [legacyFolder, setLegacyFolder] = useState(false);
+  const [mixedFolder, setMixedFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -60,6 +61,7 @@ export function useFolderLibrary(enabled = true) {
     setFolder(selected);
     setCanWrite(false);
     setLegacyFolder(false);
+    setMixedFolder(false);
     setProjects([]);
     setPending([]);
     if (!selected) return;
@@ -67,7 +69,11 @@ export function useFolderLibrary(enabled = true) {
     if (!hasAccess && (!shouldRequestAccess?.() || !navigator.userActivation?.isActive || !await selected.renew())) return;
     setCanWrite(true);
     setPending(await selected.pending());
-    try { setProjects(await new ConnectedLibrary(selected).list()); }
+    try {
+      const view = await new ConnectedLibrary(selected).browse();
+      setProjects(view.projects);
+      setMixedFolder(view.canRecoverLegacy);
+    }
     catch (cause) {
       if (!(cause instanceof LegacyFolderError)) throw cause;
       setLegacyFolder(true);
@@ -145,6 +151,7 @@ export function useFolderLibrary(enabled = true) {
 
   const save = (doc: ProjectDoc, name: string, active: FolderDraft | null = null,
     onPublished?: (target: FolderDraft) => Promise<void>,
+    prepareDraft?: (requestId: string) => Promise<void>,
   ) => run(async () => {
     const selected = await writableFolder();
     const projectName = projectNameSchema.safeParse(name.trim().replace(/\s+/g, " "));
@@ -155,7 +162,9 @@ export function useFolderLibrary(enabled = true) {
     const requestId = crypto.randomUUID();
     const projectId = active?.projectId ?? await assignedProjectId(requestId);
     const target = (revision: string) => ({ connectionId: selected.id, projectId, revision, name: projectName.data });
-    const outcome = await apply(selected, { kind: "commit", draftBase: active ?? undefined, mutation: { requestId, changes: [{
+    await prepareDraft?.(requestId);
+    const outcome = await apply(selected, { kind: "commit", draftBase: active ?? undefined,
+      workingDraft: prepareDraft ? true : undefined, mutation: { requestId, changes: [{
       projectId, parents: active ? [active.revision] : [], name: projectName.data, doc,
     }] } }, async revision => { await onPublished?.(target(revision)); });
     if (outcome.status !== "published") return;
@@ -225,10 +234,18 @@ export function useFolderLibrary(enabled = true) {
   });
 
   return {
-    supported, folder, projects, pending, canWrite, legacyFolder, busy, message, error, refresh, save, copyBrowserProjects, openProject, changeProject,
+    supported, folder, projects, pending, canWrite, legacyFolder, canRecoverLegacy: legacyFolder || mixedFolder,
+    busy, message, error, refresh, save, copyBrowserProjects, openProject, changeProject,
     importBackup,
     recoverLegacy: () => run(async () => {
-      if (!folder || !legacyFolder) return;
+      if (!folder || (!legacyFolder && !mixedFolder)) return;
+      if (mixedFolder) {
+        const selected = await writableFolder();
+        await publishRecoveredLibrary(await recoverLegacyBackup(selected), selected);
+        await load(selected);
+        setMessage("Projects recovered to your local folder.");
+        return true;
+      }
       let destination = await folder.findCompletedRecovery();
       if (!destination) {
         const backup = await recoverLegacyBackup(folder);
@@ -250,12 +267,14 @@ export function useFolderLibrary(enabled = true) {
       if (!folder || !await folder.renew()) throw new LibraryError("permission", "Folder access wasn’t granted.");
       await load(folder);
     }),
-    resume: (intent: FolderIntent, onPublished: (base: FolderDraft, target: FolderDraft) => Promise<void>) => run(async () => {
+    resume: (intent: FolderIntent, onPublished: (target: FolderDraft, draft: { requestId: string } | { base: FolderDraft }) => Promise<void>) => run(async () => {
       if (!folder) return;
       await apply(folder, intent, async revision => {
-        if (intent.kind !== "commit" || intent.draftBase?.connectionId !== folder.id) return;
+        if (intent.kind !== "commit") return;
         const [change] = intent.mutation.changes;
-        await onPublished(intent.draftBase, { ...intent.draftBase, revision, name: change.name });
+        const target = { connectionId: folder.id, projectId: change.projectId, revision, name: change.name };
+        if (intent.workingDraft) await onPublished(target, { requestId: intent.mutation.requestId });
+        else if (intent.draftBase?.connectionId === folder.id) await onPublished(target, { base: intent.draftBase });
       });
     }),
     keepBoth: (project: FolderProject, keep: string) => run(async () => {

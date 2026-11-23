@@ -41,7 +41,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
   };
 
   return <div className="space-y-3 px-0.5">
-    {library.legacyFolder && <FolderRecovery disabled={disabled || !library.canWrite} onRecover={() => void library.recoverLegacy()} />}
+    {library.canRecoverLegacy && <FolderRecovery disabled={blockedWrite || !library.canWrite} onRecover={() => void library.recoverLegacy()} />}
     {!library.canWrite && <div className="space-y-2 rounded-md border border-dashed p-4">
       <p className="text-sm text-muted-foreground" role="status">
         {library.busy ? "Checking folder access…" : library.folder ? "Folder access needed" : library.supported ? "No folder connected" : "Local folders unavailable"}
@@ -157,7 +157,7 @@ export function FolderLibrarySettings({ library, busy, onRecover }: { library: F
           onClick={() => void library.disconnect()}>Disconnect folder</Button>}
       </div>
     </div>
-    {library.legacyFolder && <FolderRecovery disabled={disabled || !library.canWrite} onRecover={onRecover} />}
+    {library.canRecoverLegacy && <FolderRecovery disabled={disabled || !library.canWrite || library.pending.length > 0} onRecover={onRecover} />}
     {library.canWrite && !library.legacyFolder && <div className="flex flex-wrap items-center gap-1.5">
       <Button size="sm" variant="outline" className="min-h-11" disabled={disabled || library.pending.length > 0}
         onClick={() => void library.copyBrowserProjects()}>Copy browser projects</Button>

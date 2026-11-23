@@ -44,6 +44,7 @@ interface FolderIndex {
   pending: Map<string, string[]>;
   entries: number;
   scanBytes: number;
+  legacyFile?: string;
 }
 
 export interface PublicationEvidence {
@@ -104,7 +105,7 @@ async function decodePublication(bytes: Uint8Array, file: string, revision: stri
 
 /** Validate the complete graph using a bounded, iterative topological walk.
  * References are local to each project even for a multi-project publication. */
-function indexProjects(revisions: Map<string, Revision>, requests: Map<string, Revision[]>): Map<string, FolderProject> {
+function indexProjects(revisions: Map<string, Revision>): Map<string, FolderProject> {
   const children = new Map<string, Set<string>>();
   const dependencies = new Map<string, number>();
   const depths = new Map<string, number>();
@@ -150,13 +151,34 @@ function indexProjects(revisions: Map<string, Revision>, requests: Map<string, R
 
   return new Map([...tips].map(([projectId, heads]) => [projectId, {
     projectId,
-    conflicted: heads.size > 1 || [...heads].some(id => requests.get(revisions.get(id)!.requestId)!.length > 1),
+    conflicted: heads.size > 1,
     heads: sorted(heads).map(id => {
       const revision = revisions.get(id)!;
       const { name, deleted } = revision.changes.get(projectId)!;
       return { revision: id, name, deleted, updatedAt: revision.updatedAt };
     }),
   }]));
+}
+
+function visibleProjects(projects: Map<string, FolderProject>, includeDeleted = false) {
+  return sorted(projects.keys()).map(id => projects.get(id)!)
+    .filter(project => includeDeleted || project.conflicted || project.heads.some(head => !head.deleted));
+}
+
+/** Recovery is complete only when every batch in one immutable plan exists. */
+function hasCompletedLegacyRecovery(requests: Map<string, Revision[]>): boolean {
+  const plans = new Map<string, number>();
+  for (const [requestId, revisions] of requests) {
+    const match = /^legacy-recovery:([a-f0-9]{64}):([1-9]\d*):([1-9]\d*)$/.exec(requestId);
+    if (!match || revisions.length !== 1) continue;
+    const batch = Number(match[2]), total = Number(match[3]);
+    if (batch > total || total > FOLDER_LIMITS.revisions) continue;
+    const key = `${match[1]}:${total}`;
+    const complete = (plans.get(key) ?? 0) + 1;
+    if (complete === total) return true;
+    plans.set(key, complete);
+  }
+  return false;
 }
 
 export class ConnectedLibrary {
@@ -167,11 +189,12 @@ export class ConnectedLibrary {
     const requests = new Map<string, Revision[]>();
     const pending = new Map<string, string[]>();
     let entries = 0, scanBytes = 0, count = 0;
+    let legacyFile: string | undefined;
     for await (const entry of this.folder.entries()) {
       if (++entries > FOLDER_LIMITS.entries) throw limit("There are too many entries in the connected folder.");
       const parsed = parseRevisionFile(entry.name);
       if (!parsed) {
-        if (legacyRevisionId(entry.name)) throw new LegacyFolderError(entry.name);
+        if (legacyRevisionId(entry.name)) legacyFile ??= entry.name;
         continue;
       }
       if (++count > FOLDER_LIMITS.revisions) throw limit("There are too many revisions in the connected folder.");
@@ -203,30 +226,27 @@ export class ConnectedLibrary {
       list.push(revision);
       requests.set(value.requestId, list);
     }
-    return { revisions, projects: indexProjects(revisions, requests), requests, pending, entries, scanBytes };
+    if (legacyFile && !revisions.size) throw new LegacyFolderError(legacyFile);
+    return { revisions, projects: indexProjects(revisions), requests, pending, entries, scanBytes, legacyFile };
   }
 
   async list({ includeDeleted = false } = {}): Promise<FolderProject[]> {
     const { projects } = await this.scan();
-    return sorted(projects.keys()).map(id => projects.get(id)!)
-      .filter(project => includeDeleted || project.conflicted || project.heads.some(head => !head.deleted));
+    return visibleProjects(projects, includeDeleted);
   }
 
-  /** Recovery is complete only when every batch in one immutable plan exists. */
+  /** Browser view of a current journal and any older snapshots beside it. */
+  async browse() {
+    const { projects, revisions, legacyFile, requests } = await this.scan();
+    return {
+      projects: visibleProjects(projects),
+      hasPublishedRevisions: revisions.size > 0,
+      canRecoverLegacy: !!legacyFile && !hasCompletedLegacyRecovery(requests),
+    };
+  }
+
   async hasCompletedLegacyRecovery(): Promise<boolean> {
-    const { requests } = await this.scan();
-    const plans = new Map<string, number>();
-    for (const [requestId, revisions] of requests) {
-      const match = /^legacy-recovery:([a-f0-9]{64}):([1-9]\d*):([1-9]\d*)$/.exec(requestId);
-      if (!match || revisions.length !== 1) continue;
-      const batch = Number(match[2]), total = Number(match[3]);
-      if (batch > total || total > FOLDER_LIMITS.revisions) continue;
-      const key = `${match[1]}:${total}`;
-      const complete = (plans.get(key) ?? 0) + 1;
-      if (complete === total) return true;
-      plans.set(key, complete);
-    }
-    return false;
+    return hasCompletedLegacyRecovery((await this.scan()).requests);
   }
 
   /** Portable backup of the visible named projects, pinned to one folder scan. */
@@ -431,7 +451,7 @@ export class ConnectedLibrary {
     };
     index.revisions.set(revision, indexed);
     index.requests.set(value.requestId, [indexed]);
-    indexProjects(index.revisions, index.requests);
+    indexProjects(index.revisions);
 
     let acknowledged = false;
     let rejected: Error | undefined;

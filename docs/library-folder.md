@@ -78,14 +78,15 @@ This schema is independent of the portable library backup format. The older
 folder format stored whole-library snapshots in UUID-named files. Open
 **Library → Recover projects** to copy the projects from its latest completed
 snapshots. Recovery keeps distinct versions from competing snapshots and leaves
-the original files in place. Pocketry opens the recovered projects in the same
-Library view after every batch has been verified. If a recovery is interrupted,
-click **Recover projects** again to finish it.
+the original files in place. If a recovery is interrupted, click **Recover
+projects** again to finish it from the same source snapshots.
 
-Pocketry stores the recovered library in `pocketry-library/pocketry-recovered`
-inside the selected folder. Reconnecting to the same folder opens the completed
-recovery. For CLI or MCP access, use the `pocketry-recovered` directory as the
-library root. The original snapshots remain available as an archive.
+If the folder has older snapshots only, Pocketry opens the recovered projects
+after every batch is verified. It stores them in `pocketry-library/pocketry-recovered`
+inside the selected folder and opens that directory on reconnection. Use it as
+the CLI or MCP library root. If a current library already exists beside the older
+snapshots, recovery adds the older projects to that library as new projects.
+Current projects stay visible and keep their IDs and history throughout recovery.
 
 ## Publication and recovery
 
@@ -102,9 +103,10 @@ one logical revision even if both filesystem calls run. After a lost reply or
 restart, inspect the request ID and retry only with the same input and bases.
 When a candidate revision token is known, a targeted inspection can confirm
 its publication even if an otherwise unreadable folder prevents checking its
-heads. The browser stores the pending intent before writing and offers **Check and
-resume** before further folder saves. A confirmed save advances the matching open
-draft to the recovered revision and keeps any later edits. If the browser loses
+heads. The browser stores the pending intent and identifies the matching draft
+before writing. Use **Check and resume** to reconnect that draft to the recovered
+revision, including when this was its first folder save. Later edits stay with
+the draft. If the browser loses
 its local request record, the folder can still establish what happened. Stale-base and input
 validation errors occur before that attempt publishes.
 
@@ -119,7 +121,10 @@ validation errors occur before that attempt publishes.
 
 A request ID already visible with different input is rejected. If different
 inputs reuse an ID simultaneously before either can observe the other, both
-publications can become visible. The result flags the request collision and retains both publications. Use a new ID for explicit recovery. Independent concurrent
+publications can become visible. The result flags the request collision and
+retains both publications. A project with a single head remains editable and
+can be backed up. If a project has competing revisions, use a new ID for
+explicit recovery. Independent concurrent
 updates to one base similarly become separate project heads. A successful
 reply reports what was visible at that moment and can precede discovery of a
 later race. The protocol provides neither atomic compare-and-swap nor a lock

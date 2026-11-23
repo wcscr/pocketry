@@ -85,7 +85,7 @@ import {
   loadProjectLibrary,
   openProjectFromLibrary,
   renameProjectInLibrary,
-  saveFolderDraft,
+  prepareFolderSave, saveFolderDraft,
   saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
@@ -817,21 +817,20 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast, libraryStorage, folderLibrary, loadFolderProject],
   );
 
-  const recordFolderSave = useCallback(async (target: FolderDraft) => {
+  const recordFolderSave = useCallback(async (target: FolderDraft, requestId?: string) => {
     const draft = { ...currentProjectDoc, name: undefined };
-    setProjectLibrary(await saveFolderDraft(draft, target));
+    const saved = requestId === undefined ? await saveFolderDraft(draft, target) : await saveFolderDraft(draft, target, requestId);
+    if (!saved) return;
+    setProjectLibrary(saved);
     setFolderProject(target);
     setDraftName(null);
     setRestoredDestination(projectDestinationKey(draft, null));
     setProjectRestoreFailed(false);
   }, [currentProjectDoc]);
 
-  const saveWorkingFolderDraft = useCallback(async (name: string, base: FolderDraft | null) => {
-    // An interrupted close can leave a verified save that still needs to advance
-    // this base. Preserve the draft first, and update it before clearing the request.
-    if (base) await saveFolderDraft(currentProjectDoc, base);
-    return folderLibrary.save(currentProjectDoc, name, base, recordFolderSave);
-  }, [currentProjectDoc, folderLibrary, recordFolderSave]);
+  const saveWorkingFolderDraft = useCallback((name: string, base: FolderDraft | null) =>
+    folderLibrary.save(currentProjectDoc, name, base, recordFolderSave, requestId => prepareFolderSave(currentProjectDoc, requestId)),
+  [currentProjectDoc, folderLibrary, recordFolderSave]);
 
   const handleNewProject = useCallback(async (saveDraftName?: string, fixture = false): Promise<boolean> => {
     const defaults = ultim8Defaults(INITIAL_BIN_SPEC, DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_BIN_MATERIALS.binColor, DEFAULT_ULTIM8_FOOTPRINT_MM);
@@ -906,11 +905,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const handleResumeFolderSave = async (intent: FolderIntent) => {
     setProjectBusy(true);
     try {
-      await folderLibrary.resume(intent, async (base, target) => {
-        if (folderProject?.connectionId !== base.connectionId || folderProject.projectId !== base.projectId ||
-          folderProject.revision !== base.revision) return;
+      await folderLibrary.resume(intent, async (target, draft) => {
+        if ("base" in draft && (folderProject?.connectionId !== draft.base.connectionId ||
+          folderProject.projectId !== draft.base.projectId || folderProject.revision !== draft.base.revision)) return;
         saveProject.cancel();
-        await recordFolderSave(target);
+        await recordFolderSave(target, "requestId" in draft ? draft.requestId : undefined);
       });
     } finally { setProjectBusy(false); }
   };

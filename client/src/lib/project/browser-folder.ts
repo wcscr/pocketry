@@ -2,7 +2,7 @@ import { del, get, keys, set, update } from "idb-keyval";
 import { z } from "zod";
 import { assertRevisionBasename, PublicationRejected, type FolderEntry, type LibraryFolder } from "@shared/project-library/adapter";
 import { ConnectedLibrary, type Mutation } from "@shared/project-library/library";
-import { legacyRevisionId, LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
+import { legacyRevisionId, LegacyFolderError, LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
 
 type PermissionOptions = { mode: "readwrite" };
 type DirectoryHandle = FileSystemDirectoryHandle & {
@@ -17,7 +17,7 @@ const pickDirectory = () => (window as Window & {
 const KEY = "pocketry:connected-project-library-directory";
 const RECOVERED_DIRECTORY = "pocketry-recovered";
 export type FolderIntent = { candidateRevision?: string } & (
-  | { kind: "commit"; mutation: Mutation; draftBase?: FolderDraft }
+  | { kind: "commit"; mutation: Mutation; draftBase?: FolderDraft; workingDraft?: true }
   | { kind: "keep-both"; requestId: string; projectId: string; expected: string[]; keep: string }
 );
 type SavedConnection = { directory: DirectoryHandle; parentName: string; id?: string };
@@ -89,8 +89,14 @@ export class BrowserLibraryFolder implements LibraryFolder {
     let directory: DirectoryHandle;
     try { directory = await this.directory.getDirectoryHandle(RECOVERED_DIRECTORY) as DirectoryHandle; }
     catch (cause) {
-      if (cause instanceof DOMException && cause.name === "NotFoundError") return null;
+      if (cause instanceof DOMException && ["NotFoundError", "TypeMismatchError"].includes(cause.name)) return null;
       throw browserError(cause);
+    }
+    // Keep the current journal at the selected root when both layouts exist.
+    try {
+      if ((await new ConnectedLibrary(this).browse()).hasPublishedRevisions) return null;
+    } catch (cause) {
+      if (!(cause instanceof LegacyFolderError)) return null;
     }
     const recovered = new BrowserLibraryFolder(directory, this.name);
     return await new ConnectedLibrary(recovered).hasCompletedLegacyRecovery() ? recovered : null;

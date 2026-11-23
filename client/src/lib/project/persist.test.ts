@@ -29,6 +29,7 @@ import {
   readProjectOverview,
   loadProjectLibrary,
   openProjectFromLibrary,
+  prepareFolderSave,
   ProjectNameConflictError,
   renameProjectInLibrary,
   saveFolderDraft,
@@ -60,6 +61,27 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("retains the first folder save identity with later edits across reload, and clears it on project switches", async () => {
+    const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "workshop-bin",
+      revision: "a".repeat(64), name: "Workshop bin" };
+    await prepareFolderSave(DOC, "first-save");
+    expect(await saveProjectDoc(WIDE_DOC, null)).toBe(true);
+
+    vi.resetModules();
+    const reloaded = await import("./persist");
+    expect(await reloaded.loadProjectDoc()).toEqual(WIDE_DOC);
+    expect(await reloaded.saveFolderDraft(DOC, target, "different-save")).toBeUndefined();
+    expect(await reloaded.loadProjectDoc()).toEqual(WIDE_DOC);
+    await reloaded.saveFolderDraft(WIDE_DOC, target, "first-save");
+    expect(await reloaded.readProjectOverview()).toMatchObject({ doc: WIDE_DOC, folderDraft: target });
+    expect(await reloaded.saveFolderDraft(DOC, target, "first-save")).toBeUndefined();
+
+    await reloaded.prepareFolderSave(WIDE_DOC, "make-copy");
+    await reloaded.startNewProject(DOC);
+    expect(await reloaded.saveFolderDraft(WIDE_DOC, target, "make-copy")).toBeUndefined();
+    expect(await reloaded.readProjectOverview()).toMatchObject({ doc: DOC });
+  });
+
   it("restores a folder draft and its pinned revision together, then clears the link on a new project", async () => {
     const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "workshop-bin",
       revision: "a".repeat(64), name: "Workshop bin" };

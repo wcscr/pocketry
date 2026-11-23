@@ -128,6 +128,30 @@ describe.each(["browser model / browser model", "browser model / Node"])("%s con
     expect((await readdir(root)).filter(name => name.startsWith("pocketry-r"))).toHaveLength(1);
   });
 
+  it("reports a reused request across projects without blocking either single-head project", async () => {
+    const { writer, racing: [a, b] } = await setup();
+    const [first] = save("seed").changes;
+    const second = { ...first, projectId: "second-bin", name: "Second bin" };
+    const initial = await writer.commit({ requestId: "seed", changes: [first, second] });
+    if (!("publications" in initial)) throw new Error("Missing seed publication");
+    const parents = [initial.publications[0].revision];
+    await Promise.all([
+      a.commit({ requestId: "reused", changes: [{ ...first, parents, name: "First update" }] }),
+      b.commit({ requestId: "reused", changes: [{ ...second, parents, name: "Second update" }] }),
+    ]);
+    const receipt = await writer.inspect("reused");
+    expect(receipt).toMatchObject({ status: "published-conflict", requestCollision: true,
+      publications: expect.arrayContaining([{ revision: expect.any(String), fingerprint: expect.any(String), projectIds: [first.projectId] },
+        { revision: expect.any(String), fingerprint: expect.any(String), projectIds: [second.projectId] }]) });
+    const projects = await writer.list();
+    expect(projects.map(project => [project.conflicted, project.heads.length])).toEqual([[false, 1], [false, 1]]);
+    expect((await writer.backup()).projects).toHaveLength(2);
+    const existing = await writer.read(first.projectId);
+    await expect(writer.commit({ requestId: "next", changes: [{ ...first, parents: [existing.revision] }] }))
+      .resolves.toMatchObject({ status: "published" });
+    await expect(writer.commit({ requestId: "reused", changes: [first] })).rejects.toMatchObject({ code: "request-reused" });
+  });
+
   it("preserves independent versions and explicitly forks a recovery copy", async () => {
     const { writer, racing: [a, b] } = await setup();
     await writer.commit(save("initial"));

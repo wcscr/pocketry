@@ -37,6 +37,7 @@ it("keeps a published request recoverable when removing its browser metadata fai
   vi.spyOn(folder, "forget").mockRejectedValueOnce(new Error("IDB unavailable"))
     .mockImplementation(async () => { pending = []; });
   vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]);
+  vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [], hasPublishedRevisions: false, canRecoverLegacy: false });
   const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async input => ({
     status: "published", requestId: input.requestId, projects: [], requestCollision: false, pendingRevisions: [],
     publications: [{ revision, fingerprint: "b".repeat(64), projectIds: [input.changes[0].projectId] }],
