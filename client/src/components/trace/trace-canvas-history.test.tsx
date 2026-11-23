@@ -26,6 +26,11 @@ function TraceCanvas(props: React.ComponentProps<typeof TraceCanvasComponent>) {
   return <ExperimentalFeaturesProvider><TraceCanvasComponent {...props} /></ExperimentalFeaturesProvider>;
 }
 
+async function openTraceTools(host: HTMLElement) {
+  const tools = host.querySelector<HTMLButtonElement>('[aria-label="More trace tools"]')!;
+  await React.act(async () => tools.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+}
+
 class NoopResizeObserver implements ResizeObserver {
   observe() {}
   unobserve() {}
@@ -945,7 +950,13 @@ describe("TraceCanvas edit history", () => {
       const svg = host.querySelector("svg")!;
       const transform = () => svg.querySelector("g[transform]")!.getAttribute("transform");
       const fitted = transform();
-      React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Zoom in (+)"]')!.click());
+      if (mobile) {
+        await openTraceTools(host);
+        const zoomIn = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(item => item.textContent === "Zoom in")!;
+        React.act(() => zoomIn.click());
+      } else {
+        React.act(() => host.querySelector<HTMLButtonElement>('[aria-label="Zoom in (+)"]')!.click());
+      }
       React.act(() => svg.dispatchEvent(new WheelEvent("wheel", { deltaX: 37, deltaY: 53, bubbles: true, cancelable: true })));
       const positioned = transform();
       expect(positioned).not.toBe(fitted);
@@ -1318,15 +1329,15 @@ describe("TraceCanvas edit history", () => {
     } finally { React.act(() => root.unmount()); restore(); }
   });
 
-  it("clips to the paper by default and reveals the same corrected image when toggled", async () => {
+  it.each([false, true])("clips to the paper by default and reveals the same corrected image when toggled (mobile=%s)", async mobile => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", NoopResizeObserver);
-    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
     let trace: TraceStore;
-    function Probe() { trace = useTrace(); return <TracePhotoBoundsControl />; }
+    function Probe() { trace = useTrace(); return mobile ? null : <TracePhotoBoundsControl />; }
     try {
       await React.act(async () => root.render(<TraceProvider><Probe /><TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider></TraceProvider>));
       await React.act(async () => {
@@ -1342,12 +1353,22 @@ describe("TraceCanvas edit history", () => {
       expect(crop()?.getAttribute("width")).toBe("210");
       const sourceImage = host.querySelector('[data-testid="trace-source-image"]');
       const scale = trace!.calibration;
-      const toggle = host.querySelector<HTMLButtonElement>('[role="switch"]')!;
-      await React.act(async () => toggle.click());
+      const toggle = async () => {
+        if (mobile) {
+          await openTraceTools(host);
+          const item = document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!;
+          expect(item.textContent).toBe("Show full photo");
+          expect(item.getAttribute("aria-checked")).toBe(String(!crop()));
+          await React.act(async () => item.click());
+        } else {
+          await React.act(async () => host.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+        }
+      };
+      await toggle();
       expect(crop()).toBeNull();
       expect(host.querySelector('[data-testid="trace-source-image"]')).toBe(sourceImage);
       expect(trace!.calibration).toBe(scale);
-      await React.act(async () => toggle.click());
+      await toggle();
       expect(crop()?.getAttribute("width")).toBe("210");
       await React.act(async () => trace.dispatch({ type: "ROTATE_SOURCE", direction: "clockwise",
         naturalSize: { width: 1000, height: 800 }, maxSize: { width: 1200, height: 1200 } }));
@@ -2290,7 +2311,7 @@ describe("touch-accessible trace tools", () => {
   });
 });
 
-it.each(["mouse", "touch"])("keeps Correct behind the experimental detection controls and cancels unfinished %s strokes", async pointerType => {
+it.each(["mouse", "touch"])("opens correction after opt-in and cancels unfinished %s strokes", async pointerType => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("ResizeObserver", NoopResizeObserver);
   vi.stubGlobal("matchMedia", () => ({ matches: pointerType === "touch", addEventListener() {}, removeEventListener() {} }));
@@ -2309,7 +2330,9 @@ it.each(["mouse", "touch"])("keeps Correct behind the experimental detection con
       <TraceCanvasComponent onReprocess={() => {}} onCorrection={apply} outlineToolRequest={request} onOutlineToolHandled={() => setRequest(undefined)} />
     </>;
   }
-  const launch = () => Array.from(host.querySelectorAll("button")).find(b => b.textContent === "Correct");
+  const launch = () => Array.from(host.querySelectorAll("button")).find(b => b.textContent === "Correct outline");
+  const dialogButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent === label)!;
   const control = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
   const click = (button: HTMLButtonElement) => React.act(() => button.click());
   try {
@@ -2321,19 +2344,22 @@ it.each(["mouse", "touch"])("keeps Correct behind the experimental detection con
       trace.dispatch({ type: "SET_REGION", region });
       trace.dispatch({ type: "DETECTED", imageUrl: "photo", region, outline: detected, rawOutline: detected, svg: "" });
     });
-    expect(launch()).toBeUndefined();
-    setExperimentalTools(true);
-    if (pointerType === "mouse") {
-      expect(launch()!.closest("[hidden]")).not.toBeNull();
-      click(Array.from(host.querySelectorAll("button")).find(b => b.textContent === "Manual detection settings")!);
-    }
     expect(launch()!.closest("[hidden]")).toBeNull();
     click(launch()!);
+    expect(control("Add")).toBeNull();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("other experimental tools");
+    click(dialogButton("Cancel"));
+    expect(control("Add")).toBeNull();
+    expect(launch()!.getAttribute("aria-haspopup")).toBe("dialog");
+    click(launch()!);
+    click(dialogButton("Enable and open brushes"));
     expect(control("Add").getAttribute("aria-pressed")).toBe("true");
+    if (pointerType === "mouse") click(Array.from(host.querySelectorAll("button")).find(b => b.textContent === "Manual detection settings")!);
     click(host.querySelector<HTMLButtonElement>('[data-testid="detected-outline-controls"] [role="switch"]')!);
     expect(trace.detectedOutlineReview.showing).toBe(true);
     expect(control("Add")).toBeNull();
     click(launch()!);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(trace.detectedOutlineReview.showing).toBe(false);
     const svg = host.querySelector<SVGSVGElement>('[data-testid="trace-source-image"]')!.closest("svg")!;
     Object.defineProperty(svg, "setPointerCapture", { value: () => {} });
@@ -2368,7 +2394,7 @@ it.each(["mouse", "touch"])("keeps Correct behind the experimental detection con
     expect(apply).toHaveBeenCalledTimes(3);
     expect(trace.history).toBe(before);
     expect(trace.mode).toBe("edit");
-    expect(launch()).toBeUndefined();
+    expect(launch()!.getAttribute("aria-haspopup")).toBe("dialog");
     expect(control("Add")).toBeNull();
     expect(host.querySelector('[data-testid="detection-hint"]')).toBeNull();
     setExperimentalTools(true);

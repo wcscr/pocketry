@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /** Dismissal belongs to a workflow step, not each changing instruction within it. */
-export function WorkflowHint({ children, className, hintKey = children }: {
-  children: string;
+export function WorkflowHint({ children, className, hintKey = children ?? "" }: {
+  children: string | null;
   className?: string;
   hintKey?: string;
 }) {
@@ -17,6 +17,8 @@ export function WorkflowHint({ children, className, hintKey = children }: {
   const compact = useIsMobile();
   const overlay = useContext(MobileCanvasOverlayContext);
   const start = useRef<{ id: number; x: number; y: number } | null>(null);
+  // This step may have its own instructions. Keep dismissal state for when the hint returns.
+  if (children === null) return null;
   const hidden = dismissed.has(hintKey) || compact && !expanded.has(hintKey);
   const dismiss = () => setDismissed(keys => new Set(keys).add(hintKey));
   const finishSwipe = (event: PointerEvent<HTMLDivElement>) => {

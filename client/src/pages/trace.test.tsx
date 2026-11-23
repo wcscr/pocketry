@@ -285,9 +285,24 @@ describe("Trace detection workflow", () => {
     await React.act(async () => root.render(<PanelProvider><TraceProvider><Probe /><TracePage /></TraceProvider></PanelProvider>));
     await React.act(async () => current.dispatch({ type: "TRACE_DRAFT_RESTORED", draft: recovered }));
     const notice = () => host.querySelector('[data-testid="estimated-edge-notice"]')!;
-    expect(notice().textContent).toContain("An edge hidden by the measurement aid is estimated");
-    React.act(() => notice().querySelector('button')!.click());
+    const noticeButton = (label: string) => [...notice().querySelectorAll("button")]
+      .find(button => button.textContent === label)!;
+    const openNotice = () => React.act(() => noticeButton("Review estimated edge").click());
+    if (mobile) {
+      expect(notice().querySelector('[role="status"]')?.textContent).toBe("An estimated edge needs review.");
+      expect(noticeButton("Show amber area").closest("[hidden]")).not.toBeNull();
+      openNotice();
+    }
+    expect(notice().querySelector("p")?.textContent).toContain("An edge hidden by the measurement aid is estimated");
+    React.act(() => noticeButton("Show amber area").click());
     expect(host.querySelector('[data-testid="estimated-focus-request"]')?.textContent).toBe("1");
+    if (mobile) {
+      expect(noticeButton("Review estimated edge").getAttribute("aria-expanded")).toBe("false");
+      openNotice();
+    }
+    React.act(() => noticeButton("Edit edge").click());
+    expect(current.mode).toBe("edit");
+    expect(host.querySelector('[data-testid="estimated-focus-request"]')?.textContent).toBe("2");
     React.act(() => current.dispatch({ type: "OUTLINE_COMMITTED", outline: [...exportOutline] }));
     expect(notice()).not.toBeNull();
     React.act(() => current.dispatch({ type: "SET_REGION", region: null }));
@@ -425,7 +440,7 @@ describe("Trace detection workflow", () => {
     Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true, writable: true });
   });
 
-  it.each([true, false])("keeps full-photo access beside the canvas with controls closed and preserves edits (mobile=%s)", async mobile => {
+  it.each([true, false])("keeps the full-photo row out of the phone layout and preserves edits on desktop (mobile=%s)", async mobile => {
     vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }));
     Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });
     let current!: ReturnType<typeof useTrace>;
@@ -443,6 +458,10 @@ describe("Trace detection workflow", () => {
         paperBounds: { x: 200, y: 50, width: 300, height: 450 } });
       panel.setPanelOpen(false);
     });
+    if (mobile) {
+      expect(boundsControl()).toBeNull();
+      return;
+    }
     expect(host.querySelectorAll('[data-testid="trace-photo-bounds-control"]')).toHaveLength(1);
     expect(boundsControl()!.textContent).toContain("Show full photo");
     const toggle = boundsControl()!.querySelector<HTMLButtonElement>('[role="switch"]')!;

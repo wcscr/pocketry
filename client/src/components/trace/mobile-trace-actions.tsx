@@ -1,6 +1,5 @@
-import { useExperimentalFeatures } from "@/state/experimental-features";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import { Check, ChevronLeft, SlidersHorizontal } from "lucide-react";
 
 import { hasCalibrationEndpoints, type Calibration } from "@shared/geometry/scale";
 import { WorkflowHint } from "@/components/canvas/workflow-hint";
@@ -35,13 +34,13 @@ const STEPS: TraceStep[] = ["photo", "scale", "region", "outline"];
 
 /** Keep step navigation, guidance, and common adjustments beside the mobile canvas. */
 export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToBinReady = true, addToBinHint, onStartOver, onOpenSettings, onApplyPerspective, onDetectMarkers, onCorrectOutline, onReprocess }: MobileTraceActionsProps): JSX.Element {
-  const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
   const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
   const [reviewStep, setReviewStep] = useState<"photo" | "scale" | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const adjustId = useId();
   const requestRestart = useCallback(() => setRestartOpen(true), []);
   useTraceRestartAction(trace.imageUrl ? requestRestart : null);
   useEffect(() => { setReviewStep(null); setRestartOpen(false); }, [trace.sourceRevision]);
@@ -72,7 +71,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
     return <Button className="min-h-11 w-full" onClick={onChoosePhoto}>Choose a photo</Button>;
   }
 
-  let guidance = "Set the photo's real size to continue.";
+  let guidance: string | null = "Set the photo's real size to continue.";
   if (step === "photo") guidance = "Keep this photo or choose a different one.";
   else if (processing) guidance = "Analyzing photo…";
   else if (reviewingCorners) guidance = trace.manualPerspectivePoints.length === 4
@@ -83,11 +82,11 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
   else if (trace.mode === "calibrate") guidance = "Tap two points a known distance apart.";
   else if (trace.mode === "region") guidance = hasRegion
     ? "Keep this region or drag a new box around the tool." : "Drag a box around the whole tool to detect its outline.";
-  else if (trace.mode === "navigate") guidance = "Drag to pan. Pinch or use + / − to zoom.";
-  else if (trace.mode === "remove") guidance = "Hold and brush over points on one contour. Release to apply.";
-  else if (trace.mode === "edit" && !trace.selection) guidance = "Tap a contour to select it for editing.";
-  else if (trace.mode === "edit") guidance = advancedEditing ? "Drag points to move. Tap the line to add; tap a point for Delete. Pinch to zoom." : "Tap an edge to add a point. Drag to move. Touch and hold a point to remove it.";
-  else if (calibration && trace.outline.length) guidance = "Choose Adjust to refine the outline, or Edit outline to move points.";
+  else if (trace.mode === "navigate") guidance = "Drag to pan. Pinch to zoom.";
+  // The full-screen outline editor provides instructions next to its tools.
+  else if (trace.outline.length && (trace.mode === "remove" || trace.mode === "edit")) guidance = null;
+  else if (calibration && trace.outline.length) guidance = trace.estimatedEdgeRegions.length
+    ? null : "Choose Adjust to refine the outline, or Edit outline to move points.";
   else if (calibration && hasRegion) guidance = "No outline found. Adjust sensitivity or go back to redraw the region.";
   else if (calibration) guidance = "Select the tool's region to detect its outline.";
 
@@ -101,7 +100,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
         {guidance}
       </WorkflowHint>
     </MobileCanvasOverlay>
-    {hasTuning && adjustOpen && <MobileAdjustmentTray className="max-h-[min(264px,40dvh)]" title="Adjust outline" onClose={() => setAdjustOpen(false)} onMore={() => openFullSettings("trace-settings-detect")}>
+    {hasTuning && adjustOpen && <MobileAdjustmentTray id={adjustId} className="max-h-[min(206px,36dvh)]" title="Adjust outline" onMore={() => openFullSettings("trace-settings-detect")}>
       <div className="space-y-2">
         <TraceDetectionControls compact onReprocess={onReprocess} onCorrectOutline={onCorrectOutline && (() => { setAdjustOpen(false); onCorrectOutline(); })} />
         <div className="grid grid-cols-2 gap-1">
@@ -120,7 +119,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
     {step === "scale" && pendingAutoCalibration && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
       <AutoCalibrationOptions onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers} />
     </div>}
-    {step === "outline" && trace.outline.length > 0 && !adjustOpen && <div className="mb-1">{addToBinHint}</div>}
+    {step === "outline" && trace.outline.length > 0 && !adjustOpen && addToBinHint && <div className="mb-1">{addToBinHint}</div>}
     <div className="flex min-h-11 items-stretch gap-2" role="group" aria-label={`Trace actions: ${step}`}>
       <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" disabled={step === "photo" || processing} aria-label={`Back to ${previousStep}`} onClick={back}>
         <ChevronLeft aria-hidden className="h-4 w-4" /><span className="sr-only">Back</span>
@@ -140,11 +139,12 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
         <Button variant="outline" className={actionClass} onClick={redrawScale}>Redraw scale</Button>
         <Button className={actionClass} onClick={continueToRegion}>Use this scale</Button>
       </> : <>
-        <Button variant="outline" className="min-h-11 gap-1.5 px-3" aria-expanded={hasTuning ? adjustOpen : undefined} onClick={() => {
+        <Button variant="outline" className="min-h-11 gap-1.5 px-3" aria-expanded={hasTuning ? adjustOpen : undefined}
+          aria-controls={hasTuning && adjustOpen ? adjustId : undefined} onClick={() => {
           if (hasTuning) setAdjustOpen(open => !open);
           else openFullSettings(step === "scale" ? "trace-settings-scale"
             : step === "region" ? "trace-settings-crop" : "trace-settings-detect");
-        }}><SlidersHorizontal className="h-4 w-4" aria-hidden />Adjust</Button>
+        }}>{adjustOpen ? <><Check aria-hidden />Done</> : <><SlidersHorizontal aria-hidden />Adjust</>}</Button>
         {!processing && !pendingAutoCalibration && (reviewingCorners || ((!calibration || replacingRuler) && !manualPending)) ? <Button className={actionClass} onClick={() => {
           if (reviewingCorners) openFullSettings("trace-settings-scale"); else redrawScale();
         }}>{reviewingCorners ? "Review corners" : "Set scale"}</Button>

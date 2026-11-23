@@ -243,10 +243,6 @@ export async function processImage(
     );
   }
 
-  if (result.inferredOccludedEdge) {
-    onNotice?.("Review the edge beneath the measurement aid",
-      "The aid was removed from the trace. The edge it covers is estimated from the visible outline; check those points, or retake the photo with the aid fully inside the tool.");
-  }
   if (detect.boundary === "teed" && result.refinement?.status === "fallback") {
     onNotice?.("Using color detection", result.refinement.reason === "teed-unavailable"
       ? "Learned outlines could not be loaded. Your photo was traced with the color detector."

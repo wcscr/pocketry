@@ -81,7 +81,7 @@ describe("recognized aid occlusion", () => {
     expect(field.score).toEqual(before);
   });
 
-  it("persists the restored raw contour and reports a hidden edge only when needed", async () => {
+  it("persists the restored raw contour and reports a hidden edge through review regions", async () => {
     for (const placement of ["inside", "edge"] as const) {
       const notices: string[] = [];
       const result = await processImage(photograph(placement), { includeInteriorHoles: true,
@@ -90,7 +90,7 @@ describe("recognized aid occlusion", () => {
       expect(result.outline).toHaveLength(1);
       expect(result.outline[0].holes).toHaveLength(1);
       expect(outlineArea(result.rawOutline)).toBeCloseTo(outlineArea(result.outline), 5);
-      expect(notices).toEqual(placement === "edge" ? ["Review the edge beneath the measurement aid"] : []);
+      expect(notices).toEqual([]);
       expect(result.estimatedEdgeRegions).toEqual(placement === "edge" ? [footprint] : []);
     }
   });
