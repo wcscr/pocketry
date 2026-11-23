@@ -135,10 +135,10 @@ message and one active tool call per server. Explicit read detail is capped at
 exports run in a worker with a two-minute timer and a 512 MiB JavaScript
 old-generation limit. WASM and external buffers are outside that heap cap.
 Model artifacts are limited to 192 MiB. Editable backups use the editor’s
-64 MiB import limit. Cancellation before a write can stop it,
-and the MCP server can terminate geometry before artifact publication. Once
-a publication starts, cancellation cannot roll it back. Inspect the request
-after cancellation or process failure.
+64 MiB import limit. MCP checks cancellation before publishing a project
+revision, including after conflict recovery preflight. It can also terminate
+geometry before artifact publication. Once publication starts, cancellation
+cannot roll it back. Inspect the request after cancellation or process failure.
 
 ## Example from browser save to export
 

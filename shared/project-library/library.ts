@@ -360,7 +360,7 @@ export class ConnectedLibrary {
 
   /** Keep the chosen version under its original ID and copy each other live
    * head under a deterministic new ID. Geometry is copied without merging. */
-  async keepBoth(requestId: string, projectId: string, expected: string[], keep: string): Promise<RequestOutcome> {
+  async keepBoth(requestId: string, projectId: string, expected: string[], keep: string, beforePublish?: () => void): Promise<RequestOutcome> {
     const index = await this.scan();
     if (expected.length < 2 || expected.length > FOLDER_LIMITS.parents || !expected.includes(keep) ||
         new Set(expected).size !== expected.length) {
@@ -386,10 +386,11 @@ export class ConnectedLibrary {
         parents: [], name: name.slice(0, 80 - ending.length).trimEnd() + ending, doc,
       });
     }
-    return this.commit({ requestId, fingerprint, changes, resolveHeads: true });
+    return this.commit({ requestId, fingerprint, changes, resolveHeads: true }, beforePublish);
   }
 
-  async commit(mutation: Mutation): Promise<RequestOutcome> {
+  /** The caller can reject publication after preflight and before filesystem writes. */
+  async commit(mutation: Mutation, beforePublish?: () => void): Promise<RequestOutcome> {
     if (!requestIdSchema.safeParse(mutation.requestId).success || mutation.changes.length < 1 ||
         mutation.changes.length > FOLDER_LIMITS.changes ||
         new Set(mutation.changes.map(change => change.projectId)).size !== mutation.changes.length) {
@@ -453,6 +454,7 @@ export class ConnectedLibrary {
     index.requests.set(value.requestId, [indexed]);
     indexProjects(index.revisions);
 
+    beforePublish?.();
     let acknowledged = false;
     let rejected: Error | undefined;
     let issue = "The publication was not visible after the write.";

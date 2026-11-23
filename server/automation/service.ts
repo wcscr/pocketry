@@ -213,7 +213,8 @@ export class AutomationService {
       expectedHeads: z.array(revisionIdSchema).min(2).max(FOLDER_LIMITS.parents),
       keep: revisionIdSchema,
     }), "Retain the chosen head under the original ID and copy competing live heads to new IDs.", false,
-      async ({ requestId, projectId, expectedHeads, keep }) => this.library.keepBoth(requestId, projectId, expectedHeads, keep)),
+      async ({ requestId, projectId, expectedHeads, keep }, signal) =>
+        this.library.keepBoth(requestId, projectId, expectedHeads, keep, () => checkCancellation(signal))),
     export_revision: tool(projectRef.extend({ format: exportFormat }),
       "Export an exact saved revision to a local artifact. Formats include STL, 3MF, multicolor 3MF, and editable backup.", false,
       async ({ projectId, revision, format }, signal) => {
@@ -271,7 +272,7 @@ export class AutomationService {
     const outcome = await this.library.commit({
       requestId: input.requestId, fingerprint,
       changes: [{ projectId, parents, name: project.name!, doc: project }],
-    });
+    }, () => checkCancellation(signal));
     return { outcome, validation };
   }
 }
