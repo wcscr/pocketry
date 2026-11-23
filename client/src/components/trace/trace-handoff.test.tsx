@@ -23,9 +23,9 @@ beforeEach(() => {
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => { React.act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
-function Handoff() {
+function Handoff({ compact = false }: { compact?: boolean }) {
   const handoff = useTraceHandoff();
-  return <><TraceHandoffOptions handoff={handoff} /><button disabled={!handoff.ready} onClick={handoff.addToBin}>Add to bin</button></>;
+  return <><TraceHandoffOptions handoff={handoff} compact={compact} /><button disabled={!handoff.ready} onClick={handoff.addToBin}>Add to bin</button></>;
 }
 function render() { React.act(() => root.render(<Handoff />)); }
 function add() { React.act(() => host.querySelector("button")!.click()); }
@@ -57,6 +57,17 @@ it.each(["saved", "loading", "error"] as const)("shows the destination and respe
     expect(host.textContent).toContain("Adding to: Wrench tray");
     expect(mocks.addShape.mock.calls[0][2]).toEqual({ key: "project:wrenches", name: "Wrench tray" });
   } else expect(mocks.addShape).not.toHaveBeenCalled();
+});
+
+it("keeps the phone handoff to the project name or its storage status", () => {
+  mocks.destination = { name: "Wrench tray", activeProjectId: "wrenches", status: "saved", error: null, hasDocument: true };
+  React.act(() => root.render(<Handoff compact />));
+  expect(host.querySelectorAll("p")).toHaveLength(1);
+  expect(host.querySelector("p")?.textContent).toBe("Adding to: Wrench tray");
+  mocks.destination = { ...mocks.destination, status: "error" };
+  React.act(() => root.render(<Handoff compact />));
+  expect(host.querySelector("p")?.textContent).toBe("Open Bin to resolve the project storage problem.");
+  expect(host.querySelector("button")?.disabled).toBe(true);
 });
 
 it("keeps nested pockets separate instead of combining the inner contour into a hole", () => {

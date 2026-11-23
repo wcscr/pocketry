@@ -6,7 +6,7 @@ import { correctionUnavailable } from "./correction-tools";
 import { Brush, ChevronDown, RotateCcw, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -34,7 +34,7 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
   /** Editing and contour controls precede the final restart action. */
   outlineActions?: ReactNode;
 }) {
-  const { enabled: advancedEditing } = useExperimentalFeatures();
+  const { enabled: advancedEditing, setEnabled } = useExperimentalFeatures();
   const trace = useTrace();
   const [manualOpen, setManualOpen] = useState(false);
   const manualId = useId();
@@ -45,10 +45,12 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
     : trace.boundaryMethod === "auto" ? "With holes enabled, Automatic uses Color contrast." : null;
   const [draftSensitivity, setDraftSensitivity] = useState<number | null>(null);
   const [pendingDetection, setPendingDetection] = useState<DetectionSettings | null>(null);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
   const switchingForHoles = trace.boundaryMethod === "teed" && pendingDetection?.boundary === "color" && pendingDetection.includeInteriorHoles;
   useEffect(() => {
     setDraftSensitivity(null);
     setPendingDetection(null);
+    setCorrectionOpen(false);
   }, [trace.sourceRevision, trace.region]);
   useEffect(() => { if (!processing) setDraftSensitivity(null); }, [processing, sensitivity]);
 
@@ -92,6 +94,16 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
   };
 
   const brushDisabled = correctionUnavailable(trace);
+  const showCorrection = !!(onCorrectOutline && trace.imageUrl && trace.region);
+  const showRetry = trace.boundaryMethod === "teed" && !includeInteriorHoles && trace.imageUrl && trace.region &&
+    trace.detectedImageUrl === trace.imageUrl;
+  const primaryActionClass = compact
+    ? "h-auto min-h-11 min-w-0 flex-1 whitespace-normal leading-tight"
+    : "min-w-0 flex-1";
+  const correctionButton = <Button variant="outline" size="sm" className={primaryActionClass} disabled={!!brushDisabled}
+    onClick={advancedEditing ? onCorrectOutline : undefined}>
+    <Brush className="h-4 w-4" />Correct outline
+  </Button>;
   const tuning = <>
     <div className={compact && advancedEditing ? "grid grid-cols-2 gap-4" : "space-y-3"} data-testid={compact ? "mobile-trace-tuning" : "trace-tuning"}>
       <LabelledSlider id={compact ? "mobile-sensitivity" : "sensitivity"} label="Sensitivity"
@@ -111,26 +123,42 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
         touchTarget={compact} hint={compact ? undefined : "Higher values use fewer points and may omit small features. Your edits are preserved."} />}
     </div>
     {children}
-    {advancedEditing && onCorrectOutline && trace.region && <div className="flex items-center gap-1">
-      <Button variant="outline" size="sm" className="min-w-0 flex-1" onClick={onCorrectOutline} disabled={!!brushDisabled}>
-        <Brush className="h-4 w-4" />Correct
-      </Button>
-      <HelpHint label="experimental correction brushes">{brushDisabled ?? "Mark missing tool material with Add or unwanted background with Remove. Each stroke reruns detection and can be undone."}</HelpHint>
-    </div>}
-    <DetectedOutlineControls />
     {compact && trace.outline.length > 0 && <TraceSymmetryTool />}
+    <DetectedOutlineControls />
     {trace.curves && <p className="text-xs text-muted-foreground">Lines and curves are applied. Use Edit outline for adjustments and Bin clearance for fit.</p>}
   </>;
 
   return <>
-    {trace.boundaryMethod === "teed" && !includeInteriorHoles && trace.imageUrl && trace.region &&
-      trace.detectedImageUrl === trace.imageUrl && <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" className="min-w-0 flex-1" disabled={processing}
-          onClick={() => request({ sensitivity, includeInteriorHoles, highDetail: true })}>
-          Retry at higher resolution
-        </Button>
-        <HelpHint label="higher-resolution retry">Trace this region again at 768 px. The larger model uses more memory than the 512 px default. Undo restores the previous outline.</HelpHint>
+    {(showCorrection || showRetry) && <div className={compact && showCorrection && showRetry ? "grid grid-cols-2 gap-2" : "space-y-3"}>
+      {showCorrection && <div className="flex items-center gap-1">
+        {advancedEditing ? correctionButton : <Dialog open={correctionOpen} onOpenChange={setCorrectionOpen}>
+          <DialogTrigger asChild>{correctionButton}</DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enable experimental features?</DialogTitle>
+              <DialogDescription>
+                Use Add to paint over missing tool material and Remove to paint over unwanted background.
+                Each stroke updates the outline and can be undone. Continuing also enables other experimental tools in App settings.
+              </DialogDescription>
+            </DialogHeader>
+            <Button variant="outline" onClick={() => setCorrectionOpen(false)}>Cancel</Button>
+            <Button disabled={!!brushDisabled} onClick={() => {
+              setCorrectionOpen(false);
+              setEnabled(true);
+              onCorrectOutline?.();
+            }}>Enable and open brushes</Button>
+          </DialogContent>
+        </Dialog>}
+        <HelpHint label="outline correction brushes">{brushDisabled ?? "Use Add to recover missing tool material or Remove to clear unwanted background. Each stroke reruns detection and can be undone."}</HelpHint>
       </div>}
+      {showRetry && <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className={primaryActionClass} disabled={processing}
+            onClick={() => request({ sensitivity, includeInteriorHoles, highDetail: true })}>
+            Retry at higher resolution
+          </Button>
+          <HelpHint label="higher-resolution retry">Trace this region again at 768 px. The larger model uses more memory than the 512 px default. Undo restores the previous outline.</HelpHint>
+      </div>}
+    </div>}
     {!compact && <div className="flex items-center justify-between gap-2">
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-1"><Label htmlFor="outline-detection-method" className="text-xs">Find the outline using</Label>

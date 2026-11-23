@@ -51,14 +51,16 @@ export function useTraceHandoff(onCanvasInteraction?: () => void) {
 export type TraceHandoff = ReturnType<typeof useTraceHandoff>;
 
 /** Explain the destination and the photo-relative placement without extra choices. */
-export function TraceHandoffOptions({ handoff }: { handoff: TraceHandoff }) {
+export function TraceHandoffOptions({ handoff, compact = false }: { handoff: TraceHandoff; compact?: boolean }) {
   return <div className="space-y-1 text-xs text-muted-foreground">
     <p className="truncate" title={handoff.destinationName}>
       {handoff.destinationStatus === "loading" ? "Reading destination…"
         : handoff.destinationStatus === "error" ? "Open Bin to resolve the project storage problem."
         : <>Adding to: {handoff.destinationName}</>}
     </p>
-    <p>Pockets and holes stay separate and editable in Bin.</p>
-    <p>Positions from the photo are preserved, including overlaps.</p>
+    {!compact && <>
+      <p>Pockets and holes stay separate and editable in Bin.</p>
+      <p>Positions from the photo are preserved, including overlaps.</p>
+    </>}
   </div>;
 }

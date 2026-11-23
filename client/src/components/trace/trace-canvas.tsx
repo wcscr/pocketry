@@ -46,7 +46,7 @@ import { useRulerInputFraming } from "./use-ruler-input-framing";
 import { useMobileContourEditor } from "@/hooks/use-mobile-contour-editor";
 import { useContourPointFocus } from "@/hooks/use-contour-point-focus";
 import { ContourMagnifier } from "@/components/canvas/contour-magnifier";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CanvasToolbar } from "@/components/layout/canvas-toolbar";
 import { OutlineToolbar, type OutlineTool } from "./outline-toolbar";
 import { usePointEraser } from "./use-point-eraser";
@@ -185,6 +185,8 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     return () => document.removeEventListener("keydown", escape, true);
   }, [correctionMode]);
   const editing = (mode === "edit" || mode === "remove") && outline.length > 0;
+  const photoBounds = store.perspectiveCorrection;
+  const showZoomButtons = !isMobile || editing || !!correctionMode;
   // Detected sheet geometry is useful while the user reviews it, but becomes
   // visual noise once accepted and the region tool takes over. A manually
   // placed ruler remains visible so its handles and label stay editable.
@@ -1210,7 +1212,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
                 : <ModeButton mode="edit" icon={Spline} label="Edit outline" onSelect={focusContour} />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11" aria-label="More trace tools"><Ellipsis className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
+                <DropdownMenuContent align="start" className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain">
                   {([
                     { mode: "region", label: "Region", icon: Crop, disabled: !canSelectRegion },
                     { mode: "edit", label: "Edit outline", icon: Spline, disabled: outline.length === 0 },
@@ -1218,6 +1220,17 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
                     { mode: "measure", label: "Measure distance", icon: Ruler, disabled: measurementMmPerPx === null },
                   ] as const).map(tool => <DropdownMenuItem key={tool.mode} className="min-h-11" disabled={tool.disabled}
                     onSelect={() => { dispatch({ type: "SET_MODE", mode: tool.mode }); if (tool.mode === "edit") focusContour(); }}><tool.icon className="mr-2 h-4 w-4" />{tool.label}</DropdownMenuItem>)}
+                  {(!showZoomButtons || photoBounds?.paperBounds || photoBounds?.fullPhotoUnavailableReason) && <DropdownMenuSeparator />}
+                  {!showZoomButtons && <>
+                    <DropdownMenuItem className="min-h-11" onSelect={() => viewport.zoomBy(1.2)}><ZoomIn />Zoom in</DropdownMenuItem>
+                    <DropdownMenuItem className="min-h-11" onSelect={() => viewport.zoomBy(1 / 1.2)}><ZoomOut />Zoom out</DropdownMenuItem>
+                  </>}
+                  {(photoBounds?.paperBounds || photoBounds?.fullPhotoUnavailableReason) && <>
+                    <DropdownMenuCheckboxItem className="min-h-11" checked={photoBounds.showFullPhoto ?? false}
+                      disabled={!photoBounds.paperBounds}
+                      onCheckedChange={show => dispatch({ type: "SET_SHOW_FULL_PHOTO", show })}>Show full photo</DropdownMenuCheckboxItem>
+                    {photoBounds.fullPhotoUnavailableReason && <DropdownMenuLabel className="max-w-64 font-normal text-muted-foreground">{photoBounds.fullPhotoUnavailableReason}</DropdownMenuLabel>}
+                  </>}
                 </DropdownMenuContent>
               </DropdownMenu>
             </> : <>
@@ -1236,7 +1249,7 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
               y: viewport.transform.translateY + magnifiedPoint.y * viewport.transform.scale,
             } : null} />
 
-          <CanvasToolbar position="top-right" className="trace-history-tools max-md:bottom-2 max-md:left-2 max-md:right-auto max-md:top-auto">
+          <CanvasToolbar position={isMobile ? "bottom-left" : "top-right"} className="trace-history-tools">
             {/* Always present: outline edits can happen in any pointing mode,
                 and a hidden undo reads as "there is no undo". */}
             <IconButton
@@ -1302,11 +1315,11 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
           </div>}
 
           <CanvasToolbar position="bottom-right">
-            <IconButton
+            {showZoomButtons && <IconButton
               icon={ZoomOut}
               label="Zoom out (-)"
               onClick={() => viewport.zoomBy(1 / 1.2)}
-            />
+            />}
             <button
               type="button"
               onClick={viewport.resetZoom}
@@ -1315,11 +1328,11 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
             >
               {Math.round(viewport.transform.scale * 100)}%
             </button>
-            <IconButton
+            {showZoomButtons && <IconButton
               icon={ZoomIn}
               label="Zoom in (+)"
               onClick={() => viewport.zoomBy(1.2)}
-            />
+            />}
             <IconButton icon={Maximize2} label="Fit to screen (0)" onClick={fitVisiblePhoto} />
           </CanvasToolbar>
 

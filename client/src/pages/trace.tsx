@@ -3,12 +3,14 @@ import type { DetectionHint } from "@shared/geometry/detection-hints";
 import { affineHomography, composeHomography, inverseHomography, workingToPhoto } from "@shared/geometry/projective";
 import { ContourMenuProvider } from "@/components/trace/contour-context-menu";
 import { useLocation } from "wouter";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { ChevronDown, TriangleAlert } from "lucide-react";
 
 import { mmPerPixel, type Calibration } from "@shared/geometry/scale";
 import type { Rect, Ring } from "@shared/geometry/types";
 
 import { usePanelState } from "@/components/layout/panel-context";
+import { MobileCanvasOverlayContext } from "@/components/layout/mobile-canvas-overlay";
 import { StartDesignActions } from "@/components/layout/start-design-actions";
 import { TraceEditingWorkspace } from "@/components/trace/trace-editing-workspace";
 import { useExperimentalFeatures } from "@/state/experimental-features";
@@ -94,6 +96,33 @@ function imageDataToPngUrl(image: ImageData): string {
   return canvas.toDataURL("image/png");
 }
 
+function EstimatedEdgeNotice({ compact, onFocus }: { compact: boolean; onFocus: (edit: boolean) => void }) {
+  const [open, setOpen] = useState(false);
+  const contentId = useId();
+  const showArea = (edit: boolean) => { setOpen(false); onFocus(edit); };
+  return <div className="shrink-0 border-b bg-amber-500/10 text-xs" data-testid="estimated-edge-notice">
+    {compact && <>
+      <span role="status" className="sr-only">An estimated edge needs review.</span>
+      <Button variant="ghost" className="min-h-11 w-full justify-start rounded-none px-3 text-xs"
+        aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>
+        <TriangleAlert aria-hidden className="h-4 w-4 shrink-0" />
+        Review estimated edge
+        <ChevronDown aria-hidden className={`ml-auto h-4 w-4 ${open ? "rotate-180" : ""}`} />
+      </Button>
+    </>}
+    <div id={contentId} hidden={compact && !open}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+        <p role={compact ? undefined : "status"} className="min-w-0 grow basis-64">An edge hidden by the measurement aid is estimated. Check the amber area.</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <Button variant="outline" size="sm" onClick={() => showArea(false)}>Show amber area</Button>
+          <Button variant="outline" size="sm" onClick={() => showArea(true)}>Edit edge</Button>
+          <HelpHint label="repairing the estimated edge">Move points to match the visible tool, or retake the photo with the aid fully inside the tool. The amber area remains an estimate after editing.</HelpHint>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 function TraceWorkspace(): JSX.Element {
   const store = useTrace();
   const { dispatch } = store;
@@ -110,6 +139,7 @@ function TraceWorkspace(): JSX.Element {
   const [, navigate] = useLocation();
   const { panelOpen, setPanelOpen, setSampleLibraryRequested } = usePanelState();
   const isMobile = useIsMobile();
+  const [mobileHintOverlay, setMobileHintOverlay] = useState<HTMLDivElement | null>(null);
   const { enabled: advancedEditing, inspectorEnabled, straightRunTolerance } = useExperimentalFeatures();
   const workflowLayout = inspectorEnabled && !isMobile;
   const editingOutline = store.outline.length > 0 && (store.mode === "edit" || store.mode === "remove");
@@ -121,7 +151,8 @@ function TraceWorkspace(): JSX.Element {
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ id: string }>();
   const [outlineToolRequest, setOutlineToolRequest] = useState<OutlineToolRequest>();
   const requestOutlineTool = (tool: OutlineToolRequest["tool"]) => {
-    if (!advancedEditing) return;
+    // Correction controls can enable experimental features and request the brush in the same event.
+    if (tool === "smooth" && !advancedEditing) return;
     store.detectedOutlineReview.close();
     dispatch({ type: "SET_MODE", mode: "pan" });
     setOutlineToolRequest({ tool, sourceRevision: store.sourceRevision });
@@ -829,11 +860,12 @@ function TraceWorkspace(): JSX.Element {
         onPanelOpenChange={setPanelOpen}
         panelTitle="Trace controls"
         mobileActionsLayout="landscape-side"
-        mobileActions={<MobileTraceActions
+        mobileActions={<MobileCanvasOverlayContext.Provider value={mobileHintOverlay}><MobileTraceActions
           onAddToBin={handoff.addToBin}
           onExport={requestExport}
           addToBinReady={handoff.ready}
-          addToBinHint={<TraceHandoffOptions handoff={handoff} />}
+          addToBinHint={(handoff.destinationStatus === "loading" || handoff.destinationStatus === "error")
+            ? <TraceHandoffOptions handoff={handoff} compact /> : undefined}
           onChoosePhoto={() => photoInputRef.current?.click()}
           onStartOver={startOver}
           onReprocess={(settings) => void runDetection(settings)}
@@ -841,7 +873,7 @@ function TraceWorkspace(): JSX.Element {
           onOpenSettings={openSettings}
           onDetectMarkers={() => void detectMarkers(true)}
           onApplyPerspective={(proposal, template, scale) => void applyPerspective(proposal, template, scale)}
-        />}
+        /></MobileCanvasOverlayContext.Provider>}
         panel={
           <TraceControlsPanel
             handoff={handoff}
@@ -863,7 +895,7 @@ function TraceWorkspace(): JSX.Element {
         }
         canvas={
           <div className="flex h-full min-h-0 flex-col">
-            <TracePhotoBoundsControl />
+            {!isMobile && <TracePhotoBoundsControl />}
             {photoError && <div role="alert" data-testid="trace-photo-error"
               className={`flex shrink-0 items-start gap-2 bg-destructive/10 px-3 py-2 text-sm ${isMobile ? "order-last border-t" : "border-b"}`}>
               <p className="min-w-0 flex-1">{photoError}</p>
@@ -872,20 +904,11 @@ function TraceWorkspace(): JSX.Element {
             {store.imageUrl && store.draftSaveStatus === "error" && <p role="status" data-testid="trace-save-error" className="shrink-0 border-b bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Couldn’t save the trace draft. Keep this page open; your latest edits may not survive a refresh.
             </p>}
-            {store.estimatedEdgeRegions.length > 0 && <div role="status" data-testid="estimated-edge-notice"
-              className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-amber-500/10 px-3 py-2 text-xs">
-              <p className="min-w-0 flex-1">An edge hidden by the measurement aid is estimated. Review the contour in the amber area before using it.</p>
-              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
-                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
-                setEstimatedEdgeFocusRequest(value => value + 1);
-              }}>Show estimated area</Button>
-              <Button variant="outline" size="sm" className="min-h-9" onClick={() => {
-                if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
-                dispatch({ type: "SET_MODE", mode: "edit" });
-                setEstimatedEdgeFocusRequest(value => value + 1);
-              }}>Edit this edge</Button>
-              <HelpHint label="repairing the estimated edge">Move points on the estimated edge to match the visible tool. The amber area remains an estimate after editing.</HelpHint>
-            </div>}
+            {store.estimatedEdgeRegions.length > 0 && <EstimatedEdgeNotice compact={isMobile} key={store.sourceRevision} onFocus={edit => {
+              if (store.perspectiveCorrection?.paperBounds) dispatch({ type: "SET_SHOW_FULL_PHOTO", show: true });
+              if (edit) dispatch({ type: "SET_MODE", mode: "edit" });
+              setEstimatedEdgeFocusRequest(value => value + 1);
+            }} />}
             <div className="relative min-h-0 flex-1">
                 <TraceCanvas
                   outlineToolRequest={outlineToolRequest}
@@ -926,6 +949,7 @@ function TraceWorkspace(): JSX.Element {
                     </div>
                   }
                 />
+                {isMobile && <div ref={setMobileHintOverlay} className="pointer-events-none absolute inset-0 z-30 overflow-hidden" />}
             </div>
           </div>
         }

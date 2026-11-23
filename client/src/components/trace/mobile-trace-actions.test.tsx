@@ -22,12 +22,13 @@ const applyPerspective = vi.fn();
 const startOver = vi.fn();
 const reprocess = vi.fn();
 const detectMarkers = vi.fn();
+const correctOutline = vi.fn();
 const calibration = { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 };
 function Harness(): JSX.Element {
   trace = useTrace();
   const { traceRestart } = usePanelState();
   return <><button onClick={() => traceRestart?.()}>Start over</button><MobileTraceActions onExport={exportOutline} onAddToBin={addToBin} onChoosePhoto={choosePhoto} onOpenSettings={openSettings} onApplyPerspective={applyPerspective}
-    onReprocess={reprocess} onDetectMarkers={detectMarkers} onStartOver={() => { startOver(); trace.dispatch({ type: "SOURCE_CLEARED" }); }} /></>;
+    onReprocess={reprocess} onDetectMarkers={detectMarkers} onCorrectOutline={correctOutline} onStartOver={() => { startOver(); trace.dispatch({ type: "SOURCE_CLEARED" }); }} /></>;
 }
 function button(text: string): HTMLButtonElement {
   const result = Array.from(host.querySelectorAll("button")).find(button => button.textContent === text);
@@ -57,15 +58,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Mobile trace progression", () => {
-  const readyOutline = () => {
+  const readyOutline = (estimatedEdgeRegions?: TraceStore["estimatedEdgeRegions"]) => {
     load();
     React.act(() => {
       trace.dispatch({ type: "SET_CALIBRATION", calibration });
       trace.dispatch({ type: "SET_REGION", region: { x: 0, y: 0, width: 200, height: 200 } });
-      trace.dispatch({ type: "DETECTED", imageUrl: "photo", region: trace.region, svg: "",
+      trace.dispatch({ type: "DETECTED", imageUrl: "photo", region: trace.region, svg: "", estimatedEdgeRegions,
         outline: [{ outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], holes: [] }], rawOutline: [] });
     });
   };
+
+  it("leaves estimated-edge review and point-editing guidance to their own controls", () => {
+    readyOutline([[{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 30, y: 50 }]]);
+    expect(overlay.textContent).toBe("");
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
+    expect(overlay.textContent).toBe("");
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "navigate" }));
+    expect(overlay.textContent).toContain("Drag to pan.");
+  });
 
   it("revisits earlier steps and continues without discarding the ruler, region, or edits", () => {
     readyOutline();
@@ -154,12 +164,45 @@ describe("Mobile trace progression", () => {
     React.act(() => button("Adjust").click());
     expect(host.querySelector("#mobile-detail")).toBeNull();
     const tray = host.querySelector<HTMLElement>(".mobile-adjustment-tray")!;
-    expect(tray.className).toContain("max-h-[min(264px,40dvh)]");
+    expect(tray.className).toContain("max-h-[min(206px,36dvh)]");
     expect(tray.className).toContain("overscroll-contain");
     React.act(() => button("Symmetry & straighten").click());
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.querySelector("h2")?.textContent).toBe("Symmetry & straighten");
     expect(dialog?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe("Straighten only");
+  });
+
+  it("keeps Adjust open on cancel and returns to the canvas when correction is enabled", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    const dialogButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(button => button.textContent === text)!;
+    React.act(() => button("Correct outline").click());
+    React.act(() => dialogButton("Cancel").click());
+    expect(button("Done").getAttribute("aria-expanded")).toBe("true");
+    expect(correctOutline).not.toHaveBeenCalled();
+    React.act(() => button("Correct outline").click());
+    React.act(() => dialogButton("Enable and open brushes").click());
+    expect(button("Adjust").getAttribute("aria-expanded")).toBe("false");
+    expect(correctOutline).toHaveBeenCalledOnce();
+    React.act(() => button("Adjust").click());
+    React.act(() => button("Correct outline").click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(button("Adjust").getAttribute("aria-expanded")).toBe("false");
+    expect(correctOutline).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the dock button to close Adjust and keeps All properties in the tray", () => {
+    readyOutline();
+    React.act(() => button("Adjust").click());
+    const done = button("Done");
+    expect(document.getElementById(done.getAttribute("aria-controls")!)?.getAttribute("aria-label")).toBe("Adjust outline");
+    React.act(() => done.click());
+    expect(button("Adjust").getAttribute("aria-expanded")).toBe("false");
+    React.act(() => button("Adjust").click());
+    React.act(() => button("All properties").click());
+    expect(openSettings).toHaveBeenCalledWith("trace-settings-detect");
+    expect(button("Adjust").getAttribute("aria-expanded")).toBe("false");
   });
 
   it("preserves sensitivity during vertical touch swipes while keeping horizontal touch dragging usable", () => {
@@ -369,13 +412,14 @@ describe("Mobile trace progression", () => {
     React.act(() => {
       trace.dispatch({ type: "SET_CALIBRATION", calibration });
       trace.dispatch({ type: "OUTLINE_COMMITTED", outline: [{ outer: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], holes: [] }] });
-      trace.dispatch({ type: "SET_MODE", mode: "edit" });
+      trace.dispatch({ type: "SET_MODE", mode: "navigate" });
     });
     React.act(() => overlay.querySelector<HTMLButtonElement>('[aria-label="Dismiss hint"]')!.click());
+    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
+    expect(overlay.querySelector("button")).toBeNull();
     React.act(() => trace.dispatch({ type: "SET_MODE", mode: "navigate" }));
     expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
-    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "edit" }));
-    expect(overlay.querySelector('[aria-label="Dismiss hint"]')).toBeNull();
+    expect(overlay.querySelector('[aria-label="Show current hint"]')).not.toBeNull();
   });
   it("opens the shared export prompt from outline adjustments", () => {
     readyOutline();

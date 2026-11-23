@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.15.6 — 2026-11-22
+
+- Open **Correct outline** from the desktop Outline panel or mobile Adjust tray to find the experimental Add and Remove brushes.
+- Give the photo more room on phones. Open estimated-edge actions from **Review estimated edge** and find **Show full photo** and zoom controls in **More trace tools**.
+
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.

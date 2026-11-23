@@ -67,7 +67,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               default. For other backgrounds, choose <strong>Color contrast</strong> or
               <strong> Automatic · match background</strong> under <strong>Find the outline using</strong>.
               If perspective correction crops the tool, enable
-              <strong> Show full photo</strong> beside the canvas. In
+              <strong> Show full photo</strong> beside the canvas, or in the <strong>More trace tools</strong> menu on a phone. In
               <strong> Outline</strong>, choose <strong>Edit outline</strong>. Click an edge to add a point, drag a point to move it, or right-click a point to remove it. On a touchscreen, touch and hold a point to remove it.
               Choose <strong>Add manual contour</strong> to start another trace with a four-point
               square, then drag its corners and add points on its edges. Trace an inner feature
@@ -78,7 +78,10 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
             </p>
             <p className="mt-1 text-muted-foreground">
               Detection cleans up lines, curves, and small dips automatically. Review tips, shadows,
-              and amber estimated edges against the photo.
+              and amber estimated edges against the photo. On a phone, tap <strong>Review estimated edge</strong> to show its actions.
+              Choose <strong>Correct outline</strong> in <strong>Outline</strong> or in <strong>Adjust</strong> on a phone.
+              Enable experimental features when prompted, then paint missing material with <strong>Add</strong> or unwanted
+              background with <strong>Remove</strong>. Undo restores the previous outline after a stroke.
               Enable <strong>Include interior holes</strong> to trace openings inside the tool.
               With Tool edges selected, confirm switching to <strong>Color contrast</strong>{" "}
               and re-detecting the outline; <strong>Automatic</strong> selects Color contrast for holes.
