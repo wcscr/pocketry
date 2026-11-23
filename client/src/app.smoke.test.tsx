@@ -130,7 +130,7 @@ describe("App", () => {
       matches: mode === "mobile" && query.includes("max-width"),
     }));
     renderApp();
-    expect(document.querySelector('a[href="mailto:feedback@pocketry.xyz"]')).toBeNull();
+    expect(document.querySelector('a[href="mailto:pocketryapp@gmail.com"]')).toBeNull();
     const trigger = container.querySelector<HTMLButtonElement>(
       mode === "desktop"
         ? '[aria-label="Report an Issue / Provide Feedback"]'
@@ -144,8 +144,8 @@ describe("App", () => {
     expect([...menu!.querySelectorAll('[role="menuitem"]')].filter(item => item.textContent?.trim() === "Send feedback")).toHaveLength(1);
     expect(menu?.textContent).not.toContain("Report a problem privately");
     expect(menu?.textContent).not.toContain("Make a suggestion privately");
-    const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:feedback@pocketry.xyz"]');
-    expect(email?.textContent).toContain("Email feedback@pocketry.xyz");
+    const email = menu?.querySelector<HTMLAnchorElement>('a[href="mailto:pocketryapp@gmail.com"]');
+    expect(email?.textContent).toContain("Email pocketryapp@gmail.com");
     const github = menu?.querySelector<HTMLAnchorElement>('a[href="https://github.com/wcscr/pocketry/issues/new"]');
     expect(github?.textContent).toContain("Open a GitHub issue");
     expect(github?.target).toBe("_blank");

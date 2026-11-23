@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.15.6 — 2026-11-23
+
+- Direct contact and private feedback to pocketryapp@gmail.com.
+
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.
