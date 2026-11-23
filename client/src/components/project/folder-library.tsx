@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { folderRequestId, type FolderDraft } from "@/lib/project/browser-folder";
+import { folderRequestId, type FolderDraft, type FolderIntent } from "@/lib/project/browser-folder";
 import type { FolderLibrary } from "@/hooks/use-folder-library";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
@@ -19,10 +19,11 @@ interface Props {
   onOpen: (doc: ProjectDoc, target: FolderDraft) => Promise<void>;
   onOpened: () => void;
   onSave: () => void;
+  onResume: (intent: FolderIntent) => Promise<void>;
   onExportDraft: () => void;
 }
 
-export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onSave, onExportDraft }: Props) {
+export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onSave, onResume, onExportDraft }: Props) {
   const [selection, setSelection] = useState<(Project & { action: "open" | "rename" | "remove" }) | null>(null);
   const [name, setName] = useState("");
   const disabled = busy || library.busy;
@@ -56,7 +57,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
     {library.canWrite && !library.legacyFolder && <>
       {library.pending.map(intent => <div className="space-y-2 rounded-md border p-3 text-sm" key={folderRequestId(intent)}>
         <p className="break-all">Check pending request {folderRequestId(intent)}</p>
-        <Button size="sm" variant="outline" className="min-h-11" disabled={disabled} onClick={() => void library.resume(intent)}>Check and resume</Button>
+        <Button size="sm" variant="outline" className="min-h-11" disabled={disabled} onClick={() => void onResume(intent)}>Check and resume</Button>
       </div>)}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" className="min-h-11" data-testid="button-save-folder-project" disabled={blockedWrite} onClick={onSave}>Save current project</Button>

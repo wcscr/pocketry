@@ -17,7 +17,7 @@ const pickDirectory = () => (window as Window & {
 const KEY = "pocketry:connected-project-library-directory";
 const RECOVERED_DIRECTORY = "pocketry-recovered";
 export type FolderIntent = { candidateRevision?: string } & (
-  | { kind: "commit"; mutation: Mutation }
+  | { kind: "commit"; mutation: Mutation; draftBase?: FolderDraft }
   | { kind: "keep-both"; requestId: string; projectId: string; expected: string[]; keep: string }
 );
 type SavedConnection = { directory: DirectoryHandle; parentName: string; id?: string };

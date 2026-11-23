@@ -103,8 +103,9 @@ restart, inspect the request ID and retry only with the same input and bases.
 When a candidate revision token is known, a targeted inspection can confirm
 its publication even if an otherwise unreadable folder prevents checking its
 heads. The browser stores the pending intent before writing and offers **Check and
-resume** before further folder saves. If the post-publication check or browser metadata cleanup fails, the
-folder record can still establish what happened. Stale-base and input
+resume** before further folder saves. A confirmed save advances the matching open
+draft to the recovered revision and keeps any later edits. If the browser loses
+its local request record, the folder can still establish what happened. Stale-base and input
 validation errors occur before that attempt publishes.
 
 | Outcome | Interpretation |

@@ -88,7 +88,9 @@ export function useFolderLibrary(enabled = true) {
   }, [run, load]);
   useEffect(() => { if (enabled && supported) void refresh(); }, [enabled, refresh, supported]);
 
-  const apply = async (selected: BrowserLibraryFolder, intent: FolderIntent): Promise<RequestOutcome> => {
+  const apply = async (selected: BrowserLibraryFolder, intent: FolderIntent,
+    finish?: (revision: string) => Promise<void>,
+  ): Promise<RequestOutcome> => {
     const service = new ConnectedLibrary(selected);
     const requestId = folderRequestId(intent);
     await selected.remember(intent);
@@ -112,6 +114,7 @@ export function useFolderLibrary(enabled = true) {
       setPending(await selected.pending().catch(() => []));
     }
     if ("publications" in outcome) {
+      if (outcome.status === "published") await finish?.(outcome.publications[0].revision);
       setMessage(outcome.status === "published"
         ? `Saved revision ${outcome.publications[0].revision.slice(0, 12)}.`
         : "The revision was published. Review the competing versions in the Library.");
@@ -140,7 +143,9 @@ export function useFolderLibrary(enabled = true) {
     return folder;
   };
 
-  const save = (doc: ProjectDoc, name: string, active: FolderDraft | null = null) => run(async () => {
+  const save = (doc: ProjectDoc, name: string, active: FolderDraft | null = null,
+    onPublished?: (target: FolderDraft) => Promise<void>,
+  ) => run(async () => {
     const selected = await writableFolder();
     const projectName = projectNameSchema.safeParse(name.trim().replace(/\s+/g, " "));
     if (!projectName.success) throw new LibraryError("validation", "Enter a project name up to 80 characters.");
@@ -149,17 +154,18 @@ export function useFolderLibrary(enabled = true) {
     }
     const requestId = crypto.randomUUID();
     const projectId = active?.projectId ?? await assignedProjectId(requestId);
-    const outcome = await apply(selected, { kind: "commit", mutation: { requestId, changes: [{
+    const target = (revision: string) => ({ connectionId: selected.id, projectId, revision, name: projectName.data });
+    const outcome = await apply(selected, { kind: "commit", draftBase: active ?? undefined, mutation: { requestId, changes: [{
       projectId, parents: active ? [active.revision] : [], name: projectName.data, doc,
-    }] } });
+    }] } }, async revision => { await onPublished?.(target(revision)); });
     if (outcome.status !== "published") return;
-    return { connectionId: selected.id, projectId, revision: outcome.publications[0].revision, name: projectName.data };
+    return target(outcome.publications[0].revision);
   });
 
   const copyBrowserProjects = () => run(async () => {
     const selected = await writableFolder();
     const backup = await exportProjectLibrary();
-    const existing = new Set((await new ConnectedLibrary(selected).list()).map(project => project.projectId));
+    const existing = new Set((await new ConnectedLibrary(selected).list({ includeDeleted: true })).map(project => project.projectId));
     const changes = backup.projects.flatMap(project => {
       if (existing.has(project.id)) return [];
       try {
@@ -244,7 +250,14 @@ export function useFolderLibrary(enabled = true) {
       if (!folder || !await folder.renew()) throw new LibraryError("permission", "Folder access wasn’t granted.");
       await load(folder);
     }),
-    resume: (intent: FolderIntent) => run(async () => { if (folder) await apply(folder, intent); }),
+    resume: (intent: FolderIntent, onPublished: (base: FolderDraft, target: FolderDraft) => Promise<void>) => run(async () => {
+      if (!folder) return;
+      await apply(folder, intent, async revision => {
+        if (intent.kind !== "commit" || intent.draftBase?.connectionId !== folder.id) return;
+        const [change] = intent.mutation.changes;
+        await onPublished(intent.draftBase, { ...intent.draftBase, revision, name: change.name });
+      });
+    }),
     keepBoth: (project: FolderProject, keep: string) => run(async () => {
       const selected = await writableFolder();
       await apply(selected, { kind: "keep-both", requestId: crypto.randomUUID(), projectId: project.projectId,

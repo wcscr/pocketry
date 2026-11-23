@@ -1,5 +1,5 @@
 import { webcrypto } from "node:crypto";
-import { BrowserLibraryFolder } from "@/lib/project/browser-folder";
+import { BrowserLibraryFolder, type FolderIntent } from "@/lib/project/browser-folder";
 import { ConnectedLibrary, type FolderProject } from "@shared/project-library/library";
 import { encode } from "@shared/project-library/format";
 import {
@@ -949,6 +949,59 @@ describe("BinDesignerPage", () => {
     } finally {
       unmount();
       for (const mock of [commit, ...mocks]) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+    }
+  });
+
+  it("resumes an interrupted folder save and keeps later draft edits on the new base", async () => {
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const base = { connectionId: folder.id, projectId: "tray", revision: "a".repeat(64), name: "Socket tray" };
+    const published = { ...base, revision: "b".repeat(64) };
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+    let pending: FolderIntent[] = [{ kind: "commit", draftBase: base, candidateRevision: published.revision, mutation: {
+      requestId: "interrupted-save", changes: [{ projectId: base.projectId, parents: [base.revision], name: base.name, doc: EMPTY_PROJECT }],
+    } }];
+    const receipt = (requestId: string, revision: string) => ({
+      status: "published" as const, requestId, projects: [], requestCollision: false, pendingRevisions: [],
+      publications: [{ revision, fingerprint: "c".repeat(64), projectIds: [base.projectId] }],
+    });
+    const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async input => receipt(input.requestId, "d".repeat(64)));
+    const mocks = [
+      commit,
+      vi.spyOn(ConnectedLibrary.prototype, "inspect").mockResolvedValue(receipt("interrupted-save", published.revision)),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]),
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockImplementation(async () => pending),
+      vi.spyOn(folder, "remember").mockImplementation(async intent => { pending = [intent]; }),
+      vi.spyOn(folder, "forget").mockImplementation(async requestId => {
+        if (requestId === "interrupted-save") {
+          expect(ProjectPersistence.saveFolderDraft).toHaveBeenCalledWith(expect.objectContaining({ spec: expect.objectContaining({ gridX: 4 }) }), published);
+        }
+        pending = [];
+      }),
+    ];
+    localStorage.setItem("pocketry:library-storage", "folder");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: base });
+
+    const { container, unmount } = renderPageWithHeader();
+    const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(candidate => candidate.textContent?.trim() === label)!;
+    try {
+      await flushHydration();
+      await React.act(async () => [...container.querySelectorAll<HTMLAnchorElement>("nav a")].find(link => link.textContent === "Library")!.click());
+      await React.act(async () => button("Check and resume").click());
+      expect(commit).not.toHaveBeenCalled();
+      expect(button("Check and resume")).toBeUndefined();
+      await React.act(async () => button("Save current project").click());
+      await React.act(async () => button("Save changes").click());
+      expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ projectId: base.projectId,
+        parents: [published.revision], doc: { spec: { gridX: 4 } } });
+    } finally {
+      unmount();
+      for (const mock of mocks) mock.mockRestore();
       localStorage.removeItem("pocketry:library-storage");
     }
   });

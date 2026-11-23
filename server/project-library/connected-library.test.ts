@@ -34,6 +34,19 @@ describe.each(["node", "browser model"] as const)("%s adapter conformance", adap
     expect(await readdir(root)).toHaveLength(1);
   });
 
+  it("can distinguish removed projects from IDs that have never been copied", async () => {
+    const library = new ConnectedLibrary(await connect());
+    await library.commit(save("copied"));
+    const base = await head(library);
+    await library.commit({ requestId: "removed", changes: [{
+      ...save("unused").changes[0], parents: [base], doc: null,
+    }] });
+    expect(await library.list()).toEqual([]);
+    expect(await library.list({ includeDeleted: true })).toMatchObject([
+      { projectId: "socket-bin", heads: [{ deleted: true }] },
+    ]);
+  });
+
   it("reconciles a lost reply and records publication even when verification fails", async () => {
     const folder = await connect();
     let lost = false;
@@ -83,6 +96,14 @@ describe.each(["node", "browser model"] as const)("%s adapter conformance", adap
     await truncate(join(root, broken), FOLDER_LIMITS.revisionBytes + 1);
     if (adapter === "node") await expect(library.list()).rejects.toMatchObject({ code: "resource-limit" });
     await rm(join(root, broken));
+    const oversizedParents = encode(canonicalJson({
+      format: "pocketry-folder-revision", version: 2, requestId: "bad", fingerprint: key,
+      changes: save("bad", 1, Array<string>(FOLDER_LIMITS.parents + 1).fill("a".repeat(64))).changes,
+    }));
+    const oversizedName = revisionFile(key, await digest(oversizedParents));
+    await folder.publish(oversizedName, oversizedParents);
+    await expect(library.list()).rejects.toMatchObject({ code: "resource-limit", details: { file: oversizedName } });
+    await rm(join(root, oversizedName));
     const bytes = encode(canonicalJson({
       format: "pocketry-folder-revision", version: 2, requestId: "bad", fingerprint: key,
       changes: save("bad", 1, ["a".repeat(64)]).changes,

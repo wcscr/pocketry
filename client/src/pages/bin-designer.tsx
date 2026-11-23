@@ -28,7 +28,7 @@ import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
 import { FolderLibraryContent, FolderLibrarySettings } from "@/components/project/folder-library";
 import { useFolderLibrary, useLibraryStorage } from "@/hooks/use-folder-library";
-import type { FolderDraft } from "@/lib/project/browser-folder";
+import type { FolderDraft, FolderIntent } from "@/lib/project/browser-folder";
 import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -888,27 +888,39 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally { setProjectBusy(false); }
   };
 
+  const recordFolderSave = useCallback(async (target: FolderDraft) => {
+    const draft = { ...currentProjectDoc, name: undefined };
+    setProjectLibrary(await saveFolderDraft(draft, target));
+    setFolderProject(target);
+    setDraftName(null);
+    setRestoredDestination(projectDestinationKey(draft, null));
+    setProjectRestoreFailed(false);
+  }, [currentProjectDoc]);
+
+  const handleResumeFolderSave = async (intent: FolderIntent) => {
+    setProjectBusy(true);
+    try {
+      await folderLibrary.resume(intent, async (base, target) => {
+        if (folderProject?.connectionId !== base.connectionId || folderProject.projectId !== base.projectId ||
+          folderProject.revision !== base.revision) return;
+        saveProject.cancel();
+        await recordFolderSave(target);
+      });
+    } finally { setProjectBusy(false); }
+  };
+
   const handleSaveProject = useCallback(async (name: string, asNew = false): Promise<boolean> => {
     setProjectBusy(true);
     saveProject.cancel();
     try {
       if (libraryStorage === "folder") {
-        const target = await folderLibrary.save(currentProjectDoc, name, asNew ? null : folderProject);
+        const base = asNew ? null : folderProject;
+        // Persist the working draft before publishing. An interrupted close can
+        // leave a verified folder save that still needs to advance this base.
+        if (base) await saveFolderDraft(currentProjectDoc, base);
+        const target = await folderLibrary.save(currentProjectDoc, name, base, recordFolderSave);
         if (!target) return false;
-        setFolderProject(target);
-        setDraftName(null);
-        try {
-          const draft = { ...currentProjectDoc, name: undefined };
-          setProjectLibrary(await saveFolderDraft(draft, target));
-          setRestoredDestination(projectDestinationKey(draft, null));
-          setProjectRestoreFailed(false);
-          toast({ title: "Project saved to local folder" });
-        } catch {
-          setProjectRestoreFailed(true);
-          setSaveStatus("error");
-          setSaveError("The folder revision is saved. The browser could not update draft recovery. Keep this tab open or reopen the saved project.");
-          toast({ title: "Project saved to local folder", description: "Browser draft recovery needs attention." });
-        }
+        toast({ title: "Project saved to local folder" });
         return true;
       }
       const saved = await saveProjectToLibrary(
@@ -935,7 +947,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast, libraryStorage, folderLibrary, folderProject]);
+  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast, libraryStorage, folderLibrary, folderProject, recordFolderSave]);
 
   const handleDuplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
     setProjectBusy(true);
@@ -1290,7 +1302,7 @@ function BinDesignerWorkspace(): JSX.Element {
           renderFolderLibrary={({ onOpened, onSave, hasDraft }) => <FolderLibraryContent
             library={folderLibrary} active={folderProject} busy={!bin.hydrated || projectBusy}
             hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened}
-            onSave={onSave} onExportDraft={handleExportProject} />}
+            onSave={onSave} onResume={handleResumeFolderSave} onExportDraft={handleExportProject} />}
           renderFolderLibrarySettings={onRecovered => <FolderLibrarySettings library={folderLibrary} busy={!bin.hydrated || projectBusy}
             onRecover={async () => { if (await folderLibrary.recoverLegacy()) onRecovered(); }} />}
           openedInFolder={experimentalEnabled && !!folderProject}

@@ -82,6 +82,14 @@ async function decodePublication(bytes: Uint8Array, file: string, revision: stri
       typeof input.version === "number" && input.version > FOLDER_FORMAT_VERSION) {
     throw new LibraryError("unsupported-version", "This folder needs a newer Pocketry version.", { file, version: input.version });
   }
+  // Zod still parses each element of an oversized array to report issues.
+  // Check these bounds first so malformed journal files cannot multiply errors.
+  if (input && typeof input === "object" && "changes" in input && Array.isArray(input.changes) &&
+    (input.changes.length > FOLDER_LIMITS.changes || input.changes.some((change: unknown) =>
+      change && typeof change === "object" && "parents" in change && Array.isArray(change.parents) &&
+      change.parents.length > FOLDER_LIMITS.parents))) {
+    throw limit("A folder revision exceeds the project or parent count limit.", { file });
+  }
   const parsed = publicationSchema.safeParse(input);
   if (!parsed.success || await digest(bytes) !== revision || await digest(encode(parsed.data.requestId)) !== requestKey) {
     throw corruption("A Pocketry revision failed its format or integrity check.", { file });
@@ -198,10 +206,10 @@ export class ConnectedLibrary {
     return { revisions, projects: indexProjects(revisions, requests), requests, pending, entries, scanBytes };
   }
 
-  async list(): Promise<FolderProject[]> {
+  async list({ includeDeleted = false } = {}): Promise<FolderProject[]> {
     const { projects } = await this.scan();
     return sorted(projects.keys()).map(id => projects.get(id)!)
-      .filter(project => project.conflicted || project.heads.some(head => !head.deleted));
+      .filter(project => includeDeleted || project.conflicted || project.heads.some(head => !head.deleted));
   }
 
   /** Recovery is complete only when every batch in one immutable plan exists. */
