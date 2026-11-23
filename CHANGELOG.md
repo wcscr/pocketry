@@ -1,13 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.16.0 — 2026-11-23
 
+- Enable experimental local folder storage in App settings, then connect or restore access directly from Library. Library uses compact project actions and shows the current storage mode.
+- Resume the same folder project and draft after reload. Recover interrupted saves and older folder libraries from Library.
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
-- Browse saved projects in compact rows with icon actions and a labeled storage badge. Use Library Settings to switch storage or manage a local folder.
-- Opt in to experimental features in App settings to use Local folder storage.
-- Open Library to request access to a remembered local folder. Reconnect directly from Library if access is blocked.
-- Resume editing the same local folder project after reloading Pocketry.
-- Recover older projects directly into the connected local library.
+
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.
