@@ -221,10 +221,11 @@ export class AutomationService {
         checkCancellation(signal);
         if (format !== "backup") checkLayoutSize(saved.doc);
         const bytes = format === "backup"
-          ? encode(JSON.stringify(serializeProjectDoc(saved.doc), null, 2))
+          ? encode(JSON.stringify(serializeProjectDoc(saved.doc)))
           : await this.artifacts.model(saved.doc, format, signal);
         checkCancellation(signal);
-        if (bytes.byteLength > ARTIFACT_MAX_BYTES) throw new LibraryError("resource-limit", "The generated artifact is too large.");
+        const limit = format === "backup" ? FOLDER_LIMITS.projectBytes : ARTIFACT_MAX_BYTES;
+        if (bytes.byteLength > limit) throw new LibraryError("resource-limit", "The generated artifact is too large.");
         const extension = format === "backup" ? "pocketry.json" : format === "stl" ? "stl" : "3mf";
         const sha256 = await digest(bytes);
         checkCancellation(signal);

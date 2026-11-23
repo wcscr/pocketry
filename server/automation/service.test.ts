@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { ConnectedLibrary } from "../../shared/project-library/library";
 import { readFolderProject } from "../../shared/project-library/format";
+import { serializeProjectDoc } from "../../shared/gridfinity/project";
 import { NodeLibraryFolder } from "../project-library/node-folder";
 import { folderFixture, modelBrowserFolder } from "../project-library/folder.test-support";
 import { AutomationService } from "./service";
@@ -63,7 +64,9 @@ describe("local automation commands", () => {
     expect(summary).not.toHaveProperty("geometry");
     expect(summary).not.toHaveProperty("history");
     const output = await restarted.commands.export_revision.execute({ projectId: id, revision, format: "backup" }, new AbortController().signal);
-    expect(readFolderProject(JSON.parse(await readFile(output.artifact.path, "utf8")))).toEqual(reopened.doc);
+    const backup = await readFile(output.artifact.path, "utf8");
+    expect(backup).toBe(JSON.stringify(serializeProjectDoc(reopened.doc)));
+    expect(readFolderProject(JSON.parse(backup))).toEqual(reopened.doc);
   });
 
   it("validates the whole batch and preserves the original file on late rejection", async () => {

@@ -12,7 +12,7 @@ In Pocketry, enable experimental features in **App settings**. Open **Library â†
 Pass the absolute path to the resulting `pocketry-library` subdirectory.
 
 ```sh
-node dist/automation/cli.js --library "/path/to/pocketry-library" capabilities
+node dist/automation/cli.js --library "/path/to/pocketry-library" capabilities </dev/null
 printf '%s\n' '{"limit":10}' |
   node dist/automation/cli.js --library "/path/to/pocketry-library" list_projects
 ```
@@ -134,7 +134,8 @@ message and one active tool call per server. Explicit read detail is capped at
 4 MiB. Automated layout checks cap placed objects and labels at 256. Model
 exports run in a worker with a two-minute timer and a 512 MiB JavaScript
 old-generation limit. WASM and external buffers are outside that heap cap.
-The artifact limit is 192 MiB. Cancellation before a write can stop it,
+Model artifacts are limited to 192 MiB. Editable backups use the editorâ€™s
+64 MiB import limit. Cancellation before a write can stop it,
 and the MCP server can terminate geometry before artifact publication. Once
 a publication starts, cancellation cannot roll it back. Inspect the request
 after cancellation or process failure.
