@@ -29,8 +29,9 @@ export function ExperimentalFeaturesDialog(): JSX.Element {
           <li>Slanted bin walls</li>
           <li>Linked pockets and finger access with shared size, shape, and depth</li>
           <li>Grouped objects that move and rotate together</li>
+          <li>Local folder storage for projects</li>
         </ul>
-        <p className="mt-3 text-xs text-muted-foreground">Off by default. Saved designs remain visible and exportable.</p>
+        <p className="mt-3 text-xs text-muted-foreground">Off by default.</p>
       </div>
       <details className="rounded-lg border p-4">
         <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>

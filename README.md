@@ -128,15 +128,16 @@ Select your printer and materials before printing.
 
 ### Save an editable copy
 
-Choose **Browser storage** or **Local folder** under **Library**, then save your project. Use **Export project** for a
-`.pocketry.json` backup. Keep the original photo separately; it is not in the
-backup.
+Save to **Library** to keep named projects in this browser. Enable experimental
+features in **App settings** to choose **Local folder** in Library Settings.
+Use **Export project** for a `.pocketry.json` backup. Keep the original photo
+separately from the backup.
 
 ## Privacy
 
 The static application processes images and generates models locally in the
 browser. Projects and drafts can be stored in the browser using IndexedDB. In a supported
-browser, open Library to save named projects to a [connected local folder](docs/library-folder.md).
+browser, enable experimental features to save named projects to a [connected local folder](docs/library-folder.md).
 The hosted version does not require uploading tool photographs to Pocketry's server. The local Node
 server serves the editor and static assets only; the retired `/api/images` endpoints
 return 404 and do not accept or store uploads.

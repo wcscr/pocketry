@@ -7,6 +7,7 @@ import {
   projectToast,
   projectSaveMock,
   EMPTY_PROJECT,
+  experimentalSettings,
   rectangularShape,
   flushHydration,
   BinDesignerPage,
@@ -650,6 +651,44 @@ describe("BinDesignerPage", () => {
       expect(downloadBlob).toHaveBeenCalledOnce();
       expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
     } finally { unmount(); }
+  });
+
+  it("shows Browser storage until experimental features are enabled and remembers the connected folder", async () => {
+    localStorage.setItem("pocketry:library-storage", "folder");
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], "Workshop projects");
+    const remembered = vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder);
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([{ projectId: "tray", conflicted: false,
+        heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }]),
+    ];
+    const { container, unmount } = renderPage({ experimental: false });
+    const storage = () => document.querySelector('[data-testid="library-active-storage"]')?.textContent;
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(storage()).toBe("Storage: Browser storage");
+      expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
+      expect(openLibrarySettings().querySelector('[data-testid="library-storage-folder"]')).toBeNull();
+      expect(remembered).not.toHaveBeenCalled();
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-close-library-settings"]')!.click());
+
+      await React.act(async () => experimentalSettings.setEnabled(true));
+      expect(storage()).toBe("Storage: Local folder · Workshop projects");
+      expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Workshop tray");
+      expect(remembered).toHaveBeenCalledOnce();
+
+      await React.act(async () => experimentalSettings.setEnabled(false));
+      expect(storage()).toBe("Storage: Browser storage");
+      expect(document.querySelector('[aria-label="Projects in local folder"]')).toBeNull();
+      expect(localStorage.getItem("pocketry:library-storage")).toBe("folder");
+    } finally {
+      unmount();
+      for (const mock of [remembered, ...mocks]) mock.mockRestore();
+    }
   });
 
   it.each(["granted", "denied", "no activation"] as const)("restores remembered folder access from Library (%s)", async outcome => {

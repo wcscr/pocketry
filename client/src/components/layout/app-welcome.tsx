@@ -123,7 +123,7 @@ export function AppWelcome(): JSX.Element {
           </details>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Project storage</span>
-            <HelpHint label="project storage">Projects save in this browser by default. Open Library to connect a local folder, or use Export project in Bin to keep a copy.</HelpHint>
+            <HelpHint label="project storage">Projects save in this browser by default. Use Export project in Bin to keep a copy. To connect a local folder, enable experimental features in App settings.</HelpHint>
           </div>
         </div>
       </DialogContent>

@@ -4,6 +4,7 @@
 
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
 - Browse saved projects in compact rows with icon actions and a labeled storage badge. Use Library Settings to switch storage or manage a local folder.
+- Opt in to experimental features in App settings to use Local folder storage.
 - Open Library to request access to a remembered local folder. Reconnect directly from Library if access is blocked.
 - Resume editing the same local folder project after reloading Pocketry.
 - Recover older projects directly into the connected local library.

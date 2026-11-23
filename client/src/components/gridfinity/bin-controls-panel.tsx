@@ -3436,8 +3436,8 @@ function ProjectControls({
           <div className="flex items-center gap-1.5">
             <DialogTitle>Library settings</DialogTitle>
             <HelpHint label="library storage">
-              <p><strong>Local folder</strong> saves named projects as files on your device. Use Save current project to write edits to the folder. Draft recovery uses this browser.</p>
-              <p className="mt-2"><strong>Browser storage</strong> autosaves named projects in this browser. Clearing site data can remove them.</p>
+              {libraryStorage && <p className="mb-2"><strong>Local folder</strong> saves named projects as files on your device. Use Save current project to write edits to the folder. Draft recovery uses this browser.</p>}
+              <p><strong>Browser storage</strong> autosaves named projects in this browser. Clearing site data can remove them.</p>
             </HelpHint>
           </div>
         </DialogHeader>

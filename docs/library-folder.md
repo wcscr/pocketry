@@ -1,8 +1,11 @@
 # Connected project folders
 
 Open **Library** from the toolbar or the **Project** panel to see saved projects
-and their location. Open **Settings** in Library to switch storage. The selected
-location has a checkmark.
+and their location. To use Local folder storage, turn on **Enable experimental
+features** in **App settings**. Then open **Settings** in Library to switch
+storage. The selected location has a checkmark. Turning experimental features
+off switches Library to Browser storage and keeps the saved folder connection
+for the next time you opt in.
 
 - **Local folder** keeps named projects in a folder on your device. Choose
   **Choose a folder**, then select where you want them. Pocketry creates a

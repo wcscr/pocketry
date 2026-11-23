@@ -128,7 +128,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const ultim8Entry = location.replace(/\/$/, "") === "/ultim8";
   const projectActivity = useProjectActivityActions();
   const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
-  const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
+  const { enabled: experimentalEnabled, inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested, newProjectRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [depthRequest, setDepthRequest] = useState(0);
@@ -215,7 +215,8 @@ function BinDesignerWorkspace(): JSX.Element {
   const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
   const [folderProject, setFolderProject] = useState<FolderDraft | null>(null);
-  const [libraryStorage, setLibraryStorage] = useLibraryStorage();
+  const [preferredLibraryStorage, setLibraryStorage] = useLibraryStorage();
+  const libraryStorage = experimentalEnabled ? preferredLibraryStorage : "browser";
   const folderLibrary = useFolderLibrary(libraryStorage === "folder");
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
@@ -1278,21 +1279,21 @@ function BinDesignerWorkspace(): JSX.Element {
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
           onRefreshProjects={handleRefreshProjects}
-          libraryStorage={{
+          libraryStorage={experimentalEnabled ? {
             mode: libraryStorage, choose: setLibraryStorage, refresh: folderLibrary.refresh,
             folderName: folderLibrary.canWrite ? folderLibrary.folder?.name : undefined,
             folderHasProjects: folderLibrary.projects.length > 0,
             legacyFolder: folderLibrary.legacyFolder,
             canSave: folderLibrary.canWrite && !folderLibrary.legacyFolder && folderLibrary.pending.length === 0,
             busy: folderLibrary.busy, error: folderLibrary.error,
-          }}
+          } : undefined}
           renderFolderLibrary={({ onOpened, onSave, hasDraft }) => <FolderLibraryContent
             library={folderLibrary} active={folderProject} busy={!bin.hydrated || projectBusy}
             hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened}
             onSave={onSave} onExportDraft={handleExportProject} />}
           renderFolderLibrarySettings={onRecovered => <FolderLibrarySettings library={folderLibrary} busy={!bin.hydrated || projectBusy}
             onRecover={async () => { if (await folderLibrary.recoverLegacy()) onRecovered(); }} />}
-          openedInFolder={!!folderProject}
+          openedInFolder={experimentalEnabled && !!folderProject}
           onExportLibrary={() => void handleExportLibrary()}
           onImportLibrary={handleImportLibrary}
           onNewProject={handleNewProject}

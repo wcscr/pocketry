@@ -173,9 +173,10 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
           <li className="pl-1">
             <h3 className="font-semibold">Save for later</h3>
             <p className="text-muted-foreground">
-              Open <strong>Library → Settings</strong> and choose <strong>Browser storage</strong> or <strong>Local folder</strong>.
-              In browser storage, choose <strong>Save this draft to Library</strong> to name a project. It updates
-              as you work. For a folder on your device, choose a folder and use <strong>Save current project</strong>.
+              In <strong>Project</strong>, choose <strong>Save this draft to Library</strong> to name a project.
+              It updates as you work. To save to a folder on your device, enable experimental features in
+              <strong> App settings</strong> and choose <strong>Library → Settings → Local folder</strong>.
+              Choose a folder and use <strong>Save current project</strong>.
               Drafts autosave in this browser. <strong>Export project</strong> downloads one editable backup,
               and <strong>Export library</strong> backs up named projects in the selected storage.
               <strong> Import Project</strong> opens an editable backup. Keep your original Trace photo separately.
