@@ -137,7 +137,13 @@ export class BrowserLibraryFolder implements LibraryFolder {
   }
 
   async canWrite() { return await this.directory.queryPermission(access) === "granted"; }
-  async renew() { return await this.directory.requestPermission(access) === "granted"; }
+  async renew() {
+    try { return await this.directory.requestPermission(access) === "granted"; }
+    catch (cause) {
+      if (cause instanceof DOMException && ["AbortError", "NotAllowedError", "SecurityError"].includes(cause.name)) return false;
+      throw browserError(cause);
+    }
+  }
 
   async *entries(): AsyncIterable<FolderEntry> {
     try {

@@ -41,9 +41,17 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
 
   return <div className="space-y-3 px-0.5">
     {library.legacyFolder && <FolderRecovery disabled={disabled || !library.canWrite} onRecover={() => void library.recoverLegacy()} />}
-    {!library.canWrite && <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-      {library.folder ? "Folder access needed" : library.supported ? "No folder connected" : "Local folders unavailable"}
-    </p>}
+    {!library.canWrite && <div className="space-y-2 rounded-md border border-dashed p-4">
+      <p className="text-sm text-muted-foreground" role="status">
+        {library.busy ? "Checking folder access…" : library.folder ? "Folder access needed" : library.supported ? "No folder connected" : "Local folders unavailable"}
+      </p>
+      {library.supported && <div className="flex flex-wrap gap-2">
+        {library.folder && <Button size="sm" className="min-h-11" disabled={disabled} onClick={() => void library.renew()}>Restore folder access</Button>}
+        <Button size="sm" variant={library.folder ? "outline" : "default"} className="min-h-11" disabled={disabled} onClick={() => void library.connect()}>
+          {library.folder ? "Choose folder again" : "Choose a folder"}
+        </Button>
+      </div>}
+    </div>}
     <FolderFeedback library={library} />
     {library.canWrite && !library.legacyFolder && <>
       {library.pending.map(intent => <div className="space-y-2 rounded-md border p-3 text-sm" key={folderRequestId(intent)}>

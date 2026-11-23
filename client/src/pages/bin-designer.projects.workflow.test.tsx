@@ -45,6 +45,17 @@ import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.p
 import * as ProjectPersistence from "@/lib/project/persist";
 import { loadSampleLibrary } from "@/lib/project/samples";
 
+function renderPageWithHeader() {
+  function Navigation() {
+    const { panelOpen, setPanelOpen } = usePanelState();
+    return <><AppHeader panelOpen={panelOpen} onPanelOpenChange={setPanelOpen} onHelpClick={() => {}} /><BinDesignerPage /></>;
+  }
+  const { hook } = memoryLocation({ path: "/bin" });
+  return render(<Router hook={hook}>
+    <TooltipProvider><PanelProvider><ShapeLibraryProvider><Navigation /></ShapeLibraryProvider></PanelProvider></TooltipProvider>
+  </Router>);
+}
+
 describe("BinDesignerPage", () => {
 
   it("preserves an unnamed draft while browsing or cancelling samples, then saves it before opening a copy", async () => {
@@ -641,6 +652,56 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
+  it.each(["granted", "denied", "no activation"] as const)("restores remembered folder access from Library (%s)", async outcome => {
+    const activation = { isActive: outcome !== "no activation" };
+    const existingActivation = Object.getOwnPropertyDescriptor(navigator, "userActivation");
+    Object.defineProperty(navigator, "userActivation", { configurable: true, value: activation });
+    localStorage.setItem("pocketry:library-storage", "folder");
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], "Workshop projects");
+    let finishLookup!: (folder: BrowserLibraryFolder) => void;
+    const lookup = new Promise<BrowserLibraryFolder>(resolve => { finishLookup = resolve; });
+    let granted = false;
+    const renew = vi.spyOn(folder, "renew").mockImplementation(async () => (granted = outcome === "granted"));
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockReturnValue(lookup),
+      vi.spyOn(folder, "canWrite").mockImplementation(async () => granted),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([{ projectId: "tray", conflicted: false,
+        heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }]),
+    ];
+    const { container, unmount } = renderPageWithHeader();
+    const action = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(button => button.textContent?.trim() === text);
+    try {
+      await flushHydration();
+      expect(renew).not.toHaveBeenCalled();
+      if (outcome !== "granted") openSettingsSection(container, "project");
+      const openLibrary = outcome === "granted"
+        ? [...container.querySelectorAll<HTMLAnchorElement>('nav a')].find(anchor => anchor.textContent === "Library")!
+        : container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!;
+      await React.act(async () => openLibrary.click());
+      await React.act(async () => finishLookup(folder));
+      expect(renew).toHaveBeenCalledTimes(outcome === "no activation" ? 0 : 1);
+
+      if (outcome !== "granted") {
+        expect(action("Choose folder again")?.disabled).toBe(false);
+        expect(action("Restore folder access")?.disabled).toBe(false);
+        renew.mockImplementationOnce(async () => (granted = true));
+        await React.act(async () => action("Restore folder access")!.click());
+      }
+      expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Workshop tray");
+      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Storage: Local folder · Workshop projects");
+      expect(action("Restore folder access")).toBeUndefined();
+    } finally {
+      unmount();
+      for (const mock of [renew, ...mocks]) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+      if (existingActivation) Object.defineProperty(navigator, "userActivation", existingActivation);
+      else Reflect.deleteProperty(navigator, "userActivation");
+    }
+  });
+
   it("connects a folder from the main Library, saves and copies the current design, and switches back", async () => {
     vi.stubGlobal("crypto", webcrypto);
     const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], "Workshop projects");
@@ -672,14 +733,7 @@ describe("BinDesignerPage", () => {
       };
     });
 
-    function Navigation() {
-      const { panelOpen, setPanelOpen } = usePanelState();
-      return <><AppHeader panelOpen={panelOpen} onPanelOpenChange={setPanelOpen} onHelpClick={() => {}} /><BinDesignerPage /></>;
-    }
-    const { hook } = memoryLocation({ path: "/bin" });
-    const { container, unmount } = render(<Router hook={hook}>
-      <TooltipProvider><PanelProvider><ShapeLibraryProvider><Navigation /></ShapeLibraryProvider></PanelProvider></TooltipProvider>
-    </Router>);
+    const { container, unmount } = renderPageWithHeader();
     const click = async (element: HTMLElement) => React.act(async () => element.click());
     const byId = <T extends HTMLElement,>(name: string) => document.querySelector<T>(`[data-testid="${name}"]`)!;
     const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
@@ -705,9 +759,11 @@ describe("BinDesignerPage", () => {
       expect(byId("library-storage-browser").querySelector(".lucide-check")).toBeNull();
       expect(byId("library-storage-folder").querySelector(".lucide-check")).not.toBeNull();
       expect(document.body.textContent).not.toContain("Pocketry creates a pocketry-library folder");
+      await click(button("Done"));
+      expect(byId("library-settings")).toBeNull();
       await click(button("Choose a folder"));
       expect(pick).toHaveBeenCalledOnce();
-      const settings = byId("library-settings");
+      const settings = openLibrarySettings();
       expect(settings.querySelector('h2')?.textContent).toBe("Library settings");
       expect(settings.textContent).toContain("Workshop projects");
       expect(byId("library-file-backup").contains(byId("button-open-sample-library"))).toBe(false);

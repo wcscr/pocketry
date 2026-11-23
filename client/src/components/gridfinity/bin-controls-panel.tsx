@@ -1,4 +1,4 @@
-import type { LibraryStorage } from "@/hooks/use-folder-library";
+import type { FolderRefreshOptions, LibraryStorage } from "@/hooks/use-folder-library";
 import { groupForSelection } from "@shared/gridfinity/object-groups";
 import { expandGroupSelection, type GroupRef } from "@shared/gridfinity/object-groups";
 import { defaultLabelTabWall, DEFAULT_LABEL_TAB_RECESS_MM, labelTabRecessMm, labelTabWidthMm } from "@shared/gridfinity/label-tab";
@@ -2913,7 +2913,7 @@ export function BinControlsPanel({
 interface LibraryStorageControls {
   mode: LibraryStorage;
   choose: (storage: LibraryStorage) => void;
-  refresh: () => Promise<unknown>;
+  refresh: (options?: FolderRefreshOptions) => void;
   folderName?: string;
   folderHasProjects: boolean;
   legacyFolder?: boolean;
@@ -3042,7 +3042,7 @@ function ProjectControls({
   useEffect(() => { if (settingsOpen) { setSamplesOpen(false); setSampleAction(null); setLibraryOpen(false); setLibrarySettingsOpen(false); setSaveOpen(false); setRenameProjectId(null); setRemoveProject(null); setNewProjectOpen(false); } }, [settingsOpen, setSaveOpen]);
   useEffect(() => { if (activeProjectId) setSelectedProjectId(activeProjectId); }, [activeProjectId]);
   const refreshSelectedLibrary = () => {
-    if (usingFolder) void libraryStorage?.refresh();
+    if (usingFolder) libraryStorage.refresh({ requestAccess: true });
     else onRefreshProjects();
   };
   const requestSave = () => {
@@ -3453,7 +3453,7 @@ function ProjectControls({
               data-testid={`library-storage-${mode}`} disabled={busy || folderBusy}
               onClick={() => {
                 libraryStorage.choose(mode);
-                if (mode === "folder") void libraryStorage.refresh();
+                if (mode === "folder") libraryStorage.refresh({ requestAccess: true });
                 else onRefreshProjects();
               }}>
               <Icon className="hidden h-4 w-4 shrink-0 min-[420px]:block" aria-hidden />

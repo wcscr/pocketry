@@ -34,9 +34,11 @@ editing. If another writer has saved a newer revision, you can keep your draft
 by choosing **Save as new project** or exporting it. Starting or opening another
 project replaces the working draft and its save target.
 
-Each browser and profile grants its own permission. In Library **Settings**, choose **Restore folder access**
-when prompted. If the browser keeps file editing blocked, grant it in site
-settings or choose the same folder again. You can also disconnect and continue
+Each browser and profile grants its own permission. Open **Library** to request
+access to a remembered local folder. If the browser needs another click, choose
+**Restore folder access** in Library. If access is still blocked, choose the same
+folder again or allow file editing in the browser’s site settings. In a new
+browser or profile, choose the folder from Library to connect it. You can also disconnect and continue
 in the browser library. Clearing
 site data removes the saved handle, recovery requests, and browser-local work.
 The completed folder revisions remain on disk and reappear on reconnection.
@@ -177,8 +179,9 @@ Use a disposable test folder and browser profile. Connect its parent in
 Chrome, save a named project, commit a copy or edit with the Node CLI, then
 refresh and reopen the exact revision. In Edge, select the same parent and
 reopen that revision. Compare the layout, label wording, materials, and
-undo history. Revoke file editing for the test origin, reload, and attempt
-**Restore folder access**. If that browser retains the block, choose the folder again.
+undo history. Revoke file editing for the test origin, reload, and open
+**Library** to request access. If the browser requires another click, use
+**Restore folder access** or choose the folder again.
 
 Close a disposable private profile or clear site data for the isolated test
 origin, then reconnect and confirm the named revisions remain. For interruption

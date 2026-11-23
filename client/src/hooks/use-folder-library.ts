@@ -9,6 +9,7 @@ import { publishRecoveredLibrary, recoverLegacyBackup } from "@shared/project-li
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
 export type LibraryStorage = "browser" | "folder";
+export interface FolderRefreshOptions { requestAccess?: boolean }
 const STORAGE_KEY = "pocketry:library-storage";
 
 export function useLibraryStorage() {
@@ -33,6 +34,7 @@ export function useFolderLibrary(enabled = true) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const running = useRef(false);
+  const refreshing = useRef<{ requestAccess: boolean } | null>(null);
   const supported = BrowserLibraryFolder.supported();
 
   const run = useCallback(async <Result,>(operation: () => Promise<Result>) => {
@@ -54,13 +56,15 @@ export function useFolderLibrary(enabled = true) {
     }
   }, []);
 
-  const load = useCallback(async (selected: BrowserLibraryFolder | null) => {
+  const load = useCallback(async (selected: BrowserLibraryFolder | null, shouldRequestAccess?: () => boolean) => {
     setFolder(selected);
     setCanWrite(false);
     setLegacyFolder(false);
     setProjects([]);
     setPending([]);
-    if (!selected || !await selected.canWrite()) return;
+    if (!selected) return;
+    const hasAccess = await selected.canWrite();
+    if (!hasAccess && (!shouldRequestAccess?.() || !navigator.userActivation?.isActive || !await selected.renew())) return;
     setCanWrite(true);
     setPending(await selected.pending());
     try { setProjects(await new ConnectedLibrary(selected).list()); }
@@ -69,7 +73,19 @@ export function useFolderLibrary(enabled = true) {
       setLegacyFolder(true);
     }
   }, []);
-  const refresh = useCallback(() => run(async () => load(await BrowserLibraryFolder.saved())), [run, load]);
+  const refresh = useCallback(({ requestAccess = false }: FolderRefreshOptions = {}) => {
+    if (refreshing.current) {
+      // A Library click can arrive while startup is still reading the handle.
+      if (requestAccess) refreshing.current.requestAccess = true;
+      return;
+    }
+    return run(async () => {
+      const attempt = { requestAccess };
+      refreshing.current = attempt;
+      try { await load(await BrowserLibraryFolder.saved(), () => attempt.requestAccess); }
+      finally { refreshing.current = null; }
+    });
+  }, [run, load]);
   useEffect(() => { if (enabled && supported) void refresh(); }, [enabled, refresh, supported]);
 
   const apply = async (selected: BrowserLibraryFolder, intent: FolderIntent): Promise<RequestOutcome> => {
@@ -225,7 +241,7 @@ export function useFolderLibrary(enabled = true) {
     disconnect: () => run(async () => { await BrowserLibraryFolder.disconnect(); await load(null); return true; }),
     connect: () => run(async () => { const selected = await BrowserLibraryFolder.choose(); await load(selected); return selected; }),
     renew: () => run(async () => {
-      if (!folder || !await folder.renew()) throw new LibraryError("permission", "Allow file editing in your browser’s site settings, or choose the folder again.");
+      if (!folder || !await folder.renew()) throw new LibraryError("permission", "Folder access wasn’t granted.");
       await load(folder);
     }),
     resume: (intent: FolderIntent) => run(async () => { if (folder) await apply(folder, intent); }),
