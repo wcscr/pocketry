@@ -2,6 +2,7 @@ import {
   getHandler,
   previewMeshVolume,
   getFitCheckHandler,
+  getShadowInlayHandler,
   getSurfaceFitCheckHandler,
   context,
   nonManifoldEdgeCount,
@@ -338,7 +339,8 @@ describe("section view (G4)", () => {
     expect(Math.max(...ys)).toBeLessThanOrEqual(5 + 1e-6);
   });});
 
-describe("fit template worker handler", () => {
+describe("shadow inlay worker handler", () => {
+  type Request = Parameters<ReturnType<typeof getShadowInlayHandler>>[0];
   const shape = {
     id: "fit-shape",
     name: "Fit wrench",
@@ -364,19 +366,22 @@ describe("fit template worker handler", () => {
     pointCount: 8,
     sourceMmPerPx: 0.2,
   };
+  const request = (cutout: Request["layout"]["cutouts"][number], depthMm: number): Request => ({
+    spec: { ...REQUEST.spec, gridX: 3, gridY: 2 }, cutoutId: cutout.id, gapMm: 0,
+    layout: { shapes: [shape], cutouts: [cutout], fingerHoles: [] },
+    depthMm, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
+  });
 
-  it("exports a filled standalone outline at the requested depth", async () => {
-    const result = await getFitCheckHandler()(
-      {
-        shape,
-        cutout: {
+  it("exports a standalone inlay at the requested thickness", async () => {
+    const result = await getShadowInlayHandler()(
+      request({
           id: "fit-cutout",
           shapeId: shape.id,
           position: { x: 40, y: -20 },
           scaleX: 1.5,
           scaleY: 0.5,
           clearanceMm: 1,
-          cornerRoundMm: 0,
+          cornerRoundMm: 0, bottomFilletMm: 0,
           fingerHoles: [
             {
               id: "ignored-hole",
@@ -386,10 +391,7 @@ describe("fit template worker handler", () => {
               depthMm: 12,
             },
           ],
-        },
-        depthMm: 2.5,
-        quality: { circularSegments: 24, cutoutVertexBudget: 600 },
-      },
+      }, 2.5),
       context(),
     );
 
@@ -402,56 +404,53 @@ describe("fit template worker handler", () => {
     }
     expect(Math.min(...zs)).toBeCloseTo(0, 6);
     expect(Math.max(...zs)).toBeCloseTo(2.5, 6);
-    // The placement and finger access position are intentionally ignored;
-    // placement scale is retained while position and finger access features are ignored;
+    // The export omits the placement translation and finger access geometry;
     // clearance grows the 30 mm wide outline to roughly 32 mm.
     expect(Math.min(...xs)).toBeCloseTo(-16, 1);
     expect(Math.max(...xs)).toBeCloseTo(16, 1);
-    // Filling the 2x2 interior ring yields the full expanded rectangle.
+    // The 1 mm outward clearance erases this small interior island.
     expect(result.value.stats.volumeMm3).toBeCloseTo(32 * 7 * 2.5, -1);
     expect(result.transfer).toContain(result.value.mesh.positions.buffer);
     expect(result.transfer).toContain(result.value.mesh.indices.buffer);
   });
 
-  it("exports an inward-offset fit template after placement scale", async () => {
-    const result = await getFitCheckHandler()({
-      shape,
-      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 40, y: -20 },
-        scaleX: 1.5, scaleY: 0.5, clearanceMm: -0.5, cornerRoundMm: 0 },
-      depthMm: 2.5, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
-    }, context());
+  it("exports an inward-offset shadow inlay after placement scale", async () => {
+    const result = await getShadowInlayHandler()(request({
+      id: "fit-cutout", shapeId: shape.id, position: { x: 40, y: -20 },
+      scaleX: 1.5, scaleY: 0.5, clearanceMm: -0.5, cornerRoundMm: 0, bottomFilletMm: 0,
+    }, 2.5), context());
     const xs = Array.from(result.value.mesh.positions).filter((_, index) => index % 3 === 0);
     expect(Math.min(...xs)).toBeCloseTo(-14.5, 5);
     expect(Math.max(...xs)).toBeCloseTo(14.5, 5);
-    expect(result.value.stats.volumeMm3).toBeCloseTo(29 * 4 * 2.5, 4);
+    expect(result.value.stats.volumeMm3).toBeCloseTo((29 * 4 - (7 + Math.PI * 0.25)) * 2.5, 0);
   });
 
-  it("rejects a fit template erased by inward clearance", async () => {
-    await expect(getFitCheckHandler()({
-      shape,
-      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
-        scaleY: 0.05, clearanceMm: -0.5, cornerRoundMm: 0 },
-      depthMm: 2, quality: { circularSegments: 24 },
-    }, context())).rejects.toThrow("collapsed");
+  it("rejects a shadow inlay erased by inward clearance", async () => {
+    await expect(getShadowInlayHandler()(request({
+      id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
+      scaleY: 0.05, clearanceMm: -0.5, cornerRoundMm: 0, bottomFilletMm: 0,
+    }, 2), context())).rejects.toThrow("collapsed");
   });
 
   it("rejects an out-of-range template depth", async () => {
     await expect(
-      getFitCheckHandler()(
-        {
-          shape,
-          cutout: {
-            id: "fit-cutout",
-            shapeId: shape.id,
-            position: { x: 0, y: 0 },
-          },
-          depthMm: 0.1,
-          quality: { circularSegments: 16 },
-        },
+      getShadowInlayHandler()(
+        request({ id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 } }, 0.1),
         context(),
       ),
     ).rejects.toThrow("thickness");
-  });});
+  });
+
+  it("keeps the original filled template available for a split pocket", async () => {
+    const cutout = parseCutoutPlacement({ id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
+      clearanceMm: 0, cornerRoundMm: 0, bottomFilletMm: 2,
+      split: { boundary: [{ x: 0, y: -5 }, { x: 0, y: 5 }], depths: [{ mode: "through" }, { mode: "mm", value: 4 }] },
+    });
+    const legacy = await getFitCheckHandler()({ shape, cutout, depthMm: 0.6, quality: { circularSegments: 24 } }, context());
+    expect(legacy.value.stats.volumeMm3).toBeCloseTo(20 * 10 * 0.6, 5);
+    await expect(getShadowInlayHandler()(request(cutout, 0.6), context())).rejects.toThrow("single floor");
+  });
+});
 
 describe("complete surface fit test worker handler", () => {
   const shape = {

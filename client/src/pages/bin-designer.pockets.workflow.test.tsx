@@ -992,9 +992,13 @@ describe("BinDesignerPage", () => {
         expect(exports.querySelector('[data-testid="button-export-stl"]')).not.toBeNull();
         expect(exports.querySelector('[data-testid="button-export-3mf"]')).not.toBeNull();
         expect(exports.querySelector('[data-testid="button-export-surface-fit-test"]')).toBeNull();
+        React.act(() => exports.querySelector<HTMLButtonElement>('[data-testid="button-export-shadow-inlay"]')!.click());
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save shadow inlay STL?");
+        expect(downloadBlob).not.toHaveBeenCalled();
+        React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
         await React.act(async () => exports.querySelector<HTMLButtonElement>('[data-testid="button-export-open-fit-check"]')!.click());
         const fitChecks = document.querySelector('#bin-settings-fit')!;
-        expect(fitChecks.textContent).toContain('Wrench');
+        expect(fitChecks.querySelector('[data-testid="button-export-shadow-inlay"]')).toBeNull();
         for (const [id, title] of [["button-export-surface-fit-test", "Save surface fit test STL?"], ["button-export-fit-check", "Save fit template STL?"]]) {
           React.act(() => fitChecks.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
           expect([...document.querySelectorAll('[role="dialog"]')].some(dialog => dialog.textContent?.includes(title))).toBe(true);

@@ -163,6 +163,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               Choose <strong>Save surface fit test STL</strong>.
               Print at <strong>100% scale</strong> and try your tools. This checks
               surface openings, not pocket depth or baseplate fit.
+              Select a pocket to export its silhouette coupon under <strong>Tool fit template</strong>.
             </p>
           </li>
           <li className="pl-1">
@@ -176,6 +177,12 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               select your actual printer and print settings. In your slicer, use
               <strong> 100% scale</strong>, choose filament and print settings,
               and review the layer preview before printing.
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              For a contrasting pocket insert without an AMS, choose
+              <strong> Export shadow inlay</strong>, select a pocket, and save
+              its STL. The insert follows the pocket’s bottom rounding. Allow
+              for its thickness when setting tool depth.
             </p>
           </li>
           <li className="pl-1">

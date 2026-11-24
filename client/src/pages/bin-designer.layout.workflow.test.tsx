@@ -454,9 +454,10 @@ describe("BinDesignerPage", () => {
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
-    expect(container.textContent).toContain("Tool fit template");
-    expect(container.textContent).toContain("Save fit template STL");
+    expect(fitSection.querySelector('[data-testid="button-export-shadow-inlay"]')).toBeNull();
     openSettingsSection(container, "export");
+    expect(exportSection.textContent).toContain("Export shadow inlay");
+    expect(exportSection.textContent).toContain("Save shadow inlay STL");
     React.act(() => {
       (
         container.querySelector(

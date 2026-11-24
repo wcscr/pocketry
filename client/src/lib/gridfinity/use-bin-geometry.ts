@@ -28,6 +28,7 @@ import type { CutoutBuildReport } from "./cutouts";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SHADOW_INLAY_METHOD,
   BUILD_SURFACE_FIT_CHECK_METHOD,
   type BuildBinRequest,
   type BuildBinResult,
@@ -35,6 +36,7 @@ import {
   type BuildBinStats,
   type BuildFitCheckRequest,
   type BuildFitCheckResult,
+  type BuildShadowInlayRequest,
   type BuildSurfaceFitCheckRequest,
   type BuildSurfaceFitCheckResult,
 } from "./worker-api";
@@ -103,12 +105,19 @@ export interface BinGeometryState {
       colorDividerTops?: boolean;
     },
   ) => Promise<BuildBinResult>;
-  /** Builds a standalone filled outline for an inexpensive print-fit check. */
+  /** Builds the original standalone silhouette coupon. */
   buildFitCheck: (
     shape: TracedShape,
     cutout: CutoutPlacement,
     depthMm: number,
     quality: BuildQuality,
+  ) => Promise<BuildFitCheckResult>;
+  /** Builds the standalone shadow inlay using the current pocket floor. */
+  buildShadowInlay: (
+    cutoutId: string,
+    depthMm: number,
+    quality: BuildQuality,
+    gapMm?: number,
   ) => Promise<BuildFitCheckResult>;
   /** Builds the complete pocket-layout surface as a thin printable plate. */
   buildSurfaceFitCheck: (
@@ -550,23 +559,38 @@ export function useBinGeometry(
   );
 
   const buildFitCheck = useCallback(
-    (
-      shape: TracedShape,
-      cutout: CutoutPlacement,
-      depthMm: number,
-      exportQuality: BuildQuality,
-    ): Promise<BuildFitCheckResult> => {
-      const request: BuildFitCheckRequest = {
-        shape,
-        cutout,
-        depthMm,
-        quality: exportQuality,
-      };
-      return ensureClient().call<BuildFitCheckResult>(BUILD_FIT_CHECK_METHOD, request, {
-        channel: "fit-check-export",
-      });
+    (shape: TracedShape, cutout: CutoutPlacement, depthMm: number, quality: BuildQuality) => {
+      const request: BuildFitCheckRequest = { shape, cutout, depthMm, quality };
+      return ensureClient().call<BuildFitCheckResult>(BUILD_FIT_CHECK_METHOD, request, { channel: "fit-check-export" });
     },
     [ensureClient],
+  );
+
+  const buildShadowInlay = useCallback(
+    (
+      cutoutId: string,
+      depthMm: number,
+      exportQuality: BuildQuality,
+      gapMm?: number,
+    ): Promise<BuildFitCheckResult> => {
+      if (!layout) return Promise.reject(new Error("Select a tool pocket before exporting its shadow inlay."));
+      const request: BuildShadowInlayRequest = {
+        spec: withoutFontSources(spec),
+        layout: {
+          shapes: layout.shapes,
+          cutouts: layout.cutouts,
+          fingerHoles: layout.fingerHoles,
+        },
+        cutoutId,
+        depthMm,
+        quality: exportQuality,
+        gapMm,
+      };
+      return ensureClient().call<BuildFitCheckResult>(BUILD_SHADOW_INLAY_METHOD, request, {
+        channel: "shadow-inlay-export",
+      });
+    },
+    [ensureClient, spec, layout],
   );
 
   const buildSurfaceFitCheck = useCallback(
@@ -625,6 +649,7 @@ export function useBinGeometry(
     retryPreview,
     buildOnce,
     buildFitCheck,
+    buildShadowInlay,
     buildSurfaceFitCheck,
   };
 }

@@ -114,6 +114,8 @@ at **100% scale** (recommended thickness **0.6–0.8 mm**) and try the real
 tools. Adjust the outline or clearance as needed. This checks openings, not
 depth or baseplate fit. The older screenshot shows a 1.2 mm test.
 
+Select a pocket to export its silhouette coupon with **Tool fit template**.
+
 ![The original Wolfbox tool-outline fit check in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
 ### 5. Export and print the finished bin
@@ -122,6 +124,10 @@ Set every pocket's depth, then choose **Export → Save 3MF** or **Save STL**.
 Open it in your slicer at **100% scale** and check the layer preview. For color,
 choose **Multi-color 3MF**, **Bambu 3MF**, or **Prusa color preview 3MF**.
 Select your printer and materials before printing.
+
+For a separately printed pocket insert, choose **Export → Export shadow inlay**.
+The STL follows the pocket’s bottom rounding, with an adjustable edge gap for
+assembly. See [shadow inlays](docs/shadow-inlays.md) for supported pocket types.
 
 ![Current 3MF choices: Single-color, Multi-color, Bambu, and Prusa color preview](docs/images/export-3mf.jpg)
 
