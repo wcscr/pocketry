@@ -15,7 +15,7 @@ import {
 import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
-import { createKernel } from "@/lib/manifold/runtime";
+import { createKernel } from "@/lib/manifold/kernel";
 import { extractMeshData, extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { objectEdges } from "@/lib/mesh/object-edges";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";
@@ -42,12 +42,22 @@ import {
   type ResolvePocketGeometryRequest,
   type PocketGeometry,
   type BuildBinRequest,
+  type BuildBinLayoutRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
   type BuildFitCheckResult,
   type BuildSurfaceFitCheckRequest,
   type BuildSurfaceFitCheckResult,
 } from "./worker-api";
+
+function parseBinLayout(layout: BuildBinLayoutRequest): BinLayout {
+  const shapes = layout.shapes.map((shape) => tracedShapeSchema.parse(shape));
+  return {
+    shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
+    cutouts: layout.cutouts.map((cutout) => cutoutPlacementSchema.parse(cutout)),
+    fingerHoles: layout.fingerHoles.map((hole) => fingerHoleSchema.parse(hole)),
+  };
+}
 
 function parseMaterialThickness(
   value: number | undefined,
@@ -113,18 +123,7 @@ export function createBinWorkerHandlers(
       payload.layout &&
       (payload.layout.cutouts.length > 0 || payload.layout.fingerHoles.length > 0)
     ) {
-      const shapes = payload.layout.shapes.map((shape) =>
-        tracedShapeSchema.parse(shape),
-      );
-      layout = {
-        shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
-        cutouts: payload.layout.cutouts.map((cutout) =>
-          cutoutPlacementSchema.parse(cutout),
-        ),
-        fingerHoles: payload.layout.fingerHoles.map((hole) =>
-          fingerHoleSchema.parse(hole),
-        ),
-      };
+      layout = parseBinLayout(payload.layout);
       // Only the preview approximation drops rounding. Validate the authored
       // settings first, and never alter export requests or the saved layout.
       if (payload.previewDraft === true && payload.exportTopology !== true) {
@@ -314,8 +313,7 @@ export function createBinWorkerHandlers(
     context: HandlerContext,
   ) => {
     const spec = parseBinSpec(payload.spec);
-    const shape = tracedShapeSchema.parse(payload.shape);
-    const cutout = cutoutPlacementSchema.parse(payload.cutout);
+    const layout = parseBinLayout(payload.layout);
     context.progress(0.05);
 
     const wasm = await loadRuntime();
@@ -327,11 +325,11 @@ export function createBinWorkerHandlers(
       const started = performance.now();
       const solid = buildFitCheckSolid(
         kernel,
-        shape,
-        cutout,
+        spec,
+        layout,
+        payload.cutoutId,
         payload.depthMm,
         payload.quality,
-        spec,
         payload.gapMm,
       );
       context.progress(0.7);
@@ -361,18 +359,7 @@ export function createBinWorkerHandlers(
     context: HandlerContext,
   ) => {
     const spec = parseBinSpec(payload.spec);
-    const shapes = payload.layout.shapes.map((shape) =>
-      tracedShapeSchema.parse(shape),
-    );
-    const layout: BinLayout = {
-      shapesById: new Map(shapes.map((shape) => [shape.id, shape])),
-      cutouts: payload.layout.cutouts.map((cutout) =>
-        cutoutPlacementSchema.parse(cutout),
-      ),
-      fingerHoles: payload.layout.fingerHoles.map((hole) =>
-        fingerHoleSchema.parse(hole),
-      ),
-    };
+    const layout = parseBinLayout(payload.layout);
     const unfinished = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
       .filter(issue => issue.code === "pocket-depth-needed");
     if (unfinished.length) throw new Error(unfinished.map(issue => issue.message).join("\n"));

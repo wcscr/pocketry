@@ -12,6 +12,8 @@ and internal refactors usually need no changelog entry.
 
 ## Start here
 
+- [Connected project folders](library-folder.md)
+- [Local automation CLI and MCP](local-automation.md)
 - [Photo-to-bin quick start](https://pocketry.xyz/quick-start/) and [sample downloads](https://pocketry.xyz/samples/).
 - [Photo-to-bin tutorial](../README.md#basic-process) and
   [tutorial image sources/capture steps](images/README.md).
@@ -19,6 +21,8 @@ and internal refactors usually need no changelog entry.
   static hosting, upgrades, and browser-local backups.
 - [In-app Help](../client/src/components/help/help-dialog.tsx): the shipped guide
   available from Help, or More options on a phone.
+- [Reporting a tracing problem](tracing-photo-reports.md): original-photo reports sent by email.
+- [AI assistant guide](../client/public/ai-guide.txt) and [AI information index](../client/public/llms.txt): app guidance, issue reporting, and development contributions.
 - [Sample projects](../samples/README.md): 16 editable designs, original print
   photos, and variant-specific limits.
 

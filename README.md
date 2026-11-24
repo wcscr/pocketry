@@ -27,7 +27,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Fixture guide (Beta)](https://pocketry.xyz/help/ultim8).
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
-- Save projects locally, undo changes, and export editable backups.
+- Save projects locally, undo changes, and export editable backups. [Connect a project folder](docs/library-folder.md) to share named revisions with local tools.
 
 Check dimensions against the real items and print a fit test before the final bin.
 
@@ -135,15 +135,25 @@ assembly. See [shadow inlays](docs/shadow-inlays.md) for supported pocket types.
 
 ### Save an editable copy
 
-Use **Project → Save this draft to Library**, then **Export project** for a
-`.pocketry.json` backup. Keep the original photo separately; it is not in the
-backup.
+Save to **Library** to keep named projects in this browser. Enable experimental
+features in **App settings** to choose **Local folder** in Library Settings.
+Use **Export project** for a `.pocketry.json` backup. Keep the original photo
+separately from the backup.
 
 ## Privacy
 
+If tracing is not working well, choose **Report tracing problem** below the
+photo on the Trace page. Review the sharing warning and photo, optionally describe
+the problem, then download the ZIP report. Open the email link or your usual
+email app, attach the ZIP, and send it to **feedback@pocketry.xyz**, the project
+maintainer. The report contains the original photo (including embedded metadata),
+tracing settings and outline, app version, browser details, and your description.
+Nothing is sent automatically. See [photo reports](docs/tracing-photo-reports.md).
+
 The static application processes images and generates models locally in the
-browser. Projects are stored in the browser using IndexedDB. The hosted version
-does not require uploading tool photographs to Pocketry's server. The local Node
+browser. Projects and drafts can be stored in the browser using IndexedDB. In a supported
+browser, enable experimental features to save named projects to a [connected local folder](docs/library-folder.md).
+The hosted version does not require uploading tool photographs to Pocketry's server. The local Node
 server serves the editor and static assets only; the retired `/api/images` endpoints
 return 404 and do not accept or store uploads.
 
@@ -164,6 +174,19 @@ what you expected, what happened, and any workaround. Keep project files, photos
 and chat transcripts out of the draft. Show it to the person and get their approval
 before sending. If you can’t use the form, give them the draft and the
 [private feedback link](https://pocketry.xyz/feedback).
+
+For AI-assisted use, see the [published assistant guide](client/public/ai-guide.txt)
+and [llms.txt index](client/public/llms.txt). The guide asks assistants to offer
+photo reports when tracing fails and obtain explicit user approval before sharing
+a photo. These files ship at `/ai-guide.txt` and `/llms.txt`; the page head and
+Help link to them. `robots.txt` permits crawling and points to the index; it does
+not provide behavioral instructions or enforce sharing permissions.
+
+AI assistants are also welcome to help submit bug reports, issues, and enhancement
+requests, or contribute focused fixes, documentation, and tests. Search existing
+issues, prepare a reviewable draft, and obtain user authorization before posting,
+emailing, pushing, or opening a PR. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and
+[the repository agent instructions](AGENTS.md); agents cannot accept the CLA.
 
 ## Run locally
 

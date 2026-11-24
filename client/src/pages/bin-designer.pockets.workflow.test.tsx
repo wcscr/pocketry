@@ -11,6 +11,7 @@ import {
   clickBinHistory,
   selectPocket,
   pocketFieldCases,
+  openLibrarySettings,
 } from "./bin-designer.test-support";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -831,8 +832,7 @@ describe("BinDesignerPage", () => {
       const resizedSpec = vi.mocked(useBinGeometry).mock.lastCall![0];
       openSettingsSection(container, "project");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
-      const dialog = document.querySelector('[role="dialog"]')!;
-      const target = dialog.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!;
+      const target = openLibrarySettings().querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!;
       for (const key of ["ArrowDown", "r", "Delete", "z"]) {
         React.act(() => {
           target.focus();

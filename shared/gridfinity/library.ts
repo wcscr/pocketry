@@ -30,3 +30,4 @@ export const libraryBackupSchema = z.object({
 export type StoredProject = z.infer<typeof storedProjectSchema>;
 export type StoredProjectLibrary = z.infer<typeof projectLibrarySchema>;
 export type LibraryBackup = z.infer<typeof libraryBackupSchema>;
+export interface LibraryBackupOptions { omitHistory?: boolean }

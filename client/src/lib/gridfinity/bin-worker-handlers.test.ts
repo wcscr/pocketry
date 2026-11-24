@@ -339,6 +339,7 @@ describe("section view (G4)", () => {
   });});
 
 describe("shadow inlay worker handler", () => {
+  type Request = Parameters<ReturnType<typeof getFitCheckHandler>>[0];
   const shape = {
     id: "fit-shape",
     name: "Fit wrench",
@@ -364,13 +365,15 @@ describe("shadow inlay worker handler", () => {
     pointCount: 8,
     sourceMmPerPx: 0.2,
   };
+  const request = (cutout: Request["layout"]["cutouts"][number], depthMm: number): Request => ({
+    spec: REQUEST.spec, cutoutId: cutout.id, gapMm: 0,
+    layout: { shapes: [shape], cutouts: [cutout], fingerHoles: [] },
+    depthMm, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
+  });
 
   it("exports a filled standalone outline at the requested depth", async () => {
     const result = await getFitCheckHandler()(
-      {
-        spec: REQUEST.spec, gapMm: 0,
-        shape,
-        cutout: {
+      request({
           id: "fit-cutout",
           shapeId: shape.id,
           position: { x: 40, y: -20 },
@@ -387,10 +390,7 @@ describe("shadow inlay worker handler", () => {
               depthMm: 12,
             },
           ],
-        },
-        depthMm: 2.5,
-        quality: { circularSegments: 24, cutoutVertexBudget: 600 },
-      },
+      }, 2.5),
       context(),
     );
 
@@ -415,13 +415,10 @@ describe("shadow inlay worker handler", () => {
   });
 
   it("exports an inward-offset shadow inlay after placement scale", async () => {
-    const result = await getFitCheckHandler()({
-      spec: REQUEST.spec, gapMm: 0,
-      shape,
-      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 40, y: -20 },
-        scaleX: 1.5, scaleY: 0.5, clearanceMm: -0.5, cornerRoundMm: 0, bottomFilletMm: 0 },
-      depthMm: 2.5, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
-    }, context());
+    const result = await getFitCheckHandler()(request({
+      id: "fit-cutout", shapeId: shape.id, position: { x: 40, y: -20 },
+      scaleX: 1.5, scaleY: 0.5, clearanceMm: -0.5, cornerRoundMm: 0, bottomFilletMm: 0,
+    }, 2.5), context());
     const xs = Array.from(result.value.mesh.positions).filter((_, index) => index % 3 === 0);
     expect(Math.min(...xs)).toBeCloseTo(-14.5, 5);
     expect(Math.max(...xs)).toBeCloseTo(14.5, 5);
@@ -429,29 +426,16 @@ describe("shadow inlay worker handler", () => {
   });
 
   it("rejects a shadow inlay erased by inward clearance", async () => {
-    await expect(getFitCheckHandler()({
-      spec: REQUEST.spec, gapMm: 0,
-      shape,
-      cutout: { id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
-        scaleY: 0.05, clearanceMm: -0.5, cornerRoundMm: 0, bottomFilletMm: 0 },
-      depthMm: 2, quality: { circularSegments: 24 },
-    }, context())).rejects.toThrow("collapsed");
+    await expect(getFitCheckHandler()(request({
+      id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 },
+      scaleY: 0.05, clearanceMm: -0.5, cornerRoundMm: 0, bottomFilletMm: 0,
+    }, 2), context())).rejects.toThrow("collapsed");
   });
 
   it("rejects an out-of-range template depth", async () => {
     await expect(
       getFitCheckHandler()(
-        {
-          spec: REQUEST.spec, gapMm: 0,
-          shape,
-          cutout: {
-            id: "fit-cutout",
-            shapeId: shape.id,
-            position: { x: 0, y: 0 },
-          },
-          depthMm: 0.1,
-          quality: { circularSegments: 16 },
-        },
+        request({ id: "fit-cutout", shapeId: shape.id, position: { x: 0, y: 0 } }, 0.1),
         context(),
       ),
     ).rejects.toThrow("thickness");

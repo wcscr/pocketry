@@ -11,17 +11,17 @@ depth; allow for it when choosing the pocket depth. **Edge gap** defaults to
 gap for the printer, filament, and desired fit.
 
 The inlay retains the pocket's scale, mirroring, signed clearance, corner
-rounding, and interior islands. Its lower edge follows the same bottom-fillet
-profile as the pocket, with the radius limited by the pocket depth rather than
-the inlay thickness. Position and Z rotation are omitted so the part prints
-flat on the build plate. Finger access and the pocket's top-edge flare do not
+rounding, and interior islands, including separate kept holes. Its lower edge
+follows the same bottom-fillet profile as the pocket. The pocket depth limits
+the fillet radius. Position and Z rotation are omitted so the part prints flat
+on the build plate. Finger access and the pocket's top-edge flare do not
 enlarge the insert.
 
 Inlays currently require a solid bin and an untilted pocket with a single
-supporting floor. Through cuts, kept holes, split floors, and tilted/profile
-pockets show an explanation instead of exporting an insert with an unsuitable
-seat. Inspect the slicer's layer preview; geometry tests do not establish
-physical printer/material fit.
+supporting floor and an opening large enough to lower the insert into place.
+Through cuts, kept-hole selections, split floors, tilted pockets, and buried
+cavities show an explanation when an inlay cannot be installed. Inspect the
+slicer's layer preview and test the fit on your printer and material.
 
 ## Existing feature history
 

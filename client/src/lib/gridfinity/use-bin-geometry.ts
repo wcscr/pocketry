@@ -105,8 +105,7 @@ export interface BinGeometryState {
   ) => Promise<BuildBinResult>;
   /** Builds the standalone shadow inlay using the current pocket floor. */
   buildFitCheck: (
-    shape: TracedShape,
-    cutout: CutoutPlacement,
+    cutoutId: string,
     depthMm: number,
     quality: BuildQuality,
     gapMm?: number,
@@ -552,16 +551,20 @@ export function useBinGeometry(
 
   const buildFitCheck = useCallback(
     (
-      shape: TracedShape,
-      cutout: CutoutPlacement,
+      cutoutId: string,
       depthMm: number,
       exportQuality: BuildQuality,
       gapMm?: number,
     ): Promise<BuildFitCheckResult> => {
+      if (!layout) return Promise.reject(new Error("Select a tool pocket before exporting its shadow inlay."));
       const request: BuildFitCheckRequest = {
         spec: withoutFontSources(spec),
-        shape,
-        cutout,
+        layout: {
+          shapes: layout.shapes,
+          cutouts: layout.cutouts,
+          fingerHoles: layout.fingerHoles,
+        },
+        cutoutId,
         depthMm,
         quality: exportQuality,
         gapMm,
@@ -570,7 +573,7 @@ export function useBinGeometry(
         channel: "fit-check-export",
       });
     },
-    [ensureClient, spec],
+    [ensureClient, spec, layout],
   );
 
   const buildSurfaceFitCheck = useCallback(

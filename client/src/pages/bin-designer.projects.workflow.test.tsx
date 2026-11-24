@@ -1,8 +1,13 @@
+import { webcrypto } from "node:crypto";
+import { BrowserLibraryFolder, type FolderIntent } from "@/lib/project/browser-folder";
+import { ConnectedLibrary, type FolderProject } from "@shared/project-library/library";
+import { digest, encode, revisionFile } from "@shared/project-library/format";
 import {
   TraceHandoff,
   projectToast,
   projectSaveMock,
   EMPTY_PROJECT,
+  experimentalSettings,
   rectangularShape,
   flushHydration,
   BinDesignerPage,
@@ -16,6 +21,7 @@ import {
   sampleLibrary,
   sampleButton,
   browseSamples,
+  openLibrarySettings,
 } from "./bin-designer.test-support";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -52,6 +58,17 @@ function renderSampleLink(id: string) {
     <BinDesignerPage /><AppWelcome />
   </ShapeLibraryProvider></PanelProvider></Router>);
   return route;
+}
+
+function renderPageWithHeader() {
+  function Navigation() {
+    const { panelOpen, setPanelOpen } = usePanelState();
+    return <><AppHeader panelOpen={panelOpen} onPanelOpenChange={setPanelOpen} onHelpClick={() => {}} /><BinDesignerPage /></>;
+  }
+  const { hook } = memoryLocation({ path: "/bin" });
+  return render(<Router hook={hook}>
+    <TooltipProvider><PanelProvider><ShapeLibraryProvider><Navigation /></ShapeLibraryProvider></PanelProvider></TooltipProvider>
+  </Router>);
 }
 
 describe("BinDesignerPage", () => {
@@ -165,7 +182,7 @@ describe("BinDesignerPage", () => {
       await React.act(async () => { sampleButton("Add sample library").click(); await new Promise(resolve => setTimeout(resolve, 20)); });
       expect(ProjectPersistence.importProjectLibrary).toHaveBeenCalledWith(sampleLibrary, "merge", undefined);
       expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Manage browser library");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Project Library");
       expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(current.name);
       expect(document.querySelector('[data-testid="managed-project-list"]')?.textContent).toContain(sampleDoc.name);
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(doc.spec);
@@ -650,20 +667,26 @@ describe("BinDesignerPage", () => {
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       const dialog = document.querySelector('[role="dialog"]')!;
       expect(dialog.textContent).toContain("2 saved projects");
-      expect(dialog.textContent).toContain("Saved by a newer Pocketry version");
-      expect(dialog.textContent).toContain("could not be read by this version");
+      expect(dialog.textContent).toContain("Update Pocketry to open");
+      expect(dialog.textContent).toContain("Unreadable project");
       for (const project of projects) {
         for (const action of ["open", "rename", "duplicate"]) {
           expect(dialog.querySelector<HTMLButtonElement>(`[data-testid="button-${action}-project-${project.id}"]`)!.disabled).toBe(true);
         }
         const row = dialog.querySelector(`[data-testid="library-project-${project.id}"]`)!;
+        const hint = row.querySelector<HTMLButtonElement>('[aria-label="About this saved project"]')!;
+        await React.act(async () => hint.click());
+        const explanation = document.querySelector('[role="tooltip"]')?.textContent;
+        expect(explanation).toContain(project.id === "future" ? "Saved by a newer Pocketry version" : "could not be read by this version");
+        expect(explanation).toContain("included in library backups");
+        await React.act(async () => hint.click());
         await React.act(async () => {
           row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
           row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
         });
       }
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
-      expect(dialog.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.disabled).toBe(false);
+      expect(openLibrarySettings().querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.disabled).toBe(false);
     } finally { unmount(); }
   });
 
@@ -675,11 +698,491 @@ describe("BinDesignerPage", () => {
       await flushHydration();
       openSettingsSection(container, "project");
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      openLibrarySettings();
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-export-library"]')!.click());
       expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledExactlyOnceWith(undefined);
       expect(downloadBlob).toHaveBeenCalledOnce();
       expect(ProjectPersistence.saveProjectDoc).not.toHaveBeenCalled();
     } finally { unmount(); }
+  });
+
+  it("shows Browser storage until experimental features are enabled and remembers the connected folder", async () => {
+    localStorage.setItem("pocketry:library-storage", "folder");
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], "Workshop projects");
+    const remembered = vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder);
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ hasPublishedRevisions: true, canRecoverLegacy: false,
+        projects: [{ projectId: "tray", conflicted: false,
+          heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }] }),
+    ];
+    const { container, unmount } = renderPage({ experimental: false });
+    const storage = () => document.querySelector('[data-testid="library-active-storage"]')?.textContent;
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(storage()).toBe("Storage: Browser storage");
+      expect(document.querySelector('[data-testid="managed-project-list"]')).not.toBeNull();
+      expect(openLibrarySettings().querySelector('[data-testid="library-storage-folder"]')).toBeNull();
+      expect(remembered).not.toHaveBeenCalled();
+      await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-close-library-settings"]')!.click());
+
+      await React.act(async () => experimentalSettings.setEnabled(true));
+      expect(storage()).toBe("Storage: Local folder · Workshop projects");
+      expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Workshop tray");
+      expect(remembered).toHaveBeenCalledOnce();
+
+      await React.act(async () => experimentalSettings.setEnabled(false));
+      expect(storage()).toBe("Storage: Browser storage");
+      expect(document.querySelector('[aria-label="Projects in local folder"]')).toBeNull();
+      expect(localStorage.getItem("pocketry:library-storage")).toBe("folder");
+    } finally {
+      unmount();
+      for (const mock of [remembered, ...mocks]) mock.mockRestore();
+    }
+  });
+
+  it.each(["granted", "denied", "no activation"] as const)("restores remembered folder access from Library (%s)", async outcome => {
+    const activation = { isActive: outcome !== "no activation" };
+    const existingActivation = Object.getOwnPropertyDescriptor(navigator, "userActivation");
+    Object.defineProperty(navigator, "userActivation", { configurable: true, value: activation });
+    localStorage.setItem("pocketry:library-storage", "folder");
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], "Workshop projects");
+    let finishLookup!: (folder: BrowserLibraryFolder) => void;
+    const lookup = new Promise<BrowserLibraryFolder>(resolve => { finishLookup = resolve; });
+    let granted = false;
+    const renew = vi.spyOn(folder, "renew").mockImplementation(async () => (granted = outcome === "granted"));
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockReturnValue(lookup),
+      vi.spyOn(folder, "canWrite").mockImplementation(async () => granted),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ hasPublishedRevisions: true, canRecoverLegacy: false,
+        projects: [{ projectId: "tray", conflicted: false,
+          heads: [{ name: "Workshop tray", revision: "a".repeat(64), deleted: false, updatedAt: "2026-11-23T00:00:00Z" }] }] }),
+    ];
+    const { container, unmount } = renderPageWithHeader();
+    const action = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(button => button.textContent?.trim() === text);
+    try {
+      await flushHydration();
+      expect(renew).not.toHaveBeenCalled();
+      if (outcome !== "granted") openSettingsSection(container, "project");
+      const openLibrary = outcome === "granted"
+        ? [...container.querySelectorAll<HTMLAnchorElement>('nav a')].find(anchor => anchor.textContent === "Library")!
+        : container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!;
+      await React.act(async () => openLibrary.click());
+      await React.act(async () => finishLookup(folder));
+      expect(renew).toHaveBeenCalledTimes(outcome === "no activation" ? 0 : 1);
+
+      if (outcome !== "granted") {
+        expect(action("Choose folder again")?.disabled).toBe(false);
+        expect(action("Restore folder access")?.disabled).toBe(false);
+        renew.mockImplementationOnce(async () => (granted = true));
+        await React.act(async () => action("Restore folder access")!.click());
+      }
+      expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Workshop tray");
+      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Storage: Local folder · Workshop projects");
+      expect(action("Restore folder access")).toBeUndefined();
+    } finally {
+      unmount();
+      for (const mock of [renew, ...mocks]) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+      if (existingActivation) Object.defineProperty(navigator, "userActivation", existingActivation);
+      else Reflect.deleteProperty(navigator, "userActivation");
+    }
+  });
+
+  it("connects a folder from the main Library, saves and copies the current design, and switches back", async () => {
+    vi.stubGlobal("crypto", webcrypto);
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], "Workshop projects");
+    let selected: BrowserLibraryFolder | null = null;
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockImplementation(async () => selected),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(folder, "remember").mockResolvedValue(undefined),
+      vi.spyOn(folder, "forget").mockResolvedValue(undefined),
+    ];
+    const pick = vi.spyOn(BrowserLibraryFolder, "choose").mockImplementation(async () => (selected = folder));
+    const projects: FolderProject[] = [];
+    const list = vi.spyOn(ConnectedLibrary.prototype, "list").mockImplementation(async () => [...projects]);
+    const browse = vi.spyOn(ConnectedLibrary.prototype, "browse").mockImplementation(async () => ({
+      projects: [...projects], hasPublishedRevisions: !!projects.length, canRecoverLegacy: false,
+    }));
+    let saves = 0;
+    const read = vi.spyOn(ConnectedLibrary.prototype, "read").mockImplementation(async (projectId, revision) => {
+      const project = projects.find(project => project.projectId === projectId)!;
+      const head = project.heads.find(head => head.revision === revision)!;
+      return { project, ...head, doc: { ...EMPTY_PROJECT, name: head.name } };
+    });
+    const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async mutation => {
+      const change = mutation.changes[0];
+      const revision = ["a", "b", "c", "d"][saves++].repeat(64);
+      const updated: FolderProject = { projectId: change.projectId, conflicted: false, heads: [
+        { name: change.name, revision, deleted: false, updatedAt: "2026-11-22T00:00:00Z" },
+      ] };
+      const index = projects.findIndex(project => project.projectId === change.projectId);
+      if (index === -1) projects.push(updated);
+      else projects[index] = updated;
+      return {
+        status: "published", requestId: mutation.requestId, projects, requestCollision: false, pendingRevisions: [],
+        publications: [{ revision, fingerprint: "a".repeat(64), projectIds: [change.projectId] }],
+      };
+    });
+
+    const { container, unmount } = renderPageWithHeader();
+    const click = async (element: HTMLElement) => React.act(async () => element.click());
+    const byId = <T extends HTMLElement,>(name: string) => document.querySelector<T>(`[data-testid="${name}"]`)!;
+    const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(candidate => candidate.textContent?.trim() === text)!;
+    try {
+      await flushHydration();
+      await click([...container.querySelectorAll<HTMLAnchorElement>('nav a')].find(anchor => anchor.textContent === "Library")!);
+      expect(byId("library-active-storage").textContent).toBe("Storage: Browser storage");
+      expect(byId("library-storage-browser")).toBeNull();
+      expect(byId("button-export-library")).toBeNull();
+      openLibrarySettings();
+      const storageChoices = [...document.querySelectorAll('[aria-label="Library storage"] button')];
+      expect(storageChoices.map(choice => choice.textContent)).toEqual(["Local folder", "Browser storage"]);
+      expect(byId("library-storage-browser").getAttribute("aria-current")).toBe("true");
+      expect(byId("library-storage-browser").querySelector(".lucide-check")).not.toBeNull();
+      expect(document.body.textContent).not.toContain("Clearing site data can remove them");
+      const storageHelp = document.querySelector<HTMLButtonElement>('[aria-label="About library storage"]')!;
+      await click(storageHelp);
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("Clearing site data can remove them");
+      await click(storageHelp);
+      await click(byId("library-storage-folder"));
+      expect(byId("library-storage-folder").getAttribute("aria-current")).toBe("true");
+      expect(byId("library-storage-browser").querySelector(".lucide-check")).toBeNull();
+      expect(byId("library-storage-folder").querySelector(".lucide-check")).not.toBeNull();
+      expect(document.body.textContent).not.toContain("Pocketry creates a pocketry-library folder");
+      await click(button("Done"));
+      expect(byId("library-settings")).toBeNull();
+      await click(button("Choose a folder"));
+      expect(pick).toHaveBeenCalledOnce();
+      const settings = openLibrarySettings();
+      expect(settings.querySelector('h2')?.textContent).toBe("Library settings");
+      expect(settings.textContent).toContain("Workshop projects");
+      expect(byId("library-file-backup").contains(byId("button-open-sample-library"))).toBe(false);
+      for (const label of ["Change folder", "Refresh project list", "Disconnect folder", "Copy browser projects"]) {
+        expect(settings.textContent).toContain(label);
+      }
+      await click(button("Done"));
+      expect(byId("library-settings")).toBeNull();
+      expect(byId("library-active-storage").textContent).toBe("Storage: Local folder · Workshop projects");
+      expect(document.activeElement).toBe(byId("button-library-settings"));
+      expect(button("Change folder")).toBeUndefined();
+      expect(button("Copy browser projects")).toBeUndefined();
+
+      await click(button("Save current project"));
+      const name = byId<HTMLInputElement>("input-project-name");
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "Folder project");
+        name.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await React.act(async () => {
+        byId("button-confirm-save-library").click();
+        await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
+      });
+      expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ name: "Folder project", parents: [] });
+      expect(ProjectPersistence.prepareFolderSave).toHaveBeenCalledWith(expect.anything(), commit.mock.calls[0][0].requestId);
+      expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+      const folderRow = document.querySelector('[aria-label="Projects in local folder"] li')!;
+      expect(folderRow.textContent).toBe("Folder project");
+      expect([...folderRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
+        "Folder project is currently open", "Copy Folder project", "Export compact copy of Folder project", "Rename Folder project", "Remove Folder project",
+      ]);
+      await click(folderRow.querySelector<HTMLButtonElement>('[aria-label="Rename Folder project"]')!);
+      const rename = document.querySelector<HTMLInputElement>("#folder-rename-project")!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(rename, "Renamed tray");
+        rename.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await click(button("Save name"));
+      const target = { connectionId: folder.id, projectId: commit.mock.calls[0][0].changes[0].projectId };
+      expect(ProjectPersistence.advanceFolderDraft).toHaveBeenLastCalledWith(
+        { ...target, name: "Renamed tray", revision: "b".repeat(64) },
+        { base: { ...target, name: "Folder project", revision: "a".repeat(64) } },
+      );
+
+      await click(button("Save current project"));
+      await click(byId("button-confirm-save-library"));
+      expect(commit.mock.calls[2][0].changes[0]).toMatchObject({
+        projectId: target.projectId, parents: ["b".repeat(64)], name: "Renamed tray",
+      });
+
+      await click(button("Save current project"));
+      await React.act(async () => {
+        button("Save as new project").click();
+        await vi.waitFor(() => expect(commit).toHaveBeenCalledTimes(4));
+      });
+      expect(commit.mock.calls[3][0].changes[0]).toMatchObject({ parents: [], name: "Renamed tray" });
+      expect(commit.mock.calls[3][0].changes[0].projectId).not.toBe(target.projectId);
+      openLibrarySettings();
+      await click(byId("library-storage-browser"));
+      expect(byId("library-storage-browser").getAttribute("aria-current")).toBe("true");
+      await click(button("Done"));
+      expect(byId("library-active-storage").textContent).toBe("Storage: Browser storage");
+      expect(document.querySelector('[aria-label="Projects in local folder"]')).toBeNull();
+      expect(localStorage.getItem("pocketry:library-storage")).toBe("browser");
+    } finally {
+      unmount();
+      for (const mock of [commit, read, list, browse, pick, ...mocks]) mock.mockRestore();
+    }
+  });
+
+  it.each(["browser", "folder"] as const)("downloads a compact project and library from %s storage", async mode => {
+    vi.stubGlobal("crypto", webcrypto);
+    localStorage.setItem("pocketry:library-storage", mode);
+    const id = "tray";
+    const name = "Socket tray";
+    const updatedAt = "2026-11-23T00:00:00Z";
+    const revision = "a".repeat(64);
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 });
+    const current = { ...EMPTY_PROJECT, name, spec, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#445566" } };
+    const bin = { spec, cutouts: current.cutouts, fingerHoles: current.fingerHoles };
+    const doc: ProjectDoc = { ...current, history: { index: 1, stack: [
+      { doc: { ...bin, spec: EMPTY_PROJECT.spec }, label: "Original" }, { doc: bin, label: "Widen" },
+      { doc: { ...bin, spec: EMPTY_PROJECT.spec }, label: "Narrow again" },
+    ] } };
+    const compact = { format: "pocketry-library" as const, schemaVersion: 1 as const, projects: [{ id, name, updatedAt, doc: current }] };
+    const project = { projectId: id, conflicted: false, heads: [{ revision, name, updatedAt, deleted: false }] };
+    const folder = new BrowserLibraryFolder({ name: "Workshop" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const read = vi.spyOn(ConnectedLibrary.prototype, "read").mockResolvedValue({ doc, name, revision, project, updatedAt });
+    const backup = vi.spyOn(ConnectedLibrary.prototype, "backup").mockResolvedValue(compact);
+    const mocks = [read, backup,
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [project], hasPublishedRevisions: true, canRecoverLegacy: false }),
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [{ id, name, updatedAt }] });
+    vi.mocked(ProjectPersistence.readSavedProject).mockResolvedValue({ doc, name });
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue(compact);
+
+    const { container, unmount } = renderPage();
+    const exported = async (index: number) => {
+      const [blob, filename] = vi.mocked(downloadBlob).mock.calls[index];
+      const contents = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsText(blob);
+      });
+      return { contents: JSON.parse(contents), filename };
+    };
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => {
+        document.querySelector<HTMLButtonElement>('[aria-label="Export compact copy of Socket tray"]')!.click();
+        await vi.waitFor(() => expect(downloadBlob).toHaveBeenCalledOnce());
+      });
+      const file = await exported(0);
+      expect(file).toMatchObject({ contents: { name, spec: { gridX: 4 }, materials: { binColor: "#445566" } },
+        filename: expect.stringMatching(/Socket-tray-.*-compact-.*\.pocketry\.json$/) });
+      expect(file.contents).not.toHaveProperty("history");
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.saveFolderDraft).not.toHaveBeenCalled();
+
+      const settings = openLibrarySettings();
+      const action = settings.querySelector<HTMLButtonElement>('[data-testid="button-export-compact-library"]')!;
+      await React.act(async () => {
+        action.click();
+        await vi.waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(2));
+      });
+      if (mode === "folder") {
+        expect(read).toHaveBeenCalledExactlyOnceWith(id, revision);
+        expect(backup).toHaveBeenCalledExactlyOnceWith({ omitHistory: true });
+      } else {
+        expect(ProjectPersistence.readSavedProject).toHaveBeenCalledExactlyOnceWith(id);
+        expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledExactlyOnceWith(expect.anything(), { omitHistory: true });
+      }
+      expect(await exported(1)).toMatchObject({ contents: compact, filename: expect.stringMatching(/^pocketry-library-compact-/) });
+      expect(doc.history?.stack).toHaveLength(3);
+    } finally {
+      unmount();
+      for (const mock of mocks) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+    }
+  });
+
+  it.each([false, true])("recovers older projects directly from Library (existing current journal: %s)", async mixed => {
+    vi.stubGlobal("crypto", webcrypto);
+    localStorage.setItem("pocketry:library-storage", "folder");
+    const id = "00000000-0000-4000-8000-000000000001";
+    const name = `${id}.pocketry-library.json`;
+    const tray = { id: "old-tray", name: "Recovered tray", doc: EMPTY_PROJECT, updatedAt: "2026-11-22T00:00:00.000Z" };
+    const bytes = encode(JSON.stringify({ format: "pocketry-folder-revision", schemaVersion: 1, id, parents: [], projects: [tray] }));
+    const folder = new BrowserLibraryFolder({ name: "Older library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const destination = mixed ? folder : new BrowserLibraryFolder({ name: "pocketry-recovered" } as ConstructorParameters<typeof BrowserLibraryFolder>[0], folder.name);
+    const files = new Map<string, Uint8Array>();
+    const activate = vi.spyOn(folder, "activateRecovery").mockResolvedValue(destination);
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(folder, "entries").mockImplementation(async function* () {
+        yield { name, kind: "file" };
+        if (mixed) for (const name of files.keys()) yield { name, kind: "file" };
+      }),
+      vi.spyOn(folder, "readLegacyRevision").mockResolvedValue({ bytes, modifiedAt: 0 }),
+      vi.spyOn(folder, "findCompletedRecovery").mockResolvedValue(null),
+      vi.spyOn(folder, "createRecoveryFolder").mockResolvedValue(destination),
+      ...(!mixed ? [
+        vi.spyOn(destination, "canWrite").mockResolvedValue(true),
+        vi.spyOn(destination, "pending").mockResolvedValue([]),
+        vi.spyOn(destination, "entries").mockImplementation(async function* () {
+          for (const name of files.keys()) yield { name, kind: "file" };
+        }),
+      ] : []),
+      vi.spyOn(destination, "read").mockImplementation(async name => files.has(name) ? { bytes: files.get(name)!, modifiedAt: 0 } : null),
+      vi.spyOn(destination, "publish").mockImplementation(async (name, data) => { files.set(name, data); }),
+    ];
+    let currentRevision: string | undefined;
+    if (mixed) {
+      // The current journal and old snapshot are side by side when the editor opens.
+      const existing = { format: "pocketry-folder-revision", version: 2, requestId: "current", fingerprint: "a".repeat(64),
+        changes: [{ projectId: "current-tray", parents: [], name: "Current tray", doc: { ...EMPTY_PROJECT, name: "Current tray" } }] };
+      const data = encode(JSON.stringify(existing));
+      currentRevision = await digest(data);
+      files.set(revisionFile(await digest(encode(existing.requestId)), currentRevision), data);
+    }
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Older Pocketry library");
+      if (mixed) expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Current tray");
+      const recover = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+        .find(button => button.textContent?.trim() === "Recover projects")!;
+      await React.act(async () => {
+        recover.click();
+        await vi.waitFor(() => expect(files.size).toBe(mixed ? 2 : 1));
+      });
+      await vi.waitFor(() => expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain(tray.name));
+      if (mixed) {
+        expect(activate).not.toHaveBeenCalled();
+        expect(document.querySelector('[aria-label="Projects in local folder"]')?.textContent).toContain("Current tray");
+        expect((await new ConnectedLibrary(folder).read("current-tray")).revision).toBe(currentRevision);
+        expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Recover projects");
+      } else expect(activate).toHaveBeenCalledWith(destination);
+      expect(document.querySelector('[data-testid="library-active-storage"]')?.textContent).toBe("Storage: Local folder · Older library");
+      expect(ProjectPersistence.importProjectLibrary).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      for (const mock of [activate, ...mocks]) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+    }
+  });
+
+  it("saves a recovered folder draft to its original revision without opening Library", async () => {
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const target = { connectionId: folder.id, projectId: "tray", revision: "a".repeat(64), name: "Socket tray" };
+    const edited = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+    const revision = "b".repeat(64);
+    const mocks = [
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(folder, "remember").mockResolvedValue(undefined),
+      vi.spyOn(folder, "forget").mockResolvedValue(undefined),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [], hasPublishedRevisions: false, canRecoverLegacy: false }),
+    ];
+    const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async input => ({
+      status: "published", requestId: input.requestId, projects: [], requestCollision: false, pendingRevisions: [],
+      publications: [{ revision, fingerprint: "c".repeat(64), projectIds: [target.projectId] }],
+    }));
+    localStorage.setItem("pocketry:library-storage", "folder");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(edited);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: target });
+
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe(target.name);
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.click());
+      const save = document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!;
+      expect(save.textContent).toBe("Save changes");
+      await React.act(async () => save.click());
+
+      expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ projectId: target.projectId,
+        parents: [target.revision], name: target.name, doc: { spec: { gridX: 4 } } });
+      expect(ProjectPersistence.advanceFolderDraft).toHaveBeenCalledWith(
+        { ...target, revision }, { requestId: commit.mock.calls[0][0].requestId });
+      expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      for (const mock of [commit, ...mocks]) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+    }
+  });
+
+  it.each([false, true])("resumes an interrupted folder save and keeps later draft edits (first save: %s)", async firstSave => {
+    const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const base = { connectionId: folder.id, projectId: "tray", revision: "a".repeat(64), name: "Socket tray" };
+    const published = { ...base, revision: "b".repeat(64) };
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+    const requestId = "interrupted-save";
+    let pending: FolderIntent[] = [{ kind: "commit", ...(firstSave ? { workingDraft: true } : { draftBase: base }),
+      candidateRevision: published.revision, mutation: {
+      requestId, changes: [{ projectId: base.projectId, parents: firstSave ? [] : [base.revision], name: base.name, doc: EMPTY_PROJECT }],
+    } }];
+    const receipt = (requestId: string, revision: string) => ({
+      status: "published" as const, requestId, projects: [], requestCollision: false, pendingRevisions: [],
+      publications: [{ revision, fingerprint: "c".repeat(64), projectIds: [base.projectId] }],
+    });
+    const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async input => receipt(input.requestId, "d".repeat(64)));
+    const mocks = [
+      commit,
+      vi.spyOn(ConnectedLibrary.prototype, "inspect").mockResolvedValue(receipt("interrupted-save", published.revision)),
+      vi.spyOn(ConnectedLibrary.prototype, "list").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [], hasPublishedRevisions: false, canRecoverLegacy: false }),
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockImplementation(async () => pending),
+      vi.spyOn(folder, "remember").mockImplementation(async intent => { pending = [intent]; }),
+      vi.spyOn(folder, "forget").mockImplementation(async completed => {
+        if (completed === requestId) {
+          expect(ProjectPersistence.advanceFolderDraft).toHaveBeenCalledWith(published, firstSave ? { requestId } : { base });
+        }
+        pending = [];
+      }),
+    ];
+    localStorage.setItem("pocketry:library-storage", "folder");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: firstSave ? undefined : base });
+
+    const { container, unmount } = renderPageWithHeader();
+    const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+      .find(candidate => candidate.textContent?.trim() === label)!;
+    try {
+      await flushHydration();
+      await React.act(async () => [...container.querySelectorAll<HTMLAnchorElement>("nav a")].find(link => link.textContent === "Library")!.click());
+      await React.act(async () => button("Check and resume").click());
+      expect(commit).not.toHaveBeenCalled();
+      expect(button("Check and resume")).toBeUndefined();
+      await React.act(async () => button("Save current project").click());
+      await React.act(async () => button("Save changes").click());
+      expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ projectId: base.projectId,
+        parents: [published.revision], doc: { spec: { gridX: 4 } } });
+    } finally {
+      unmount();
+      for (const mock of mocks) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
+    }
   });
 
   it("shows a failed library refresh as an error and allows a retry", async () => {
@@ -730,21 +1233,14 @@ describe("BinDesignerPage", () => {
     </Router>, { mobile });
     try {
       const openLibrary = async () => {
-        if (mobile) {
-          const menu = container.querySelector<HTMLButtonElement>('[aria-label^="Workspace:"]')!;
-          React.act(() => menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-          await React.act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-            .find(item => item.textContent === "Library")!.click());
-        } else {
-          await React.act(async () => [...container.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Workspaces"] a')]
-            .find(link => link.textContent === "Library")!.click());
-        }
+        await React.act(async () => [...container.querySelectorAll<HTMLAnchorElement>('a')]
+          .find(link => link.textContent === "Library" && !link.closest(".hidden"))!.click());
       };
       await openLibrary();
       expect(container.querySelector('[data-testid="test-route"]')!.textContent).toBe("/bin");
       expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
       await React.act(async () => finishRestore(EMPTY_PROJECT));
-      expect(document.querySelector('[data-testid="library-manager-header"]')!.textContent).toContain("Manage browser library");
+      expect(document.querySelector('[data-testid="library-manager-header"]')!.textContent).toContain("Project Library");
       expect(ProjectPersistence.loadProjectDoc).toHaveBeenCalledOnce();
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="library-manager-header"] [aria-label="Close"]')!.click());
       expect(document.querySelector('[data-testid="managed-project-list"]')).toBeNull();
@@ -1000,7 +1496,7 @@ describe("BinDesignerPage", () => {
     expect(save.disabled).toBe(false);
     expect(fresh.disabled).toBe(false);
     expect(manage.disabled).toBe(false);
-    expect(manage.textContent).toBe("Manage Browser Library");
+    expect(manage.textContent).toBe("LibraryBrowser storage");
     expect(manage.previousElementSibling?.textContent).toBe('Save this draft to Library');
     expect(save.closest('section')?.getAttribute("aria-label")).toBe("Browser library");
     for (const action of transfers) {
@@ -1181,10 +1677,16 @@ describe("BinDesignerPage", () => {
       "Pliers tray",
     );
     const picker = document.querySelector('[role="dialog"]')!;
-    expect(picker.textContent).toContain("Manage browser library");
-    expect(picker.querySelector('[data-testid="button-export-library"]')).not.toBeNull();
-    expect(picker.querySelector('[data-testid="button-import-library"]')).not.toBeNull();
+    expect(picker.textContent).toContain("Project Library");
+    expect(picker.querySelector('[data-testid="button-library-settings"]')).not.toBeNull();
+    expect(picker.querySelector('[data-testid="button-export-library"]')).toBeNull();
+    expect(picker.querySelector('[data-testid="button-import-library"]')).toBeNull();
     expect(picker.querySelector('[data-testid^="button-remove-project-"]')).not.toBeNull();
+    const savedRow = picker.querySelector('[data-testid="library-project-name-project-2"]')!;
+    expect(savedRow.textContent?.trim()).toBe("Pliers tray");
+    expect([...savedRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
+      "Open Pliers tray", "Duplicate Pliers tray", "Export compact copy of Pliers tray", "Rename Pliers tray", "Remove Pliers tray from library",
+    ]);
     expect(
       (document.querySelector(
         '[data-testid="button-open-project-project-1"]',
@@ -1331,7 +1833,7 @@ describe("BinDesignerPage", () => {
     const before = vi.mocked(useBinGeometry).mock.lastCall;
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Manage browser library");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Project Library");
     expect(document.querySelector('[data-testid="project-list"]')).toBeNull();
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-current"]')!.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-old"]')!.disabled).toBe(false);
@@ -1790,7 +2292,7 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     const rename = document.querySelector<HTMLButtonElement>(`[data-testid="button-rename-project-${id}"]`)!;
     expect(rename.disabled).toBe(false);
-    expect(rename.parentElement?.getAttribute("data-testid")).toBe(`library-project-name-${id}`);
+    expect(rename.closest(`[data-testid="library-project-name-${id}"]`)).not.toBeNull();
     React.act(() => rename.click());
     const input = document.querySelector<HTMLInputElement>('[data-testid="input-project-name"]')!;
     expect(input.value).toBe(projects.find(project => project.id === id)!.name);
@@ -1888,9 +2390,9 @@ describe("BinDesignerPage", () => {
     expect(container.querySelector('[aria-label="Portable backup"] [data-testid="button-export-library"]')).toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
-    expect(document.querySelector('[role="dialog"] [data-testid="button-export-library"]')).not.toBeNull();
     expect(document.activeElement).toBe(document.querySelector('[data-testid="button-save-draft-library"]'));
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    expect(openLibrarySettings().querySelector('[data-testid="button-export-library"]')).not.toBeNull();
     await React.act(async () => { (document.querySelector('[data-testid="button-export-library"]') as HTMLButtonElement).click(); });
     expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledWith(expect.objectContaining({ schemaVersion: PROJECT_SCHEMA_VERSION }));
     expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
@@ -1918,6 +2420,7 @@ describe("BinDesignerPage", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
+    openLibrarySettings();
     const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
     const click = vi.spyOn(input, "click");
     React.act(() => { (document.querySelector('[data-testid="button-import-library"]') as HTMLButtonElement).click(); });
@@ -1957,6 +2460,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(document.body, "project");
       React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await flushHydration();
+      openLibrarySettings();
       const input = document.querySelector<HTMLInputElement>('[data-testid="input-import-library"]')!;
       const data = { format: "pocketry-library", schemaVersion: 1, projects: [] };
       const file = new File([JSON.stringify(data)], 'library.json');
@@ -2005,6 +2509,7 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
+    openLibrarySettings();
     const button = (action: string) => document.querySelector<HTMLButtonElement>(`[data-testid="button-${action}"]`)!;
     React.act(() => button("export-library").click());
     for (const action of ["save-library", "manage-library", "new-project", "export-project", "import-project", "export-library", "import-library"]) {
@@ -2025,6 +2530,7 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
     await flushHydration();
+    openLibrarySettings();
     const input = document.querySelector('[data-testid="input-import-library"]') as HTMLInputElement;
     const file = new File(["{"], "broken.json");
     Object.defineProperty(file, "text", { value: async () => "{" });

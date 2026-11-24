@@ -4,8 +4,10 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { Arena } from "@/lib/manifold/arena";
 import { extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
-import { createKernel, loadManifold, type Kernel, type ManifoldToplevel } from "@/lib/manifold/runtime";
-import { EXPORT_QUALITY } from "./bin";
+import { createKernel, type Kernel } from "@/lib/manifold/kernel";
+import { loadManifold } from "@/lib/manifold/runtime";
+import type { ManifoldToplevel } from "manifold-3d";
+import { buildBinWithCutouts, EXPORT_QUALITY, type BinLayout } from "./bin";
 import { buildCutoutCutters } from "./cutouts";
 import { buildFitCheckSolid } from "./fit-check";
 
@@ -16,6 +18,9 @@ beforeAll(async () => { wasm = await loadManifold(); });
 beforeEach(() => { arena = new Arena(); kernel = createKernel(wasm, arena); });
 afterEach(() => arena.dispose());
 const spec = parseBinSpec({ gridX: 3, gridY: 3, heightUnits: 6, lip: "none" });
+const layoutFor = (shape: TracedShape, cutout: BinLayout["cutouts"][number]): BinLayout => ({
+  shapesById: new Map([[shape.id, shape]]), cutouts: [cutout], fingerHoles: [],
+});
 const shape: TracedShape = { id: "tool", name: "Asymmetric tool", outlineMm: [{ outer: [
   { x: -12, y: -8 }, { x: 16, y: -8 }, { x: 16, y: 4 },
   { x: 4, y: 4 }, { x: 4, y: 9 }, { x: -12, y: 9 },
@@ -32,7 +37,7 @@ describe("shadow inlay floor fit", () => {
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 7, y: -4 },
       rotationDeg: 37, mirrored: true, scaleX: 1.3, scaleY: 0.9, clearanceMm: clearance,
       depth: { mode: "mm", value: depth }, cornerRoundMm: 0.4, topFilletMm: 1, bottomFilletMm: radius });
-    const inlay = buildFitCheckSolid(kernel, shape, cutout, thickness, EXPORT_QUALITY, spec);
+    const inlay = buildFitCheckSolid(kernel, spec, layoutFor(shape, cutout), cutout.id, thickness, EXPORT_QUALITY);
     const cavity = buildCutoutCutters(kernel, new Map([[shape.id, shape]]), [cutout], spec, EXPORT_QUALITY).cutters[0];
     const floorZ = resolvePocketDepth(spec, cutout.depth).floorZ!;
     const placed = arena.track(arena.track(inlay.rotate([0, 0, cutout.rotationDeg]))
@@ -76,7 +81,7 @@ describe("shadow inlay floor fit", () => {
     ], holes: [] }] };
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 },
       depth: { mode: "mm", value: 10 }, clearanceMm: 0.5, cornerRoundMm: 0, bottomFilletMm: 0 });
-    const inlay = buildFitCheckSolid(kernel, rectangle, cutout, 0.6, EXPORT_QUALITY, spec, 0.3);
+    const inlay = buildFitCheckSolid(kernel, spec, layoutFor(rectangle, cutout), cutout.id, 0.6, EXPORT_QUALITY, 0.3);
     expect(inlay.boundingBox().min[0]).toBeCloseTo(-10.2, 5);
     expect(inlay.boundingBox().max[0]).toBeCloseTo(10.2, 5);
   });
@@ -87,6 +92,45 @@ describe("shadow inlay floor fit", () => {
     ], holes: [] }] };
     const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 },
       depth: { mode: "mm", value: 10 }, clearanceMm: 0, cornerRoundMm: 0, bottomFilletMm: 2 });
-    expect(() => buildFitCheckSolid(kernel, narrow, cutout, 0.6, EXPORT_QUALITY, spec)).toThrow(/flat seat|nothing to cut/);
+    expect(() => buildFitCheckSolid(kernel, spec, layoutFor(narrow, cutout), cutout.id, 0.6, EXPORT_QUALITY)).toThrow(/flat seat|nothing to cut/);
+  });
+
+  it("leaves edge clearance around a separate kept island in the finished bin", () => {
+    const island: TracedShape = { ...shape, id: "island", name: "Island", pointCount: 4,
+      bboxMm: { minX: -3, minY: -3, maxX: 3, maxY: 3 },
+      outlineMm: [{ outer: [{ x: -3, y: -3 }, { x: 3, y: -3 }, { x: 3, y: 3 }, { x: -3, y: 3 }], holes: [] }] };
+    const depth = { mode: "mm", value: 8 } as const;
+    const pocketShape = { ...shape, outlineMm: [{ ...shape.outlineMm[0], holes: [] }] };
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 8, y: -4 },
+      rotationDeg: 30, depth, clearanceMm: 0, cornerRoundMm: 0, bottomFilletMm: 2 });
+    const retained = parseCutoutPlacement({ id: "keep", shapeId: island.id, role: "hole",
+      position: cutout.position, rotationDeg: cutout.rotationDeg, depth, clearanceMm: 0, cornerRoundMm: 0, bottomFilletMm: 0 });
+    const layout: BinLayout = {
+      shapesById: new Map([[pocketShape.id, pocketShape], [island.id, island]]),
+      cutouts: [cutout, retained], fingerHoles: [],
+    };
+    const inlay = buildFitCheckSolid(kernel, spec, layout, cutout.id, 0.6, EXPORT_QUALITY, 0.2);
+    const floor = resolvePocketDepth(spec, depth).floorZ!;
+    const placed = arena.track(arena.track(inlay.rotate([0, 0, cutout.rotationDeg])).translate([8, -4, floor]));
+    const bin = buildBinWithCutouts(kernel, spec, layout, EXPORT_QUALITY);
+    expect(bin.validationIssues).toEqual([]);
+    expect(arena.track(placed.intersect(bin.solid)).volume()).toBeLessThan(1e-6);
+    // Probe along the sides without assuming that the corner clearance is square.
+    for (const [width, length] of [[6.38, 6], [6, 6.38]]) {
+      const band = arena.track(arena.track(wasm.Manifold.cube([width, length, 0.6])).translate([-width / 2, -length / 2, 0]));
+      expect(arena.track(inlay.intersect(band)).volume()).toBeLessThan(1e-6);
+    }
+    expect(inlay.volume()).toBeGreaterThan(1);
+    expect(writeBinarySTL(extractPrintableMeshData(kernel, inlay)).byteLength).toBeGreaterThan(84);
+  });
+
+  it.each([0.6, 10])("rejects a %s mm inlay for an 8 mm cavity sealed beneath the fill", (depthMm) => {
+    const surface = resolvePocketDepth(spec, { mode: "through" }).infillTopZ;
+    const cutout = parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 },
+      elevationMm: surface - 12, depth: { mode: "mm", value: 8 } });
+    const layout = layoutFor(shape, cutout);
+    const [cavity] = buildCutoutCutters(kernel, layout.shapesById, layout.cutouts, spec, EXPORT_QUALITY).cutters;
+    expect(cavity.boundingBox().max[2]).toBeCloseTo(surface - 4, 6);
+    expect(() => buildFitCheckSolid(kernel, spec, layout, cutout.id, depthMm, EXPORT_QUALITY)).toThrow("no opening at the fill surface");
   });
 });

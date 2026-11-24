@@ -223,7 +223,7 @@ describe("bin preview worker lifecycle", () => {
     let surface!: ReturnType<BinGeometryState["buildSurfaceFitCheck"]>;
     await React.act(async () => {
       normal = state!.buildOnce(EXPORT_QUALITY, { pocketFloorMaterialThicknessMm: 0.8 });
-      fit = state!.buildFitCheck(shape, cutout, 8, EXPORT_QUALITY, 0.3);
+      fit = state!.buildFitCheck(cutout.id, 8, EXPORT_QUALITY, 0.3);
       surface = state!.buildSurfaceFitCheck(0.8, EXPORT_QUALITY, "full");
     });
     await render(3); await tick(); await render(4); await tick();
@@ -235,7 +235,7 @@ describe("bin preview worker lifecycle", () => {
     expect(exported.payload as BuildBinRequest).toMatchObject({ spec: { heightUnits: 2 }, quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.8 });
     expect((exported.payload as BuildBinRequest).section).toBeUndefined();
     expect(fitCall.method).toBe("buildFitCheck");
-    expect(fitCall.payload as BuildFitCheckRequest).toMatchObject({ spec: { heightUnits: 2 }, shape, cutout, depthMm: 8, gapMm: 0.3 });
+    expect(fitCall.payload as BuildFitCheckRequest).toMatchObject({ spec: { heightUnits: 2 }, layout, cutoutId: cutout.id, depthMm: 8, gapMm: 0.3 });
     expect(surfaceCall.method).toBe("buildSurfaceFitCheck");
     expect(surfaceCall.payload as BuildSurfaceFitCheckRequest).toMatchObject({ spec: { heightUnits: 2 }, thicknessMm: 0.8, style: "full" });
     await reply(() => worker().finish(0)); expect(worker().calls).toHaveLength(2);

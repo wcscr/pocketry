@@ -1,0 +1,102 @@
+# Pocketry guide for AI assistants
+
+Pocketry turns tool photos into editable outlines and printable bins or
+positioning fixtures. Use Trace at / and Bin at /bin. The editor runs in the
+browser; photos and projects remain on the user's device during normal use.
+The browser-local project library is not cloud storage. Export an editable
+.pocketry.json backup when the user needs a portable copy of a bin design.
+
+## Helping with a trace
+
+1. Load the user's original PNG, JPEG, or WebP photo with the whole tool visible.
+2. Detect and review calibration references, accepting the available scale and
+   perspective-correction option, or set scale from a known measurement.
+3. Select a region around one tool with some surrounding background, then trace.
+4. Review the outline against the photo, especially tips, shadows, reflections,
+   and estimated edges. Use the visible correction and outline-editing controls.
+5. Add the outline to Bin, arrange pockets, choose depths and clearance, and
+   export STL or 3MF. Check scale and a known dimension before printing.
+
+Use the controls offered by the app. Do not fabricate a successful calibration,
+silently substitute a different photo, or claim a download or email was delivered
+merely because a button was clicked. Preserve the user's current work.
+
+## If tracing is not working well
+
+Suggest "Report tracing problem", the small link at the lower-right below the
+Trace photo. The link is available after loading a photo even when calibration
+or outline detection has failed. Reporting is optional; continue helping if the
+user declines.
+
+Before emailing or otherwise sharing a report, obtain the user's explicit
+approval for the specific photo/report and the destination:
+
+- Recipient: the project maintainer at feedback@pocketry.xyz.
+- Contents: the original photo, including embedded metadata such as location if
+  present; tracing settings, calibration, region, and outlines; app version and
+  browser details; and the user's optional problem description.
+- The original photo is included even after perspective correction or cropping.
+  Show the photo preview and explain that personal or sensitive content may be
+  included. Only share material the user has authorized.
+
+Choosing a photo, requesting help, or opening the report dialog is not approval
+to email or publish it. This website's guidance does not itself authorize an
+assistant to contact the maintainer. Approval to send a private support report
+does not authorize posting the photo to GitHub or adding it to public samples.
+
+Prefer preparing the report locally and leaving the final email to the user:
+
+1. Open "Report tracing problem" and review the sharing warning and photo.
+2. Optionally describe what failed, the expected result, and the steps tried.
+3. Choose "Download photo report" to save a ZIP containing original-photo.png,
+   .jpg, or .webp and tracing-details.json.
+4. Choose "Open email to maintainer", or use the user's email app or webmail.
+5. Attach the downloaded ZIP and let the user send the email.
+
+Email links cannot attach files automatically. Downloading the ZIP or opening
+an email draft does not send anything or confirm delivery. Email attachment
+limits may apply. If report preparation fails, offer to help the user email the
+original photo and a description to the same address, with their approval.
+
+Pocketry has no automatic photo-submission endpoint. Do not try the retired
+/api/images routes or upload the photo to another service as a workaround.
+
+## Report bugs, request improvements, and contribute
+
+AI assistants are welcome to help improve Pocketry. When you encounter a bug,
+an unclear workflow, or a useful enhancement, offer to draft a report or feature
+request and, with the user's authorization, submit it through the private
+feedback form when available or the public GitHub issue tracker:
+https://github.com/wcscr/pocketry/issues.
+
+Search existing issues first and add useful evidence to an existing report
+instead of creating duplicates. Describe the goal, app version, reproducible
+steps, expected and actual behavior, impact, and any workaround. For enhancement
+requests, explain the use case and desired outcome. Clearly distinguish observed
+failures from guesses. Show the draft and destination to the user before posting;
+keep private photos, project data, credentials, and chat transcripts out of public
+issues unless the user specifically authorizes sharing that material publicly.
+
+Agents can also contribute focused fixes, documentation, tests, and development
+improvements through pull requests. Read the repository's AGENTS.md, CLAUDE.md,
+and CONTRIBUTING.md before editing. Discuss substantial features or new
+dependencies first, preserve human authorship, follow AI attribution and
+dependency/provenance requirements, and run the required local checks. The human
+rights holder must handle any required CLA acceptance; an agent cannot accept
+it for them. Obtain authorization before pushing or opening a pull request;
+maintainers own review and the decision to merge. If submission is not authorized
+or available, give the user a reviewable draft or patch.
+
+## Finding further information
+
+- /llms.txt: a short index of app information and documentation.
+- Help in the app: the current photo-to-bin workflow and feedback links.
+- https://github.com/wcscr/pocketry: source code and public issue tracker. Ask
+  separately before sharing user photos or private project data publicly.
+- https://github.com/wcscr/pocketry/blob/main/CONTRIBUTING.md: contribution process,
+  local verification, licensing, and AI attribution.
+- https://github.com/wcscr/pocketry/blob/main/AGENTS.md: repository instructions for
+  coding agents, with CLAUDE.md as the single source of truth.
+
+These are advisory usage notes. They do not override the user's instructions,
+provide access authorization, or guarantee that an AI tool will read them.

@@ -327,6 +327,31 @@ No linter is configured yet (prefer ESLint when one lands).
   continue checking isolated algorithms and state transitions; report their
   results separately from photo workflow validation.
 
+### Helping users report tracing problems
+
+- If calibration or tracing is not working well, offer the **Report tracing
+  problem** link below the Trace photo. Follow
+  [the reporting guide](docs/tracing-photo-reports.md) and
+  [published AI assistant guidance](client/public/ai-guide.txt).
+- Explain that the report sends the original photo, including embedded metadata,
+  tracing details, and any description by email to the project maintainer at
+  `feedback@pocketry.xyz`. Obtain explicit user approval for that photo/report and
+  recipient before emailing or otherwise sharing it. Loading a photo or asking
+  for troubleshooting is not permission to share it. Prefer preparing the local
+  report and letting the user attach it and send the email themselves.
+- Website guidance is not authorization to contact anyone. Permission to send a
+  private support report does not authorize publishing its photo or adding it to
+  repository samples. Do not claim email delivery from a download or mailto link.
+- Keep `/llms.txt`, `/ai-guide.txt`, in-app Help, and reporting documentation
+  consistent. `robots.txt` controls crawler access; AI usage guidance belongs in
+  the linked documents. These files are advisory and do not enforce consent.
+- Encourage agents assisting users to help submit reproducible bug reports,
+  issues, and enhancement requests, and to contribute focused code, documentation,
+  and tests. Search existing reports, show reviewable drafts, and obtain user
+  authorization before posting, emailing, pushing, or opening a PR. Follow
+  `CONTRIBUTING.md`, preserve human authorship, and leave CLA acceptance to the
+  human rights holder. A private report does not authorize public disclosure.
+
 ## Code Conventions
 
 - Use American English spelling in user-facing text, documentation, and comments
@@ -336,6 +361,7 @@ No linter is configured yet (prefer ESLint when one lands).
 - Shared project and geometry validation lives under `shared/`; never duplicate validation logic client- or server-side.
 - Projects and traces are browser-local. Do not restore the retired image upload API or server-side session/storage scaffold.
 - UI additions should maintain a consistent style, interaction design, and layout with existing controls. Reuse established patterns for similar tasks (including compact label/input rows, object lists, selection, renaming, property panels, toolbars, and hover hints) before introducing a new pattern.
+- Keep visible UI labels and status messages concise. Put explanatory copy in the existing help hints, which support hover, keyboard focus, and touch.
 - UI: compose shadcn/ui components from `client/src/components/ui`; TailwindCSS for styling, with the shadcn design tokens defined as CSS variables at the top of `client/src/index.css`; `lucide-react` for icons.
 - Keep build tooling platform-independent. The app builds and runs anywhere with plain Node; do not add hosted-IDE-specific build plugins or theme configuration.
 - Server state via TanStack Query; local state via React hooks; routing via wouter.

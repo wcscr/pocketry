@@ -55,16 +55,20 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
-  it("explains why a through pocket cannot hold a shadow inlay", async () => {
+  it.each([
+    ["through", { depth: { mode: "through" } }, "no supporting floor"],
+    ["buried", { elevationMm: 23, depth: { mode: "mm", value: 8 } }, "no opening at the fill surface"],
+  ] as const)("explains why a %s pocket cannot hold a shadow inlay", async (_kind, placement, message) => {
     const shape = rectangularShape("tool", "Wrench");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
-      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "through" } })],
+      spec: parseBinSpec({ ...EMPTY_PROJECT.spec, heightUnits: 5, lip: "none" }),
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, ...placement })],
     });
     const { container, unmount } = renderPage();
     try {
       await flushHydration();
       openSettingsSection(container, "export");
-      expect(container.querySelector('[data-testid="shadow-inlay-unavailable"]')?.textContent).toContain("no supporting floor");
+      expect(container.querySelector('[data-testid="shadow-inlay-unavailable"]')?.textContent).toContain(message);
       expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-shadow-inlay"]')!.disabled).toBe(true);
     } finally { unmount(); }
   });
@@ -371,7 +375,7 @@ describe("BinDesignerPage", () => {
         expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(0.6, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
       }
       if (kind === "shadow-inlay") expect(binGeometryMock.buildFitCheck).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "tool" }), expect.objectContaining({ id: "pocket" }), 0.6, expect.any(Object), 0.2,
+        "pocket", 0.6, expect.any(Object), 0.2,
       );
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));

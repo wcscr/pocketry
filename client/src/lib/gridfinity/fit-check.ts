@@ -2,10 +2,9 @@ import { binWidthMm, binLengthMm } from "@shared/gridfinity/bin-size";
 import type { CrossSection, Manifold } from "manifold-3d";
 
 import {
+  resolvePlacedPocketDepth,
   resolvePocketDepth,
   transformOutlinePlacement,
-  type CutoutPlacement,
-  type TracedShape,
 } from "@shared/gridfinity/cutout";
 import { BASE_TOP_RADIUS, binFootprintMm } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
@@ -35,6 +34,7 @@ import {
 } from "./worker-api";
 
 const CLEANUP_EPSILON = 1e-6;
+const FIT_VOLUME_TOLERANCE_MM3 = 1e-4;
 
 export const FIT_CHECK_MIN_DEPTH_MM = 0.5;
 export const FIT_CHECK_MAX_DEPTH_MM = 30;
@@ -50,11 +50,11 @@ export const FIT_CHECK_MAX_DEPTH_MM = 30;
  */
 export function buildFitCheckSolid(
   kernel: Kernel,
-  shape: TracedShape,
-  cutout: CutoutPlacement,
+  spec: BinSpec,
+  layout: BinLayout,
+  cutoutId: string,
   depthMm: number,
   quality: BuildQuality,
-  spec: BinSpec,
   gapMm = DEFAULT_SHADOW_INLAY_GAP_MM,
 ): Manifold {
   if (
@@ -66,12 +66,34 @@ export function buildFitCheckSolid(
       `Shadow inlay thickness must be ${FIT_CHECK_MIN_DEPTH_MM}–${FIT_CHECK_MAX_DEPTH_MM} mm.`,
     );
   }
+  const cutout = layout.cutouts.find((item) => item.id === cutoutId);
+  const shape = cutout && layout.shapesById.get(cutout.shapeId);
+  if (!cutout || !shape) throw new Error("Select a tool pocket before exporting its shadow inlay.");
   shadowInlayGapSchema.parse(gapMm);
   const unavailable = shadowInlayUnavailableReason(spec, shape, cutout, depthMm);
   if (unavailable) throw new Error(unavailable);
 
   const { arena } = kernel;
   const segments = quality.circularSegments;
+  const { floorZ, infillTopZ } = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
+  if (floorZ === null) throw new Error("This pocket has no supporting floor for a shadow inlay.");
+  const { cutters, retainedGroups } = buildCutoutCutters(
+    kernel, layout.shapesById,
+    [cutout, ...layout.cutouts.filter((item) => item.role === "hole")],
+    spec, quality,
+  );
+  const cavity = cutters[0];
+  if (!cavity || cavity.isEmpty()) {
+    throw new Error("The selected outline collapsed or has no remaining cavity.");
+  }
+  const mouth = arena.track(cavity.slice(infillTopZ - CLEANUP_EPSILON));
+  if (mouth.isEmpty()) {
+    throw new Error("This pocket has no opening at the fill surface for a shadow inlay.");
+  }
+  if (floorZ + depthMm > cavity.boundingBox().max[2] + CLEANUP_EPSILON) {
+    throw new Error("The shadow inlay is thicker than the available pocket cavity.");
+  }
+
   const budget = quality.cutoutVertexBudget ?? 150;
   const normalized = transformOutlinePlacement(budgetOutline(shape.outlineMm, budget), {
     position: { x: 0, y: 0 },
@@ -118,11 +140,48 @@ export function buildFitCheckSolid(
     profileStepMm: quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,
     circularSegments: segments,
   });
-  const solid = arena.track(rounded.trimByPlane([0, 0, -1], -depthMm));
+  let solid = arena.track(rounded.trimByPlane([0, 0, -1], -depthMm));
+  const { x, y } = cutout.position;
+  // An island can block the insert at any point in its vertical travel.
+  // Project retained material above the seat and clear its whole footprint.
+  const retained = retainedGroups?.flatMap(({ volumes }) => volumes) ?? [];
+  if (retained.length) {
+    const clearances = retained
+      .map((part) => arena.track(part.trimByPlane([0, 0, 1], floorZ + CLEANUP_EPSILON)))
+      .filter((part) => !part.isEmpty())
+      .map((part) => {
+        const centered = arena.track(part.translate([-x, -y, 0]));
+        const local = arena.track(centered.rotate([0, 0, -cutout.rotationDeg]));
+        const footprint = arena.track(local.project());
+        return gapMm > 0 ? arena.track(footprint.offset(gapMm, "Round", 2, segments)) : footprint;
+      });
+    if (clearances.length) {
+      const clearance = arena.track(kernel.CrossSection.union(clearances));
+      solid = arena.track(solid.subtract(arena.track(clearance.extrude(depthMm))));
+    }
+  }
+
   const status = solid.status();
   if (status !== "NoError" || solid.isEmpty() || solid.boundingBox().min[2] > CLEANUP_EPSILON) {
     if (status === "NoError") throw new Error("The shadow inlay has no flat seat after bottom rounding. Reduce the gap or bottom fillet.");
     throw new Error(`buildFitCheckSolid: manifold reported ${status}`);
+  }
+  const rotated = arena.track(solid.rotate([0, 0, cutout.rotationDeg]));
+  const seated = arena.track(rotated.translate([x, y, floorZ]));
+  if (arena.track(seated.subtract(cavity)).volume() > FIT_VOLUME_TOLERANCE_MM3) {
+    throw new Error("The shadow inlay does not fit in the pocket cavity. Try increasing the edge gap or reducing the thickness.");
+  }
+  const insertTop = floorZ + depthMm;
+  if (insertTop < infillTopZ - CLEANUP_EPSILON) {
+    // The rounded insert widens toward its top. Above that height its vertical
+    // sweep is the extrusion of its widest section, including island clearance.
+    // A mesh projection can fill through-holes where opposite faces meet.
+    // Slice the top band so its kept-hole clearances survive the sweep.
+    const footprint = arena.track(seated.slice(insertTop - CLEANUP_EPSILON));
+    const shaft = arena.track(arena.track(footprint.extrude(infillTopZ - insertTop)).translate([0, 0, insertTop]));
+    if (arena.track(shaft.subtract(cavity)).volume() > FIT_VOLUME_TOLERANCE_MM3) {
+      throw new Error("The shadow inlay cannot pass through the pocket opening. Try increasing the edge gap.");
+    }
   }
   return solid;
 }
