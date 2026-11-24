@@ -196,7 +196,8 @@ describe("App", () => {
       [...container.querySelectorAll("nav a")].map((link) =>
         link.textContent?.trim(),
       ),
-    ).toEqual(["Trace", "Bin", "Library"]);
+    ).toEqual(["Trace", "Bin", "Library", "Samples (opens in a new tab)"]);
+    expect(container.querySelector('header a[href="/samples/"]')?.getAttribute("target")).toBe("_blank");
     expect(container.querySelector('header a[href="https://github.com/wcscr/pocketry"]')).toBeNull();
   });
 

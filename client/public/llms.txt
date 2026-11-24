@@ -5,7 +5,7 @@
 ## Guides
 
 - [Turn a tool photo into a Gridfinity bin](https://pocketry.xyz/quick-start/)
-- [Sample projects and downloads](https://pocketry.xyz/samples/)
+- [Searchable sample catalog](https://pocketry.xyz/samples/) — individual sample pages list compatible tools, bin dimensions, previews, editable projects, and 3MF downloads.
 
 ## Feedback
 

@@ -59,7 +59,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDelayedBusy } from "@/hooks/use-delayed-busy";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
 import { AddFingerAccessButton } from "./add-finger-access-button";
@@ -2952,10 +2952,20 @@ function ProjectControls({
   saveStatus = "saved",
 }: ProjectControlsProps): JSX.Element {
   const ready = hydrated && libraryReady;
+  const [location, navigate] = useLocation();
+  const search = useSearch();
+  const linkedSampleId = /^\/bin\/?$/.test(location) ? new URLSearchParams(search).get("sample") : null;
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [samplesOpen, setSamplesOpen] = useState(false);
   const [sampleAction, setSampleAction] = useState<{ kind: "project"; doc: ProjectDoc } | { kind: "library"; library: SampleLibrary } | null>(null);
+  const clearSampleLink = () => {
+    if (linkedSampleId === null) return;
+    const params = new URLSearchParams(search);
+    params.delete("sample");
+    const remaining = params.toString();
+    navigate(remaining ? `${location}?${remaining}` : location, { replace: true });
+  };
   const [removeProject, setRemoveProject] = useState<ProjectLibraryItem | null>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -3029,6 +3039,7 @@ function ProjectControls({
     if (!opened) return;
     setSampleAction(null);
     setSamplesOpen(false);
+    clearSampleLink();
     setLibraryOpen(action.kind === "library");
   };
   const chooseSampleAction = (action: NonNullable<typeof sampleAction>) => {
@@ -3473,8 +3484,10 @@ function ProjectControls({
       </div>
       {!activeProjectId && <Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal" disabled={!ready || busy} onClick={() => setSaveOpen(true)}>Save this draft to Library</Button>}
       {renderLibraryDialog()}
-      <SampleLibraryDialog open={samplesOpen && !sampleAction && !settingsOpen} busy={busy}
-        onOpenChange={setSamplesOpen}
+      <SampleLibraryDialog open={(samplesOpen || (linkedSampleId !== null && ready)) && !sampleAction && !settingsOpen} busy={busy}
+        sampleId={linkedSampleId}
+        onBrowseAll={() => { setSamplesOpen(true); clearSampleLink(); }}
+        onOpenChange={open => { setSamplesOpen(open); if (!open) clearSampleLink(); }}
         onOpenSample={project => chooseSampleAction({ kind: "project", doc: project.doc })}
         onImportAll={library => chooseSampleAction({ kind: "library", library })} />
       <ProjectBackupPrompt open={sampleAction !== null} busy={busy}
