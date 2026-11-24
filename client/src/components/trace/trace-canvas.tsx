@@ -685,6 +685,14 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
       return;
     }
     if (directEditor.down(event)) return;
+    if (!processing && event.button === 0 && !event.shiftKey && !viewport.isSpaceHeld && manualPerspectivePoints.length === 4) {
+      const handle = (event.target as Element).closest("[data-perspective-handle]");
+      if (handle) {
+        dragRef.current = { kind: "perspective", index: Number(handle.getAttribute("data-perspective-handle")) };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+    }
     if (isMobile && mode === "pan") {
       viewport.handlers.onPointerDown(event, { pan: true });
       return;
@@ -698,19 +706,6 @@ function TraceStage({ onReprocess, onCorrection, emptyState, estimatedEdgeFocusR
     const pointerPickRadius = event.pointerType === "touch"
       ? 22 / viewport.transform.scale
       : pickRadius;
-    if (manualPerspectivePoints.length > 0) {
-      const target = event.target as Element;
-      const handle = target
-        .closest?.("[data-perspective-handle]")
-        ?.getAttribute("data-perspective-handle");
-      const index = handle === null ? Number.NaN : Number(handle);
-      if (Number.isInteger(index) && index >= 0 && index < 4) {
-        dragRef.current = { kind: "perspective", index };
-        event.currentTarget.setPointerCapture(event.pointerId);
-        return;
-      }
-    }
-
     // Ruler handles stay draggable except while the page-corner tool owns the
     // pointer; its markers may legitimately overlap the scale ruler.
     if (

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.16.0 — 2026-11-24
+
+- Trace detects paper corners when it can't identify a Pocketry sheet. Review the handles and confirm A4 or US Letter to correct perspective.
+
 ## 1.15.5 — 2026-11-21
 
 - Keep fixed pocket depths measured from the solid fill surface by default. Turn off the option to hold the pocket floors in place.

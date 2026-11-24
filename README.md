@@ -79,7 +79,10 @@ visible. This measures scale at the tool's height instead of the paper.
 
 In **Trace**, open the original photo and accept **Correct perspective & use
 scale** for the sheet or **Correct perspective & use aid scale** for a detected
-aid. Otherwise, **Set scale** from a known distance. Check a real dimension,
+aid. If Pocketry finds the paper corners instead, confirm **A4** or **US Letter**,
+drag any numbered handle that needs adjustment, then apply the correction. If
+the edges are unclear, choose **Select corners manually** in **Scale → Perspective
+correction** or set scale from a known distance. Check a real dimension,
 then box the tool with **Region → Set region**. Use the default **Tool edges ·
 white sheet** on light paper or **Color contrast** on other backgrounds. Choose
 **Edit outline**. New point outlines use fewer points along straight or gently curved edges, retaining tight spacing at corners. The default straight-line tolerance is 0.30 mm. Change it for future detections in **App settings → Advanced settings**. Click an edge to add a point, drag a point to move it, or right-click a point to remove it. Turn on **Editable curves** to adjust a curve by its handles. Choose **Select multiple** to move or delete points together. Tap points or drag a box to select them. Choose **Erase points** to brush over points on one contour. Both tools stay beside **Edit points** and **Done**. Protected points stay visible. Release to keep the previewed changes, or press Escape to cancel. Undo restores the whole stroke. When the contour

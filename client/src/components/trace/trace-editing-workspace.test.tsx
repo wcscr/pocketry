@@ -34,7 +34,7 @@ function Harness({ enabled = true }: { enabled?: boolean }): JSX.Element {
   const [panelOpen, setPanelOpen] = React.useState(true);
   return <TraceEditingWorkspace enabled={enabled} autoSaveId="test-trace" panelOpen={panelOpen} onPanelOpenChange={setPanelOpen}
     panel={<TraceControlsPanel handoff={handoff} active onReplaceImage={() => {}} onStartOver={() => trace.dispatch({ type: "SOURCE_CLEARED" })} onRotateImage={() => {}} onExport={exportTrace}
-      onReprocess={reprocess} onDetectMarkers={() => {}} onApplyPerspective={() => {}} />}
+      onReprocess={reprocess} onDetectMarkers={() => {}} onDetectPaperCorners={() => {}} onApplyPerspective={() => {}} />}
     canvas={<Canvas />} />;
 }
 const button = (id: string) => host.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!;
@@ -270,7 +270,8 @@ describe("trace workflow and properties", () => {
     }
     expect(trace.mode).toBe("pan");
     expect(host.querySelector("#objects-panel")!.hasAttribute("hidden")).toBe(false);
-    expect(button("button-apply-manual-perspective")).not.toBeNull();
+    expect(document.activeElement?.id).toBe("manual-perspective-paper");
+    expect(button("button-apply-manual-perspective").disabled).toBe(true);
   });
 
   it("returns to an available step when clearing prerequisites", async () => {

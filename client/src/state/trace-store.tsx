@@ -180,7 +180,7 @@ export interface TraceState {
 
   /** Detected sheet geometry awaiting perspective-correction review. */
   pendingPerspective: PerspectiveProposal | null;
-  /** Page corners placed manually in top-left clockwise order. */
+  /** Editable page corners in top-left clockwise order. */
   manualPerspectivePoints: Point[];
   /** Paper choice survives responsive panel remounts while placing corners. */
   manualPerspectivePaper: TemplatePaper | null;
@@ -348,15 +348,16 @@ export type TraceAction =
       source?: "sheet" | "strip";
       paperCalibration?: Calibration | null;
       requiresPerspectiveCorrection?: boolean;
+      paperCorners?: PerspectiveQuad;
     }
   | { type: "ACCEPT_AUTO_CALIBRATION"; source?: "sheet" | "strip" }
   | { type: "DISMISS_AUTO_CALIBRATION" }
   | { type: "AUTO_CALIBRATION_ATTEMPTED"; imageUrl: string }
-  | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string }
+  | { type: "AUTO_CALIBRATION_FAILED"; sourceImageUrl: string; paperCorners?: PerspectiveQuad }
   | { type: "SET_DRAFT_CALIBRATION"; draftCalibration: DraftCalibration | null }
   | { type: "SET_RULER_LENGTH"; rulerLengthMm: number }
   | { type: "SET_RULER_LENGTH_INPUT"; value: string }
-  | { type: "START_PERSPECTIVE_SELECTION" }
+  | { type: "START_PERSPECTIVE_SELECTION"; points?: PerspectiveQuad }
   | { type: "ADD_PERSPECTIVE_POINT"; point: Point }
   | { type: "SET_PERSPECTIVE_POINTS"; points: Point[] }
   | { type: "CANCEL_PERSPECTIVE_SELECTION" }
@@ -1151,7 +1152,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
             pendingPerspective:
               action.source === "strip" && !action.paperCalibration ? null : action.perspective ?? null,
             margin: state.margin ?? DEFAULT_MARGIN_MM,
-            manualPerspectivePoints: [],
+            manualPerspectivePoints: action.paperCorners ?? [],
             mode: "pan",
           }
         : state;
@@ -1182,6 +1183,7 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         calibrationSource: action.source ?? state.pendingCalibrationSource ?? "sheet",
         margin: state.margin ?? DEFAULT_MARGIN_MM,
         draftCalibration: null,
+        manualPerspectivePoints: [],
         // A scale retry must not send an existing trace back to drawing a new
         // region. New photos still proceed to the region-selection step.
         mode: state.outline.length > 0 || (state.region && state.region.width > 5 && state.region.height > 5)
@@ -1194,13 +1196,15 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
         : state;
 
     case "AUTO_CALIBRATION_FAILED":
-      // Only the automatic upload-time pass may hand off to the manual ruler.
-      // Reject stale results and never interrupt a scale the user has already
-      // placed or a sheet proposal that arrived first.
+      // The upload-time scan offers visible page corners, then falls back to
+      // the ruler. Leave a calibration or placement already in progress alone.
       return action.sourceImageUrl === state.imageUrl &&
         !state.calibration &&
-        !state.pendingAutoCalibration
-        ? { ...state, mode: "calibrate" }
+        !state.pendingAutoCalibration &&
+        !state.draftCalibration &&
+        !state.manualPerspectivePoints.length &&
+        state.mode === "pan"
+        ? { ...state, mode: action.paperCorners ? "pan" : "calibrate", manualPerspectivePoints: action.paperCorners ?? [] }
         : state;
 
     case "SET_DRAFT_CALIBRATION":
@@ -1229,13 +1233,13 @@ export function traceReducer(state: TraceState, action: TraceAction): TraceState
     case "START_PERSPECTIVE_SELECTION":
       return {
         ...state,
-        mode: "perspective",
+        mode: action.points ? "pan" : "perspective",
         pendingAutoCalibration: null,
         pendingPaperCalibration: null,
         pendingAidRequiresPerspective: false,
         pendingCalibrationSource: null,
         pendingPerspective: null,
-        manualPerspectivePoints: [],
+        manualPerspectivePoints: action.points ?? [],
         draftCalibration: null,
       };
 

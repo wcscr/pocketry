@@ -44,11 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  validPerspectiveQuad,
-  type PerspectiveProposal,
-  type PerspectiveQuad,
-} from "@/lib/calibrate/perspective";
+import type { PerspectiveProposal } from "@/lib/calibrate/perspective";
 import {
   templateDisplayName,
   type TemplatePaper,
@@ -79,6 +75,7 @@ import { TRACE_WORKFLOW_SECTIONS } from "./trace-workflow";
 import { TraceRestartDialog } from "./trace-restart-dialog";
 import { TraceOutlineImport } from "./trace-outline-import";
 import { TraceContourPositionTool } from "./trace-contour-position-tool";
+import { PaperCornerReview, PaperSizePicker } from "./paper-corner-review";
 
 const RESPONSIVE_PANEL_ACTION =
   "h-auto min-h-9 w-full whitespace-normal break-words px-2 py-2 text-sm leading-tight";
@@ -99,6 +96,7 @@ export interface TraceControlsPanelProps {
   onReprocess: (settings?: DetectionSettings) => void;
   /** Re-run ArUco marker detection on the full frame, with feedback. */
   onDetectMarkers: () => void;
+  onDetectPaperCorners: () => void;
   /** Paper scale by default; false for manual scale, or an aid ruler to transform. */
   onApplyPerspective: (
     proposal: PerspectiveProposal,
@@ -127,6 +125,7 @@ export function TraceControlsPanel({
   onSmoothOutline,
   onCorrectOutline,
   onDetectMarkers,
+  onDetectPaperCorners,
   onApplyPerspective,
   settingsSectionRequest,
   onCanvasInteraction: onCanvasInteractionProp,
@@ -149,7 +148,6 @@ export function TraceControlsPanel({
     pendingCalibrationSource,
     calibrationSource,
     draftCalibration,
-    pendingPerspective,
     manualPerspectivePoints,
     perspectiveCorrection,
     perspectiveOriginalImageUrl,
@@ -172,6 +170,7 @@ export function TraceControlsPanel({
   );
   const hasImage = imageSize.width > 0;
   const hasOutline = outline.length > 0;
+  const hasPageCorners = manualPerspectivePoints.length === 4;
   const replacingRuler = hasPendingManualCalibration(store);
   const reviewingScale = pendingAutoCalibration !== null || replacingRuler;
   const usingReferenceStrip =
@@ -236,7 +235,6 @@ export function TraceControlsPanel({
   };
   // The template marker family identifies paper automatically. A markerless
   // four-corner fallback still needs the printed paper's dimensions.
-  const perspectivePaper = store.manualPerspectivePaper;
   const setPerspectivePaper = (paper: TemplatePaper) => dispatch({ type: "SET_PERSPECTIVE_PAPER", paper });
   const previousSourceRevision = useRef(sourceRevision);
   const previousScaleComplete = useRef(scale.mmPerPx !== null);
@@ -245,7 +243,7 @@ export function TraceControlsPanel({
   const previousMode = useRef(store.mode);
   const previousPerspectiveCount = useRef(manualPerspectivePoints.length);
   const focusWhenReady = useRef<
-    "scale" | "auto" | "ruler" | "length" | "region" | "detection" | null
+    "scale" | "auto" | "paper" | "ruler" | "length" | "region" | "detection" | null
   >(null);
   const marginRequest = useRef(0);
   const latestMarginGeometry = useRef({ outline, margin, calibration });
@@ -336,7 +334,7 @@ export function TraceControlsPanel({
     previousPerspectiveCount.current = manualPerspectivePoints.length;
     if (!completed) return;
     guideTo("scale");
-    focusWhenReady.current = "scale";
+    focusWhenReady.current = "paper";
     setSectionEpoch(epoch => epoch + 1);
   }, [manualPerspectivePoints.length]);
 
@@ -382,11 +380,11 @@ export function TraceControlsPanel({
     const pending = pendingAutoCalibration !== null;
     const becamePending = !previousAutoPending.current && pending;
     previousAutoPending.current = pending;
-    if (!becamePending) return;
+    if (!becamePending || hasPageCorners) return;
     guideTo("scale");
     focusWhenReady.current = "auto";
     setSectionEpoch((epoch) => epoch + 1);
-  }, [pendingAutoCalibration]);
+  }, [pendingAutoCalibration, hasPageCorners]);
 
   useLayoutEffect(() => {
     const requested = focusWhenReady.current;
@@ -399,6 +397,7 @@ export function TraceControlsPanel({
           : "trace-settings-scale";
     const section = document.getElementById(sectionId);
     const focusTarget: HTMLElement | null | undefined =
+      requested === "paper" ? section?.querySelector<HTMLButtonElement>("#manual-perspective-paper") :
       requested === "auto"
         ? section?.querySelector<HTMLButtonElement>(
             '[data-testid="button-correct-perspective-aid-scale"], [data-testid="button-apply-auto-perspective"], [data-testid="button-accept-auto-scale"]',
@@ -417,8 +416,10 @@ export function TraceControlsPanel({
       focusTarget.select();
     }
 
-    const contextSelector = requested === "auto"
-      ? '[data-testid="auto-calibration-options"]'
+    const contextSelector = requested === "paper"
+      ? '[data-testid="paper-corner-review"]'
+      : requested === "auto"
+        ? '[data-testid="auto-calibration-options"]'
       : requested === "ruler"
         ? '[data-testid="manual-scale-placement"]'
         : requested === "length"
@@ -430,15 +431,6 @@ export function TraceControlsPanel({
 
   const shapeLibrary = useShapeLibrary();
   const [, navigate] = useLocation();
-
-  const manualPerspectiveProposal: PerspectiveProposal | null =
-    manualPerspectivePoints.length === 4 &&
-    validPerspectiveQuad(manualPerspectivePoints)
-      ? {
-          source: "manual",
-          points: manualPerspectivePoints as PerspectiveQuad,
-        }
-      : null;
 
   const [clearRequest, setClearRequest] = useState<{ kind: "region" | "scale"; sourceRevision: number } | null>(null);
 
@@ -462,13 +454,14 @@ export function TraceControlsPanel({
 
   const manualScaleAction = (
     <Button
-      variant={store.mode === "calibrate" ? "default" : "outline"}
+      variant={store.mode === "calibrate" ? "default" : hasPageCorners ? "ghost" : "outline"}
       size="sm"
       className={cn(
         RESPONSIVE_PANEL_ACTION,
         imageSize.width > 0 &&
           !calibration &&
           !pendingAutoCalibration &&
+          !hasPageCorners &&
           !manualRulerPending &&
           store.mode !== "calibrate" &&
           "animate-pulse motion-reduce:animate-none",
@@ -483,7 +476,7 @@ export function TraceControlsPanel({
           ? "Redraw ruler"
           : pendingAutoCalibration
             ? "Set manually instead"
-            : calibration ? "Replace scale" : "Set scale"}
+            : hasPageCorners ? "Use a ruler instead" : calibration ? "Replace scale" : "Set scale"}
     </Button>
   );
 
@@ -567,7 +560,9 @@ export function TraceControlsPanel({
           icon={Scaling}
           tone="amber"
           summary={
-            pendingAutoCalibration
+            hasPageCorners
+              ? "Confirm paper size"
+              : pendingAutoCalibration
               ? "Review auto scale"
               : (calibrationSource === "sheet" || calibrationSource === "strip") && scale.mmPerPx
                 ? `${calibrationSource === "strip" ? "Strip" : "Sheet"} · ${scale.mmPerPx.toFixed(3)} mm/px`
@@ -582,11 +577,11 @@ export function TraceControlsPanel({
           className="scroll-mt-16"
           disabled={!hasImage}
         >
-          {pendingAutoCalibration && <AutoCalibrationOptions
+          {pendingAutoCalibration && !hasPageCorners && <AutoCalibrationOptions
             onSetManually={handleSetScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers}
           />}
 
-          {!pendingAutoCalibration && (
+          {!pendingAutoCalibration && !hasPageCorners && (
             <div className="space-y-3" data-testid="manual-scale-placement">
               {manualScaleAction}
               {replacingRuler && <div className="space-y-1">
@@ -617,7 +612,7 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          {!pendingAutoCalibration && (!calibration || calibrationSource === "manual" || replacingRuler) && (
+          {!pendingAutoCalibration && !hasPageCorners && (!calibration || calibrationSource === "manual" || replacingRuler) && (
             <div
               className={cn(
                 "space-y-1.5 rounded-md",
@@ -649,7 +644,7 @@ export function TraceControlsPanel({
             </div>
           )}
 
-          {!pendingAutoCalibration && (
+          {!pendingAutoCalibration && !hasPageCorners && (
             <p className="text-[11px] text-muted-foreground">
               {displayedScale.mmPerPx === null ? "Scale not set — only SVG can export in image pixels" : describeScale(displayedScale)}
             </p>
@@ -675,7 +670,7 @@ export function TraceControlsPanel({
             </Button>
           )}
 
-          {!pendingAutoCalibration && (!usingReferenceStrip || perspectiveCorrection) && (
+          {(hasPageCorners || (!pendingAutoCalibration && (!usingReferenceStrip || perspectiveCorrection))) && (
             <div className="space-y-2 rounded-md border p-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <ScanLine className="h-4 w-4 text-amber-600" />
@@ -687,7 +682,7 @@ export function TraceControlsPanel({
                     Corrected from{" "}
                     {perspectiveCorrection.source === "template"
                       ? "four template markers"
-                      : "four manually selected page corners"}{" "}
+                      : "four page corners"}{" "}
                     using{" "}
                     {templateDisplayName(
                       perspectiveCorrection.template ?? perspectiveCorrection.paper,
@@ -708,102 +703,64 @@ export function TraceControlsPanel({
                 </>
               ) : (
                 <>
-                  <p className="text-xs text-muted-foreground">
-                    The four Pocketry v2 signature markers identify A4 or US Letter
-                    automatically. Stock or incomplete marker sets are rejected. If
-                    the markers are unavailable, select the four visible paper corners:
-                    top-left, top-right, bottom-right, then bottom-left.
-                  </p>
-                  {!pendingPerspective && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="manual-perspective-paper" className="text-xs">
-                        Paper size for manual fallback
-                      </Label>
-                      <Select
-                        value={perspectivePaper ?? undefined}
-                        onValueChange={(value) =>
-                          setPerspectivePaper(value as TemplatePaper)
-                        }
-                      >
-                        <SelectTrigger
-                          id="manual-perspective-paper"
-                          className="w-full"
-                        >
-                          <SelectValue placeholder="Choose A4 or US Letter" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="a4">A4</SelectItem>
-                          <SelectItem value="letter">US Letter</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <Button
-                    variant={store.mode === "perspective" ? "default" : "outline"}
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      onCanvasInteraction?.();
-                      dispatch({
-                        type: store.mode === "perspective" ? "CANCEL_PERSPECTIVE_SELECTION" : "START_PERSPECTIVE_SELECTION",
-                      });
-                    }}
-                    data-testid="button-select-perspective-points"
-                  >
-                    {store.mode === "perspective"
-                      ? `Cancel · corner ${manualPerspectivePoints.length + 1} of 4`
-                      : manualPerspectivePoints.length === 4
-                        ? "Reselect page corners"
-                        : "Select four page corners"}
-                  </Button>
-                  {manualPerspectivePoints.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground" role="status">
-                      {manualPerspectivePoints.length < 4
-                        ? `${manualPerspectivePoints.length} of 4 corners selected.`
-                        : manualPerspectiveProposal
-                          ? "Four corners selected. Drag a numbered marker to refine it, or apply the correction."
-                          : "The selected points cross or collapse. Reselect the corners in clockwise order."}
+                  {hasPageCorners ? <PaperCornerReview onApplyPerspective={onApplyPerspective} /> : <>
+                    <p className="text-xs text-muted-foreground">
+                      Use a flat, light sheet with all four corners visible against a darker background.
                     </p>
-                  )}
-                  {manualPerspectiveProposal && (
-                    <>
-
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      disabled={processing || perspectivePaper === null}
-                      onClick={() => {
-                        if (perspectivePaper) {
-                          onApplyPerspective(
-                            manualPerspectiveProposal,
-                            perspectivePaper,
-                          );
-                        }
-                      }}
-                      data-testid="button-apply-manual-perspective"
-                    >
-                      Apply perspective correction
-                    </Button>
+                    <PaperSizePicker id="manual-perspective-paper" />
+                  </>}
+                  {store.mode !== "perspective" && !hasPageCorners && (
                     <Button
                       variant="outline"
                       size="sm"
-                      className={RESPONSIVE_PANEL_ACTION}
-                      disabled={processing || perspectivePaper === null}
-                      onClick={() => {
-                        if (perspectivePaper) {
-                          onApplyPerspective(manualPerspectiveProposal, perspectivePaper, false);
-                        }
-                      }}
-                      data-testid="button-correct-manual-perspective-only"
+                      className="w-full"
+                      disabled={processing}
+                      onClick={onDetectPaperCorners}
+                      data-testid="button-detect-paper-corners"
                     >
-                      Correct perspective only
+                      Detect paper corners
                     </Button>
-                    </>
                   )}
+                  {store.mode === "perspective" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Start at the top-left corner and go clockwise.
+                    </p>
+                  )}
+                  {manualPerspectivePoints.length > 0 && !hasPageCorners && (
+                    <p className="text-[11px] text-muted-foreground" role="status">
+                      {manualPerspectivePoints.length} of 4 corners selected.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap justify-center gap-x-1">
+                    <Button
+                      variant={store.mode === "perspective" ? "default" : "ghost"}
+                      size="sm"
+                      className="flex-1"
+                      disabled={processing}
+                      onClick={() => {
+                        onCanvasInteraction?.();
+                        dispatch({
+                          type: store.mode === "perspective" ? "CANCEL_PERSPECTIVE_SELECTION" : "START_PERSPECTIVE_SELECTION",
+                        });
+                      }}
+                      data-testid="button-select-perspective-points"
+                    >
+                      {store.mode === "perspective"
+                        ? `Cancel · corner ${manualPerspectivePoints.length + 1} of 4`
+                        : "Select corners manually"}
+                    </Button>
+                    {hasPageCorners && (
+                      <Button variant="ghost" size="sm" className="flex-1" disabled={processing}
+                        onClick={() => dispatch({ type: "CANCEL_PERSPECTIVE_SELECTION" })}>
+                        Clear corners
+                      </Button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
           )}
+          {hasPageCorners && manualScaleAction}
           {!pendingAutoCalibration && <details className="text-xs" data-testid="manual-calibration-advanced">
             <DisclosureSummary>Advanced</DisclosureSummary>
             <Button variant="outline" size="sm" className="w-full" disabled={!hasImage || processing}

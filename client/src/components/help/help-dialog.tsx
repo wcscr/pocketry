@@ -54,6 +54,9 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               calibration sheet, choose <strong>Correct perspective &amp; use scale</strong>;
               with a suitable measurement aid, choose <strong>Correct perspective &amp; use aid scale</strong>.
               Other detected references offer <strong>Accept detected scale</strong>.
+              If Pocketry finds the paper corners, confirm <strong>A4</strong> or <strong>US Letter</strong>
+              and drag the numbered handles as needed before applying the correction. If the
+              edges are unclear, choose <strong>Select corners manually</strong> in <strong>Perspective correction</strong>.
               Or choose <strong>Set scale</strong>,
               mark two points a known distance apart, enter that distance in
               millimeters, and choose <strong>Confirm scale</strong>. Check a real tool dimension before printing.
