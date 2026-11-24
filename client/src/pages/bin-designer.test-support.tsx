@@ -176,9 +176,13 @@ vi.mock("@/lib/project/persist", () => ({
   readProjectOverview: vi.fn(async () => ({ doc: null, activeProjectId: null })),
   loadProjectLibrary: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectDoc: vi.fn(async () => true),
+  prepareFolderSave: vi.fn(async () => {}),
+  advanceFolderDraft: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
+  saveFolderDraft: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   saveProjectToLibrary: vi.fn(),
   renameProjectInLibrary: vi.fn(),
   openProjectFromLibrary: vi.fn(),
+  readSavedProject: vi.fn(),
   deleteProjectFromLibrary: vi.fn(),
   duplicateProjectInLibrary: vi.fn(),
   exportProjectLibrary: vi.fn(),
@@ -455,10 +459,15 @@ const sampleDoc = { ...EMPTY_PROJECT, name: "Sample tray", spec: parseBinSpec({ 
 const sampleLibrary = { format: "pocketry-library" as const, schemaVersion: 1 as const,
   projects: [{ id: "sample", name: "Sample tray", updatedAt: "2026-10-08T12:00:00Z", doc: sampleDoc }] };
 const sampleButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === label)!;
+const openLibrarySettings = () => {
+  React.act(() => document.querySelector<HTMLButtonElement>('[data-testid="button-library-settings"]')!.click());
+  return document.querySelector<HTMLElement>('[data-testid="library-settings"]')!;
+};
 const browseSamples = async (container: HTMLElement) => {
   vi.mocked(loadSampleLibrary).mockResolvedValue(sampleLibrary);
   openSettingsSection(container, "project");
   await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+  openLibrarySettings();
   await React.act(async () => sampleButton("Sample Library").click());
 };
 
@@ -513,5 +522,6 @@ export {
   sampleLibrary,
   sampleButton,
   browseSamples,
+  openLibrarySettings,
   pocketFieldCases,
 };

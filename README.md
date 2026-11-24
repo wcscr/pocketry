@@ -27,7 +27,7 @@ Pocketry's public deployment is [https://pocketry.xyz](https://pocketry.xyz).
 - Create 3D-printable positioning fixtures for laser engraving and UV printing; [Wham Bam Systems ULTIM8™](https://www.whambamsystems.com/pages/ultim8-jig)-compatible fixtures start with eufyMake E1 mat pegs and export a 1:1 alignment SVG. [Fixture guide (Beta)](https://pocketry.xyz/help/ultim8).
 - Preview in 3D and export fit checks, STL, or 3MF models.
 - Export SVG or DXF files for shadow boards and CNC work.
-- Save projects locally, undo changes, and export editable backups.
+- Save projects locally, undo changes, and export editable backups. [Connect a project folder](docs/library-folder.md) to share named revisions with local tools.
 
 Check dimensions against the real items and print a fit test before the final bin.
 
@@ -131,15 +131,17 @@ Select your printer and materials before printing.
 
 ### Save an editable copy
 
-Use **Project → Save this draft to Library**, then **Export project** for a
-`.pocketry.json` backup. Keep the original photo separately; it is not in the
-backup.
+Save to **Library** to keep named projects in this browser. Enable experimental
+features in **App settings** to choose **Local folder** in Library Settings.
+Use **Export project** for a `.pocketry.json` backup. Keep the original photo
+separately from the backup.
 
 ## Privacy
 
 The static application processes images and generates models locally in the
-browser. Projects are stored in the browser using IndexedDB. The hosted version
-does not require uploading tool photographs to Pocketry's server. The local Node
+browser. Projects and drafts can be stored in the browser using IndexedDB. In a supported
+browser, enable experimental features to save named projects to a [connected local folder](docs/library-folder.md).
+The hosted version does not require uploading tool photographs to Pocketry's server. The local Node
 server serves the editor and static assets only; the retired `/api/images` endpoints
 return 404 and do not accept or store uploads.
 

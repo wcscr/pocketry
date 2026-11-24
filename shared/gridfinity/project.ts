@@ -20,7 +20,7 @@ import { binSpecSchema, type BinSpec } from "./types";
 import { binMaterialsSchema } from "./materials";
 import { designLinkErrors } from "./design-links";
 import { objectGroupErrors } from "./object-groups";
-import { transformOriginsSchema } from "./transform-origins";
+import { retainTransformOrigins, transformOriginsSchema } from "./transform-origins";
 import { binHistorySchema } from "./history";
 import { hasRigidPocket, migrateProfilePocket } from "./rigid-pocket";
 import { hasPocketTilt } from "./pocket-orientation";
@@ -224,6 +224,25 @@ const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
 );
 
 export type ProjectDoc = z.infer<typeof projectDocSchema>;
+
+/** An editable copy at the saved undo cursor with the current design intact. */
+export function withoutProjectHistory(doc: ProjectDoc): ProjectDoc {
+  const { history, ...snapshot } = doc;
+  const transformOrigins = doc.transformOrigins && retainTransformOrigins(doc.transformOrigins, [doc]);
+  const liveShapes = new Set(doc.cutouts.map(cutout => cutout.shapeId));
+  for (const { cutout } of transformOrigins?.pockets ?? []) liveShapes.add(cutout.shapeId);
+  const historicalShapes = new Set(doc.transformOrigins?.pockets.map(({ cutout }) => cutout.shapeId));
+  for (const { doc: step } of history?.stack ?? []) {
+    for (const cutout of step.cutouts) historicalShapes.add(cutout.shapeId);
+  }
+  // Preserve unplaced library shapes and the original shapes of live pockets
+  // so their reset actions still work in the compact copy.
+  return {
+    ...snapshot,
+    ...(transformOrigins && { transformOrigins }),
+    shapes: doc.shapes.filter(shape => liveShapes.has(shape.id) || !historicalShapes.has(shape.id)),
+  };
+}
 
 type LegacyProjectDoc = z.infer<(typeof legacyProjectSchemas)[number]>;
 

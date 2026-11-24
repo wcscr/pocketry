@@ -1,3 +1,8 @@
+import { updateCompartmentSettings } from "@shared/gridfinity/compartments";
+import type { ProjectEdit } from "@shared/gridfinity/project-edits";
+import type { ProjectDoc } from "@shared/gridfinity/project";
+import { surfaceTextOutline } from "@/lib/gridfinity/surface-text";
+import { extendLocalFont } from "@/lib/gridfinity/local-font";
 import { defaultLabelTabWall } from "@shared/gridfinity/label-tab";
 import { textsAfterLabelTabEdit } from "@shared/gridfinity/label-tab-surfaces";
 import { rotatePocketVector } from "@shared/gridfinity/pocket-orientation";
@@ -6,7 +11,7 @@ import { surfaceTextSchema, type SurfaceText } from "@shared/gridfinity/surface-
 import { sameJsonData } from "@shared/json-data-equal";
 import { binMaterialsSchema, DEFAULT_BIN_MATERIALS, type BinMaterials } from "@shared/gridfinity/materials";
 import { adjustPocketsForFillHeight, reconcileFillHeightReferences } from "@shared/gridfinity/fill-height-edit";
-import { recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
+import { retainTransformOrigins, recordTransformOrigins, type TransformOrigins } from "@shared/gridfinity/transform-origins";
 import { hasRigidPocket, rigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { applyLinkedEdits, clampLinkedFingerHoles, pocketDesign, fingerDesign, type DesignObjectKind } from "@shared/gridfinity/design-links";
 import { sameObject, type ObjectRef, type ObjectEdits } from "@/lib/gridfinity/object-arrangement";
@@ -522,6 +527,63 @@ export function binReducer(state: BinState, action: BinAction): BinState {
   const docs = action.type === "HYDRATE" ? [...next.history.stack.map(e => e.doc), next] : [getCommittedBinDoc(next)];
   const transformOrigins = recordTransformOrigins(origins, docs);
   return next.transformOrigins === transformOrigins ? next : { ...next, transformOrigins };
+}
+
+/** Apply the supported semantic edits through the same operations used by the
+ * designer. An invalid command returns no edited document or history. */
+export async function applyProjectEditBatch(project: ProjectDoc, edits: readonly ProjectEdit[]) {
+  const baseline = binReducer(INITIAL, { type: "HYDRATE", ...project });
+  let state = baseline;
+  for (const [index, edit] of edits.entries()) {
+    try {
+      switch (edit.type) {
+        case "set_compartments":
+          if (state.spec.fill !== "none") throw new Error("Compartment edits require a hollow bin.");
+          state = binReducer(state, { type: "PATCH_SPEC", patch: {
+            compartments: updateCompartmentSettings(state.spec.compartments, edit.settings),
+          } });
+          break;
+        case "set_pocket_clearance":
+          if (!state.cutouts.some(pocket => pocket.id === edit.pocketId)) throw new Error("No pocket has the supplied ID.");
+          state = binReducer(state, { type: "UPDATE_CUTOUT", id: edit.pocketId, patch: { clearanceMm: edit.clearanceMm } });
+          break;
+        case "set_label_text": {
+          const label = state.spec.surfaceTexts.find(item => item.id === edit.labelId);
+          if (!label) throw new Error("No surface label has the supplied ID.");
+          if (label.text === edit.text) break;
+          const font = typeof label.font === "string" ? label.font : await extendLocalFont(label.font, edit.text);
+          const next = surfaceTextSchema.parse({ ...label, text: edit.text, font });
+          surfaceTextOutline(next);
+          state = binReducer(state, {
+            type: "COMMIT_SURFACE_TEXT_WORDING", id: label.id, expectedText: label.text,
+            expectedHistory: state.history, text: next.text, font: next.font,
+          });
+          break;
+        }
+        case "set_materials":
+          state = binReducer(state, { type: "PATCH_MATERIALS", patch: edit.settings });
+          break;
+      }
+      if (state.editError) throw new Error(state.editError);
+    } catch (cause) {
+      return { error: { index, message: cause instanceof Error ? cause.message : "The edit could not be applied." } } as const;
+    }
+  }
+  const doc = getCommittedBinDoc(state);
+  const materialsChanged = !sameJsonData(baseline.materials, state.materials);
+  if (sameJsonData(doc, getCommittedBinDoc(baseline)) && !materialsChanged) return { project } as const;
+
+  // Start with the pre-batch stack so partial changes never add undo steps or
+  // trim older history. Use the normal commit path for retention and undo.
+  const applied = commit(baseline, doc, "Apply local automation edits", {}, materialsChanged ? state.materials : undefined);
+  const result: ProjectDoc = {
+    ...project,
+    ...getCommittedBinDoc(applied),
+    materials: project.materials || materialsChanged ? state.materials : undefined,
+    history: applied.history,
+    transformOrigins: retainTransformOrigins(state.transformOrigins, applied.history.stack.map(entry => entry.doc)),
+  };
+  return { project: result } as const;
 }
 
 function reduceBin(state: BinState, action: BinAction): BinState {

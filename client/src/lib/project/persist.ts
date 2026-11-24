@@ -1,4 +1,4 @@
-import { withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { withinImportLimits, IMPORT_LIMIT_ERROR, PROJECT_FILE_MAX_BYTES } from "@shared/gridfinity/import-limits";
 import {
   CURRENT_PROJECT_KEY, PROJECT_LIBRARY_KEY, commitProjectStorage, readProjectStorage,
   sameProjectStorage, ProjectStorageConflictError, type ProjectStorageSnapshot,
@@ -9,6 +9,7 @@ import {
   PROJECT_LIBRARY_VERSION,
   PROJECT_NAME_MAX_LENGTH,
   type LibraryBackup,
+  type LibraryBackupOptions,
   type LibraryImportMode,
   type StoredProject,
   type StoredProjectLibrary,
@@ -19,9 +20,11 @@ import {
   PROJECT_SCHEMA_VERSION,
   projectDocSchema,
   serializeProjectDoc,
+  withoutProjectHistory,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
+import { folderDraftSchema, type FolderDraft, type FolderDraftMatch } from "./browser-folder";
 
 /**
  * Project persistence over IndexedDB (`idb-keyval`, Apache-2.0).
@@ -47,13 +50,33 @@ function compactStoredValue(key: string, value: unknown): unknown {
   }
   return value;
 }
+
+// Keep the folder base and pending save identity in the same durable record as
+// the edits they belong to. The metadata never enters an exported document.
+function workingCopy(value: unknown): { doc: unknown; folderDraft?: FolderDraft; folderSaveRequest?: string } {
+  if (!value || typeof value !== "object" || (!("folderDraft" in value) && !("folderSaveRequest" in value))) return { doc: value };
+  const { folderDraft, folderSaveRequest, ...doc } = value as { folderDraft?: unknown; folderSaveRequest?: unknown };
+  const parsed = folderDraftSchema.safeParse(folderDraft);
+  return { doc, folderDraft: parsed.success ? parsed.data : undefined,
+    folderSaveRequest: typeof folderSaveRequest === "string" ? folderSaveRequest : undefined };
+}
+
 /** Stage all changes before the atomic compare-and-write. */
 class ProjectMutation {
   readonly entries = new Map<string, unknown>();
   constructor(readonly snapshot: ProjectStorageSnapshot) {}
-  get current(): unknown { return this.snapshot.current; }
+  get current(): unknown { return workingCopy(this.snapshot.current).doc; }
+  get folderDraft(): FolderDraft | undefined { return workingCopy(this.snapshot.current).folderDraft; }
+  get folderSaveRequest(): string | undefined { return workingCopy(this.snapshot.current).folderSaveRequest; }
   set(key: string, value: unknown): void { this.entries.set(key, compactStoredValue(key, value)); }
   setMany(entries: [string, unknown][]): void { for (const [key, value] of entries) this.set(key, value); }
+  setWorkingCopy(doc: ProjectDoc, target?: FolderDraft, requestId?: string): void {
+    this.entries.set(CURRENT_PROJECT_KEY, {
+      ...serializeProjectDoc(target ? { ...doc, name: undefined } : doc),
+      ...(target ? { folderDraft: target } : {}),
+      ...(requestId ? { folderSaveRequest: requestId } : {}),
+    });
+  }
   nextSnapshot(): ProjectStorageSnapshot {
     return {
       current: this.entries.has(CURRENT_PROJECT_KEY) ? this.entries.get(CURRENT_PROJECT_KEY) : this.snapshot.current,
@@ -78,6 +101,7 @@ export interface ProjectLibraryItem {
 export interface ProjectLibrarySnapshot {
   activeProjectId: string | null;
   projects: ProjectLibraryItem[];
+  folderDraft?: FolderDraft;
 }
 
 export interface OpenedLibraryProject {
@@ -158,14 +182,18 @@ function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
 function mutateLibrary<T>(
   mutation: (library: StoredProjectLibrary, tx: ProjectMutation) => Promise<T>,
   readOnly = false,
+  condition?: { matches: (tx: ProjectMutation) => boolean; otherwise: T },
 ): Promise<T> {
   const result = libraryMutationQueue.then(async () => {
     const snapshot = await readProjectStorage();
     const library = readStoredLibrary(snapshot.library);
+    const tx = new ProjectMutation(snapshot);
+    // A completion for a superseded draft is a no-op. It also must not adopt
+    // the other tab's snapshot as this tab's autosave baseline.
+    if (condition && !condition.matches(tx)) return condition.otherwise;
     if (!readOnly && expectedStorage && !sameProjectStorage(expectedStorage, snapshot)) {
       throw new ProjectStorageConflictError();
     }
-    const tx = new ProjectMutation(snapshot);
     const result = await mutation(library, tx);
     if (tx.entries.size) await commitProjectStorage(snapshot, [...tx.entries]);
     if (!readOnly) expectedStorage = tx.nextSnapshot();
@@ -183,21 +211,23 @@ export async function loadProjectDoc(): Promise<ProjectDoc | null> {
   const snapshot = await readProjectStorage();
   expectedStorage = snapshot;
   if (snapshot.current == null) return null;
-  const doc = parseProjectDoc(snapshot.current);
+  const doc = parseProjectDoc(workingCopy(snapshot.current).doc);
   if (!doc) throw new Error("The saved project is unreadable or was saved by a newer Pocketry version. It has been kept intact. Reload with an up-to-date version to recover it.");
   return doc;
 }
 
 /** Read the header/destination without taking ownership of the autosave snapshot.
  * Only the Bin workspace may restore, recover, or establish a write baseline. */
-export async function readProjectOverview(): Promise<{ doc: ProjectDoc | null; activeProjectId: string | null }> {
+export async function readProjectOverview(): Promise<{ doc: ProjectDoc | null; activeProjectId: string | null; folderDraft?: FolderDraft }> {
   await libraryMutationQueue;
   const snapshot = await readProjectStorage();
-  const doc = snapshot.current == null ? null : parseProjectDoc(snapshot.current);
+  const copy = workingCopy(snapshot.current);
+  const doc = copy.doc == null ? null : parseProjectDoc(copy.doc);
   if (snapshot.current != null && !doc) throw new Error("The saved project could not be opened. It may need a newer Pocketry version. Stored work has been kept intact.");
   const library = readStoredLibrary(snapshot.library);
   const active = library.projects.find(project => project.id === library.activeProjectId);
-  return { doc: doc && active ? { ...doc, name: active.name } : doc, activeProjectId: library.activeProjectId };
+  return { doc: doc && active ? { ...doc, name: active.name } : doc, activeProjectId: library.activeProjectId,
+    ...(!active && doc && copy.folderDraft ? { folderDraft: copy.folderDraft } : {}) };
 }
 
 /** Normalize only defaults that hydration adds without an edit. A single
@@ -266,22 +296,34 @@ export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promi
         return toSnapshot(next);
       }
     }
-    return toSnapshot(library);
+    const result = toSnapshot(library);
+    if (restoredDoc && !library.activeProjectId && tx.folderDraft) result.folderDraft = tx.folderDraft;
+    return result;
   }, restoredDoc === undefined);
 }
 
 /** Include pending edits to the active named project without waiting for autosave.
  * Unsupported stored documents are included verbatim, never silently omitted.
  */
-export async function exportProjectLibrary(currentDoc?: ProjectDoc): Promise<LibraryBackup> {
+export async function exportProjectLibrary(currentDoc?: ProjectDoc, { omitHistory = false }: LibraryBackupOptions = {}): Promise<LibraryBackup> {
   return mutateLibrary(async (library) => ({
     format: "pocketry-library",
     schemaVersion: PROJECT_LIBRARY_VERSION,
-    projects: library.projects.map((project) =>
-      currentDoc && project.id === library.activeProjectId
-        ? { ...project, doc: serializeProjectDoc({ ...currentDoc, name: project.name }), updatedAt: new Date().toISOString() }
-        : { ...project, doc: compactDocument(project.doc) as Record<string, unknown> },
-    ),
+    projects: library.projects.map(project => {
+      const draft = currentDoc && project.id === library.activeProjectId ? { ...currentDoc, name: project.name } : undefined;
+      const updated = draft ? { ...project, updatedAt: new Date().toISOString() } : project;
+      if (!omitHistory) {
+        return { ...updated, doc: draft ? serializeProjectDoc(draft) : compactDocument(project.doc) as Record<string, unknown> };
+      }
+      const doc = draft ?? parseProjectDoc(project.doc);
+      if (!doc) throw new Error(`Could not compact “${project.name}”. Export a full library backup to include it.`);
+      const compact = serializeProjectDoc(withoutProjectHistory(doc));
+      if (new TextEncoder().encode(JSON.stringify(compact)).byteLength > PROJECT_FILE_MAX_BYTES || !withinImportLimits(compact)) {
+        throw new Error(`“${project.name}” exceeds the project import limits even after removing history. Simplify the design before exporting.`);
+      }
+      if (!parseProjectDoc(compact)) throw new Error(`The compact copy of “${project.name}” could not be reopened.`);
+      return { ...updated, doc: compact };
+    }),
   }));
 }
 
@@ -400,7 +442,7 @@ export async function saveProjectDocResult(
       const unchanged = previousDoc && restoredDocumentKey(previousDoc) === restoredDocumentKey(doc);
       if (!library.activeProjectId) {
         if (unchanged) return;
-        tx.set(CURRENT_PROJECT_KEY, doc);
+        tx.setWorkingCopy(doc, tx.folderDraft, tx.folderSaveRequest);
         return;
       }
       const index = library.projects.findIndex(
@@ -415,7 +457,8 @@ export async function saveProjectDocResult(
         doc,
         updatedAt: new Date().toISOString(),
       };
-      tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, { ...library, projects }]]);
+      tx.setWorkingCopy(doc, undefined, tx.folderSaveRequest);
+      tx.set(PROJECT_LIBRARY_KEY, { ...library, projects });
     });
     // Clear only queued shapes whose placements have reached durable storage.
     try {
@@ -521,6 +564,17 @@ export async function renameProjectInLibrary(
   });
 }
 
+/** A backup uses the saved snapshot without opening it or taking ownership of the working copy. */
+export async function readSavedProject(projectId: string): Promise<{ doc: ProjectDoc; name: string }> {
+  return mutateLibrary(async library => {
+    const stored = library.projects.find(project => project.id === projectId);
+    if (!stored) throw new Error("That project is no longer in this browser's library.");
+    const doc = parseProjectDoc(stored.doc);
+    if (!doc) throw new Error("That project could not be read in this Pocketry version.");
+    return { doc, name: stored.name };
+  }, true);
+}
+
 export async function openProjectFromLibrary(
   projectId: string,
 ): Promise<OpenedLibraryProject> {
@@ -574,6 +628,44 @@ export async function startNewProject(doc: ProjectDoc, saveDraft?: { doc: Projec
     const next = { ...library, activeProjectId: null, projects };
     tx.setMany([[CURRENT_PROJECT_KEY, doc], [PROJECT_LIBRARY_KEY, next]]);
     return toSnapshot(next);
+  });
+}
+
+/** Record the draft before the folder write can publish. */
+export async function prepareFolderSave(doc: ProjectDoc, requestId: string): Promise<void> {
+  return mutateLibrary(async (_library, tx) => {
+    if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
+    tx.setWorkingCopy(doc, tx.folderDraft, requestId);
+  });
+}
+
+/** Open a folder revision as the working copy. */
+export async function saveFolderDraft(doc: ProjectDoc, target: FolderDraft): Promise<ProjectLibrarySnapshot> {
+  return mutateLibrary(async (library, tx) => {
+    if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
+    const next = { ...library, activeProjectId: null };
+    tx.setWorkingCopy(doc, target);
+    if (library.activeProjectId) tx.set(PROJECT_LIBRARY_KEY, next);
+    return toSnapshot(next);
+  });
+}
+
+/** Advance only the matching draft's base. Keep edits saved during publication. */
+export async function advanceFolderDraft(target: FolderDraft, match: FolderDraftMatch): Promise<ProjectLibrarySnapshot | undefined> {
+  return mutateLibrary<ProjectLibrarySnapshot | undefined>(async (library, tx) => {
+    const doc = parseProjectDoc(tx.current);
+    if (!doc) throw new Error("The working draft is unreadable and has been preserved.");
+    const next = { ...library, activeProjectId: null };
+    tx.setWorkingCopy(doc, target);
+    if (library.activeProjectId) tx.set(PROJECT_LIBRARY_KEY, next);
+    return toSnapshot(next);
+  }, false, {
+    otherwise: undefined,
+    matches: tx => {
+      if ("requestId" in match) return tx.folderSaveRequest === match.requestId;
+      const base = tx.folderDraft;
+      return base?.connectionId === match.base.connectionId && base.projectId === match.base.projectId && base.revision === match.base.revision;
+    },
   });
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "rest-express",
-  "version": "1.16.1",
+  "version": "1.17.0",
   "type": "module",
   "license": "AGPL-3.0-only",
   "engines": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && npm run build:automation",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "test": "vitest run --project quick-unit --project quick-ui",
@@ -20,7 +20,8 @@
     "test:coverage": "vitest run --coverage",
     "generate:calibration-templates": "tsx scripts/generate-calibration-templates.ts",
     "generate:reference-strip": "tsx scripts/generate-reference-strip.ts",
-    "export:bin": "tsx scripts/export-bin.ts"
+    "export:bin": "tsx scripts/export-bin.ts",
+    "build:automation": "node scripts/build-automation.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

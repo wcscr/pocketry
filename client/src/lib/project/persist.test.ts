@@ -2,7 +2,8 @@ import "@/lib/project/mock-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 
-import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
+import { withinImportLimits } from "@shared/gridfinity/import-limits";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
@@ -22,15 +23,20 @@ vi.mock("idb-keyval", () => ({
 
 import {
   createDebouncedProjectSaver,
+  advanceFolderDraft,
   deleteProjectFromLibrary,
   duplicateProjectInLibrary,
+  exportProjectLibrary,
   importProjectToLibrary,
   loadProjectDoc,
   readProjectOverview,
   loadProjectLibrary,
   openProjectFromLibrary,
+  prepareFolderSave,
+  readSavedProject,
   ProjectNameConflictError,
   renameProjectInLibrary,
+  saveFolderDraft,
   saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
@@ -59,6 +65,127 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("reads one project and exports a compact library without replacing the working copy or deleting its undo and redo", async () => {
+    const bin = { spec: DOC.spec, cutouts: DOC.cutouts, fingerHoles: DOC.fingerHoles };
+    const history = { index: 1, stack: [
+      { doc: bin, label: "Original" }, { doc: { ...bin, spec: WIDE_DOC.spec }, label: "Widen" }, { doc: bin, label: "Narrow again" },
+    ] };
+    const saved = await saveProjectToLibrary({ ...WIDE_DOC, history }, "Socket tray", null);
+    const id = saved.activeProjectId!;
+    await startNewProject(DOC);
+    const stored = await readSavedProject(id);
+    const normal = await exportProjectLibrary();
+    const compact = await exportProjectLibrary(undefined, { omitHistory: true });
+    expect(stored).toMatchObject({ name: "Socket tray", doc: { history, spec: { gridX: 4 } } });
+    expect(compact.projects).toHaveLength(1);
+    const [project] = compact.projects;
+    const { history: _history, ...snapshot } = stored.doc;
+    expect(parseProjectDoc(project.doc)).toEqual(snapshot);
+    expect(project).toMatchObject({ id, name: stored.name });
+    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(normal).length);
+    expect(await exportProjectLibrary()).toEqual(normal);
+    expect(await loadProjectDoc()).toEqual(DOC);
+    expect((await loadProjectLibrary()).activeProjectId).toBeNull();
+  });
+
+  it("reports unreadable projects when a compact library cannot omit every history", async () => {
+    const future = { schemaVersion: PROJECT_SCHEMA_VERSION + 1, history: { stack: ["unknown"] } };
+    memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null,
+      projects: [{ id: "future", name: "Newer bin", updatedAt: new Date(0).toISOString(), doc: future }] });
+    await loadProjectDoc();
+    await expect(exportProjectLibrary(undefined, { omitHistory: true })).rejects.toThrow("Could not compact “Newer bin”");
+    expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
+  });
+
+  it("rejects a live compact draft that fits the library limits but could not be restored", async () => {
+    await saveProjectToLibrary(DOC, "Large tray", null);
+    const source = parseProjectDoc(ryobiReloadFixture)!.shapes[0];
+    const outer = Array.from({ length: 4096 }, (_, index) => ({
+      x: 25 * Math.cos(index * 2 * Math.PI / 4096),
+      y: 25 * Math.sin(index * 2 * Math.PI / 4096),
+    }));
+    const draft = { ...DOC, shapes: Array.from({ length: 25 }, (_, index) => ({
+      ...source, id: `shape-${index}`, outlineMm: [{ outer, holes: [] }], pointCount: outer.length,
+    })) };
+    const full = await exportProjectLibrary(draft);
+    expect(withinImportLimits(full, true)).toBe(true);
+    expect(parseProjectDoc(serializeProjectDoc(draft))).toBeNull();
+    await expect(exportProjectLibrary(draft, { omitHistory: true })).rejects.toThrow("“Large tray” exceeds the project import limits");
+    const saved = await exportProjectLibrary(undefined, { omitHistory: true });
+    expect(parseProjectDoc(saved.projects[0].doc)?.shapes).toEqual([]);
+  });
+
+  it("retains the first folder save identity with later edits across reload, and clears it on project switches", async () => {
+    const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "workshop-bin",
+      revision: "a".repeat(64), name: "Workshop bin" };
+    await prepareFolderSave(DOC, "first-save");
+    expect(await saveProjectDoc(WIDE_DOC, null)).toBe(true);
+
+    vi.resetModules();
+    const reloaded = await import("./persist");
+    expect(await reloaded.loadProjectDoc()).toEqual(WIDE_DOC);
+    expect(await reloaded.advanceFolderDraft(target, { requestId: "different-save" })).toBeUndefined();
+    expect(await reloaded.loadProjectDoc()).toEqual(WIDE_DOC);
+    await reloaded.advanceFolderDraft(target, { requestId: "first-save" });
+    expect(await reloaded.readProjectOverview()).toMatchObject({ doc: WIDE_DOC, folderDraft: target });
+    expect(await reloaded.advanceFolderDraft(target, { requestId: "first-save" })).toBeUndefined();
+
+    await reloaded.prepareFolderSave(WIDE_DOC, "make-copy");
+    await reloaded.startNewProject(DOC);
+    expect(await reloaded.advanceFolderDraft(target, { requestId: "make-copy" })).toBeUndefined();
+    expect(await reloaded.readProjectOverview()).toMatchObject({ doc: DOC });
+  });
+
+  it("advances a renamed folder project's base without replacing current draft edits", async () => {
+    const base = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "tray",
+      revision: "a".repeat(64), name: "Tray" };
+    const renamed = { ...base, revision: "b".repeat(64), name: "Renamed tray" };
+    await saveFolderDraft(DOC, base);
+    expect(await saveProjectDoc(WIDE_DOC, null)).toBe(true);
+    expect(await advanceFolderDraft(renamed, { base })).toBeDefined();
+    expect(await advanceFolderDraft(base, { base })).toBeUndefined();
+    vi.resetModules();
+    const reloaded = await import("./persist");
+    expect(await reloaded.readProjectOverview()).toMatchObject({ doc: WIDE_DOC, folderDraft: renamed });
+  });
+
+  it("leaves another tab's working copy and autosave ownership intact after a folder save", async () => {
+    const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "tray",
+      revision: "a".repeat(64), name: "Tray" };
+    await prepareFolderSave(DOC, "older-save");
+    // An independent tab writes a new working draft during the folder write.
+    await set("tooltrace:project:v1", WIDE_DOC);
+    expect(await advanceFolderDraft(target, { requestId: "older-save" })).toBeUndefined();
+    expect(await saveProjectDoc(DOC, null)).toBe(false);
+    expect(await readProjectOverview()).toEqual({ doc: WIDE_DOC, activeProjectId: null });
+  });
+
+  it("restores a folder draft and its pinned revision together, then clears the link on a new project", async () => {
+    const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "workshop-bin",
+      revision: "a".repeat(64), name: "Workshop bin" };
+    const original = await saveProjectToLibrary(DOC, "Browser bin", null);
+    await saveFolderDraft({ ...DOC, name: target.name }, target);
+    expect(await saveProjectDoc(WIDE_DOC, null)).toBe(true);
+
+    vi.resetModules();
+    const reloaded = await import("./persist");
+    const draft = await reloaded.loadProjectDoc();
+    expect(draft).toEqual(WIDE_DOC);
+    expect(await reloaded.loadProjectLibrary(draft)).toEqual({ activeProjectId: null,
+      projects: original.projects, folderDraft: target });
+    expect((await reloaded.readProjectOverview()).folderDraft).toEqual(target);
+
+    const newer = { ...target, revision: "b".repeat(64) };
+    await reloaded.saveFolderDraft(WIDE_DOC, newer);
+    // The stale editor's original snapshot must fail even with identical design data.
+    expect(await saveProjectDoc(DOC, null)).toBe(false);
+    expect((await reloaded.loadProjectLibrary(await reloaded.loadProjectDoc())).folderDraft).toEqual(newer);
+
+    await reloaded.startNewProject(DOC);
+    expect((await reloaded.loadProjectLibrary(await reloaded.loadProjectDoc())).folderDraft).toBeUndefined();
+    expect((await reloaded.openProjectFromLibrary(original.activeProjectId!)).doc.spec.gridX).toBe(2);
+  });
+
   it("reads the project overview without accepting another tab's write as our baseline", async () => {
     const library = await saveProjectToLibrary({ ...DOC, name: "Original" }, "Original", null);
     const external = { ...DOC, name: "External", spec: { ...DOC.spec, gridX: 7 } };
