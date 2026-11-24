@@ -17,6 +17,7 @@ import { MobileTraceActions } from "@/components/trace/mobile-trace-actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TraceCanvas, type OutlineToolRequest } from "@/components/trace/trace-canvas";
 import { TracePhotoBoundsControl } from "@/components/trace/trace-photo-bounds-control";
+import { TracePhotoReport } from "@/components/trace/trace-photo-report";
 import { CalibrationDownloads } from "@/components/trace/calibration-downloads";
 import { referenceStripFromRulerLength } from "@/lib/calibrate/reference-strip";
 import { TraceExportOptions } from "@/components/trace/trace-export-options";
@@ -982,6 +983,7 @@ function TraceWorkspace(): JSX.Element {
                   }
                 />
             </div>
+            <TracePhotoReport key={store.sourceRevision} />
           </div>
         }
       />

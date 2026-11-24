@@ -279,6 +279,15 @@ describe("Trace detection workflow", () => {
     root = createRoot(host);
   });
 
+  it.each([false, true])("offers photo reporting on the Trace page before successful detection (mobile=%s)", async mobile => {
+    vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><SeedReadySource /><TracePage /></TraceProvider></PanelProvider>));
+    const reportButton = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Report tracing problem")!;
+    expect(reportButton).toBeDefined();
+    await React.act(async () => reportButton.click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Your photo will be sent via email to the project maintainer");
+  });
+
   it.each([false, true])("keeps estimated-edge guidance visible after editing and recovery (mobile=%s)", async mobile => {
     vi.stubGlobal("matchMedia", () => ({ matches: mobile, addEventListener: () => {}, removeEventListener: () => {} }));
     Object.defineProperty(window, "innerWidth", { value: mobile ? 390 : 1440, configurable: true, writable: true });

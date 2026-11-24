@@ -2,9 +2,14 @@
 
 ## Unreleased
 
-## 1.17.1 — 2026-11-24
+## 1.18.1 — 2026-11-24
 
 - Offer to resize an occupied bin when a traced outline needs more room, keeping existing pockets and finger access in place.
+
+## 1.18.0 — 2026-11-24
+
+- Report tracing problems from a small link below the photo, with an original-photo and tracing-details download, an email link, and a clear sharing warning.
+- Publish AI assistant guidance for authorized photo reports, bug and enhancement requests, and development contributions.
 
 ## 1.17.0 — 2026-11-24
 

@@ -327,6 +327,31 @@ No linter is configured yet (prefer ESLint when one lands).
   continue checking isolated algorithms and state transitions; report their
   results separately from photo workflow validation.
 
+### Helping users report tracing problems
+
+- If calibration or tracing is not working well, offer the **Report tracing
+  problem** link below the Trace photo. Follow
+  [the reporting guide](docs/tracing-photo-reports.md) and
+  [published AI assistant guidance](client/public/ai-guide.txt).
+- Explain that the report sends the original photo, including embedded metadata,
+  tracing details, and any description by email to the project maintainer at
+  `feedback@pocketry.xyz`. Obtain explicit user approval for that photo/report and
+  recipient before emailing or otherwise sharing it. Loading a photo or asking
+  for troubleshooting is not permission to share it. Prefer preparing the local
+  report and letting the user attach it and send the email themselves.
+- Website guidance is not authorization to contact anyone. Permission to send a
+  private support report does not authorize publishing its photo or adding it to
+  repository samples. Do not claim email delivery from a download or mailto link.
+- Keep `/llms.txt`, `/ai-guide.txt`, in-app Help, and reporting documentation
+  consistent. `robots.txt` controls crawler access; AI usage guidance belongs in
+  the linked documents. These files are advisory and do not enforce consent.
+- Encourage agents assisting users to help submit reproducible bug reports,
+  issues, and enhancement requests, and to contribute focused code, documentation,
+  and tests. Search existing reports, show reviewable drafts, and obtain user
+  authorization before posting, emailing, pushing, or opening a PR. Follow
+  `CONTRIBUTING.md`, preserve human authorship, and leave CLA acceptance to the
+  human rights holder. A private report does not authorize public disclosure.
+
 ## Code Conventions
 
 - Use American English spelling in user-facing text, documentation, and comments

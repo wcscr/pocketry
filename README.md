@@ -139,6 +139,14 @@ separately from the backup.
 
 ## Privacy
 
+If tracing is not working well, choose **Report tracing problem** below the
+photo on the Trace page. Review the sharing warning and photo, optionally describe
+the problem, then download the ZIP report. Open the email link or your usual
+email app, attach the ZIP, and send it to **feedback@pocketry.xyz**, the project
+maintainer. The report contains the original photo (including embedded metadata),
+tracing settings and outline, app version, browser details, and your description.
+Nothing is sent automatically. See [photo reports](docs/tracing-photo-reports.md).
+
 The static application processes images and generates models locally in the
 browser. Projects and drafts can be stored in the browser using IndexedDB. In a supported
 browser, enable experimental features to save named projects to a [connected local folder](docs/library-folder.md).
@@ -163,6 +171,19 @@ what you expected, what happened, and any workaround. Keep project files, photos
 and chat transcripts out of the draft. Show it to the person and get their approval
 before sending. If you can’t use the form, give them the draft and the
 [private feedback link](https://pocketry.xyz/feedback).
+
+For AI-assisted use, see the [published assistant guide](client/public/ai-guide.txt)
+and [llms.txt index](client/public/llms.txt). The guide asks assistants to offer
+photo reports when tracing fails and obtain explicit user approval before sharing
+a photo. These files ship at `/ai-guide.txt` and `/llms.txt`; the page head and
+Help link to them. `robots.txt` permits crawling and points to the index; it does
+not provide behavioral instructions or enforce sharing permissions.
+
+AI assistants are also welcome to help submit bug reports, issues, and enhancement
+requests, or contribute focused fixes, documentation, and tests. Search existing
+issues, prepare a reviewable draft, and obtain user authorization before posting,
+emailing, pushing, or opening a PR. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and
+[the repository agent instructions](AGENTS.md); agents cannot accept the CLA.
 
 ## Run locally
 
