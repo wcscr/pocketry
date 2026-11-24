@@ -57,7 +57,9 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
     <FolderFeedback library={library} />
     {library.canWrite && !library.legacyFolder && <>
       {library.pending.map(intent => <div className="space-y-2 rounded-md border p-3 text-sm" key={folderRequestId(intent)}>
-        <p className="break-all">Check pending request {folderRequestId(intent)}</p>
+        <p className="break-all">{intent.kind === "batch"
+          ? intent.action === "import" ? "Library import incomplete" : "Browser project copy incomplete"
+          : `Check pending request ${folderRequestId(intent)}`}</p>
         <Button size="sm" variant="outline" className="min-h-11" disabled={disabled} onClick={() => void onResume(intent)}>Check and resume</Button>
       </div>)}
       <div className="flex flex-wrap gap-2">

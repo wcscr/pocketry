@@ -18,14 +18,16 @@ When a folder project is open, its next save updates that project. Both
 **Save changes** and **Save as new project** are available for an open folder project.
 Each storage choice keeps its own projects. Open **Settings** in Library to
 change or disconnect the folder, refresh its project list, or copy browser projects into it.
-Library backups and imports use the selected storage. Importing a backup into
-the folder adds up to 100 projects per operation. Individual project JSON
+Library backups and imports use the selected storage. One import adds the
+backup's projects in batches as needed. If a folder import is interrupted, open
+Library and choose **Check and resume** to finish. Individual project JSON
 backups open in either mode.
 
 Use **Export compact copy** on a saved project row, or **Library → Settings →
 Export compact library** for all saved projects in the selected storage. Compact
-downloads preserve the current designs, including shapes, materials, labels,
-and placement data. Undo and redo start fresh when you reopen them. The saved
+downloads preserve the current designs, including materials, labels, and
+placement data. They remove shapes and reset data used only by discarded undo
+or redo states. Undo and redo start fresh when you reopen them. The saved
 projects and folder revisions remain available. Regular library exports keep
 undo and redo history.
 
@@ -52,10 +54,11 @@ browser or profile, choose the folder from Library to connect it. You can also d
 in the browser library. Clearing
 site data removes the saved handle, recovery requests, and browser-local work.
 The completed folder revisions remain on disk and reappear on reconnection.
-**Copy browser projects** copies up to 100 readable named projects in one
-operation, preserving IDs and source data. It skips IDs already present and
-documents that require recovery or a newer version. Use the browser backup
-before repairing a corrupt or unreadable browser library.
+**Copy browser projects** copies readable named projects in batches as needed,
+preserving IDs and source data. It skips IDs already present and documents that
+require recovery or a newer version. Use **Check and resume** if a copy is
+interrupted. Use the browser backup before repairing a corrupt or unreadable
+browser library.
 
 ## Version 2 on disk
 

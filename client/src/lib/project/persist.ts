@@ -1,4 +1,4 @@
-import { withinImportLimits, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { withinImportLimits, IMPORT_LIMIT_ERROR, PROJECT_FILE_MAX_BYTES } from "@shared/gridfinity/import-limits";
 import {
   CURRENT_PROJECT_KEY, PROJECT_LIBRARY_KEY, commitProjectStorage, readProjectStorage,
   sameProjectStorage, ProjectStorageConflictError, type ProjectStorageSnapshot,
@@ -306,14 +306,19 @@ export async function exportProjectLibrary(currentDoc?: ProjectDoc, { omitHistor
     format: "pocketry-library",
     schemaVersion: PROJECT_LIBRARY_VERSION,
     projects: library.projects.map(project => {
-      if (currentDoc && project.id === library.activeProjectId) {
-        const doc = { ...currentDoc, name: project.name };
-        return { ...project, doc: serializeProjectDoc(omitHistory ? withoutProjectHistory(doc) : doc), updatedAt: new Date().toISOString() };
+      const draft = currentDoc && project.id === library.activeProjectId ? { ...currentDoc, name: project.name } : undefined;
+      const updated = draft ? { ...project, updatedAt: new Date().toISOString() } : project;
+      if (!omitHistory) {
+        return { ...updated, doc: draft ? serializeProjectDoc(draft) : compactDocument(project.doc) as Record<string, unknown> };
       }
-      if (!omitHistory) return { ...project, doc: compactDocument(project.doc) as Record<string, unknown> };
-      const doc = parseProjectDoc(project.doc);
+      const doc = draft ?? parseProjectDoc(project.doc);
       if (!doc) throw new Error(`Could not compact “${project.name}”. Export a full library backup to include it.`);
-      return { ...project, doc: serializeProjectDoc(withoutProjectHistory(doc)) };
+      const compact = serializeProjectDoc(withoutProjectHistory(doc));
+      if (new TextEncoder().encode(JSON.stringify(compact)).byteLength > PROJECT_FILE_MAX_BYTES || !withinImportLimits(compact)) {
+        throw new Error(`“${project.name}” exceeds the project import limits even after removing history. Simplify the design before exporting.`);
+      }
+      if (!parseProjectDoc(compact)) throw new Error(`The compact copy of “${project.name}” could not be reopened.`);
+      return { ...updated, doc: compact };
     }),
   }));
 }

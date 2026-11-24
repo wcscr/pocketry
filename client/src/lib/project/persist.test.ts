@@ -2,7 +2,8 @@ import "@/lib/project/mock-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 
-import { parseProjectDoc, PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
+import { withinImportLimits } from "@shared/gridfinity/import-limits";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
@@ -93,6 +94,24 @@ describe("current project persistence", () => {
     await loadProjectDoc();
     await expect(exportProjectLibrary(undefined, { omitHistory: true })).rejects.toThrow("Could not compact “Newer bin”");
     expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
+  });
+
+  it("rejects a live compact draft that fits the library limits but could not be restored", async () => {
+    await saveProjectToLibrary(DOC, "Large tray", null);
+    const source = parseProjectDoc(ryobiReloadFixture)!.shapes[0];
+    const outer = Array.from({ length: 4096 }, (_, index) => ({
+      x: 25 * Math.cos(index * 2 * Math.PI / 4096),
+      y: 25 * Math.sin(index * 2 * Math.PI / 4096),
+    }));
+    const draft = { ...DOC, shapes: Array.from({ length: 25 }, (_, index) => ({
+      ...source, id: `shape-${index}`, outlineMm: [{ outer, holes: [] }], pointCount: outer.length,
+    })) };
+    const full = await exportProjectLibrary(draft);
+    expect(withinImportLimits(full, true)).toBe(true);
+    expect(parseProjectDoc(serializeProjectDoc(draft))).toBeNull();
+    await expect(exportProjectLibrary(draft, { omitHistory: true })).rejects.toThrow("“Large tray” exceeds the project import limits");
+    const saved = await exportProjectLibrary(undefined, { omitHistory: true });
+    expect(parseProjectDoc(saved.projects[0].doc)?.shapes).toEqual([]);
   });
 
   it("retains the first folder save identity with later edits across reload, and clears it on project switches", async () => {

@@ -4,7 +4,7 @@ import { serializeProjectDoc, withoutProjectHistory } from "../gridfinity/projec
 import { PublicationRejected, type LibraryFolder } from "./adapter";
 import {
   assignedProjectId, canonicalJson, digest, encode, FOLDER_FORMAT_VERSION, FOLDER_LIMITS, inputFingerprint, legacyRevisionId, LegacyFolderError, LibraryError,
-  parseRevisionFile, projectIdSchema, publicationSchema, readFolderProject, requestIdSchema,
+  parseRevisionFile, projectIdSchema, projectNameSchema, publicationSchema, readFolderProject, requestIdSchema,
   revisionFile, revisionIdSchema, type Change, type Publication,
 } from "./format";
 
@@ -71,6 +71,37 @@ export interface Mutation {
 const corruption = (message: string, details?: Record<string, unknown>) => new LibraryError("corrupt", message, details);
 const limit = (message: string, details?: Record<string, unknown>) => new LibraryError("resource-limit", message, details);
 const sorted = (values: Iterable<string>) => [...values].sort();
+
+/** Pack normalized snapshots into compatible v2 revision files. Reserve room
+ * for the longest request ID and fingerprint used by any caller. */
+export function partitionFolderChanges(changes: readonly Change[]): Change[][] {
+  const envelopeBytes = encode(canonicalJson({
+    format: "pocketry-folder-revision", version: FOLDER_FORMAT_VERSION,
+    requestId: "x".repeat(128), fingerprint: "x".repeat(64), changes: [],
+  })).byteLength;
+  const batches: Change[][] = [];
+  let batch: Change[] = [];
+  let batchBytes = envelopeBytes;
+  for (const change of changes) {
+    const name = projectNameSchema.safeParse(change.name);
+    if (!name.success) throw new LibraryError("validation", "Enter a project name up to 80 characters.");
+    const doc = change.doc === null ? null : serializeProjectDoc({ ...readFolderProject(change.doc), name: name.data });
+    if (doc && encode(canonicalJson(doc)).byteLength > FOLDER_LIMITS.projectBytes) {
+      throw limit(`“${name.data}” is too large for the folder library.`);
+    }
+    const normalized = { ...change, name: name.data, doc };
+    const bytes = encode(canonicalJson(normalized)).byteLength + 1;
+    if (batch.length === FOLDER_LIMITS.changes || batchBytes + bytes > FOLDER_LIMITS.revisionBytes) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = envelopeBytes;
+    }
+    batchBytes += bytes;
+    batch.push(normalized);
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
 
 async function decodePublication(bytes: Uint8Array, file: string, revision: string, requestKey: string): Promise<Publication> {
   let input: unknown;

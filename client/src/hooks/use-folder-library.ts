@@ -1,10 +1,10 @@
 import { IMPORT_LIMIT_ERROR, withinImportLimits } from "@shared/gridfinity/import-limits";
 import { libraryBackupSchema } from "@shared/gridfinity/library";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BrowserLibraryFolder, folderRequestId, type FolderDraft, type FolderIntent } from "@/lib/project/browser-folder";
+import { BrowserLibraryFolder, folderRequestId, type FolderBatchIntent, type FolderDraft, type FolderIntent, type FolderSaveIntent } from "@/lib/project/browser-folder";
 import { exportProjectLibrary } from "@/lib/project/persist";
-import { ConnectedLibrary, type FolderProject, type RequestOutcome } from "@shared/project-library/library";
-import { assignedProjectId, FOLDER_LIMITS, LegacyFolderError, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
+import { ConnectedLibrary, partitionFolderChanges, type FolderProject, type RequestOutcome } from "@shared/project-library/library";
+import { assignedProjectId, LegacyFolderError, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
 import { publishRecoveredLibrary, recoverLegacyBackup } from "@shared/project-library/legacy-recovery";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
@@ -94,7 +94,7 @@ export function useFolderLibrary(enabled = true) {
   }, [run, load]);
   useEffect(() => { if (enabled && supported) void refresh(); }, [enabled, refresh, supported]);
 
-  const apply = async (selected: BrowserLibraryFolder, intent: FolderIntent,
+  const apply = async (selected: BrowserLibraryFolder, intent: FolderSaveIntent,
     finish?: (revision: string) => Promise<void>,
   ): Promise<RequestOutcome> => {
     const service = new ConnectedLibrary(selected);
@@ -136,6 +136,48 @@ export function useFolderLibrary(enabled = true) {
     setPending(await selected.pending().catch(() => []));
     setProjects(await service.list().catch(() => projects));
     return outcome;
+  };
+
+  const applyBatches = async (selected: BrowserLibraryFolder, intent: FolderBatchIntent) => {
+    const service = new ConnectedLibrary(selected);
+    const total = intent.batches.reduce((count, batch) => count + batch.length, 0);
+    let added = 0;
+    try {
+      // Every retry uses the same request and project IDs. Confirmed revisions
+      // are durable receipts, even if their projects have since been edited.
+      for (const [index, changes] of intent.batches.entries()) {
+        const outcome = await service.commit({ requestId: `${intent.requestId}:${index + 1}`, changes });
+        if (!("publications" in outcome) || outcome.requestCollision) {
+          if ("publications" in outcome) {
+            throw new LibraryError("request-reused", "Multiple revisions used the same request ID.");
+          }
+          setError(`Added ${added} of ${total} projects. Check and resume in Library.`);
+          return;
+        }
+        added += changes.length;
+      }
+      await selected.forget(intent.requestId);
+      setMessage(`${intent.action === "copy" ? "Copied" : "Imported"} ${added} projects to the folder.`);
+      return added;
+    } catch (cause) {
+      const stopped = cause instanceof LibraryError &&
+        ["stale-base", "conflict", "validation", "resource-limit", "request-reused"].includes(cause.code);
+      if (stopped) await selected.forget(intent.requestId);
+      if (!await selected.canWrite().catch(() => false)) setCanWrite(false);
+      if (!added && stopped) throw cause;
+      const detail = cause instanceof Error ? cause.message : "The folder operation failed.";
+      throw new LibraryError(cause instanceof LibraryError ? cause.code : "storage",
+        `Added ${added} of ${total} projects. ${stopped ? "" : "Check and resume in Library. "}${detail}`);
+    } finally {
+      setPending(await selected.pending().catch(() => []));
+      setProjects(await service.list().catch(() => projects));
+    }
+  };
+
+  const startBatches = async (selected: BrowserLibraryFolder, requestId: string, action: FolderBatchIntent["action"], changes: Change[]) => {
+    const intent: FolderBatchIntent = { kind: "batch", requestId, action, batches: partitionFolderChanges(changes) };
+    await selected.remember(intent);
+    return applyBatches(selected, intent);
   };
 
   const writableFolder = async () => {
@@ -184,12 +226,8 @@ export function useFolderLibrary(enabled = true) {
         return [];
       }
     });
-    if (changes.length > FOLDER_LIMITS.changes) {
-      throw new LibraryError("resource-limit", `Copy up to ${FOLDER_LIMITS.changes} projects at once. Open and save individual projects for larger libraries.`);
-    }
     if (!changes.length) { setMessage("No new readable browser projects to copy."); return; }
-    const outcome = await apply(selected, { kind: "commit", mutation: { requestId: crypto.randomUUID(), changes } });
-    if (outcome.status === "published") setMessage(`Copied ${changes.length} browser projects to the folder.`);
+    return startBatches(selected, crypto.randomUUID(), "copy", changes);
   });
 
   const importBackup = (input: unknown) => run(async () => {
@@ -197,17 +235,13 @@ export function useFolderLibrary(enabled = true) {
     if (!withinImportLimits(input, true)) throw new LibraryError("resource-limit", IMPORT_LIMIT_ERROR);
     const parsed = libraryBackupSchema.safeParse(input);
     if (!parsed.success) throw new LibraryError("validation", "This is not a supported Pocketry library backup.");
-    if (parsed.data.projects.length > FOLDER_LIMITS.changes) {
-      throw new LibraryError("resource-limit", `Import up to ${FOLDER_LIMITS.changes} projects at a time.`);
-    }
     const requestId = crypto.randomUUID();
     if (!parsed.data.projects.length) return 0;
     const changes = await Promise.all(parsed.data.projects.map(async (project, index) => ({
-      projectId: await assignedProjectId(requestId, index), parents: [], name: project.name.trim(),
-      doc: readFolderProject(project.doc),
+      projectId: await assignedProjectId(requestId, index), parents: [], name: project.name,
+      doc: project.doc,
     })));
-    const outcome = await apply(selected, { kind: "commit", mutation: { requestId, changes } });
-    if (outcome.status === "published") return changes.length;
+    return startBatches(selected, requestId, "import", changes);
   });
 
   const withProject = (projectId: string, revision: string, useProject: (doc: ProjectDoc, target: FolderDraft) => void | Promise<void>) => run(async () => {
@@ -269,6 +303,7 @@ export function useFolderLibrary(enabled = true) {
     }),
     resume: (intent: FolderIntent, onPublished: (target: FolderDraft, draft: { requestId: string } | { base: FolderDraft }) => Promise<void>) => run(async () => {
       if (!folder) return;
+      if (intent.kind === "batch") { await applyBatches(folder, intent); return; }
       await apply(folder, intent, async revision => {
         if (intent.kind !== "commit") return;
         const [change] = intent.mutation.changes;

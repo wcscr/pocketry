@@ -1,10 +1,9 @@
 import { z } from "zod";
 import { withinImportLimits } from "../gridfinity/import-limits";
 import { PROJECT_LIBRARY_VERSION, PROJECT_NAME_MAX_LENGTH, storedProjectSchema, type LibraryBackup } from "../gridfinity/library";
-import { serializeProjectDoc } from "../gridfinity/project";
 import type { FolderFile, LibraryFolder } from "./adapter";
-import { canonicalJson, digest, encode, FOLDER_FORMAT_VERSION, FOLDER_LIMITS, inputFingerprint, legacyRevisionId, LibraryError, readFolderProject, type Change } from "./format";
-import { ConnectedLibrary } from "./library";
+import { digest, encode, FOLDER_LIMITS, inputFingerprint, legacyRevisionId, LibraryError } from "./format";
+import { ConnectedLibrary, partitionFolderChanges } from "./library";
 
 const legacyRevisionSchema = z.strictObject({
   format: z.literal("pocketry-folder-revision"),
@@ -102,13 +101,8 @@ export async function recoverLegacyBackup(source: LegacySource): Promise<Library
 export async function publishRecoveredLibrary(backup: LibraryBackup, destination: LibraryFolder): Promise<void> {
   if (!backup.projects.length) throw new LibraryError("not-found", "No saved projects to recover.");
   if (!withinImportLimits(backup, true)) throw new LibraryError("resource-limit", "The older projects exceed Pocketry’s recovery limits.");
-  const envelopeBytes = encode(canonicalJson({ format: "pocketry-folder-revision", version: FOLDER_FORMAT_VERSION,
-    requestId: "x".repeat(128), fingerprint: "x".repeat(64), changes: [] })).byteLength;
-  const batches: Change[][] = [[]];
   const names = new Set<string>();
-  let batch = batches[0];
-  let batchBytes = envelopeBytes;
-  for (const project of backup.projects) {
+  const batches = partitionFolderChanges(backup.projects.map(project => {
     const original = project.name.trim();
     let name = original;
     for (let copy = 2; names.has(name.toLowerCase()); copy++) {
@@ -116,20 +110,8 @@ export async function publishRecoveredLibrary(backup: LibraryBackup, destination
       name = original.slice(0, PROJECT_NAME_MAX_LENGTH - suffix.length).trimEnd() + suffix;
     }
     names.add(name.toLowerCase());
-    const doc = serializeProjectDoc({ ...readFolderProject(project.doc), name });
-    const change = { projectId: project.id, name, parents: [], doc };
-    if (encode(canonicalJson(doc)).byteLength > FOLDER_LIMITS.projectBytes) {
-      throw new LibraryError("resource-limit", `“${name}” is too large for folder recovery.`);
-    }
-    const bytes = encode(canonicalJson(change)).byteLength + 1;
-    if (batch.length >= FOLDER_LIMITS.changes || batchBytes + bytes > FOLDER_LIMITS.revisionBytes) {
-      batch = [];
-      batches.push(batch);
-      batchBytes = envelopeBytes;
-    }
-    batch.push(change);
-    batchBytes += bytes;
-  }
+    return { projectId: project.id, name, parents: [], doc: project.doc };
+  }));
 
   const plan = await inputFingerprint(batches.map(changes => changes.map(change => [change.projectId, change.name])));
   const library = new ConnectedLibrary(destination);

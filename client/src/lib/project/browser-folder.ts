@@ -2,7 +2,7 @@ import { del, get, keys, set, update } from "idb-keyval";
 import { z } from "zod";
 import { assertRevisionBasename, PublicationRejected, type FolderEntry, type LibraryFolder } from "@shared/project-library/adapter";
 import { ConnectedLibrary, type Mutation } from "@shared/project-library/library";
-import { legacyRevisionId, LegacyFolderError, LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema } from "@shared/project-library/format";
+import { legacyRevisionId, LegacyFolderError, LibraryError, projectIdSchema, projectNameSchema, revisionIdSchema, type Change } from "@shared/project-library/format";
 
 type PermissionOptions = { mode: "readwrite" };
 type DirectoryHandle = FileSystemDirectoryHandle & {
@@ -16,10 +16,14 @@ const pickDirectory = () => (window as Window & {
 
 const KEY = "pocketry:connected-project-library-directory";
 const RECOVERED_DIRECTORY = "pocketry-recovered";
-export type FolderIntent = { candidateRevision?: string } & (
+export type FolderSaveIntent = { candidateRevision?: string } & (
   | { kind: "commit"; mutation: Mutation; draftBase?: FolderDraft; workingDraft?: true }
   | { kind: "keep-both"; requestId: string; projectId: string; expected: string[]; keep: string }
 );
+export type FolderBatchIntent = {
+  kind: "batch"; requestId: string; action: "import" | "copy"; batches: Change[][];
+};
+export type FolderIntent = FolderSaveIntent | FolderBatchIntent;
 type SavedConnection = { directory: DirectoryHandle; parentName: string; id?: string };
 export const folderDraftSchema = z.object({
   connectionId: z.uuid(), projectId: projectIdSchema, revision: revisionIdSchema, name: projectNameSchema,
