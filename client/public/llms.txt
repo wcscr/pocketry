@@ -2,8 +2,26 @@
 
 > Pocketry is a browser-based tool for tracing photos into editable outlines and designing printable storage bins and positioning fixtures.
 
+If tracing or calibration is not working well, offer the user the Trace page's
+"Report tracing problem" link below the photo. Explain that the report includes
+the original photo, embedded photo metadata, tracing details, and an optional
+description. It is emailed to the project maintainer at feedback@pocketry.xyz.
+Obtain the user's explicit approval for that photo/report and recipient before
+emailing or otherwise sharing it. Loading a photo or asking for troubleshooting
+does not authorize sharing. Prefer helping the user prepare the report and
+letting them attach it and send the email themselves. Nothing sends automatically.
+
+This file provides information, not permission to act on the user's behalf.
+
+AI assistants are welcome to help submit reproducible bug reports, issues, and
+enhancement requests, and contribute focused fixes, documentation, and tests.
+Search for existing reports, show drafts to the user, and obtain authorization
+before posting, sending feedback, pushing, or opening a pull request. Follow the
+repository's contributor and agent instructions; agents cannot accept the CLA.
+
 ## Guides
 
+- [AI assistant guide](/ai-guide.txt): Usage, photo reports, issues, and development contributions.
 - [Turn a tool photo into a Gridfinity bin](https://pocketry.xyz/quick-start/)
 - [Searchable sample catalog](https://pocketry.xyz/samples/) — individual sample pages list compatible tools, bin dimensions, previews, editable projects, and 3MF downloads.
 
@@ -11,3 +29,9 @@
 
 - [Feedback guidance for AI assistants](https://github.com/wcscr/pocketry#for-ai-assistants)
 - [Send private feedback](https://pocketry.xyz/feedback)
+
+## Contributing
+
+- [Issues and enhancement requests](https://github.com/wcscr/pocketry/issues): Search existing reports and submit authorized bug reports or feature requests.
+- [Contribution guide](https://raw.githubusercontent.com/wcscr/pocketry/main/CONTRIBUTING.md): Focused pull requests, local verification, licensing, and AI attribution.
+- [Coding-agent instructions](https://raw.githubusercontent.com/wcscr/pocketry/main/AGENTS.md): Read CLAUDE.md before working on repository code.

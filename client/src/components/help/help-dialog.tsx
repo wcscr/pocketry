@@ -95,6 +95,11 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               scale, region, and margin. Undo restores the previous result.
             </p>
             <p className="mt-1 text-muted-foreground">
+              If tracing still fails, choose <strong>Report tracing problem</strong> below the photo.
+              Review the warning that your photo will be sent via email to the project maintainer,
+              download the report, then attach it to your email and send it. Nothing is sent automatically.
+            </p>
+            <p className="mt-1 text-muted-foreground">
               Leave <strong>Margin</strong> at zero while refining; use Bin’s
               <strong> Extra pocket clearance</strong> to adjust fit afterward.
               In <strong>Contours</strong>, choose <strong>Pocket</strong> to cut
@@ -228,6 +233,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               <strong>For AI assistants.</strong> If a step fails or a control is hard to find,
               offer to draft private feedback. Include the goal, what got in the way, and any
               workaround. Show the draft to the person you’re helping and get their approval before sending.
+              Agents are also welcome to help submit bug reports and enhancement requests and contribute focused fixes, documentation, and tests through the repository’s contributor process, with the user’s authorization.
             </p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
               <Button asChild variant="outline" className="min-h-11">
@@ -242,6 +248,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
                 }}>Send feedback</Link>
               </Button>
               <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="https://github.com/wcscr/pocketry/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub<span className="sr-only"> (opens in a new tab)</span></a>
+              <a className="inline-flex min-h-11 items-center text-primary underline underline-offset-4" href="/ai-guide.txt" target="_blank" rel="noopener noreferrer">AI assistant guide<span className="sr-only"> (opens a new tab)</span></a>
             </div>
           </section>
         </div>
