@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { folderRequestId, type FolderDraft, type FolderIntent } from "@/lib/project/browser-folder";
+import { folderRequestId, type FolderDraft, type FolderDraftMatch, type FolderIntent } from "@/lib/project/browser-folder";
 import type { FolderLibrary } from "@/hooks/use-folder-library";
 import type { ProjectDoc } from "@shared/gridfinity/project";
 
@@ -18,13 +18,14 @@ interface Props {
   hasDraft: boolean;
   onOpen: (doc: ProjectDoc, target: FolderDraft) => Promise<void>;
   onOpened: () => void;
+  onRenameDraft: (target: FolderDraft, match: FolderDraftMatch) => Promise<void>;
   onSave: () => void;
   onResume: (intent: FolderIntent) => Promise<void>;
   onExportDraft: () => void;
   onExportCompact: (doc: ProjectDoc, name: string) => void;
 }
 
-export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onSave, onResume, onExportDraft, onExportCompact }: Props) {
+export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onRenameDraft, onSave, onResume, onExportDraft, onExportCompact }: Props) {
   const [selection, setSelection] = useState<(Project & { action: "open" | "rename" | "remove" }) | null>(null);
   const [name, setName] = useState("");
   const disabled = busy || library.busy;
@@ -33,8 +34,10 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
   const finish = async () => {
     if (!selection) return;
     const { action, projectId, revision } = selection;
+    const renameDraft = action === "rename" && currentProject?.projectId === projectId && currentProject.revision === revision
+      ? { base: currentProject, onPublished: onRenameDraft } : undefined;
     const completed = action === "open" ? await library.withProject(projectId, revision, onOpen)
-      : await library.changeProject(projectId, revision, action === "rename" ? { kind: action, name } : { kind: action });
+      : await library.changeProject(projectId, revision, action === "rename" ? { kind: action, name } : { kind: action }, renameDraft);
     if (completed) {
       setSelection(null);
       if (action === "open") onOpened();
@@ -91,7 +94,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
                   <LibraryProjectAction action="compact" disabled={disabled} label={`Export compact copy of ${head.name}`}
                     onClick={() => void library.withProject(project.projectId, head.revision, (doc, target) => onExportCompact(doc, target.name))} />
                   {!project.conflicted && <>
-                    <LibraryProjectAction action="rename" disabled={blockedWrite || current}
+                    <LibraryProjectAction action="rename" disabled={blockedWrite}
                       label={`Rename ${head.name}`} onClick={() => { setName(head.name); setSelection({ ...target, action: "rename" }); }} />
                     <LibraryProjectAction action="remove" disabled={blockedWrite || currentProject?.projectId === project.projectId}
                       label={`Remove ${head.name}`} onClick={() => setSelection({ ...target, action: "remove" })} />

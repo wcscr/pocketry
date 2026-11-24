@@ -1,7 +1,7 @@
 import { IMPORT_LIMIT_ERROR, withinImportLimits } from "@shared/gridfinity/import-limits";
 import { libraryBackupSchema } from "@shared/gridfinity/library";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BrowserLibraryFolder, folderRequestId, type FolderBatchIntent, type FolderDraft, type FolderIntent, type FolderSaveIntent } from "@/lib/project/browser-folder";
+import { BrowserLibraryFolder, folderRequestId, type FolderBatchIntent, type FolderDraft, type FolderDraftMatch, type FolderIntent, type FolderSaveIntent } from "@/lib/project/browser-folder";
 import { exportProjectLibrary } from "@/lib/project/persist";
 import { ConnectedLibrary, partitionFolderChanges, type FolderProject, type RequestOutcome } from "@shared/project-library/library";
 import { assignedProjectId, LegacyFolderError, LibraryError, projectNameSchema, readFolderProject, type Change } from "@shared/project-library/format";
@@ -10,6 +10,7 @@ import type { ProjectDoc } from "@shared/gridfinity/project";
 
 export type LibraryStorage = "browser" | "folder";
 export interface FolderRefreshOptions { requestAccess?: boolean }
+type FolderDraftPublished = (target: FolderDraft, match: FolderDraftMatch) => Promise<void>;
 const STORAGE_KEY = "pocketry:library-storage";
 
 export function useLibraryStorage() {
@@ -161,7 +162,7 @@ export function useFolderLibrary(enabled = true) {
       return added;
     } catch (cause) {
       const stopped = cause instanceof LibraryError &&
-        ["stale-base", "conflict", "validation", "resource-limit", "request-reused"].includes(cause.code);
+        ["stale-base", "conflict", "validation", "request-reused"].includes(cause.code);
       if (stopped) await selected.forget(intent.requestId);
       if (!await selected.canWrite().catch(() => false)) setCanWrite(false);
       if (!added && stopped) throw cause;
@@ -176,6 +177,7 @@ export function useFolderLibrary(enabled = true) {
 
   const startBatches = async (selected: BrowserLibraryFolder, requestId: string, action: FolderBatchIntent["action"], changes: Change[]) => {
     const intent: FolderBatchIntent = { kind: "batch", requestId, action, batches: partitionFolderChanges(changes) };
+    await new ConnectedLibrary(selected).checkTransferCapacity(requestId, intent.batches);
     await selected.remember(intent);
     return applyBatches(selected, intent);
   };
@@ -192,7 +194,7 @@ export function useFolderLibrary(enabled = true) {
   };
 
   const save = (doc: ProjectDoc, name: string, active: FolderDraft | null = null,
-    onPublished?: (target: FolderDraft) => Promise<void>,
+    onPublished?: FolderDraftPublished,
     prepareDraft?: (requestId: string) => Promise<void>,
   ) => run(async () => {
     const selected = await writableFolder();
@@ -208,7 +210,7 @@ export function useFolderLibrary(enabled = true) {
     const outcome = await apply(selected, { kind: "commit", draftBase: active ?? undefined,
       workingDraft: prepareDraft ? true : undefined, mutation: { requestId, changes: [{
       projectId, parents: active ? [active.revision] : [], name: projectName.data, doc,
-    }] } }, async revision => { await onPublished?.(target(revision)); });
+    }] } }, async revision => { await onPublished?.(target(revision), { requestId }); });
     if (outcome.status !== "published") return;
     return target(outcome.publications[0].revision);
   });
@@ -251,7 +253,9 @@ export function useFolderLibrary(enabled = true) {
     return true;
   });
 
-  const changeProject = (projectId: string, revision: string, change: { kind: "copy" } | { kind: "rename"; name: string } | { kind: "remove" }) => run(async () => {
+  const changeProject = (projectId: string, revision: string, change: { kind: "copy" } | { kind: "rename"; name: string } | { kind: "remove" },
+    renameDraft?: { base: FolderDraft; onPublished: FolderDraftPublished },
+  ) => run(async () => {
     const selected = await writableFolder();
     const value = await new ConnectedLibrary(selected).read(projectId, revision);
     const requestId = crypto.randomUUID();
@@ -260,7 +264,12 @@ export function useFolderLibrary(enabled = true) {
     const mutation: Change = change.kind === "copy"
       ? { projectId: await assignedProjectId(requestId), parents: [], name: `${value.name.slice(0, 73).trimEnd()} (copy)`, doc: value.doc }
       : { projectId, parents: [revision], name: name?.data ?? value.name, doc: change.kind === "remove" ? null : value.doc };
-    const outcome = await apply(selected, { kind: "commit", mutation: { requestId, changes: [mutation] } });
+    const draft = change.kind === "rename" && renameDraft?.base.connectionId === selected.id &&
+      renameDraft.base.projectId === projectId && renameDraft.base.revision === revision ? renameDraft : undefined;
+    const outcome = await apply(selected, { kind: "commit", draftBase: draft?.base, mutation: { requestId, changes: [mutation] } },
+      draft ? async renamedRevision => draft.onPublished(
+        { connectionId: selected.id, projectId, revision: renamedRevision, name: mutation.name }, { base: draft.base },
+      ) : undefined);
     if (outcome.status !== "published") return;
     setMessage(change.kind === "remove" ? "Project removed from the folder library."
       : change.kind === "copy" ? "Project copied in the folder." : "Project renamed in the folder.");
@@ -301,7 +310,7 @@ export function useFolderLibrary(enabled = true) {
       if (!folder || !await folder.renew()) throw new LibraryError("permission", "Folder access wasn’t granted.");
       await load(folder);
     }),
-    resume: (intent: FolderIntent, onPublished: (target: FolderDraft, draft: { requestId: string } | { base: FolderDraft }) => Promise<void>) => run(async () => {
+    resume: (intent: FolderIntent, onPublished: FolderDraftPublished) => run(async () => {
       if (!folder) return;
       if (intent.kind === "batch") { await applyBatches(folder, intent); return; }
       await apply(folder, intent, async revision => {

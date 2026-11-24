@@ -23,6 +23,10 @@ backup's projects in batches as needed. If a folder import is interrupted, open
 Library and choose **Check and resume** to finish. Individual project JSON
 backups open in either mode.
 
+Pocketry checks room for the whole transfer before adding projects. If the
+folder reaches its limits while the transfer is in progress, **Check and resume**
+continues from the existing work when there is room again.
+
 Use **Export compact copy** on a saved project row, or **Library → Settings →
 Export compact library** for all saved projects in the selected storage. Compact
 downloads preserve the current designs, including materials, labels, and

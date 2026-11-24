@@ -51,7 +51,7 @@ it("keeps a published request recoverable when removing its browser metadata fai
     function Harness() {
       const library = useFolderLibrary();
       return <FolderLibraryContent library={library} active={null} busy={false}
-        hasDraft={false} onOpen={vi.fn()} onOpened={vi.fn()} onExportDraft={vi.fn()} onExportCompact={vi.fn()}
+        hasDraft={false} onOpen={vi.fn()} onOpened={vi.fn()} onRenameDraft={vi.fn()} onExportDraft={vi.fn()} onExportCompact={vi.fn()}
         onResume={async intent => { await library.resume(intent, vi.fn()); }}
         onSave={() => void library.save(doc, doc.name)} />;
     }
@@ -75,6 +75,7 @@ it("keeps a published request recoverable when removing its browser metadata fai
 it.each([
   { action: "import", interrupted: "before" },
   { action: "copy", interrupted: "after" },
+  { action: "import", interrupted: "capacity" },
 ] as const)("resumes a large $action interrupted $interrupted the last batch is written", async ({ action, interrupted }) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("crypto", webcrypto);
@@ -110,9 +111,13 @@ it.each([
     return bytes ? { bytes, modifiedAt: 0 } : null;
   });
   const lastBatch = Math.ceil(count / FOLDER_LIMITS.changes);
+  const originalLimit = FOLDER_LIMITS.revisions;
   let writes = 0;
   vi.spyOn(folder, "publish").mockImplementation(async (name, bytes) => {
-    if (++writes === lastBatch) {
+    writes++;
+    if (interrupted === "capacity") {
+      if (writes === 1) Object.assign(FOLDER_LIMITS, { revisions: 1 });
+    } else if (writes === lastBatch) {
       unavailable = true;
       if (interrupted === "before") throw new Error("Interrupted before writing.");
     }
@@ -131,6 +136,12 @@ it.each([
       expect(current.error).toContain("newer Pocketry version");
       expect(files.size).toBe(0);
       expect(current.pending).toHaveLength(0);
+      Object.assign(FOLDER_LIMITS, { revisions: lastBatch - 1 });
+      await act(async () => { await current.importBackup(backup); });
+      expect(current.error).toContain("exceed the folder limits");
+      expect(files.size).toBe(0);
+      expect(current.pending).toHaveLength(0);
+      Object.assign(FOLDER_LIMITS, { revisions: originalLimit });
     }
     await act(async () => {
       const result = await (action === "import" ? current.importBackup(backup) : current.copyBrowserProjects());
@@ -138,9 +149,10 @@ it.each([
     });
     expect(current.pending).toMatchObject([{ kind: "batch", action }]);
     expect(current.error).toContain("Check and resume in Library");
-    expect(files.size).toBe(lastBatch - (interrupted === "before" ? 1 : 0));
+    expect(files.size).toBe(interrupted === "capacity" ? 1 : lastBatch - (interrupted === "before" ? 1 : 0));
 
     unavailable = false;
+    Object.assign(FOLDER_LIMITS, { revisions: originalLimit });
     await act(async () => root.render(<Harness key="reloaded" />));
     await act(async () => { await current.refresh(); });
     await act(async () => { await current.resume(current.pending[0], vi.fn()); });
@@ -153,6 +165,7 @@ it.each([
     expect(restored.projects.map(project => project.name).sort()).toEqual(backup.projects.map(project => project.name).sort());
     if (action === "copy") expect(restored.projects.map(project => project.id).sort()).toEqual(backup.projects.map(project => project.id).sort());
   } finally {
+    Object.assign(FOLDER_LIMITS, { revisions: originalLimit });
     await act(async () => root.unmount());
   }
 });

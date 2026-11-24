@@ -762,9 +762,14 @@ describe("BinDesignerPage", () => {
       projects: [...projects], hasPublishedRevisions: !!projects.length, canRecoverLegacy: false,
     }));
     let saves = 0;
+    const read = vi.spyOn(ConnectedLibrary.prototype, "read").mockImplementation(async (projectId, revision) => {
+      const project = projects.find(project => project.projectId === projectId)!;
+      const head = project.heads.find(head => head.revision === revision)!;
+      return { project, ...head, doc: { ...EMPTY_PROJECT, name: head.name } };
+    });
     const commit = vi.spyOn(ConnectedLibrary.prototype, "commit").mockImplementation(async mutation => {
       const change = mutation.changes[0];
-      const revision = ["a", "b", "c"][saves++].repeat(64);
+      const revision = ["a", "b", "c", "d"][saves++].repeat(64);
       const updated: FolderProject = { projectId: change.projectId, conflicted: false, heads: [
         { name: change.name, revision, deleted: false, updatedAt: "2026-11-22T00:00:00Z" },
       ] };
@@ -839,20 +844,32 @@ describe("BinDesignerPage", () => {
       expect([...folderRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
         "Folder project is currently open", "Copy Folder project", "Export compact copy of Folder project", "Rename Folder project", "Remove Folder project",
       ]);
+      await click(folderRow.querySelector<HTMLButtonElement>('[aria-label="Rename Folder project"]')!);
+      const rename = document.querySelector<HTMLInputElement>("#folder-rename-project")!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(rename, "Renamed tray");
+        rename.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await click(button("Save name"));
+      const target = { connectionId: folder.id, projectId: commit.mock.calls[0][0].changes[0].projectId };
+      expect(ProjectPersistence.advanceFolderDraft).toHaveBeenLastCalledWith(
+        { ...target, name: "Renamed tray", revision: "b".repeat(64) },
+        { base: { ...target, name: "Folder project", revision: "a".repeat(64) } },
+      );
 
       await click(button("Save current project"));
       await click(byId("button-confirm-save-library"));
-      expect(commit.mock.calls[1][0].changes[0]).toMatchObject({
-        projectId: commit.mock.calls[0][0].changes[0].projectId, parents: ["a".repeat(64)], name: "Folder project",
+      expect(commit.mock.calls[2][0].changes[0]).toMatchObject({
+        projectId: target.projectId, parents: ["b".repeat(64)], name: "Renamed tray",
       });
 
       await click(button("Save current project"));
       await React.act(async () => {
         button("Save as new project").click();
-        await vi.waitFor(() => expect(commit).toHaveBeenCalledTimes(3));
+        await vi.waitFor(() => expect(commit).toHaveBeenCalledTimes(4));
       });
-      expect(commit.mock.calls[2][0].changes[0]).toMatchObject({ parents: [], name: "Folder project" });
-      expect(commit.mock.calls[2][0].changes[0].projectId).not.toBe(commit.mock.calls[0][0].changes[0].projectId);
+      expect(commit.mock.calls[3][0].changes[0]).toMatchObject({ parents: [], name: "Renamed tray" });
+      expect(commit.mock.calls[3][0].changes[0].projectId).not.toBe(target.projectId);
       openLibrarySettings();
       await click(byId("library-storage-browser"));
       expect(byId("library-storage-browser").getAttribute("aria-current")).toBe("true");
@@ -862,7 +879,7 @@ describe("BinDesignerPage", () => {
       expect(localStorage.getItem("pocketry:library-storage")).toBe("browser");
     } finally {
       unmount();
-      for (const mock of [commit, list, browse, pick, ...mocks]) mock.mockRestore();
+      for (const mock of [commit, read, list, browse, pick, ...mocks]) mock.mockRestore();
     }
   });
 
@@ -1049,8 +1066,8 @@ describe("BinDesignerPage", () => {
 
       expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ projectId: target.projectId,
         parents: [target.revision], name: target.name, doc: { spec: { gridX: 4 } } });
-      expect(ProjectPersistence.saveFolderDraft).toHaveBeenCalledWith(expect.objectContaining({ spec: expect.objectContaining({ gridX: 4 }) }),
-        { ...target, revision });
+      expect(ProjectPersistence.advanceFolderDraft).toHaveBeenCalledWith(
+        { ...target, revision }, { requestId: commit.mock.calls[0][0].requestId });
       expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
     } finally {
       unmount();
@@ -1086,8 +1103,7 @@ describe("BinDesignerPage", () => {
       vi.spyOn(folder, "remember").mockImplementation(async intent => { pending = [intent]; }),
       vi.spyOn(folder, "forget").mockImplementation(async completed => {
         if (completed === requestId) {
-          expect(ProjectPersistence.saveFolderDraft).toHaveBeenCalledWith(
-            expect.objectContaining({ spec: expect.objectContaining({ gridX: 4 }) }), published, ...(firstSave ? [requestId] : []));
+          expect(ProjectPersistence.advanceFolderDraft).toHaveBeenCalledWith(published, firstSave ? { requestId } : { base });
         }
         pending = [];
       }),

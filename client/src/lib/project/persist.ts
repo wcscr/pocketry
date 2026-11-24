@@ -24,7 +24,7 @@ import {
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
-import { folderDraftSchema, type FolderDraft } from "./browser-folder";
+import { folderDraftSchema, type FolderDraft, type FolderDraftMatch } from "./browser-folder";
 
 /**
  * Project persistence over IndexedDB (`idb-keyval`, Apache-2.0).
@@ -182,14 +182,18 @@ function toSnapshot(library: StoredProjectLibrary): ProjectLibrarySnapshot {
 function mutateLibrary<T>(
   mutation: (library: StoredProjectLibrary, tx: ProjectMutation) => Promise<T>,
   readOnly = false,
+  condition?: { matches: (tx: ProjectMutation) => boolean; otherwise: T },
 ): Promise<T> {
   const result = libraryMutationQueue.then(async () => {
     const snapshot = await readProjectStorage();
     const library = readStoredLibrary(snapshot.library);
+    const tx = new ProjectMutation(snapshot);
+    // A completion for a superseded draft is a no-op. It also must not adopt
+    // the other tab's snapshot as this tab's autosave baseline.
+    if (condition && !condition.matches(tx)) return condition.otherwise;
     if (!readOnly && expectedStorage && !sameProjectStorage(expectedStorage, snapshot)) {
       throw new ProjectStorageConflictError();
     }
-    const tx = new ProjectMutation(snapshot);
     const result = await mutation(library, tx);
     if (tx.entries.size) await commitProjectStorage(snapshot, [...tx.entries]);
     if (!readOnly) expectedStorage = tx.nextSnapshot();
@@ -635,17 +639,33 @@ export async function prepareFolderSave(doc: ProjectDoc, requestId: string): Pro
   });
 }
 
-/** Open a folder revision or advance the base after a confirmed folder save. */
-export function saveFolderDraft(doc: ProjectDoc, target: FolderDraft): Promise<ProjectLibrarySnapshot>;
-export function saveFolderDraft(doc: ProjectDoc, target: FolderDraft, requestId: string): Promise<ProjectLibrarySnapshot | undefined>;
-export async function saveFolderDraft(doc: ProjectDoc, target: FolderDraft, requestId?: string): Promise<ProjectLibrarySnapshot | undefined> {
+/** Open a folder revision as the working copy. */
+export async function saveFolderDraft(doc: ProjectDoc, target: FolderDraft): Promise<ProjectLibrarySnapshot> {
   return mutateLibrary(async (library, tx) => {
-    if (requestId !== undefined && tx.folderSaveRequest !== requestId) return;
     if (!parseProjectDoc(doc)) throw new Error("The project history is inconsistent.");
     const next = { ...library, activeProjectId: null };
     tx.setWorkingCopy(doc, target);
     if (library.activeProjectId) tx.set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
+  });
+}
+
+/** Advance only the matching draft's base. Keep edits saved during publication. */
+export async function advanceFolderDraft(target: FolderDraft, match: FolderDraftMatch): Promise<ProjectLibrarySnapshot | undefined> {
+  return mutateLibrary<ProjectLibrarySnapshot | undefined>(async (library, tx) => {
+    const doc = parseProjectDoc(tx.current);
+    if (!doc) throw new Error("The working draft is unreadable and has been preserved.");
+    const next = { ...library, activeProjectId: null };
+    tx.setWorkingCopy(doc, target);
+    if (library.activeProjectId) tx.set(PROJECT_LIBRARY_KEY, next);
+    return toSnapshot(next);
+  }, false, {
+    otherwise: undefined,
+    matches: tx => {
+      if ("requestId" in match) return tx.folderSaveRequest === match.requestId;
+      const base = tx.folderDraft;
+      return base?.connectionId === match.base.connectionId && base.projectId === match.base.projectId && base.revision === match.base.revision;
+    },
   });
 }
 

@@ -29,6 +29,7 @@ export const folderDraftSchema = z.object({
   connectionId: z.uuid(), projectId: projectIdSchema, revision: revisionIdSchema, name: projectNameSchema,
 });
 export type FolderDraft = z.infer<typeof folderDraftSchema>;
+export type FolderDraftMatch = { requestId: string } | { base: FolderDraft };
 
 function connection(value: DirectoryHandle | SavedConnection): SavedConnection {
   return "directory" in value ? value : { directory: value, parentName: value.name };

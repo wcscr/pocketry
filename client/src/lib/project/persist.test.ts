@@ -23,6 +23,7 @@ vi.mock("idb-keyval", () => ({
 
 import {
   createDebouncedProjectSaver,
+  advanceFolderDraft,
   deleteProjectFromLibrary,
   duplicateProjectInLibrary,
   exportProjectLibrary,
@@ -123,16 +124,40 @@ describe("current project persistence", () => {
     vi.resetModules();
     const reloaded = await import("./persist");
     expect(await reloaded.loadProjectDoc()).toEqual(WIDE_DOC);
-    expect(await reloaded.saveFolderDraft(DOC, target, "different-save")).toBeUndefined();
+    expect(await reloaded.advanceFolderDraft(target, { requestId: "different-save" })).toBeUndefined();
     expect(await reloaded.loadProjectDoc()).toEqual(WIDE_DOC);
-    await reloaded.saveFolderDraft(WIDE_DOC, target, "first-save");
+    await reloaded.advanceFolderDraft(target, { requestId: "first-save" });
     expect(await reloaded.readProjectOverview()).toMatchObject({ doc: WIDE_DOC, folderDraft: target });
-    expect(await reloaded.saveFolderDraft(DOC, target, "first-save")).toBeUndefined();
+    expect(await reloaded.advanceFolderDraft(target, { requestId: "first-save" })).toBeUndefined();
 
     await reloaded.prepareFolderSave(WIDE_DOC, "make-copy");
     await reloaded.startNewProject(DOC);
-    expect(await reloaded.saveFolderDraft(WIDE_DOC, target, "make-copy")).toBeUndefined();
+    expect(await reloaded.advanceFolderDraft(target, { requestId: "make-copy" })).toBeUndefined();
     expect(await reloaded.readProjectOverview()).toMatchObject({ doc: DOC });
+  });
+
+  it("advances a renamed folder project's base without replacing current draft edits", async () => {
+    const base = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "tray",
+      revision: "a".repeat(64), name: "Tray" };
+    const renamed = { ...base, revision: "b".repeat(64), name: "Renamed tray" };
+    await saveFolderDraft(DOC, base);
+    expect(await saveProjectDoc(WIDE_DOC, null)).toBe(true);
+    expect(await advanceFolderDraft(renamed, { base })).toBeDefined();
+    expect(await advanceFolderDraft(base, { base })).toBeUndefined();
+    vi.resetModules();
+    const reloaded = await import("./persist");
+    expect(await reloaded.readProjectOverview()).toMatchObject({ doc: WIDE_DOC, folderDraft: renamed });
+  });
+
+  it("leaves another tab's working copy and autosave ownership intact after a folder save", async () => {
+    const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "tray",
+      revision: "a".repeat(64), name: "Tray" };
+    await prepareFolderSave(DOC, "older-save");
+    // An independent tab writes a new working draft during the folder write.
+    await set("tooltrace:project:v1", WIDE_DOC);
+    expect(await advanceFolderDraft(target, { requestId: "older-save" })).toBeUndefined();
+    expect(await saveProjectDoc(DOC, null)).toBe(false);
+    expect(await readProjectOverview()).toEqual({ doc: WIDE_DOC, activeProjectId: null });
   });
 
   it("restores a folder draft and its pinned revision together, then clears the link on a new project", async () => {

@@ -72,6 +72,12 @@ const corruption = (message: string, details?: Record<string, unknown>) => new L
 const limit = (message: string, details?: Record<string, unknown>) => new LibraryError("resource-limit", message, details);
 const sorted = (values: Iterable<string>) => [...values].sort();
 
+function checkPublicationCapacity(index: FolderIndex, count: number, bytes: number): void {
+  const revisionCount = index.revisions.size + [...index.pending.values()].reduce((total, list) => total + list.length, 0);
+  if (revisionCount + count > FOLDER_LIMITS.revisions || index.entries + count > FOLDER_LIMITS.entries ||
+      index.scanBytes + bytes > FOLDER_LIMITS.scanBytes) throw limit("The publication would exceed the folder limits.");
+}
+
 /** Pack normalized snapshots into compatible v2 revision files. Reserve room
  * for the longest request ID and fingerprint used by any caller. */
 export function partitionFolderChanges(changes: readonly Change[]): Change[][] {
@@ -280,6 +286,17 @@ export class ConnectedLibrary {
     return hasCompletedLegacyRecovery((await this.scan()).requests);
   }
 
+  /** A new transfer must fit before its first revision is published. Each
+   * batch still validates capacity again in case another writer uses it. */
+  async checkTransferCapacity(requestId: string, batches: readonly Change[][]): Promise<void> {
+    const index = await this.scan();
+    const bytes = batches.reduce((total, changes, batch) => total + encode(canonicalJson({
+      format: "pocketry-folder-revision", version: FOLDER_FORMAT_VERSION,
+      requestId: `${requestId}:${batch + 1}`, fingerprint: "x".repeat(64), changes,
+    })).byteLength, 0);
+    checkPublicationCapacity(index, batches.length, bytes);
+  }
+
   /** Portable backup of the visible named projects, pinned to one folder scan. */
   async backup({ omitHistory = false }: LibraryBackupOptions = {}): Promise<LibraryBackup> {
     const index = await this.scan();
@@ -481,10 +498,7 @@ export class ConnectedLibrary {
         throw new LibraryError("stale-base", "The expected project heads have changed. Review the current revisions before saving.", { projectId: change.projectId, expected: change.parents, actual });
       }
     }
-    const alreadyCounted = pending.includes(revision);
-    const revisionCount = index.revisions.size + [...index.pending.values()].reduce((total, list) => total + list.length, 0);
-    if ((!alreadyCounted && (revisionCount >= FOLDER_LIMITS.revisions || index.entries >= FOLDER_LIMITS.entries)) ||
-        index.scanBytes + bytes.byteLength > FOLDER_LIMITS.scanBytes) throw limit("The publication would exceed the folder limits.");
+    checkPublicationCapacity(index, pending.includes(revision) ? 0 : 1, bytes.byteLength);
     // Ensure the next scan can read our own write, including the depth bound.
     const indexed: Revision = {
       id: revision, file: name, requestId: value.requestId, fingerprint, updatedAt: "",
