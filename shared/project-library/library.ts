@@ -1,6 +1,6 @@
 import { LIBRARY_FILE_MAX_BYTES, withinImportLimits } from "../gridfinity/import-limits";
-import { PROJECT_LIBRARY_VERSION, type LibraryBackup } from "../gridfinity/library";
-import { serializeProjectDoc } from "../gridfinity/project";
+import { PROJECT_LIBRARY_VERSION, type LibraryBackup, type LibraryBackupOptions } from "../gridfinity/library";
+import { serializeProjectDoc, withoutProjectHistory } from "../gridfinity/project";
 import { PublicationRejected, type LibraryFolder } from "./adapter";
 import {
   assignedProjectId, canonicalJson, digest, encode, FOLDER_FORMAT_VERSION, FOLDER_LIMITS, inputFingerprint, legacyRevisionId, LegacyFolderError, LibraryError,
@@ -250,7 +250,7 @@ export class ConnectedLibrary {
   }
 
   /** Portable backup of the visible named projects, pinned to one folder scan. */
-  async backup(): Promise<LibraryBackup> {
+  async backup({ omitHistory = false }: LibraryBackupOptions = {}): Promise<LibraryBackup> {
     const index = await this.scan();
     if ([...index.projects.values()].some(project => project.conflicted)) {
       throw new LibraryError("conflict", "Resolve competing folder revisions before exporting the library.");
@@ -270,7 +270,7 @@ export class ConnectedLibrary {
       const publication = await this.readPublication(revision);
       for (const projectId of projects) {
         const { name, updatedAt, doc } = this.readChange(revision, publication, projectId);
-        const project = { id: projectId, name, updatedAt, doc: serializeProjectDoc(doc) };
+        const project = { id: projectId, name, updatedAt, doc: serializeProjectDoc(omitHistory ? withoutProjectHistory(doc) : doc) };
         bytes += encode(JSON.stringify(project)).byteLength + 1;
         if (bytes > LIBRARY_FILE_MAX_BYTES) throw limit("The folder library is too large for a portable backup. Export projects individually.");
         backup.projects.push(project);

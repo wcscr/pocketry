@@ -49,7 +49,7 @@ it("keeps a published request recoverable when removing its browser metadata fai
     function Harness() {
       const library = useFolderLibrary();
       return <FolderLibraryContent library={library} active={null} busy={false}
-        hasDraft={false} onOpen={vi.fn()} onOpened={vi.fn()} onExportDraft={vi.fn()}
+        hasDraft={false} onOpen={vi.fn()} onOpened={vi.fn()} onExportDraft={vi.fn()} onExportCompact={vi.fn()}
         onResume={async intent => { await library.resume(intent, vi.fn()); }}
         onSave={() => void library.save(doc, doc.name)} />;
     }

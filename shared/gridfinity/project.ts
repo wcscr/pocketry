@@ -225,6 +225,12 @@ const legacyProjectSchemas = [1, 2, 3, 4, 5, 6].map((schemaVersion) =>
 
 export type ProjectDoc = z.infer<typeof projectDocSchema>;
 
+/** An editable copy at the saved undo cursor with the current design intact. */
+export function withoutProjectHistory(doc: ProjectDoc): ProjectDoc {
+  const { history: _history, ...snapshot } = doc;
+  return snapshot;
+}
+
 type LegacyProjectDoc = z.infer<(typeof legacyProjectSchemas)[number]>;
 
 /** Recover the last finite depth before Through discarded it. History is walked

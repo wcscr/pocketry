@@ -4,6 +4,7 @@
 
 - Enable experimental local folder storage in App settings, then connect or restore access directly from Library. Library uses compact project actions and shows the current storage mode.
 - Resume the same folder project and draft after reload. Recover interrupted saves and older folder libraries from Library.
+- Export a compact copy of a saved bin project or the full Library without undo and redo history.
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
 - Reserve a project for one automation worker at a time with a local edit lock that releases when the worker exits.
 

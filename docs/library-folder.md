@@ -22,6 +22,13 @@ Library backups and imports use the selected storage. Importing a backup into
 the folder adds up to 100 projects per operation. Individual project JSON
 backups open in either mode.
 
+Use **Export compact copy** on a saved project row, or **Library → Settings →
+Export compact library** for all saved projects in the selected storage. Compact
+downloads preserve the current designs, including shapes, materials, labels,
+and placement data. Undo and redo start fresh when you reopen them. The saved
+projects and folder revisions remain available. Regular library exports keep
+undo and redo history.
+
 A completed folder save is a named snapshot. Pointer gestures and uncommitted
 fields need to be finished before opening the dialog to save them. The save
 uses the editor’s committed design and undo history as shown at that point.

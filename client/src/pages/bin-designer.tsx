@@ -3,7 +3,7 @@ import { DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_ULTIM8_FOOTPRINT_MM, ultim8De
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { useLocation } from "wouter";
-import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { IMPORT_LIMIT_ERROR, LIBRARY_FILE_MAX_BYTES, PROJECT_FILE_MAX_BYTES, readImportJson, withinImportLimits } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
 import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
@@ -44,6 +44,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
   PROJECT_SCHEMA_VERSION,
+  withoutProjectHistory,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
@@ -84,6 +85,7 @@ import {
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
+  readSavedProject,
   renameProjectInLibrary,
   prepareFolderSave, saveFolderDraft,
   saveProjectDoc,
@@ -91,7 +93,7 @@ import {
   startNewProject,
   type ProjectLibrarySnapshot,
 } from "@/lib/project/persist";
-import type { LibraryImportMode } from "@shared/gridfinity/library";
+import type { LibraryBackup, LibraryImportMode } from "@shared/gridfinity/library";
 import { cn } from "@/lib/utils";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 import {
@@ -670,17 +672,43 @@ function BinDesignerWorkspace(): JSX.Element {
     });
   }, [currentProjectDoc, currentProjectName, toast]);
 
-  const handleExportLibrary = useCallback(async () => {
+  const exportCompactProject = useCallback((doc: ProjectDoc, name: string) => {
+    const project = prepareProjectExport(withoutProjectHistory(doc), name, "compact");
+    if (project.backup.size > PROJECT_FILE_MAX_BYTES) throw new Error("The compact project is still too large for a portable backup.");
+    downloadBlob(project.backup, `${project.baseName}.pocketry.json`);
+    toast({ title: "Compact copy exported" });
+  }, [toast]);
+
+  const handleExportCompactProject = useCallback(async (projectId: string) => {
     setProjectBusy(true);
     try {
-      const backup = libraryStorage === "folder" ? await folderLibrary.exportBackup()
-        : await exportProjectLibrary(bin.hydrated ? currentProjectDoc : undefined);
+      const { doc, name } = await readSavedProject(projectId);
+      exportCompactProject(doc, name);
+    } catch (cause) {
+      toast({ title: "Could not export compact copy", description: cause instanceof Error ? cause.message : undefined, variant: "destructive" });
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [exportCompactProject, toast]);
+
+  const handleExportLibrary = useCallback(async (omitHistory = false) => {
+    setProjectBusy(true);
+    try {
+      const draft = bin.hydrated ? currentProjectDoc : undefined;
+      let backup: LibraryBackup | undefined;
+      if (libraryStorage === "folder") backup = await folderLibrary.exportBackup(omitHistory);
+      else if (omitHistory) backup = await exportProjectLibrary(draft, { omitHistory: true });
+      else backup = await exportProjectLibrary(draft);
       if (!backup) throw new Error("Open Library to check the local folder before exporting again.");
+      const file = new Blob([JSON.stringify(backup, null, libraryStorage === "folder" || omitHistory ? undefined : 2)], { type: "application/json" });
+      if (omitHistory && libraryStorage === "browser" && (file.size > LIBRARY_FILE_MAX_BYTES || !withinImportLimits(backup, true))) {
+        throw new Error("The compact library is still too large for a portable backup. Export projects individually.");
+      }
       downloadBlob(
-        new Blob([libraryStorage === "folder" ? JSON.stringify(backup) : JSON.stringify(backup, null, 2)], { type: "application/json" }),
-        `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+        file,
+        `pocketry-library-${omitHistory ? "compact-" : ""}${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
       );
-      toast({ title: "Library exported", description: `${backup.projects.length} named designs exported as JSON.` });
+      toast({ title: omitHistory ? "Compact library exported" : "Library exported", description: `${backup.projects.length} named designs exported as JSON.` });
     } catch (cause) {
       toast({ title: "Could not export library", description: cause instanceof Error ? cause.message : "The library could not be read.", variant: "destructive" });
     } finally {
@@ -1303,11 +1331,13 @@ function BinDesignerWorkspace(): JSX.Element {
           renderFolderLibrary={({ onOpened, onSave, hasDraft }) => <FolderLibraryContent
             library={folderLibrary} active={folderProject} busy={!bin.hydrated || projectBusy}
             hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened}
-            onSave={onSave} onResume={handleResumeFolderSave} onExportDraft={handleExportProject} />}
+            onSave={onSave} onResume={handleResumeFolderSave} onExportDraft={handleExportProject} onExportCompact={exportCompactProject} />}
           renderFolderLibrarySettings={onRecovered => <FolderLibrarySettings library={folderLibrary} busy={!bin.hydrated || projectBusy}
             onRecover={async () => { if (await folderLibrary.recoverLegacy()) onRecovered(); }} />}
           openedInFolder={experimentalEnabled && !!folderProject}
           onExportLibrary={() => void handleExportLibrary()}
+          onExportCompactLibrary={() => void handleExportLibrary(true)}
+          onExportCompactProject={handleExportCompactProject}
           onImportLibrary={handleImportLibrary}
           onNewProject={handleNewProject}
           section={section}

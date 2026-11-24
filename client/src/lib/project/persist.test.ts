@@ -2,7 +2,7 @@ import "@/lib/project/mock-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
 
-import { PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
+import { parseProjectDoc, PROJECT_SCHEMA_VERSION, type ProjectDoc } from "@shared/gridfinity/project";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import airdusterV9 from "@shared/gridfinity/fixtures/airduster-v9.pocketry.json";
@@ -24,12 +24,14 @@ import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
   duplicateProjectInLibrary,
+  exportProjectLibrary,
   importProjectToLibrary,
   loadProjectDoc,
   readProjectOverview,
   loadProjectLibrary,
   openProjectFromLibrary,
   prepareFolderSave,
+  readSavedProject,
   ProjectNameConflictError,
   renameProjectInLibrary,
   saveFolderDraft,
@@ -61,6 +63,38 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("reads one project and exports a compact library without replacing the working copy or deleting its undo and redo", async () => {
+    const bin = { spec: DOC.spec, cutouts: DOC.cutouts, fingerHoles: DOC.fingerHoles };
+    const history = { index: 1, stack: [
+      { doc: bin, label: "Original" }, { doc: { ...bin, spec: WIDE_DOC.spec }, label: "Widen" }, { doc: bin, label: "Narrow again" },
+    ] };
+    const saved = await saveProjectToLibrary({ ...WIDE_DOC, history }, "Socket tray", null);
+    const id = saved.activeProjectId!;
+    await startNewProject(DOC);
+    const stored = await readSavedProject(id);
+    const normal = await exportProjectLibrary();
+    const compact = await exportProjectLibrary(undefined, { omitHistory: true });
+    expect(stored).toMatchObject({ name: "Socket tray", doc: { history, spec: { gridX: 4 } } });
+    expect(compact.projects).toHaveLength(1);
+    const [project] = compact.projects;
+    const { history: _history, ...snapshot } = stored.doc;
+    expect(parseProjectDoc(project.doc)).toEqual(snapshot);
+    expect(project).toMatchObject({ id, name: stored.name });
+    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(normal).length);
+    expect(await exportProjectLibrary()).toEqual(normal);
+    expect(await loadProjectDoc()).toEqual(DOC);
+    expect((await loadProjectLibrary()).activeProjectId).toBeNull();
+  });
+
+  it("reports unreadable projects when a compact library cannot omit every history", async () => {
+    const future = { schemaVersion: PROJECT_SCHEMA_VERSION + 1, history: { stack: ["unknown"] } };
+    memory.set("tooltrace:project-library:v1", { schemaVersion: 1, activeProjectId: null,
+      projects: [{ id: "future", name: "Newer bin", updatedAt: new Date(0).toISOString(), doc: future }] });
+    await loadProjectDoc();
+    await expect(exportProjectLibrary(undefined, { omitHistory: true })).rejects.toThrow("Could not compact “Newer bin”");
+    expect((await exportProjectLibrary()).projects[0].doc).toEqual(future);
+  });
+
   it("retains the first folder save identity with later edits across reload, and clears it on project switches", async () => {
     const target = { connectionId: "c4ccffa3-afc6-4590-b914-3325d870774e", projectId: "workshop-bin",
       revision: "a".repeat(64), name: "Workshop bin" };

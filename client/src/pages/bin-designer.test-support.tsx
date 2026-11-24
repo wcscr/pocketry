@@ -181,6 +181,7 @@ vi.mock("@/lib/project/persist", () => ({
   saveProjectToLibrary: vi.fn(),
   renameProjectInLibrary: vi.fn(),
   openProjectFromLibrary: vi.fn(),
+  readSavedProject: vi.fn(),
   deleteProjectFromLibrary: vi.fn(),
   duplicateProjectInLibrary: vi.fn(),
   exportProjectLibrary: vi.fn(),

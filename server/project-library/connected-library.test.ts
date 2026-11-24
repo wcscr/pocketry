@@ -249,13 +249,27 @@ it("backs up the current named documents from a single observed set of heads", a
   const adapter = await NodeLibraryFolder.connect(root);
   const library = new ConnectedLibrary(adapter);
   const second = folderFixture("Second tray", 3);
+  const { spec, cutouts, fingerHoles } = second;
+  const bin = { spec, cutouts, fingerHoles };
+  const history = { index: 1, stack: [
+    { doc: { ...bin, spec: folderFixture("Second tray", 2).spec }, label: "First" },
+    { doc: bin, label: "Change columns" },
+    { doc: { ...bin, spec: folderFixture("Second tray", 4).spec }, label: "Change columns again" },
+  ] };
   await library.commit({ requestId: "backup-two", changes: [
     ...save("backup-two").changes,
-    { projectId: "second", name: second.name, parents: [], doc: second },
+    { projectId: "second", name: second.name, parents: [], doc: { ...second, history } },
   ] });
   const backup = await library.backup();
   expect(backup).toMatchObject({ format: "pocketry-library", schemaVersion: 1, projects: [
     { id: "second", name: second.name, doc: { name: second.name, spec: { compartments: { columns: 3 } } } },
     { id: "socket-bin", name: "Socket bin" },
   ] });
+  const compact = await library.backup({ omitHistory: true });
+  const [{ doc: full }, first] = backup.projects;
+  const { history: serializedHistory, ...current } = full;
+  expect(serializedHistory).toBeDefined();
+  expect(compact.projects).toEqual([{ ...backup.projects[0], doc: current }, first]);
+  expect(await library.backup()).toEqual(backup);
+  expect((await library.read("second")).doc.history).toMatchObject({ index: 1, stack: [{}, {}, {}] });
 });

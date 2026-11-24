@@ -1,5 +1,5 @@
 import { Portal } from "@radix-ui/react-tooltip";
-import { Copy, FolderOpen, Pencil, Trash2, type LucideIcon } from "lucide-react";
+import { Copy, FileDown, FolderOpen, Pencil, Trash2, type LucideIcon } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const actions = {
   open: { icon: FolderOpen, hint: "Open project" },
   copy: { icon: Copy, hint: "Copy project" },
+  compact: { icon: FileDown, hint: "Export compact copy without undo or redo history" },
   rename: { icon: Pencil, hint: "Rename project" },
   remove: { icon: Trash2, hint: "Remove project" },
 };

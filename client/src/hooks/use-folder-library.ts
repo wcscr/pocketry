@@ -210,10 +210,10 @@ export function useFolderLibrary(enabled = true) {
     if (outcome.status === "published") return changes.length;
   });
 
-  const openProject = (projectId: string, revision: string, open: (doc: ProjectDoc, target: FolderDraft) => Promise<void>) => run(async () => {
+  const withProject = (projectId: string, revision: string, useProject: (doc: ProjectDoc, target: FolderDraft) => void | Promise<void>) => run(async () => {
     if (!folder) return;
     const value = await new ConnectedLibrary(folder).read(projectId, revision);
-    await open(value.doc, { connectionId: folder.id, projectId, revision: value.revision, name: value.name });
+    await useProject(value.doc, { connectionId: folder.id, projectId, revision: value.revision, name: value.name });
     return true;
   });
 
@@ -235,7 +235,7 @@ export function useFolderLibrary(enabled = true) {
 
   return {
     supported, folder, projects, pending, canWrite, legacyFolder, canRecoverLegacy: legacyFolder || mixedFolder,
-    busy, message, error, refresh, save, copyBrowserProjects, openProject, changeProject,
+    busy, message, error, refresh, save, copyBrowserProjects, withProject, changeProject,
     importBackup,
     recoverLegacy: () => run(async () => {
       if (!folder || (!legacyFolder && !mixedFolder)) return;
@@ -257,9 +257,9 @@ export function useFolderLibrary(enabled = true) {
       setMessage("Projects recovered to your local folder.");
       return true;
     }),
-    exportBackup: () => run(async () => {
+    exportBackup: (omitHistory = false) => run(async () => {
       if (!folder || !await folder.canWrite()) throw new LibraryError("permission", "Restore folder access in Library before exporting.");
-      return new ConnectedLibrary(folder).backup();
+      return new ConnectedLibrary(folder).backup({ omitHistory });
     }),
     disconnect: () => run(async () => { await BrowserLibraryFolder.disconnect(); await load(null); return true; }),
     connect: () => run(async () => { const selected = await BrowserLibraryFolder.choose(); await load(selected); return selected; }),

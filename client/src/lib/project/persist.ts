@@ -9,6 +9,7 @@ import {
   PROJECT_LIBRARY_VERSION,
   PROJECT_NAME_MAX_LENGTH,
   type LibraryBackup,
+  type LibraryBackupOptions,
   type LibraryImportMode,
   type StoredProject,
   type StoredProjectLibrary,
@@ -19,6 +20,7 @@ import {
   PROJECT_SCHEMA_VERSION,
   projectDocSchema,
   serializeProjectDoc,
+  withoutProjectHistory,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
@@ -299,15 +301,20 @@ export async function loadProjectLibrary(restoredDoc?: ProjectDoc | null): Promi
 /** Include pending edits to the active named project without waiting for autosave.
  * Unsupported stored documents are included verbatim, never silently omitted.
  */
-export async function exportProjectLibrary(currentDoc?: ProjectDoc): Promise<LibraryBackup> {
+export async function exportProjectLibrary(currentDoc?: ProjectDoc, { omitHistory = false }: LibraryBackupOptions = {}): Promise<LibraryBackup> {
   return mutateLibrary(async (library) => ({
     format: "pocketry-library",
     schemaVersion: PROJECT_LIBRARY_VERSION,
-    projects: library.projects.map((project) =>
-      currentDoc && project.id === library.activeProjectId
-        ? { ...project, doc: serializeProjectDoc({ ...currentDoc, name: project.name }), updatedAt: new Date().toISOString() }
-        : { ...project, doc: compactDocument(project.doc) as Record<string, unknown> },
-    ),
+    projects: library.projects.map(project => {
+      if (currentDoc && project.id === library.activeProjectId) {
+        const doc = { ...currentDoc, name: project.name };
+        return { ...project, doc: serializeProjectDoc(omitHistory ? withoutProjectHistory(doc) : doc), updatedAt: new Date().toISOString() };
+      }
+      if (!omitHistory) return { ...project, doc: compactDocument(project.doc) as Record<string, unknown> };
+      const doc = parseProjectDoc(project.doc);
+      if (!doc) throw new Error(`Could not compact “${project.name}”. Export a full library backup to include it.`);
+      return { ...project, doc: serializeProjectDoc(withoutProjectHistory(doc)) };
+    }),
   }));
 }
 
@@ -546,6 +553,17 @@ export async function renameProjectInLibrary(
     tx.set(PROJECT_LIBRARY_KEY, next);
     return toSnapshot(next);
   });
+}
+
+/** A backup uses the saved snapshot without opening it or taking ownership of the working copy. */
+export async function readSavedProject(projectId: string): Promise<{ doc: ProjectDoc; name: string }> {
+  return mutateLibrary(async library => {
+    const stored = library.projects.find(project => project.id === projectId);
+    if (!stored) throw new Error("That project is no longer in this browser's library.");
+    const doc = parseProjectDoc(stored.doc);
+    if (!doc) throw new Error("That project could not be read in this Pocketry version.");
+    return { doc, name: stored.name };
+  }, true);
 }
 
 export async function openProjectFromLibrary(

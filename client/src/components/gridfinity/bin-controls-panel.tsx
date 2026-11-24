@@ -40,6 +40,7 @@ import {
   Copy,
   Download,
   Eye,
+  FileDown,
   FilePlus2,
   FolderOpen,
   LayoutGrid,
@@ -257,6 +258,8 @@ export interface BinControlsPanelProps {
   renderFolderLibrarySettings?: (onRecovered: () => void) => React.ReactNode;
   openedInFolder?: boolean;
   onExportLibrary: () => void;
+  onExportCompactLibrary: () => void;
+  onExportCompactProject: (projectId: string) => Promise<void>;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: (saveDraftName?: string, fixture?: boolean) => Promise<boolean>;
   section: BuildBinSection | null;
@@ -333,6 +336,8 @@ export function BinControlsPanel({
   renderFolderLibrarySettings,
   openedInFolder,
   onExportLibrary,
+  onExportCompactLibrary,
+  onExportCompactProject,
   onImportLibrary,
   onNewProject,
   section,
@@ -2676,6 +2681,8 @@ export function BinControlsPanel({
             renderFolderLibrarySettings={renderFolderLibrarySettings}
             openedInFolder={openedInFolder}
             onExportLibrary={onExportLibrary}
+            onExportCompactLibrary={onExportCompactLibrary}
+            onExportCompactProject={onExportCompactProject}
             onImportLibrary={onImportLibrary}
             onNewProject={onNewProject}
             onExportProject={onExportProject}
@@ -2955,6 +2962,8 @@ interface ProjectControlsProps {
   renderFolderLibrarySettings?: (onRecovered: () => void) => React.ReactNode;
   openedInFolder?: boolean;
   onExportLibrary: () => void;
+  onExportCompactLibrary: () => void;
+  onExportCompactProject: (projectId: string) => Promise<void>;
   onImportLibrary: (file: File, mode: LibraryImportMode) => Promise<boolean>;
   onNewProject: (saveDraftName?: string, fixture?: boolean) => Promise<boolean>;
   onExportProject: () => void;
@@ -2993,6 +3002,8 @@ function ProjectControls({
   renderFolderLibrarySettings,
   openedInFolder,
   onExportLibrary,
+  onExportCompactLibrary,
+  onExportCompactProject,
   onImportLibrary,
   onNewProject,
   onExportProject,
@@ -3377,8 +3388,8 @@ function ProjectControls({
                     void openLibraryProject();
                   }}
                 >
-                  <div className="flex min-w-0 items-center gap-1.5" data-testid={`library-project-name-${project.id}`}>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium [@media(pointer:coarse)]:line-clamp-2 [@media(pointer:coarse)]:whitespace-normal [@media(pointer:coarse)]:break-words" title={`${project.name}\n${updated}`}>
+                  <div className="flex min-w-0 items-center gap-1.5 max-[380px]:flex-wrap" data-testid={`library-project-name-${project.id}`}>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium max-[380px]:basis-full [@media(pointer:coarse)]:line-clamp-2 [@media(pointer:coarse)]:whitespace-normal [@media(pointer:coarse)]:break-words" title={`${project.name}\n${updated}`}>
                       {project.name}
                     </p>
                     <div className="flex shrink-0 items-center">
@@ -3393,6 +3404,9 @@ function ProjectControls({
                           event.currentTarget.closest<HTMLElement>('[role="group"]')?.focus();
                           void onDuplicateProject(project.id);
                         }} />
+                      <LibraryProjectAction action="compact" disabled={!ready || busy || !!project.unavailable}
+                        label={`Export compact copy of ${project.name}`} data-testid={`button-export-compact-project-${project.id}`}
+                        onClick={() => void onExportCompactProject(project.id)} />
                       <LibraryProjectAction action="rename" disabled={!ready || busy || !!project.unavailable}
                         label={`Rename ${project.name}`} data-testid={`button-rename-project-${project.id}`}
                         onClick={() => { returnToLibrary.current = true; setProjectName(project.name); setLibraryOpen(false); setRenameProjectId(project.id); }} />
@@ -3466,15 +3480,19 @@ function ProjectControls({
         {(!usingFolder || (libraryStorage?.folderName && !libraryStorage.legacyFolder)) && <div className="shrink-0 space-y-1.5 border-t pt-3" data-testid="library-file-backup">
           <div className="flex items-center justify-between gap-2">
             <SettingLabel label="Library backups" hint={usingFolder
-              ? "Export the saved folder projects as one JSON file, or import a backup as new projects in the connected folder."
-              : "Exports every named project saved in this browser as one JSON file. Unnamed drafts are not included. Import lets you merge with this library or replace it. Your current design stays open; duplicate names receive an imported suffix when merging."} />
+              ? "Export the saved folder projects as one JSON file, or import a backup as new projects in the connected folder. Compact exports leave out undo and redo history."
+              : "Export named browser projects as one JSON file. Compact exports leave out undo and redo history. Import lets you merge the backup into this library or replace it."} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy || folderBusy}
               onClick={onExportLibrary} data-testid="button-export-library">
               <Download className="h-3.5 w-3.5 shrink-0" />Export library
             </Button>
-            <Button size="sm" variant="outline" className={projectActionClass} disabled={!ready || busy || folderBusy || folderSaveBlocked}
+            <Button size="sm" variant="outline" className={projectActionClass} disabled={!libraryReady || busy || folderBusy}
+              onClick={onExportCompactLibrary} data-testid="button-export-compact-library">
+              <FileDown className="h-3.5 w-3.5 shrink-0" />Export compact library
+            </Button>
+            <Button size="sm" variant="outline" className={cn(projectActionClass, "col-span-2 sm:col-span-1")} disabled={!ready || busy || folderBusy || folderSaveBlocked}
               onClick={() => libraryImportInputRef.current?.click()} data-testid="button-import-library">
               <Upload className="h-3.5 w-3.5 shrink-0" />Import library
             </Button>

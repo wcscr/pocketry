@@ -21,9 +21,10 @@ interface Props {
   onSave: () => void;
   onResume: (intent: FolderIntent) => Promise<void>;
   onExportDraft: () => void;
+  onExportCompact: (doc: ProjectDoc, name: string) => void;
 }
 
-export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onSave, onResume, onExportDraft }: Props) {
+export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, onOpened, onSave, onResume, onExportDraft, onExportCompact }: Props) {
   const [selection, setSelection] = useState<(Project & { action: "open" | "rename" | "remove" }) | null>(null);
   const [name, setName] = useState("");
   const disabled = busy || library.busy;
@@ -32,7 +33,7 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
   const finish = async () => {
     if (!selection) return;
     const { action, projectId, revision } = selection;
-    const completed = action === "open" ? await library.openProject(projectId, revision, onOpen)
+    const completed = action === "open" ? await library.withProject(projectId, revision, onOpen)
       : await library.changeProject(projectId, revision, action === "rename" ? { kind: action, name } : { kind: action });
     if (completed) {
       setSelection(null);
@@ -71,8 +72,8 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
             const target = { projectId: project.projectId, ...head };
             const selected = selection?.projectId === project.projectId && selection.revision === head.revision;
             return <div key={head.revision} className="space-y-2">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5 max-[380px]:flex-wrap">
+                <div className="min-w-0 flex-1 max-[380px]:basis-full">
                   <p className="truncate text-sm font-medium [@media(pointer:coarse)]:line-clamp-2 [@media(pointer:coarse)]:whitespace-normal [@media(pointer:coarse)]:break-words" title={head.name}>{head.name}</p>
                   {project.conflicted && <p className="text-xs text-muted-foreground">{head.revision.slice(0, 12)}</p>}
                 </div>
@@ -81,11 +82,13 @@ export function FolderLibraryContent({ library, active, busy, hasDraft, onOpen, 
                     label={current ? `${head.name} is currently open` : `Open ${head.name}`}
                     onClick={() => {
                       if (hasDraft) setSelection({ ...target, action: "open" });
-                      else void library.openProject(project.projectId, head.revision, onOpen).then(opened => { if (opened) onOpened(); });
+                      else void library.withProject(project.projectId, head.revision, onOpen).then(opened => { if (opened) onOpened(); });
                     }} />
+                  {!project.conflicted && <LibraryProjectAction action="copy" disabled={blockedWrite}
+                    label={`Copy ${head.name}`} onClick={() => void library.changeProject(project.projectId, head.revision, { kind: "copy" })} />}
+                  <LibraryProjectAction action="compact" disabled={disabled} label={`Export compact copy of ${head.name}`}
+                    onClick={() => void library.withProject(project.projectId, head.revision, (doc, target) => onExportCompact(doc, target.name))} />
                   {!project.conflicted && <>
-                    <LibraryProjectAction action="copy" disabled={blockedWrite}
-                      label={`Copy ${head.name}`} onClick={() => void library.changeProject(project.projectId, head.revision, { kind: "copy" })} />
                     <LibraryProjectAction action="rename" disabled={blockedWrite || current}
                       label={`Rename ${head.name}`} onClick={() => { setName(head.name); setSelection({ ...target, action: "rename" }); }} />
                     <LibraryProjectAction action="remove" disabled={blockedWrite || currentProject?.projectId === project.projectId}

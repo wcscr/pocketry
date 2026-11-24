@@ -837,7 +837,7 @@ describe("BinDesignerPage", () => {
       const folderRow = document.querySelector('[aria-label="Projects in local folder"] li')!;
       expect(folderRow.textContent).toBe("Folder project");
       expect([...folderRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
-        "Folder project is currently open", "Copy Folder project", "Rename Folder project", "Remove Folder project",
+        "Folder project is currently open", "Copy Folder project", "Export compact copy of Folder project", "Rename Folder project", "Remove Folder project",
       ]);
 
       await click(button("Save current project"));
@@ -863,6 +863,84 @@ describe("BinDesignerPage", () => {
     } finally {
       unmount();
       for (const mock of [commit, list, browse, pick, ...mocks]) mock.mockRestore();
+    }
+  });
+
+  it.each(["browser", "folder"] as const)("downloads a compact project and library from %s storage", async mode => {
+    vi.stubGlobal("crypto", webcrypto);
+    localStorage.setItem("pocketry:library-storage", mode);
+    const id = "tray";
+    const name = "Socket tray";
+    const updatedAt = "2026-11-23T00:00:00Z";
+    const revision = "a".repeat(64);
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 });
+    const current = { ...EMPTY_PROJECT, name, spec, materials: { ...DEFAULT_BIN_MATERIALS, binColor: "#445566" } };
+    const bin = { spec, cutouts: current.cutouts, fingerHoles: current.fingerHoles };
+    const doc: ProjectDoc = { ...current, history: { index: 1, stack: [
+      { doc: { ...bin, spec: EMPTY_PROJECT.spec }, label: "Original" }, { doc: bin, label: "Widen" },
+      { doc: { ...bin, spec: EMPTY_PROJECT.spec }, label: "Narrow again" },
+    ] } };
+    const compact = { format: "pocketry-library" as const, schemaVersion: 1 as const, projects: [{ id, name, updatedAt, doc: current }] };
+    const project = { projectId: id, conflicted: false, heads: [{ revision, name, updatedAt, deleted: false }] };
+    const folder = new BrowserLibraryFolder({ name: "Workshop" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
+    const read = vi.spyOn(ConnectedLibrary.prototype, "read").mockResolvedValue({ doc, name, revision, project, updatedAt });
+    const backup = vi.spyOn(ConnectedLibrary.prototype, "backup").mockResolvedValue(compact);
+    const mocks = [read, backup,
+      vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
+      vi.spyOn(BrowserLibraryFolder, "saved").mockResolvedValue(folder),
+      vi.spyOn(folder, "canWrite").mockResolvedValue(true),
+      vi.spyOn(folder, "pending").mockResolvedValue([]),
+      vi.spyOn(ConnectedLibrary.prototype, "browse").mockResolvedValue({ projects: [project], hasPublishedRevisions: true, canRecoverLegacy: false }),
+    ];
+    vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [{ id, name, updatedAt }] });
+    vi.mocked(ProjectPersistence.readSavedProject).mockResolvedValue({ doc, name });
+    vi.mocked(ProjectPersistence.exportProjectLibrary).mockResolvedValue(compact);
+
+    const { container, unmount } = renderPage();
+    const exported = async (index: number) => {
+      const [blob, filename] = vi.mocked(downloadBlob).mock.calls[index];
+      const contents = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsText(blob);
+      });
+      return { contents: JSON.parse(contents), filename };
+    };
+    try {
+      await flushHydration();
+      openSettingsSection(container, "project");
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
+      await React.act(async () => {
+        document.querySelector<HTMLButtonElement>('[aria-label="Export compact copy of Socket tray"]')!.click();
+        await vi.waitFor(() => expect(downloadBlob).toHaveBeenCalledOnce());
+      });
+      const file = await exported(0);
+      expect(file).toMatchObject({ contents: { name, spec: { gridX: 4 }, materials: { binColor: "#445566" } },
+        filename: expect.stringMatching(/Socket-tray-.*-compact-.*\.pocketry\.json$/) });
+      expect(file.contents).not.toHaveProperty("history");
+      expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
+      expect(ProjectPersistence.saveFolderDraft).not.toHaveBeenCalled();
+
+      const settings = openLibrarySettings();
+      const action = settings.querySelector<HTMLButtonElement>('[data-testid="button-export-compact-library"]')!;
+      await React.act(async () => {
+        action.click();
+        await vi.waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(2));
+      });
+      if (mode === "folder") {
+        expect(read).toHaveBeenCalledExactlyOnceWith(id, revision);
+        expect(backup).toHaveBeenCalledExactlyOnceWith({ omitHistory: true });
+      } else {
+        expect(ProjectPersistence.readSavedProject).toHaveBeenCalledExactlyOnceWith(id);
+        expect(ProjectPersistence.exportProjectLibrary).toHaveBeenCalledExactlyOnceWith(expect.anything(), { omitHistory: true });
+      }
+      expect(await exported(1)).toMatchObject({ contents: compact, filename: expect.stringMatching(/^pocketry-library-compact-/) });
+      expect(doc.history?.stack).toHaveLength(3);
+    } finally {
+      unmount();
+      for (const mock of mocks) mock.mockRestore();
+      localStorage.removeItem("pocketry:library-storage");
     }
   });
 
@@ -1538,7 +1616,7 @@ describe("BinDesignerPage", () => {
     const savedRow = picker.querySelector('[data-testid="library-project-name-project-2"]')!;
     expect(savedRow.textContent?.trim()).toBe("Pliers tray");
     expect([...savedRow.querySelectorAll("button")].map(action => action.getAttribute("aria-label"))).toEqual([
-      "Open Pliers tray", "Duplicate Pliers tray", "Rename Pliers tray", "Remove Pliers tray from library",
+      "Open Pliers tray", "Duplicate Pliers tray", "Export compact copy of Pliers tray", "Rename Pliers tray", "Remove Pliers tray from library",
     ]);
     expect(
       (document.querySelector(
