@@ -39,8 +39,61 @@ import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import * as ProjectPersistence from "@/lib/project/persist";
 import { loadSampleLibrary } from "@/lib/project/samples";
+import { AppWelcome } from "@/components/layout/app-welcome";
+
+function renderSampleLink(id: string) {
+  const route = memoryLocation({ path: `/bin?sample=${id}`, record: true });
+  const usePath: typeof route.hook = () => {
+    const [url, navigate] = route.hook();
+    return [url.split("?")[0], navigate];
+  };
+  const useQuery = () => route.hook()[0].split("?")[1] ?? "";
+  render(<Router hook={usePath} searchHook={useQuery}><PanelProvider><ShapeLibraryProvider>
+    <BinDesignerPage /><AppWelcome />
+  </ShapeLibraryProvider></PanelProvider></Router>);
+  return route;
+}
 
 describe("BinDesignerPage", () => {
+
+  it("opens only the linked sample and uses the backup prompt before replacing a draft", async () => {
+    const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(draft);
+    vi.mocked(loadSampleLibrary).mockResolvedValue({
+      ...sampleLibrary,
+      projects: [...sampleLibrary.projects, { ...sampleLibrary.projects[0], id: "other", name: "Other sample" }],
+    });
+    const route = renderSampleLink("sample");
+    await flushHydration();
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("Open a sample design");
+    expect(dialog?.textContent).toContain("Sample tray");
+    expect(dialog?.textContent).not.toContain("Other sample");
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+
+    const choose = async () => React.act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Open sample Sample tray"]')!.click());
+    await choose();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Save or export before continuing?");
+    await React.act(async () => sampleButton("Cancel").click());
+    expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(draft.spec);
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+    await choose();
+    await React.act(async () => sampleButton("Open sample").click());
+    expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(sampleDoc);
+    expect(route.history).toEqual(["/bin"]);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("lets visitors browse all designs when a sample link is unavailable", async () => {
+    vi.mocked(loadSampleLibrary).mockResolvedValue(sampleLibrary);
+    const route = renderSampleLink("missing");
+    await flushHydration();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("This sample is unavailable");
+    await React.act(async () => sampleButton("Browse all samples").click());
+    expect(route.history).toEqual(["/bin"]);
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sample tray");
+    expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
+  });
 
   it("preserves an unnamed draft while browsing or cancelling samples, then saves it before opening a copy", async () => {
     const draft = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3 }) };

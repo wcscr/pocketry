@@ -6,8 +6,9 @@ RUN npm ci --no-audit --no-fund
 COPY client ./client
 COPY shared ./shared
 COPY server/bundled-notices.ts ./server/bundled-notices.ts
+COPY server/sample-catalog.ts ./server/sample-catalog.ts
 COPY licenses/npm ./licenses/npm
-COPY samples/pocketry-sample-library.json ./samples/pocketry-sample-library.json
+COPY samples/pocketry-sample-library.json samples/source-files.json samples/catalog.json ./samples/
 COPY vite.config.ts tsconfig.json tailwind.config.ts postcss.config.js LICENSE NOTICE ./
 RUN ./node_modules/.bin/vite build
 

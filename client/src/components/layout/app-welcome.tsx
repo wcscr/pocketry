@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Box, Camera, ScanLine } from "lucide-react";
 import { usePanelState } from "./panel-context";
@@ -22,13 +22,15 @@ function wasDismissed(): boolean {
 /** One welcome per browser; blocked storage falls back to this page session. */
 export function AppWelcome(): JSX.Element {
   const [location, navigate] = useLocation();
+  const search = useSearch();
   const { setSampleLibraryRequested } = usePanelState();
   const [dismissed, setDismissed] = useState(wasDismissed);
   const hasOpened = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const workspace = location === "/" || location === "/bin";
-  const open = workspace && !dismissed;
+  const sampleEntry = /^\/bin\/?$/.test(location) && new URLSearchParams(search).has("sample");
+  const open = workspace && !dismissed && !sampleEntry;
 
   const dismiss = useCallback(() => {
     dismissedThisSession = true;
@@ -41,12 +43,11 @@ export function AppWelcome(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    // The explicit fixture entry supplies its own first step, including after
-    // replacing /ultim8 with /bin. Do not interrupt it with a second welcome.
-    if (location.replace(/\/$/, "") === "/ultim8") dismiss();
+    // A fixture or sample link supplies its own first step.
+    if (location.replace(/\/$/, "") === "/ultim8" || sampleEntry) dismiss();
     if (open) hasOpened.current = true;
     else if (hasOpened.current && !dismissed) dismiss();
-  }, [open, dismissed, dismiss, location]);
+  }, [open, dismissed, dismiss, location, sampleEntry]);
 
   const start = (path: "/" | "/bin") => {
     dismiss();
