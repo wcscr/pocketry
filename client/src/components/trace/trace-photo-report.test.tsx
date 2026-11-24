@@ -51,9 +51,11 @@ it("downloads a ZIP before offering an email draft, without changing the trace",
   const before = trace;
   await click("Report tracing problem");
   await click("Download photo report");
-  expect(downloadBlob).toHaveBeenCalledExactlyOnceWith(expect.any(Blob), "pocketry-trace-report-My-tool.zip");
-  expect(vi.mocked(downloadBlob).mock.calls[0][0].type).toBe("application/zip");
-  expect(email()?.href).toBe(reports.traceReportEmailHref("pocketry-trace-report-My-tool.zip"));
+  expect(downloadBlob).toHaveBeenCalledOnce();
+  const [blob, fileName] = vi.mocked(downloadBlob).mock.calls[0];
+  expect(blob.type).toBe("application/zip");
+  expect(email()?.href).toBe(reports.traceReportEmailHref(fileName));
+  expect(document.querySelector('[role="status"]')?.textContent).toContain(fileName);
   expect(document.querySelector('[role="status"]')?.textContent).toContain("Attach it to your email before sending.");
   expect(document.body.textContent).not.toContain("Report sent");
   expect(trace).toBe(before);
@@ -72,6 +74,7 @@ it("keeps the captured photo and settings consistent while processing finishes",
 
 it("requires a fresh download after the description changes, and resets for a replacement photo", async () => {
   await loadPhoto(); await click("Report tracing problem"); await click("Download photo report");
+  const [, firstName] = vi.mocked(downloadBlob).mock.calls[0];
   await React.act(async () => {
     const textarea = document.querySelector("textarea")!;
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Missing tip");
@@ -81,6 +84,9 @@ it("requires a fresh download after the description changes, and resets for a re
   const build = vi.spyOn(reports, "createTracePhotoReport");
   await click("Download photo report");
   expect(build.mock.calls[0][1]).toBe("Missing tip");
+  const [, secondName] = vi.mocked(downloadBlob).mock.calls[1];
+  expect(secondName).not.toBe(firstName);
+  expect(email()?.href).toBe(reports.traceReportEmailHref(secondName));
   await loadPhoto();
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   await click("Report tracing problem");

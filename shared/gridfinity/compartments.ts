@@ -8,6 +8,14 @@ import { binWallHeightMm, binWallThicknessMm } from "./standard";
 /** Bounds the number of generated divider strips and scoop profiles. */
 export const MAX_COMPARTMENTS_PER_AXIS = 32;
 
+/** Turning on a previously unused grid creates a divider. An explicit count
+ * in the same edit is already a complete grid choice. */
+export function updateCompartmentSettings(current: BinSpec["compartments"], settings: Partial<BinSpec["compartments"]>): BinSpec["compartments"] {
+  const starterGrid = settings.enabled === true && settings.rows === undefined && settings.columns === undefined &&
+    current.rows === 1 && current.columns === 1;
+  return { ...current, ...settings, ...(starterGrid ? { rows: 2 } : {}) };
+}
+
 /** Match Rebuilt's infill ceiling so the next bin's feet clear internal walls. */
 export function compartmentHeightMm(spec: BinSpec): number {
   return Math.max(0, binWallHeightMm(spec.heightUnits) - (spec.lip === "standard" ? STACKING_LIP_SUPPORT_HEIGHT : 0));

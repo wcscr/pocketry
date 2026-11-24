@@ -72,6 +72,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Droid Sans and Droid Sans Mono — Apache License 2.0
 ================================================================================
 
+The browser and local automation bundles use the same typeface outlines.
 Surface text uses unmodified regular and bold Droid Sans, and
 regular Droid Sans Mono outlines bundled with the existing Three.js dependency
 at examples/fonts/droid/.

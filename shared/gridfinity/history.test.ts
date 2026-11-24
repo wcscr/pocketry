@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BIN_HISTORY_LIMIT, binHistorySchema } from "./history";
-import { parseProjectDoc } from "./project";
+import { parseProjectDoc, serializeProjectDoc, withoutProjectHistory } from "./project";
 import fixture from "./fixtures/ryobi-split-reload.pocketry.json";
 
 const project = parseProjectDoc(fixture)!;
@@ -33,6 +33,31 @@ describe("portable project history", () => {
     const deleted = { ...saved, ...baseline, history: { ...history, index: 2 } };
     expect(parseProjectDoc(deleted)).toEqual(deleted);
     expect(parseProjectDoc({ ...deleted, shapes: [] })).toBeNull();
+  });
+
+  it("drops undo-only shapes and origins while retaining live Reset geometry and unplaced shapes", () => {
+    const [source] = project.shapes;
+    const [pocket] = project.cutouts;
+    const obsolete = { ...pocket, id: "deleted-pocket", shapeId: source.id };
+    const current = { ...pocket, shapeId: "current-shape" };
+    const original = { ...current, shapeId: "reset-shape" };
+    const currentBin = { ...present, cutouts: [current] };
+    const older = { ...present, cutouts: [current, obsolete] };
+    const origins = { pockets: [original, obsolete].map(cutout => ({ cutout, spec: project.spec })), fingerHoles: [] };
+    const document = { ...project, ...currentBin,
+      shapes: [source, ...["current-shape", "reset-shape", "unplaced-shape"].map(id => ({ ...source, id }))],
+      transformOrigins: origins,
+      history: { index: 1, stack: [{ doc: older, label: "Add pocket" }, { doc: currentBin, label: "Remove pocket" }] },
+    };
+    expect(parseProjectDoc(document)).not.toBeNull();
+    const compact = withoutProjectHistory(document);
+    expect(parseProjectDoc(serializeProjectDoc(compact))).toEqual(compact);
+    expect(compact.history).toBeUndefined();
+    expect(compact.shapes.map(shape => shape.id)).toEqual(["current-shape", "reset-shape", "unplaced-shape"]);
+    expect(compact.transformOrigins?.pockets).toEqual([origins.pockets[0]]);
+    expect(document.history.stack[0].doc.cutouts).toHaveLength(2);
+    expect(document.transformOrigins.pockets).toHaveLength(2);
+    expect(document.shapes).toHaveLength(4);
   });
 
   it("opens v16 projects without inventing prior edits", () => {

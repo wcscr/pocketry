@@ -2,10 +2,18 @@
 
 ## Unreleased
 
-## 1.17.0 — 2026-11-24
+## 1.18.0 — 2026-11-24
 
 - Report tracing problems from a small link below the photo, with an original-photo and tracing-details download, an email link, and a clear sharing warning.
 - Publish AI assistant guidance for authorized photo reports, bug and enhancement requests, and development contributions.
+
+## 1.17.0 — 2026-11-24
+
+- Enable experimental local folder storage in App settings, then connect or restore access directly from Library. Library uses compact project actions and shows the current storage mode.
+- Resume the same folder project and draft after reload. Recover interrupted saves and transfers, and restore older folder libraries from Library.
+- Export a compact copy of a saved bin project or the full Library without undo and redo history.
+- Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
+- Reserve a project for one automation worker at a time with a local edit lock that releases when the worker exits.
 
 ## 1.16.1 — 2026-11-24
 

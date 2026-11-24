@@ -17,7 +17,7 @@ it("preserves original bytes after perspective correction and reports only this 
     otherProject: "private project", location: "https://example.test/?secret=token" };
   const before = JSON.stringify(trace);
   const result = createTracePhotoReport(trace, "  The tip is missing.  ", "test browser", now);
-  expect(result.fileName).toBe("pocketry-trace-report-My-tool.zip");
+  expect(result.fileName).toMatch(/^pocketry-trace-report-[a-f0-9]{24}\.zip$/);
   const files = unzipSync(result.bytes);
   expect(Object.keys(files).sort()).toEqual(["original-photo.png", "tracing-details.json"]);
   expect(files["original-photo.png"]).toEqual(Uint8Array.from(atob(png.split(",")[1]), char => char.charCodeAt(0)));
@@ -36,11 +36,25 @@ it("works before calibration or detection succeeds, without a region or outline"
   const trace = { ...initialTraceState, imageUrl: png, fileName: "" };
   const result = createTracePhotoReport(trace, "", "browser", now);
   const files = unzipSync(result.bytes);
-  expect(result.fileName).toBe("pocketry-trace-report-photo.zip");
   const report = JSON.parse(strFromU8(files["tracing-details.json"]));
   expect(report.trace).toMatchObject({ calibration: null, region: null, outline: [], detectionComplete: false });
   expect(report.photo.rotation).toBe(0);
   expect(report.appVersion).toMatch(/^\d+\.\d+\.\d+$/);
+});
+
+it("gives each archive a distinct ASCII name and preserves the Unicode source name in its details", () => {
+  const fileName = `${"a".repeat(79)}𠀀`;
+  const trace = { ...initialTraceState, imageUrl: png, fileName };
+  const first = createTracePhotoReport(trace, "Missing handle", "browser", now);
+  const second = createTracePhotoReport(trace, "Missing tip", "browser", now);
+
+  expect(first.fileName).not.toBe(second.fileName);
+  for (const [report, description] of [[first, "Missing handle"], [second, "Missing tip"]] as const) {
+    expect(report.fileName).toMatch(/^pocketry-trace-report-[a-f0-9]{24}\.zip$/);
+    expect(new URL(traceReportEmailHref(report.fileName)).searchParams.get("body")).toContain(report.fileName);
+    const details = JSON.parse(strFromU8(unzipSync(report.bytes)["tracing-details.json"]));
+    expect(details).toMatchObject({ description, photo: { name: fileName } });
+  }
 });
 
 it("bounds the optional description", () => {

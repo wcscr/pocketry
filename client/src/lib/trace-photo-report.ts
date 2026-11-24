@@ -2,7 +2,6 @@ import { strToU8, zipSync } from "fflate";
 import { version } from "../../../package.json";
 import type { TraceState } from "@/state/trace-store";
 import { inspectPhotoDimensions } from "./photo-dimensions";
-import { exportFilePart } from "./project/export";
 
 export const TRACE_REPORT_EMAIL = "feedback@pocketry.xyz";
 export const TRACE_REPORT_NOTE_LIMIT = 2000;
@@ -72,8 +71,12 @@ export function createTracePhotoReport(trace: TraceState, note: string, userAgen
       processing: trace.processing,
     },
   };
+  // Give each download its own name so the email points to the exact archive.
+  // getRandomValues also works on self-hosted editors served over plain HTTP.
+  const reportId = Array.from(crypto.getRandomValues(new Uint8Array(12)),
+    byte => byte.toString(16).padStart(2, "0")).join("");
   return {
-    fileName: `pocketry-trace-report-${exportFilePart(trace.fileName) || "photo"}.zip`,
+    fileName: `pocketry-trace-report-${reportId}.zip`,
     bytes: zipSync({
       [photoName]: [photoBytes, { level: 0 }],
       "tracing-details.json": strToU8(JSON.stringify(report, null, 2)),

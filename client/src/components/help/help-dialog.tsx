@@ -181,16 +181,13 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
           <li className="pl-1">
             <h3 className="font-semibold">Save for later</h3>
             <p className="text-muted-foreground">
-              In <strong>Project</strong>, choose <strong>Save this draft to Library</strong>{" "}
-              to name a new design. Named projects save changes in this browser;
-              reopen them from <strong>Library</strong>. <strong>Export project</strong>{" "}
-              downloads an editable backup with your project colors;
-              <strong> Import Project</strong> restores it to this browser’s library.
-              <strong> Library → Export library</strong> backs up named designs; save an unnamed draft
-              first or export it separately. Keep the original Trace photo separately: project backups
-              do not include it. Storage belongs to this browser and site address, including when
-              self-hosting; changing the hostname or port opens a separate library. Keep backups to
-              move designs between browsers or devices.
+              In <strong>Project</strong>, choose <strong>Save this draft to Library</strong> to name a project.
+              It updates as you work. To save to a folder on your device, enable experimental features in
+              <strong> App settings</strong> and choose <strong>Library → Settings → Local folder</strong>.
+              Choose a folder and use <strong>Save current project</strong>.
+              Drafts autosave in this browser. <strong>Export project</strong> downloads one editable backup,
+              and <strong>Export library</strong> backs up named projects in the selected storage.
+              <strong> Import Project</strong> opens an editable backup. Keep your original Trace photo separately.
             </p>
           </li>
         </ol>

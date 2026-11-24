@@ -13,6 +13,9 @@ preserved. Add an optional description, then:
 2. Choose **Open email to maintainer**, or use your usual email app/webmail.
 3. Attach the downloaded ZIP and send the email yourself.
 
+Each download has a unique name. The email draft identifies the ZIP from your
+latest download. The source photo name is recorded inside the ZIP.
+
 Email links cannot attach files automatically. Downloading a report does not
 send it, and opening an email does not confirm delivery. Email provider attachment
 limits still apply. If report preparation fails, email the original photo and a
