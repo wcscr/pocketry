@@ -3,9 +3,8 @@ import { DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_ULTIM8_FOOTPRINT_MM, ultim8De
 import { DEFAULT_BIN_MATERIALS } from "@shared/gridfinity/materials";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { useLocation } from "wouter";
-import { readImportJson, IMPORT_LIMIT_ERROR } from "@shared/gridfinity/import-limits";
+import { IMPORT_LIMIT_ERROR, LIBRARY_FILE_MAX_BYTES, PROJECT_FILE_MAX_BYTES, readImportJson, withinImportLimits } from "@shared/gridfinity/import-limits";
 import { surfaceTextZ } from "@/lib/gridfinity/surface-text";
-import { surfaceTextName } from "@shared/gridfinity/surface-text";
 import type { BinMaterials } from "@shared/gridfinity/materials";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { SelectionLinkControls } from "@/components/gridfinity/linked-design-controls";
@@ -16,7 +15,6 @@ import { ToastAction } from "@/components/ui/toast";
 import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
-import { hasColorablePocketSurfaces } from "@shared/gridfinity/pocket-color";
 import { binWallThicknessMm, defaultBinWallThicknessMm } from "@shared/gridfinity/standard";
 import { binLengthMm, binWidthMm } from "@shared/gridfinity/bin-size";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,10 +22,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
 import { PocketClearanceDialog } from "@/components/gridfinity/pocket-clearance-dialog";
 import { CanvasWarnings } from "@/components/gridfinity/canvas-warnings";
-import { validateBinSpec, validateLayout, validatePocketFloorMaterials, type ValidationIssue } from "@shared/gridfinity/validate";
+import type { ValidationIssue } from "@shared/gridfinity/validate";
+import { projectLayoutIssues } from "@shared/gridfinity/project-validation";
 import { mergeValidationIssues } from "@shared/gridfinity/validation-issues";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { MobileBinActions } from "@/components/gridfinity/mobile-bin-actions";
+import { FolderLibraryContent, FolderLibrarySettings } from "@/components/project/folder-library";
+import { useFolderLibrary, useLibraryStorage } from "@/hooks/use-folder-library";
+import type { FolderDraft, FolderDraftMatch, FolderIntent } from "@/lib/project/browser-folder";
 import { BinControlsPanel, type ConstructionDisclosureState } from "@/components/gridfinity/bin-controls-panel";
 import { BinViewport, type MaterialColorTarget } from "@/components/gridfinity/bin-viewport";
 import { LayoutCanvas } from "@/components/gridfinity/layout-canvas";
@@ -44,6 +46,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import {
   PROJECT_SCHEMA_VERSION,
+  withoutProjectHistory,
   type ProjectDoc,
 } from "@shared/gridfinity/project";
 import { placementFootprint } from "@shared/gridfinity/cutout";
@@ -75,7 +78,7 @@ import {
 } from "@/lib/project/export";
 import { generateLayoutDXF, generateLayoutSVG, generateUltim8JigSVG } from "@/lib/export/layout";
 import { writeBinarySTL } from "@/lib/export/stl-writer";
-import { writeThreeMf, type ThreeMfObject } from "@/lib/mesh/threemf";
+import { prepareModelExport, type ModelFormat } from "@/lib/project/model-export";
 import {
   createDebouncedProjectSaver,
   deleteProjectFromLibrary,
@@ -86,13 +89,15 @@ import {
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
+  readSavedProject,
   renameProjectInLibrary,
+  advanceFolderDraft, prepareFolderSave, saveFolderDraft,
   saveProjectDoc,
   saveProjectToLibrary,
   startNewProject,
   type ProjectLibrarySnapshot,
 } from "@/lib/project/persist";
-import type { LibraryImportMode } from "@shared/gridfinity/library";
+import type { LibraryBackup, LibraryImportMode } from "@shared/gridfinity/library";
 import { cn } from "@/lib/utils";
 import { WorkerCancelledError } from "@/lib/worker/protocol";
 import {
@@ -129,7 +134,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const ultim8Entry = location.replace(/\/$/, "") === "/ultim8";
   const projectActivity = useProjectActivityActions();
   const [activityVisit, setActivityVisit] = useState(() => Symbol("Bin visit"));
-  const { inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
+  const { enabled: experimentalEnabled, inspectorEnabled: inspectorPrototype, setEnabled: setExperimentalEnabled } = useExperimentalFeatures();
   const { panelOpen, setPanelOpen, libraryRequested, sampleLibraryRequested, newProjectRequested } = usePanelState();
   const [quickAdjustOpen, setQuickAdjustOpen] = useState(false);
   const [depthRequest, setDepthRequest] = useState(0);
@@ -215,6 +220,10 @@ function BinDesignerWorkspace(): JSX.Element {
     labelBackgroundColor, labelBackgroundThicknessMm } = materials;
   const patchMaterials = (patch: Partial<BinMaterials>) => dispatch({ type: "PATCH_MATERIALS", patch });
   const edgeBandColor = colorStackingRim ? stackingRimColor : binColor;
+  const [folderProject, setFolderProject] = useState<FolderDraft | null>(null);
+  const [preferredLibraryStorage, setLibraryStorage] = useLibraryStorage();
+  const libraryStorage = experimentalEnabled ? preferredLibraryStorage : "browser";
+  const folderLibrary = useFolderLibrary(libraryStorage === "folder");
   const [projectLibrary, setProjectLibrary] = useState(EMPTY_PROJECT_LIBRARY);
   const [projectLibraryReady, setProjectLibraryReady] = useState(false);
   const [projectRestoreFailed, setProjectRestoreFailed] = useState(false);
@@ -249,14 +258,9 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // One validation result drives both the canvas feedback and export gates,
   // including when the controls are collapsed or the mobile drawer is closed.
-  const layoutIssues = useMemo(() => {
-    const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
-    return [
-      ...validateBinSpec(spec).issues,
-      ...validateLayout(spec, cutouts, shapesById, fingerHoles),
-      ...validatePocketFloorMaterials(spec, cutouts, shapesById, colorPocketFloors ? pocketFloorThicknessMm : 0),
-    ];
-  }, [spec, cutouts, fingerHoles, library.shapes, colorPocketFloors, pocketFloorThicknessMm]);
+  const layoutIssues = useMemo(() => projectLayoutIssues({
+    spec, cutouts, fingerHoles, shapes: library.shapes, materials,
+  }), [spec, cutouts, fingerHoles, library.shapes, materials]);
   const revealIssue = (issue: ValidationIssue) => {
     const settings = issueSettingsTarget(issue.code);
     if (settings) {
@@ -327,6 +331,7 @@ function BinDesignerWorkspace(): JSX.Element {
           description: `Your latest work was saved as “${restoredName}”. The earlier library version is still available.` });
       }
       if (doc) {
+        setFolderProject(saved.folderDraft ?? null);
         setDraftName(doc.name ?? null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.mergeShapes(doc.shapes);
@@ -368,8 +373,8 @@ function BinDesignerWorkspace(): JSX.Element {
     () =>
       projectLibrary.projects.find(
         (project) => project.id === projectLibrary.activeProjectId,
-      )?.name ?? draftName,
-    [projectLibrary, draftName],
+      )?.name ?? folderProject?.name ?? draftName,
+    [projectLibrary, folderProject, draftName],
   );
 
   // Autosave everything the doc covers, debounced; suppressed until
@@ -397,12 +402,15 @@ function BinDesignerWorkspace(): JSX.Element {
     }),
     [library.shapes, library.pendingIds, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize, materials],
   );
-  const destinationKey = useMemo(() => projectDestinationKey(currentProjectDoc, projectLibrary.activeProjectId), [currentProjectDoc, projectLibrary.activeProjectId]);
+  const browserWorkingDoc = useMemo(() => folderProject && !projectLibrary.activeProjectId
+    ? { ...currentProjectDoc, name: undefined } : currentProjectDoc,
+  [currentProjectDoc, folderProject, projectLibrary.activeProjectId]);
+  const destinationKey = useMemo(() => projectDestinationKey(browserWorkingDoc, projectLibrary.activeProjectId), [browserWorkingDoc, projectLibrary.activeProjectId]);
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
-    saveProject(currentProjectDoc, projectLibrary.activeProjectId);
-  }, [bin.hydrated, currentProjectDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
+    saveProject(browserWorkingDoc, projectLibrary.activeProjectId);
+  }, [bin.hydrated, browserWorkingDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
 
   useEffect(() => {
     projectActivity?.publish({ name: currentProjectName, activeProjectId: projectLibrary.activeProjectId,
@@ -666,21 +674,49 @@ function BinDesignerWorkspace(): JSX.Element {
     });
   }, [currentProjectDoc, currentProjectName, toast]);
 
-  const handleExportLibrary = useCallback(async () => {
+  const exportCompactProject = useCallback((doc: ProjectDoc, name: string) => {
+    const project = prepareProjectExport(withoutProjectHistory(doc), name, "compact");
+    if (project.backup.size > PROJECT_FILE_MAX_BYTES) throw new Error("The compact project is still too large for a portable backup.");
+    downloadBlob(project.backup, `${project.baseName}.pocketry.json`);
+    toast({ title: "Compact copy exported" });
+  }, [toast]);
+
+  const handleExportCompactProject = useCallback(async (projectId: string) => {
     setProjectBusy(true);
     try {
-      const backup = await exportProjectLibrary(bin.hydrated ? currentProjectDoc : undefined);
+      const { doc, name } = await readSavedProject(projectId);
+      exportCompactProject(doc, name);
+    } catch (cause) {
+      toast({ title: "Could not export compact copy", description: cause instanceof Error ? cause.message : undefined, variant: "destructive" });
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [exportCompactProject, toast]);
+
+  const handleExportLibrary = useCallback(async (omitHistory = false) => {
+    setProjectBusy(true);
+    try {
+      const draft = bin.hydrated ? currentProjectDoc : undefined;
+      let backup: LibraryBackup | undefined;
+      if (libraryStorage === "folder") backup = await folderLibrary.exportBackup(omitHistory);
+      else if (omitHistory) backup = await exportProjectLibrary(draft, { omitHistory: true });
+      else backup = await exportProjectLibrary(draft);
+      if (!backup) throw new Error("Open Library to check the local folder before exporting again.");
+      const file = new Blob([JSON.stringify(backup, null, libraryStorage === "folder" || omitHistory ? undefined : 2)], { type: "application/json" });
+      if (omitHistory && libraryStorage === "browser" && (file.size > LIBRARY_FILE_MAX_BYTES || !withinImportLimits(backup, true))) {
+        throw new Error("The compact library is still too large for a portable backup. Export projects individually.");
+      }
       downloadBlob(
-        new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
-        `pocketry-library-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+        file,
+        `pocketry-library-${omitHistory ? "compact-" : ""}${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
       );
-      toast({ title: "Library exported", description: `${backup.projects.length} named designs exported as JSON.` });
+      toast({ title: omitHistory ? "Compact library exported" : "Library exported", description: `${backup.projects.length} named designs exported as JSON.` });
     } catch (cause) {
       toast({ title: "Could not export library", description: cause instanceof Error ? cause.message : "The library could not be read.", variant: "destructive" });
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, bin.hydrated, toast]);
+  }, [currentProjectDoc, bin.hydrated, toast, libraryStorage, folderLibrary]);
 
   const handleImportLibrary = useCallback(async (file: File, mode: LibraryImportMode): Promise<boolean> => {
     setProjectBusy(true);
@@ -693,9 +729,15 @@ function BinDesignerWorkspace(): JSX.Element {
         if (cause instanceof Error && cause.message === IMPORT_LIMIT_ERROR) throw cause;
         throw new Error("The file could not be read as JSON. No designs were imported.");
       }
+      if (libraryStorage === "folder") {
+        const imported = await folderLibrary.importBackup(input);
+        if (imported === undefined) throw new Error("Open Library to check the local folder before importing again.");
+        toast({ title: "Library imported into local folder", description: `${imported} projects added.` });
+        return true;
+      }
       const result = await importProjectLibrary(input, mode, mode === "replace" ? currentProjectDoc : undefined);
       setProjectLibrary(result.library);
-      if (mode === "replace") setDraftName(null);
+      if (mode === "replace") { setDraftName(null); setFolderProject(null); }
       toast({
         title: mode === "replace" ? "Library replaced" : "Library imported",
         description: mode === "replace"
@@ -709,25 +751,64 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [toast, saveProject, currentProjectDoc]);
+  }, [toast, saveProject, currentProjectDoc, libraryStorage, folderLibrary]);
 
   /** Save while the outgoing named project still owns the autosave target. */
   const saveBeforeReplacingProject = useCallback(async () => {
     saveProject.cancel();
     if (!projectLibrary.activeProjectId) return;
-    const saved = await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId);
+    const saved = await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId);
     setSaveStatus(saved ? "saved" : "error");
     if (!saved) setSaveError("Your current changes could not be saved. Keep this page open and download a backup before switching projects.");
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
-  }, [saveProject, currentProjectDoc, projectLibrary.activeProjectId]);
+  }, [saveProject, browserWorkingDoc, projectLibrary.activeProjectId]);
+
+  const loadFolderProject = useCallback(async (document: ProjectDoc, target: FolderDraft) => {
+    const draft = { ...document, name: undefined };
+    const saved = await saveFolderDraft(draft, target);
+    setProjectLibrary(saved);
+    setFolderProject(target);
+    setActivityVisit(Symbol("Opened folder project"));
+    setDraftName(null);
+    setKeepBinSize(draft.keepBinSize ?? false);
+    library.replaceShapes(draft.shapes, true);
+    setRestoredDestination(projectDestinationKey(draft, null));
+    dispatch({
+      type: "HYDRATE", materials: draft.materials, spec: draft.spec,
+      cutouts: draft.cutouts, fingerHoles: draft.fingerHoles,
+      history: draft.history, transformOrigins: draft.transformOrigins,
+    });
+    setSection(null);
+    setSaveStatus("saved");
+    setSaveError(null);
+    setProjectRestoreFailed(false);
+  }, [library, dispatch]);
+
+  const handleOpenFolderProject = async (document: ProjectDoc, target: FolderDraft) => {
+    setProjectBusy(true);
+    try {
+      await saveBeforeReplacingProject();
+      await loadFolderProject(document, target);
+      toast({ title: "Folder project opened", description: target.name });
+    } finally {
+      setProjectBusy(false);
+    }
+  };
 
   const handleImportProject = useCallback(
     async (input: ProjectDoc): Promise<boolean> => {
       setProjectBusy(true);
       try {
         await saveBeforeReplacingProject();
+        if (libraryStorage === "folder") {
+          const target = await folderLibrary.save(input, input.name ?? "Imported project", null,
+            target => loadFolderProject({ ...input, name: target.name }, target));
+          if (!target) throw new Error("Open Library to check the local folder before importing again.");
+          return true;
+        }
         const opened = await importProjectToLibrary(input);
         const { doc } = opened;
+        setFolderProject(null);
         setActivityVisit(Symbol("Imported project"));
         setSaveStatus("saved");
         setSaveError(null);
@@ -763,8 +844,24 @@ function BinDesignerWorkspace(): JSX.Element {
         setProjectBusy(false);
       }
     },
-    [library, dispatch, saveBeforeReplacingProject, toast],
+    [library, dispatch, saveBeforeReplacingProject, toast, libraryStorage, folderLibrary, loadFolderProject],
   );
+
+  const recordFolderSave = useCallback(async (target: FolderDraft, match: FolderDraftMatch) => {
+    const draft = { ...currentProjectDoc, name: undefined };
+    if ("base" in match && !await saveProject.flush()) throw new Error("The current draft could not be saved in this browser.");
+    const saved = await advanceFolderDraft(target, match);
+    if (!saved) return;
+    setProjectLibrary(saved);
+    setFolderProject(target);
+    setDraftName(null);
+    setRestoredDestination(projectDestinationKey(draft, null));
+    setProjectRestoreFailed(false);
+  }, [currentProjectDoc, saveProject]);
+
+  const saveWorkingFolderDraft = useCallback((name: string, base: FolderDraft | null) =>
+    folderLibrary.save(currentProjectDoc, name, base, recordFolderSave, requestId => prepareFolderSave(currentProjectDoc, requestId)),
+  [currentProjectDoc, folderLibrary, recordFolderSave]);
 
   const handleNewProject = useCallback(async (saveDraftName?: string, fixture = false): Promise<boolean> => {
     const defaults = ultim8Defaults(INITIAL_BIN_SPEC, DEFAULT_ULTIM8_BODY_THICKNESS_MM, DEFAULT_BIN_MATERIALS.binColor, DEFAULT_ULTIM8_FOOTPRINT_MM);
@@ -779,8 +876,14 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectBusy(true);
     try {
       await saveBeforeReplacingProject();
-      const saved = saveDraftName === undefined ? await startNewProject(doc)
+      const saveDraftToFolder = saveDraftName !== undefined && libraryStorage === "folder";
+      if (saveDraftToFolder) {
+        const target = await saveWorkingFolderDraft(saveDraftName, folderProject);
+        if (!target) throw new Error("Open Library to check the local folder before starting a new project.");
+      }
+      const saved = saveDraftName === undefined || saveDraftToFolder ? await startNewProject(doc)
         : await startNewProject(doc, { doc: currentProjectDoc, name: saveDraftName });
+      setFolderProject(null);
       setActivityVisit(Symbol("New project"));
       setSaveStatus("saved");
       setSaveError(null);
@@ -802,7 +905,7 @@ function BinDesignerWorkspace(): JSX.Element {
       setProjectRestoreFailed(false);
       toast({
         title: "New project ready",
-        description: saveDraftName === undefined ? "Ready for a new design." : `Your draft was saved as “${saveDraftName.trim()}” in this browser’s library.`,
+        description: saveDraftName === undefined ? "Ready for a new design." : `Your draft was saved as “${saveDraftName.trim()}” ${saveDraftToFolder ? "in the local folder" : "in this browser’s library"}.`,
       });
       return true;
     } catch (cause) {
@@ -815,7 +918,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast]);
+  }, [library, dispatch, saveBeforeReplacingProject, currentProjectDoc, toast, libraryStorage, saveWorkingFolderDraft, folderProject]);
 
   /** Persist the exact fixture destination before Trace unmounts the designer. */
   const traceFixture = async (): Promise<void> => {
@@ -823,23 +926,41 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectBusy(true);
     saveProject.cancel();
     try {
-      if (!await saveProjectDoc(currentProjectDoc, projectLibrary.activeProjectId)) throw new Error("Could not save this fixture. Keep it open and try again.");
+      if (!await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId)) throw new Error("Could not save this fixture. Keep it open and try again.");
       navigate("/");
     } catch (cause) {
       toast({ title: "Could not open Trace", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
     } finally { setProjectBusy(false); }
   };
 
-  const handleSaveProject = useCallback(async (name: string): Promise<boolean> => {
+  const handleResumeFolderSave = async (intent: FolderIntent) => {
+    setProjectBusy(true);
+    try {
+      await folderLibrary.resume(intent, async (target, draft) => {
+        if ("base" in draft && (folderProject?.connectionId !== draft.base.connectionId ||
+          folderProject.projectId !== draft.base.projectId || folderProject.revision !== draft.base.revision)) return;
+        await recordFolderSave(target, draft);
+      });
+    } finally { setProjectBusy(false); }
+  };
+
+  const handleSaveProject = useCallback(async (name: string, asNew = false): Promise<boolean> => {
     setProjectBusy(true);
     saveProject.cancel();
     try {
+      if (libraryStorage === "folder") {
+        const target = await saveWorkingFolderDraft(name, asNew ? null : folderProject);
+        if (!target) return false;
+        toast({ title: "Project saved to local folder" });
+        return true;
+      }
       const saved = await saveProjectToLibrary(
         currentProjectDoc,
         name,
         projectLibrary.activeProjectId,
       );
       setProjectLibrary(saved);
+      setFolderProject(null);
       setRestoredDestination(projectDestinationKey(currentProjectDoc, saved.activeProjectId));
       setProjectRestoreFailed(false);
       toast({
@@ -857,7 +978,7 @@ function BinDesignerWorkspace(): JSX.Element {
     } finally {
       setProjectBusy(false);
     }
-  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast]);
+  }, [currentProjectDoc, projectLibrary.activeProjectId, saveProject, toast, libraryStorage, saveWorkingFolderDraft, folderProject]);
 
   const handleDuplicateProject = useCallback(async (projectId: string): Promise<string | null> => {
     setProjectBusy(true);
@@ -907,6 +1028,7 @@ function BinDesignerWorkspace(): JSX.Element {
     try {
       await saveBeforeReplacingProject();
       const opened = await openProjectFromLibrary(projectId);
+      setFolderProject(null);
       setActivityVisit(Symbol("Opened project"));
       setSaveStatus("saved");
       setSaveError(null);
@@ -1012,143 +1134,18 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [dispatch, inspectorPrototype, viewMode, bin.selection, bin.selectedSurfaceTextId, bin.editorMode, spec.surfaceTexts]);
 
   const handleExport = useCallback(
-    async (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => {
+    async (format: ModelFormat, includeProject: boolean) => {
       setExporting(true);
       try {
-        const label = binSizeLabel(exportProjectDoc.spec);
-        const prusaColorPreview = format === "3mf-prusa";
-        const slicerCompatible = format === "3mf-bambu" || prusaColorPreview;
-        const multicolor = format === "3mf-multicolor" || slicerCompatible;
-        const project = prepareProjectExport(
-          exportProjectDoc,
-          currentProjectName,
-          prusaColorPreview ? "prusa-color-preview" : slicerCompatible ? "compatible-multicolor" : multicolor ? "multicolor" : "",
-        );
-        const includePocketFloors =
-          multicolor &&
-          colorPocketFloors &&
-          (exportProjectDoc.spec.fill === "none" ||
-            exportProjectDoc.cutouts.some(hasColorablePocketSurfaces));
-        const includeLabelBackground = multicolor && labelBackgroundColor !== null && !!exportProjectDoc.spec.labelTab;
-        const includeStackingRim =
-          multicolor && colorStackingRim;
-        const result = await buildOnce(EXPORT_QUALITY, {
-          labelBackgroundMaterialThicknessMm: includeLabelBackground ? labelBackgroundThicknessMm : undefined,
-          pocketFloorMaterialThicknessMm: includePocketFloors
-            ? pocketFloorThicknessMm
-            : undefined,
-          stackingRimMaterialThicknessMm: includeStackingRim
-            ? stackingRimThicknessMm
-            : undefined,
-          ...(includeStackingRim && colorDividerTops ? { colorDividerTops: true } : {}),
-          borderWidthMm: includeStackingRim && exportProjectDoc.spec.lip === "none"
-            ? borderWidthMm : undefined,
-        });
-        const textObjects: ThreeMfObject[] = (result.textMeshes ?? []).map(part => ({
-          name: part.label.name ?? `Text: ${surfaceTextName(part.label)}`,
-          mesh: part.mesh,
-          material: { name: "Text", displayColor: (multicolor ? exportProjectDoc.spec.textColor ?? edgeBandColor : binColor) as `#${string}` },
-        }));
-        if (multicolor) {
-          if (!result.materialMeshes && (includePocketFloors || includeStackingRim || includeLabelBackground)) {
-            throw new Error(
-              "This bin has no printable label background, floor, rim, or border color volume.",
-            );
-          }
-          const objects: ThreeMfObject[] = [
-            {
-              name: `Gridfinity bin ${label} body`,
-              mesh: result.materialMeshes?.body ?? result.bodyMesh ?? result.mesh,
-              material: {
-                name: "Bin body",
-                displayColor: binColor as `#${string}`,
-              },
-            },
-          ];
-          if (includePocketFloors && result.materialMeshes?.pocketFloors) {
-            const floorName = exportProjectDoc.spec.fill === "none" ? "Bin floor" : exportProjectDoc.cutouts.some(c => c.role !== "hole" && c.colorCoverage === "interior") ? "Pocket interiors" : "Pocket floors";
-            objects.push({
-              name: `Gridfinity bin ${label} ${floorName.toLowerCase()}`,
-              mesh: result.materialMeshes.pocketFloors,
-              material: {
-                name: floorName,
-                displayColor: pocketFloorColor as `#${string}`,
-              },
-            });
-          }
-          if (includeStackingRim && result.materialMeshes?.stackingRim) {
-            const rimName = exportProjectDoc.spec.lip === "standard" ? "Stacking rim top" : "Top border";
-            objects.push({
-              name: `Gridfinity bin ${label} ${rimName.toLowerCase()}`,
-              mesh: result.materialMeshes.stackingRim,
-              material: {
-                name: rimName,
-                displayColor: stackingRimColor as `#${string}`,
-              },
-            });
-          }
-          if (includeLabelBackground && result.materialMeshes?.labelBackground) {
-            objects.push({
-              name: `Gridfinity bin ${label} label backgrounds`,
-              mesh: result.materialMeshes.labelBackground,
-              material: { name: "Label background", displayColor: labelBackgroundColor as `#${string}` },
-            });
-          }
-          // A wide, deep border can color all of a small bin. Keep its chosen
-          // color and omit the now-empty body rather than exporting an empty mesh.
-          const printableObjects = objects.concat(textObjects).filter(object => object.mesh.indices.length > 0);
-          if (printableObjects.length === 0 || (printableObjects.length === 1 && printableObjects[0] === objects[0])) {
-            throw new Error(
-              "The selected color regions did not produce printable material volumes.",
-            );
-          }
-          const bytes = writeThreeMf(
-            printableObjects,
-            {
-              title: `Pocketry multi-color Gridfinity bin ${label}`,
-              assemble: true,
-              combineObjects: slicerCompatible,
-              prusaPaint: slicerCompatible,
-              prusaColorPreview,
-            },
-          );
-          downloadModelWithProject(
-            new Blob([bytes], { type: "model/3mf" }),
-            "3mf",
-            project,
-            includeProject,
-          );
-        } else if (format === "3mf") {
-          const bytes = writeThreeMf(
-            [
-              {
-                name: `Gridfinity bin ${label}`,
-                mesh: result.bodyMesh ?? result.mesh,
-                material: {
-                  name: "Bin body",
-                  displayColor: binColor as `#${string}`,
-                },
-              },
-              ...textObjects,
-            ],
-            { title: `Pocketry Gridfinity bin ${label}`, assemble: textObjects.length > 0 },
-          );
-          downloadModelWithProject(new Blob([bytes], { type: "model/3mf" }), "3mf", project, includeProject);
-        } else {
-          const stl = writeBinarySTL(
-            { positions: result.mesh.positions, indices: result.mesh.indices },
-            `Pocketry Gridfinity bin ${label}`,
-          );
-          downloadModelWithProject(
-            new Blob([stl], { type: "application/octet-stream" }),
-            "stl",
-            project,
-            includeProject,
-          );
-        }
+        const model = prepareModelExport(exportProjectDoc, format);
+        const project = prepareProjectExport(exportProjectDoc, currentProjectName, model.variant);
+        const bytes = model.serialize(await buildOnce(EXPORT_QUALITY, model.options));
+        downloadModelWithProject(new Blob([bytes], {
+          type: model.extension === "3mf" ? "model/3mf" : "application/octet-stream",
+        }), model.extension, project, includeProject);
         toast({
           title: "Saved",
-          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${label} as ${prusaColorPreview ? "a Prusa color preview 3MF" : slicerCompatible ? "a Bambu multi-color 3MF" : multicolor ? "a multi-color 3MF" : format.toUpperCase()}${includeProject ? " with an editable project JSON" : ""}.`,
+          description: `Exported ${exportProjectDoc.spec.pegBottom ? "fixture" : "bin"} ${model.label} as ${model.displayFormat}${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
@@ -1162,24 +1159,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setExporting(false);
       }
     },
-    [
-      exportProjectDoc,
-      currentProjectName,
-      buildOnce,
-      colorPocketFloors,
-      colorStackingRim,
-      colorDividerTops,
-      binColor,
-      pocketFloorColor,
-      pocketFloorThicknessMm,
-      stackingRimColor,
-      edgeBandColor,
-      stackingRimThicknessMm,
-      labelBackgroundColor,
-      labelBackgroundThicknessMm,
-      borderWidthMm,
-      toast,
-    ],
+    [exportProjectDoc, currentProjectName, buildOnce, toast],
   );
 
   const handleExportFitCheck = useCallback(
@@ -1342,7 +1322,24 @@ function BinDesignerWorkspace(): JSX.Element {
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
           onRefreshProjects={handleRefreshProjects}
+          libraryStorage={experimentalEnabled ? {
+            mode: libraryStorage, choose: setLibraryStorage, refresh: folderLibrary.refresh,
+            folderName: folderLibrary.canWrite ? folderLibrary.folder?.name : undefined,
+            folderHasProjects: folderLibrary.projects.length > 0,
+            legacyFolder: folderLibrary.legacyFolder,
+            canSave: folderLibrary.canWrite && !folderLibrary.legacyFolder && folderLibrary.pending.length === 0,
+            busy: folderLibrary.busy, error: folderLibrary.error,
+          } : undefined}
+          renderFolderLibrary={({ onOpened, onSave, hasDraft }) => <FolderLibraryContent
+            library={folderLibrary} active={folderProject} busy={!bin.hydrated || projectBusy}
+            hasDraft={hasDraft} onOpen={handleOpenFolderProject} onOpened={onOpened} onRenameDraft={recordFolderSave}
+            onSave={onSave} onResume={handleResumeFolderSave} onExportDraft={handleExportProject} onExportCompact={exportCompactProject} />}
+          renderFolderLibrarySettings={onRecovered => <FolderLibrarySettings library={folderLibrary} busy={!bin.hydrated || projectBusy}
+            onRecover={async () => { if (await folderLibrary.recoverLegacy()) onRecovered(); }} />}
+          openedInFolder={experimentalEnabled && !!folderProject}
           onExportLibrary={() => void handleExportLibrary()}
+          onExportCompactLibrary={() => void handleExportLibrary(true)}
+          onExportCompactProject={handleExportCompactProject}
           onImportLibrary={handleImportLibrary}
           onNewProject={handleNewProject}
           section={section}

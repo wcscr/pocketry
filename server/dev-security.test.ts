@@ -64,11 +64,19 @@ afterAll(async () => {
 it.each([
   ["/quick-start/", "Turn a tool photo into a Gridfinity bin"],
   ["/samples/", "Pocketry sample projects"],
+  ["/samples/wiha-60mm-drivers/", "Wiha 60 mm drivers"],
 ])("serves the static guide at %s before the development app fallback", async (route, heading) => {
   const response = await fetch(`${baseUrl}${route}`);
   expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toContain("text/html");
   expect(await response.text()).toContain(`<h1>${heading}</h1>`);
+});
+
+it("serves the generated sitemap as XML in development", async () => {
+  const response = await fetch(`${baseUrl}/sitemap.xml`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toContain("application/xml");
+  expect(await response.text()).toContain("<loc>https://pocketry.xyz/samples/wiha-60mm-drivers/</loc>");
 });
 
 describe("development security boundary", () => {

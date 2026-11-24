@@ -15,11 +15,14 @@
 !shared/**
 !server/
 !server/bundled-notices.ts
+!server/sample-catalog.ts
 !licenses/
 !licenses/npm/
 !licenses/npm/**
 !samples/
 !samples/pocketry-sample-library.json
+!samples/source-files.json
+!samples/catalog.json
 !deploy/
 !deploy/nginx.conf
 **/.env

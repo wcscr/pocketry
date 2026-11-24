@@ -15,7 +15,7 @@ import {
 import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
-import { createKernel } from "@/lib/manifold/runtime";
+import { createKernel } from "@/lib/manifold/kernel";
 import { extractMeshData, extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { objectEdges } from "@/lib/mesh/object-edges";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";

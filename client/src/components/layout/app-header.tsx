@@ -103,9 +103,16 @@ export function AppHeader({
           className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
           <LibraryBig className="h-4 w-4" aria-hidden />Library
         </Link>
+        <a href="/samples/" target="_blank" rel="noopener noreferrer" className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
+          Samples<span className="sr-only"> (opens in a new tab)</span>
+        </a>
       </nav>
 
       <div className={cn("ml-auto items-center gap-1", isMobile ? "flex" : "hidden")}>
+        <Link href="/bin" onClick={() => setLibraryRequested(true)} aria-haspopup="dialog"
+          className="flex min-h-11 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-medium hover:bg-accent">
+          <LibraryBig className="h-4 w-4" aria-hidden />Library
+        </Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-11 gap-1 px-2" aria-label={`Workspace: ${currentWorkspace?.label ?? (location === "/help/ultim8" ? "Help" : "About")}`}>
@@ -119,9 +126,7 @@ export function AppHeader({
               </Link>
             </DropdownMenuItem>)}
             <DropdownMenuItem asChild className="min-h-11">
-              <Link href="/bin" onClick={() => setLibraryRequested(true)} aria-haspopup="dialog">
-                <LibraryBig className="mr-2 h-4 w-4" aria-hidden />Library
-              </Link>
+              <a href="/samples/" target="_blank" rel="noopener noreferrer">Browse sample designs<span className="sr-only"> (opens in a new tab)</span></a>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

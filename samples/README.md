@@ -42,7 +42,15 @@ export the updated projects to print these labels.
 Check each project page for its dimensions, fit and stacking notes, and any
 recommended changes before printing.
 
-When adding a sample, include its editable project and 3MF in the [public sample index](../client/public/samples/index.html).
+When adding a sample, register its files in [source-files.json](source-files.json)
+and its tool names, description, and design features in [catalog.json](catalog.json),
+keyed by the project filename without `.pocketry.json`. The site build uses these
+records and the bundled library to generate the catalog, detail pages, and sitemap.
+The first recorded print photo supplies the preview and catalog thumbnail unless
+the catalog names another published asset. Photos whose names start with
+`printed-bin-pocket` or `printed-bin-empty` also appear on the detail page, along
+with any additional photos named in `detailPhotos`. Use a layout preview for a
+variant without its own print photo.
 
 ## Using a sample
 
