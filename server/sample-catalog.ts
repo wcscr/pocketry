@@ -165,7 +165,7 @@ function sampleImages(entry: CatalogEntry): string {
   return `<div class="sample-photos">
     ${images.map(({ file, caption }, index) => `<figure class="sample-preview">
       <img src="${escape(assetUrl(entry.directory, file))}" alt="${escape(`${caption} for ${entry.name}`)}"${index ? ' loading="lazy"' : ""} />
-      <figcaption>${caption}</figcaption>
+      <figcaption>${escape(caption)}</figcaption>
     </figure>`).join("\n    ")}
   </div>`;
 }

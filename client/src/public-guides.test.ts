@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import sampleLibrary from "../../samples/pocketry-sample-library.json";
@@ -77,6 +78,37 @@ describe("public Pocketry guides", () => {
           expected,
         );
       }
+    }
+  });
+
+  it("preserves angle brackets and entity spellings as text in photo captions", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "pocketry-catalog-"));
+    try {
+      const samples = resolve(root, "samples");
+      mkdirSync(samples);
+      const slug = "craftsman-tape-measure";
+      const projects = sampleLibrary.projects.filter(project => project.id === `pocketry-sample-${slug}`);
+      const assets = sampleManifest.samples.filter(sample => sample.directory === slug);
+      const caption = 'Belt clip < 22 mm & "handle" details, labeled &lt;rear&gt;';
+      const file = "photos/tape-measure-clip.jpg";
+      writeFileSync(resolve(samples, "pocketry-sample-library.json"), JSON.stringify({ projects }));
+      writeFileSync(resolve(samples, "source-files.json"), JSON.stringify({ samples: assets }));
+      writeFileSync(resolve(samples, "catalog.json"), JSON.stringify({
+        [slug]: {
+          description: "A tape measure bin",
+          tools: ["Tape measure"],
+          features: ["Belt clip relief"],
+          detailPhotos: [{ file, caption }],
+        },
+      }));
+
+      const html = buildPublicSampleFiles(root).get(`samples/${slug}/index.html`)!;
+      expect(html).toContain("<figcaption>Belt clip &lt; 22 mm &amp; &quot;handle&quot; details, labeled &amp;lt;rear&amp;gt;</figcaption>");
+      const photo = parseHtml(html).querySelector(`figure img[src$="${file}"]`);
+      expect(photo?.nextElementSibling?.textContent).toBe(caption);
+      expect(photo?.nextElementSibling?.childElementCount).toBe(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
