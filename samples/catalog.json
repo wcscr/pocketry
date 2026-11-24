@@ -1,0 +1,109 @@
+{
+  "wolfbox-mf70-airduster-kit": {
+    "description": "A bin for the Wolfbox MF70 kit and its accessories.",
+    "tools": ["Wolfbox MF70 air duster", "Nozzle adapters", "USB cable"],
+    "features": ["Four fitted pockets for the tool, nozzles, and cable", "Shared finger access across the tool and accessory pockets"],
+    "keywords": ["airduster", "air blower"]
+  },
+  "dewalt-right-angle-tools": {
+    "description": "A bin for DeWalt long and short right-angle adapters and their handle. Leave space above the loaded bin before stacking.",
+    "tools": ["DeWalt long right-angle adapter", "DeWalt short right-angle adapter", "Adapter handle"],
+    "features": ["Separate pockets at 31 mm and 25 mm depths", "One shared finger-access slot across all three tools"],
+    "keywords": ["drill attachment"]
+  },
+  "ryobi-cutter": {
+    "description": "A fitted bin for the Ryobi cutter with room to lift it out by hand.",
+    "tools": ["Ryobi cutter"],
+    "features": ["Two-level pocket with 14 mm and 55 mm depths", "Custom 15-cell footprint shaped around the cutter", "Finger-access slot for lifting the tool"],
+    "keywords": ["multi-level pocket"]
+  },
+  "caliper-storage": {
+    "description": "A bin for calipers, measurement strips, and spare batteries. The loaded bin needs clearance above it.",
+    "tools": ["Digital calipers", "50 mm, 100 mm, and 200 mm measurement strips", "Coin-cell batteries"],
+    "features": ["Storage for three strip lengths and three spare coin cells", "Separate finger-access openings for the calipers, strips, and batteries"],
+    "keywords": ["caliper", "measuring tool"]
+  },
+  "stapler": {
+    "description": "A fitted bin for a stapler. For easier removal, lower the solid fill or add another finger opening before exporting a print.",
+    "tools": ["Stapler"],
+    "features": ["Two-level pocket with 32 mm and 42 mm depths", "Finger access at one end"],
+    "keywords": ["multi-level pocket"]
+  },
+  "wire-strippers": {
+    "description": "A fitted bin for wire strippers.",
+    "tools": ["Wire strippers"],
+    "features": ["Shaped outline with a finger-access slot", "Editable raised lettering recreated from the print photo"],
+    "keywords": ["wire stripper", "electrical hand tool"]
+  },
+  "klein-voltage-tester": {
+    "description": "A dedicated bin for a Klein voltage tester.",
+    "tools": ["Klein voltage tester"],
+    "features": ["Narrow 1 × 4 Gridfinity footprint", "Single fitted pocket with finger access"],
+    "keywords": ["electrical tester"]
+  },
+  "mouldline-remover": {
+    "description": "A dedicated bin for the Citadel mouldline remover.",
+    "tools": ["Citadel mouldline remover"],
+    "features": ["17.5 mm-deep fitted tool pocket", "Rounded finger-access scoop beside the handle"],
+    "keywords": ["mold line remover", "miniature modeling", "scraper"]
+  },
+  "wiha-drivers": {
+    "description": "A bin for five Wiha precision screwdrivers with 150 mm blades.",
+    "tools": ["Wiha precision screwdrivers with 150 mm blades"],
+    "features": ["Five shaped pockets with a shared finger-access opening", "Editable raised lettering recreated from the print photo"]
+  },
+  "mini-socket-set": {
+    "description": "A compact bin for a mini ratchet, sockets, and driver bits.",
+    "tools": ["Mini socket set"],
+    "features": ["Reuses the socket set’s original pre-cut tool insert", "A single rectangular recess holds the entire insert"],
+    "keywords": ["ratchet", "socket organizer"]
+  },
+  "wiha-40mm-drivers": {
+    "description": "A compact bin for four Wiha precision screwdrivers with 40 mm blades.",
+    "tools": ["Wiha precision screwdrivers with 40 mm blades"],
+    "features": ["Linked pockets hold all four drivers facing the same direction", "Shared finger access in a half-pitch footprint"]
+  },
+  "wiha-50mm-drivers": {
+    "description": "A bin for a Wiha slotted driver and Phillips driver, both with 50 mm blades.",
+    "tools": ["Wiha 260 slotted 3.0 × 50 mm", "Wiha 261 Phillips PH0 × 50 mm"],
+    "features": ["Two linked pockets align the drivers in the same direction", "One finger-access opening serves both drivers"],
+    "keywords": ["precision screwdrivers", "flathead"]
+  },
+  "wiha-60mm-drivers": {
+    "description": "A bin for a Wiha slotted driver and Phillips driver, both with 60 mm blades.",
+    "tools": ["Wiha 260 slotted 4.0 × 60 mm", "Wiha 261 Phillips PH1 × 60 mm"],
+    "features": ["Linked pockets with shared finger access", "Editable raised Wiha lettering, with a separate color part in the 3MF"],
+    "keywords": ["precision screwdrivers", "flathead"],
+    "preview": "photos/printed-bin-loaded-current.jpg"
+  },
+  "bessey-gerber": {
+    "description": "A shared Gridfinity bin for a closed Bessey folding utility knife and a Gerber multitool.",
+    "tools": ["Bessey D-BKWH folding utility knife", "Gerber multitool"],
+    "features": ["Side-by-side pockets at different depths, 9.78 mm and 16.28 mm", "Long rounded finger-access opening between the pockets"],
+    "keywords": ["box cutter", "multi tool"]
+  },
+  "bessey-utility-knife": {
+    "description": "A separate bin for the closed Bessey D-BKWH folding knife.",
+    "tools": ["Bessey D-BKWH folding utility knife"],
+    "features": ["One fitted knife pocket with a finger-access opening across it", "Compact half-pitch footprint"],
+    "keywords": ["box cutter"],
+    "preview": "bessey-utility-knife-layout.svg"
+  },
+  "gerber-multitool": {
+    "description": "A separate bin for the closed Gerber multitool.",
+    "tools": ["Gerber multitool"],
+    "features": ["One fitted multitool pocket with a finger-access opening across it", "Compact half-pitch footprint"],
+    "keywords": ["multi tool", "multi-tool"],
+    "preview": "gerber-multitool-layout.svg"
+  },
+  "craftsman-tape-measure": {
+    "description": "A fitted bin for a Craftsman 25-foot tape measure with a belt clip.",
+    "tools": ["Craftsman 25-foot tape measure"],
+    "features": ["16 mm-deep body pocket and deeper 22 mm belt-clip relief", "Editable raised label and multicolor print model"],
+    "keywords": ["25 ft", "tape rule"],
+    "detailPhotos": [
+      { "file": "photos/tape-measure-front.jpg", "caption": "Tape measure outside the bin" },
+      { "file": "photos/tape-measure-clip.jpg", "caption": "Belt clip on the back of the tape measure" }
+    ]
+  }
+}

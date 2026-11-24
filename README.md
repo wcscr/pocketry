@@ -7,7 +7,7 @@ project storage, and model generation kept on the user's device.
 
 [Try Pocketry](https://pocketry.xyz) ·
 [Quick start](https://pocketry.xyz/quick-start/) ·
-[Sample downloads](https://pocketry.xyz/samples/) ·
+[Search sample designs](https://pocketry.xyz/samples/) ·
 [Print photos and notes](samples/README.md) ·
 [Documentation](docs/README.md) ·
 [Issues and roadmap](https://github.com/wcscr/pocketry/issues) ·

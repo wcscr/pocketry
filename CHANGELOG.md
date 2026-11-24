@@ -10,6 +10,10 @@
 - Copy, edit, validate, and export saved folder projects with a local JSON CLI or MCP server.
 - Reserve a project for one automation worker at a time with a local edit lock that releases when the worker exits.
 
+## 1.16.1 — 2026-11-24
+
+- Search sample designs by tool, model, or feature. Share individual design pages with photos and print downloads, or open an editable copy directly in Pocketry.
+
 ## 1.16.0 — 2026-11-24
 
 - Trace detects paper corners when it can't identify a Pocketry sheet. Review the handles and confirm A4 or US Letter to correct perspective.
