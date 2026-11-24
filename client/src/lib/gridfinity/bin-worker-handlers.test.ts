@@ -366,7 +366,7 @@ describe("shadow inlay worker handler", () => {
     sourceMmPerPx: 0.2,
   };
   const request = (cutout: Request["layout"]["cutouts"][number], depthMm: number): Request => ({
-    spec: REQUEST.spec, cutoutId: cutout.id, gapMm: 0,
+    spec: { ...REQUEST.spec, gridX: 3, gridY: 2 }, cutoutId: cutout.id, gapMm: 0,
     layout: { shapes: [shape], cutouts: [cutout], fingerHoles: [] },
     depthMm, quality: { circularSegments: 24, cutoutVertexBudget: 600 },
   });
@@ -403,8 +403,7 @@ describe("shadow inlay worker handler", () => {
     }
     expect(Math.min(...zs)).toBeCloseTo(0, 6);
     expect(Math.max(...zs)).toBeCloseTo(2.5, 6);
-    // The placement and finger access position are intentionally ignored;
-    // placement scale is retained while position and finger access features are ignored;
+    // The export omits the placement translation and finger access geometry;
     // clearance grows the 30 mm wide outline to roughly 32 mm.
     expect(Math.min(...xs)).toBeCloseTo(-16, 1);
     expect(Math.max(...xs)).toBeCloseTo(16, 1);

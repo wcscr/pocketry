@@ -18,8 +18,7 @@ import {
 import { toCrossSection } from "@/lib/geometry/offset";
 import type { Kernel } from "@/lib/manifold/runtime";
 
-import type { BuildQuality } from "./bin";
-import type { BinLayout } from "./bin";
+import { buildBinWithCutouts, type BinLayout, type BuildQuality } from "./bin";
 import {
   buildCutoutCutters,
   buildFingerHoleCutters,
@@ -35,6 +34,8 @@ import {
 
 const CLEANUP_EPSILON = 1e-6;
 const FIT_VOLUME_TOLERANCE_MM3 = 1e-4;
+const SEAT_PROBE_MM = 1e-4;
+const MIN_SEAT_CONTACT_MM2 = 1e-6;
 
 export const FIT_CHECK_MIN_DEPTH_MM = 0.5;
 export const FIT_CHECK_MAX_DEPTH_MM = 30;
@@ -182,6 +183,14 @@ export function buildFitCheckSolid(
     if (arena.track(shaft.subtract(cavity)).volume() > FIT_VOLUME_TOLERANCE_MM3) {
       throw new Error("The shadow inlay cannot pass through the pocket opening. Try increasing the edge gap.");
     }
+  }
+  // Other pockets or finger access cuts can remove the selected pocket's
+  // nominal floor. Test contact with the bin after the whole layout is cut.
+  const { bodySolid } = buildBinWithCutouts(kernel, { ...spec, surfaceTexts: [] }, layout, quality);
+  const binSeat = arena.track(bodySolid.slice(floorZ - SEAT_PROBE_MM));
+  const inlayBase = arena.track(seated.slice(floorZ + CLEANUP_EPSILON));
+  if (arena.track(inlayBase.intersect(binSeat)).area() <= MIN_SEAT_CONTACT_MM2) {
+    throw new Error("This pocket has no supporting floor for a shadow inlay after all bin cuts.");
   }
   return solid;
 }

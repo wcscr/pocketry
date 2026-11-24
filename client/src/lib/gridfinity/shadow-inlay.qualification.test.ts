@@ -133,4 +133,37 @@ describe("shadow inlay floor fit", () => {
     expect(cavity.boundingBox().max[2]).toBeCloseTo(surface - 4, 6);
     expect(() => buildFitCheckSolid(kernel, spec, layout, cutout.id, depthMm, EXPORT_QUALITY)).toThrow("no opening at the fill surface");
   });
+
+  it.each([
+    { halfSize: 18, hasSupport: false },
+    { halfSize: 3, hasSupport: true },
+  ])("checks the remaining seat after a through cut (support=$hasSupport)", ({ halfSize, hasSupport }) => {
+    const depth = { mode: "mm", value: 8 } as const;
+    const cutout = parseCutoutPlacement({ id: "blind", shapeId: shape.id,
+      position: { x: 0, y: 0 }, depth, bottomFilletMm: 2 });
+    const opening: TracedShape = { ...shape, id: "opening", name: "Through opening", pointCount: 4,
+      bboxMm: { minX: -halfSize, minY: -halfSize, maxX: halfSize, maxY: halfSize },
+      outlineMm: [{ outer: [
+        { x: -halfSize, y: -halfSize }, { x: halfSize, y: -halfSize },
+        { x: halfSize, y: halfSize }, { x: -halfSize, y: halfSize },
+      ], holes: [] }] };
+    const through = parseCutoutPlacement({ id: "through", shapeId: opening.id,
+      position: cutout.position, depth: { mode: "through" }, cornerRoundMm: 0 });
+    const layout: BinLayout = {
+      shapesById: new Map([[shape.id, shape], [opening.id, opening]]),
+      cutouts: [cutout, through], fingerHoles: [],
+    };
+    const exportInlay = () => buildFitCheckSolid(kernel, spec, layout, cutout.id, 0.6, EXPORT_QUALITY);
+    if (!hasSupport) {
+      expect(exportInlay).toThrow("no supporting floor for a shadow inlay after all bin cuts");
+      return;
+    }
+    const inlayBase = arena.track(exportInlay().slice(0.001));
+    const floor = resolvePocketDepth(spec, depth).floorZ!;
+    const { solid } = buildBinWithCutouts(kernel, spec, layout, EXPORT_QUALITY);
+    const binSeat = arena.track(solid.slice(floor - 0.001));
+    const contact = arena.track(inlayBase.intersect(binSeat)).area();
+    expect(contact).toBeGreaterThan(0);
+    expect(contact).toBeLessThan(inlayBase.area());
+  });
 });

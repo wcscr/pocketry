@@ -20,8 +20,9 @@ enlarge the insert.
 Inlays currently require a solid bin and an untilted pocket with a single
 supporting floor and an opening large enough to lower the insert into place.
 Through cuts, kept-hole selections, split floors, tilted pockets, and buried
-cavities show an explanation when an inlay cannot be installed. Inspect the
-slicer's layer preview and test the fit on your printer and material.
+cavities show an explanation when an inlay cannot be installed. Export also
+checks that some of the floor remains beneath the inlay after overlapping cuts.
+Inspect the slicer's layer preview and test the fit on your printer and material.
 
 ## Existing feature history
 
