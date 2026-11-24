@@ -109,7 +109,7 @@ export class NodeLibraryFolder implements LibraryFolder {
       if (entry && (!entry.isFile() || entry.nlink !== 1 || entry.size !== 0)) {
         throw new LibraryError("corrupt", "A project lock file was replaced. It must be an empty regular file.", { projectId });
       }
-      // Lock databases are never written. SQLite should have no side files to recover.
+      // Lock databases stay empty on disk. SQLite should have no side files to recover.
       for (const suffix of ["-journal", "-wal", "-shm"]) {
         const extra = await lstat(path + suffix).catch(error => {
           if (!hasCode(error, "ENOENT")) throw error;

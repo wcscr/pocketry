@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -138,5 +138,28 @@ describe("automation project locks across worker processes", () => {
     expect(await stat(path, { bigint: true })).toMatchObject({ ino: file.ino, dev: file.dev, size: 0n });
     expect(await other.call("commit_project", { projectId: "tray-a", requestId: "after-crash", expectedBase: base,
       editToken: resumed.result.editToken, edits })).toMatchObject({ ok: true, result: { outcome: { status: "published" } } });
+  }, 20_000);
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)("rejects a read-only SQLite file before claiming edit ownership", async () => {
+    const { owner, other } = await pair();
+    const projectId = "tray-a";
+    const started = await owner.call("begin_edit", { projectId });
+    expect(started).toMatchObject({ ok: true });
+    expect(await owner.call("end_edit", { projectId, editToken: started.result.editToken })).toMatchObject({ ok: true });
+    const lock = await folder.projectLockPath(projectId);
+    await chmod(lock, 0o400);
+    const edit = { projectId, requestId: "permission-retry", expectedBase: base, edits };
+    try {
+      const attempts = await Promise.all([owner.call("begin_edit", { projectId }), other.call("commit_project", edit)]);
+      for (const attempt of attempts) {
+        expect(attempt).toMatchObject({ ok: false, error: { code: "permission", details: { projectId } } });
+      }
+      expect(await library.inspect(edit.requestId)).toMatchObject({ status: "not-found" });
+      expect((await library.read(projectId)).revision).toBe(base);
+    } finally {
+      await chmod(lock, 0o600);
+    }
+    expect(await other.call("commit_project", edit)).toMatchObject({ ok: true, result: { outcome: { status: "published" } } });
+    expect((await stat(lock)).size).toBe(0);
   }, 20_000);
 });

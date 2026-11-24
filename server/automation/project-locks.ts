@@ -95,6 +95,7 @@ const sqlite = createRequire(import.meta.url)("node:sqlite") as {
 };
 const Database = sqlite.Database ?? sqlite.DatabaseSync;
 const SQLITE_BUSY = 5;
+const SQLITE_READONLY = 8;
 
 export function nodeProjectEditLocks(folder: NodeLibraryFolder): ProjectEditLocks {
   return new ProjectEditLocks(async projectId => {
@@ -105,13 +106,19 @@ export function nodeProjectEditLocks(folder: NodeLibraryFolder): ProjectEditLock
       database = connection;
       // SQLite may create a rollback journal at BEGIN even without any writes.
       // Keep it in memory so a killed worker leaves only the stable lock file.
-      connection.exec("PRAGMA journal_mode=MEMORY; BEGIN IMMEDIATE");
+      connection.exec("PRAGMA journal_mode=MEMORY; PRAGMA cache_spill=OFF; BEGIN IMMEDIATE");
+      // SQLite can fall back to a read-only connection and still report BEGIN
+      // IMMEDIATE as successful. This uncommitted write verifies the lock.
+      connection.exec("CREATE TABLE project_lock (held INTEGER)");
       return () => connection.close();
     } catch (cause) {
       database?.close();
-      if (cause instanceof Error && "errcode" in cause && typeof cause.errcode === "number" &&
-        (cause.errcode & 0xff) === SQLITE_BUSY) {
-        throw new ProjectBusyError(projectId);
+      if (cause instanceof Error && "errcode" in cause && typeof cause.errcode === "number") {
+        const code = cause.errcode & 0xff;
+        if (code === SQLITE_BUSY) throw new ProjectBusyError(projectId);
+        if (code === SQLITE_READONLY) {
+          throw new LibraryError("permission", "The project edit lock file is read-only.", { projectId });
+        }
       }
       throw new LibraryError("storage", "The project edit lock could not be opened.", { projectId });
     }

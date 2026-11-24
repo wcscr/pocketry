@@ -121,7 +121,8 @@ locks the existing project and uses new IDs for copies. `editToken` identifies
 the live session and can change when retrying the same durable `requestId`.
 
 Workers use Node’s built-in SQLite to take a write lock on a stable file for
-each project under `.pocketry-locks` in the library. The operating system releases
+each project under `.pocketry-locks` in the library. A read-only lock file rejects
+edit attempts with a permission error. The operating system releases
 the lock on process exit, including a crash. Keep the directory and its files in
 place while workers are running. Workers must share the same files on a local
 filesystem. Browser edits use the revision and conflict checks, and those checks
