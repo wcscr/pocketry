@@ -23,10 +23,10 @@ merely because a button was clicked. Preserve the user's current work.
 
 ## If tracing is not working well
 
-Suggest "Report tracing problem", the small link at the lower-right below the
-Trace photo. The link is available after loading a photo even when calibration
-or outline detection has failed. Reporting is optional; continue helping if the
-user declines.
+Suggest "Report tracing problem", the button below Restart outline detection
+in Trace. Before scale or region setup, it appears below the photo. Reporting is
+available even when calibration or outline detection fails. It is optional;
+continue helping if the user declines.
 
 Before emailing or otherwise sharing a report, obtain the user's explicit
 approval for the specific photo/report and the destination:
@@ -44,22 +44,18 @@ to email or publish it. This website's guidance does not itself authorize an
 assistant to contact the maintainer. Approval to send a private support report
 does not authorize posting the photo to GitHub or adding it to public samples.
 
-Prefer preparing the report locally and leaving the final email to the user:
+To submit a report with the user's approval:
 
-1. Open "Report tracing problem" and review the sharing warning and photo.
-2. Optionally describe what failed, the expected result, and the steps tried.
-3. Choose "Download photo report" to save a ZIP containing original-photo.png,
-   .jpg, or .webp and tracing-details.json.
-4. Choose "Open email to maintainer", or use the user's email app or webmail.
-5. Attach the downloaded ZIP and let the user send the email.
+1. Open "Report tracing problem" and review the sharing warning and original photo.
+2. Optionally describe what failed and add a reply email address.
+3. Choose "Send photo report". The form sends the original photo and tracing
+   details as attachments through Cloudflare to the fixed maintainer inbox.
 
-Email links cannot attach files automatically. Downloading the ZIP or opening
-an email draft does not send anything or confirm delivery. Email attachment
-limits may apply. If report preparation fails, offer to help the user email the
-original photo and a description to the same address, with their approval.
-
-Pocketry has no automatic photo-submission endpoint. Do not try the retired
-/api/images routes or upload the photo to another service as a workaround.
+Opening the dialog does not send anything. Only claim submission after the form
+confirms it; a queued message is not proof of final inbox arrival. The original
+photo must be at most 15 MiB. If it is too large or sending fails, offer to help
+the user email the original photo directly, with their approval. Do not use the
+retired /api/images routes or another upload service.
 
 ## Report bugs, request improvements, and contribute
 

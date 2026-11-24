@@ -285,7 +285,7 @@ describe("Trace detection workflow", () => {
     const reportButton = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Report tracing problem")!;
     expect(reportButton).toBeDefined();
     await React.act(async () => reportButton.click());
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Your photo will be sent via email to the project maintainer");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sending shares your original photo with the project maintainer");
   });
 
   it.each([false, true])("keeps estimated-edge guidance visible after editing and recovery (mobile=%s)", async mobile => {

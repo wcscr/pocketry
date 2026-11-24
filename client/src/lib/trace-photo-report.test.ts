@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from "fflate";
 import { expect, it } from "vitest";
 import { initialTraceState } from "@/state/trace-store";
-import { createTracePhotoReport, traceReportEmailHref, traceReportPhoto, TRACE_REPORT_NOTE_LIMIT } from "./trace-photo-report";
+import { createTracePhotoReport, createTracePhotoSubmission, traceReportEmailHref, traceReportPhoto, TRACE_REPORT_NOTE_LIMIT } from "./trace-photo-report";
 
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
 const now = new Date("2026-11-24T15:00:00Z");
@@ -75,4 +75,14 @@ it("opens an addressed draft with an encoded subject and manual attachment remin
   expect(params.get("body")).toContain("Attach the downloaded file before sending: photo & tool.zip");
   expect(params.has("attachment")).toBe(false);
   expect(params.has("attach")).toBe(false);
+});
+
+it("prepares the same original photo and details for direct submission with optional email", () => {
+  const trace = { ...initialTraceState, imageUrl: "data:image/png;base64,corrected", perspectiveOriginalImageUrl: png };
+  const payload = createTracePhotoSubmission(trace, "  Missing tip  ", " visitor@example.com ", "browser", now);
+  expect(payload.photo).toEqual({ type: "image/png", content: png.split(",")[1] });
+  expect(payload.replyEmail).toBe("visitor@example.com");
+  expect(JSON.parse(payload.details)).toMatchObject({ description: "Missing tip", photo: { file: "original-photo.png" } });
+  expect(createTracePhotoSubmission(trace, "", "", "browser", now).replyEmail).toBe("");
+  expect(() => createTracePhotoSubmission(trace, "", "invalid", "browser", now)).toThrow();
 });

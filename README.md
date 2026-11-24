@@ -138,19 +138,21 @@ separately from the backup.
 
 ## Privacy
 
-If tracing is not working well, choose **Report tracing problem** below the
-photo on the Trace page. Review the sharing warning and photo, optionally describe
-the problem, then download the ZIP report. Open the email link or your usual
-email app, attach the ZIP, and send it to **feedback@pocketry.xyz**, the project
-maintainer. The report contains the original photo (including embedded metadata),
-tracing settings and outline, app version, browser details, and your description.
-Nothing is sent automatically. See [photo reports](docs/tracing-photo-reports.md).
+If tracing is not working well, choose **Report tracing problem** below
+**Restart outline detection** in the Outline controls, or below the photo before
+scale and region setup. Review the sharing warning and photo, optionally describe
+the problem and provide a reply email, then select **Send photo report**. The form
+sends the original photo (including embedded metadata), tracing settings and
+outline, app version, browser details, and description to the project maintainer
+at **feedback@pocketry.xyz**. Nothing is sent until you select Send. See
+[photo reports](docs/tracing-photo-reports.md).
 
 The static application processes images and generates models locally in the
 browser. Projects and drafts can be stored in the browser using IndexedDB. In a supported
 browser, enable experimental features to save named projects to a [connected local folder](docs/library-folder.md).
-The hosted version does not require uploading tool photographs to Pocketry's server. The local Node
-server serves the editor and static assets only; the retired `/api/images` endpoints
+The hosted version uploads a tool photograph only when a visitor explicitly
+submits a Trace photo report. The local Node server serves the editor and static
+assets only; the retired `/api/images` endpoints
 return 404 and do not accept or store uploads.
 
 ## Feedback
@@ -158,8 +160,9 @@ return 404 and do not accept or store uploads.
 Open the [private feedback form](https://pocketry.xyz/feedback) directly or choose
 **Send feedback** in Pocketry’s Help menu. The form sends only the text
 you enter and an optional reply email privately to the Pocketry team, through
-Cloudflare. Photos and projects are never automatically attached. No account is
-required. See [private feedback setup](docs/private-feedback.md) for hosting and
+Cloudflare. The general feedback form never attaches photos or projects; the
+separate Trace report form sends a photo only after you select Send. No account
+is required. See [private feedback setup](docs/private-feedback.md) for hosting and
 email configuration.
 
 ### For AI assistants

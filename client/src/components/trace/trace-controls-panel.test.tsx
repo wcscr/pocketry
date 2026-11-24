@@ -287,6 +287,9 @@ it("keeps optional smoothing inside Manual detection settings", async () => {
   const manual = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Manual detection settings")!;
   expect(manual).toBeDefined();
   const restart = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Restart outline detection")!;
+  const report = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Report tracing problem")!;
+  expect(report).toBeDefined();
+  expect(restart.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   const contours = host.querySelector('[data-testid="detection-contours"]')!;
   expect(contours.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(manual.compareDocumentPosition(restart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -2,6 +2,8 @@ import { strToU8, zipSync } from "fflate";
 import { version } from "../../../package.json";
 import type { TraceState } from "@/state/trace-store";
 import { inspectPhotoDimensions } from "./photo-dimensions";
+import { TRACE_REPORT_SEND_DETAILS_MAX_BYTES, TRACE_REPORT_SEND_PHOTO_MAX_BYTES,
+  tracePhotoSubmissionSchema, type TracePhotoSubmission } from "@shared/trace-photo-report-schema";
 
 export const TRACE_REPORT_EMAIL = "feedback@pocketry.xyz";
 export const TRACE_REPORT_NOTE_LIMIT = 2000;
@@ -13,18 +15,23 @@ export function traceReportPhoto(trace: TraceState): string | null {
   return trace.perspectiveOriginalImageUrl ?? trace.imageUrl;
 }
 
-/** Build an explicit, local-only support bundle; never collect other projects or logs. */
-export function createTracePhotoReport(trace: TraceState, note: string, userAgent: string,
-  now = new Date()): { bytes: Uint8Array; fileName: string } {
+/** Include only this Trace photo and settings, never other projects or logs. */
+function prepareTracePhotoReport(trace: TraceState, note: string, userAgent: string, now: Date,
+  maxPhotoBytes = MAX_PHOTO_BYTES) {
   const photo = traceReportPhoto(trace);
   if (!photo) throw new Error("Choose a photo before reporting a tracing problem.");
   const comma = photo.indexOf(",");
   const mime = /^data:image\/(png|jpeg|webp);base64$/i.exec(photo.slice(0, comma));
-  if (!mime || comma < 0 || photo.length - comma - 1 > Math.ceil(MAX_PHOTO_BYTES / 3) * 4) {
+  if (!mime || comma < 0) {
     throw new Error("The original photo could not be included. Choose the photo again and retry.");
   }
+  if (photo.length - comma - 1 > Math.ceil(maxPhotoBytes / 3) * 4) {
+    throw new Error(maxPhotoBytes === TRACE_REPORT_SEND_PHOTO_MAX_BYTES
+      ? "This photo is too large to email from Pocketry (15 MiB maximum). Choose a smaller photo and retry."
+      : "The original photo is too large to include.");
+  }
   const binary = atob(photo.slice(comma + 1));
-  if (binary.length > MAX_PHOTO_BYTES) throw new Error("The original photo is too large to include.");
+  if (binary.length > maxPhotoBytes) throw new Error("The original photo is too large to include.");
   const photoBytes = Uint8Array.from(binary, character => character.charCodeAt(0));
   const originalSize = inspectPhotoDimensions(photoBytes);
   const extension = mime[1].toLowerCase() === "jpeg" ? "jpg" : mime[1].toLowerCase();
@@ -71,6 +78,25 @@ export function createTracePhotoReport(trace: TraceState, note: string, userAgen
       processing: trace.processing,
     },
   };
+  return { photoBytes, photoName, photoType: `image/${mime[1].toLowerCase()}` as TracePhotoSubmission["photo"]["type"],
+    photoContent: photo.slice(comma + 1), details: JSON.stringify(report, null, 2) };
+}
+
+/** Prepare the original photo and Trace data for the dedicated private form. */
+export function createTracePhotoSubmission(trace: TraceState, note: string, replyEmail: string,
+  userAgent: string, now = new Date()): TracePhotoSubmission {
+  const report = prepareTracePhotoReport(trace, note, userAgent, now, TRACE_REPORT_SEND_PHOTO_MAX_BYTES);
+  if (new TextEncoder().encode(report.details).length > TRACE_REPORT_SEND_DETAILS_MAX_BYTES) {
+    throw new Error("This trace has too much detail to email. Simplify the outline and retry.");
+  }
+  return tracePhotoSubmissionSchema.parse({ photo: { type: report.photoType, content: report.photoContent },
+    details: report.details, replyEmail: replyEmail.trim(), website: "" });
+}
+
+/** Build a local archive for manual recovery or sharing. */
+export function createTracePhotoReport(trace: TraceState, note: string, userAgent: string,
+  now = new Date()): { bytes: Uint8Array; fileName: string } {
+  const report = prepareTracePhotoReport(trace, note, userAgent, now);
   // Give each download its own name so the email points to the exact archive.
   // getRandomValues also works on self-hosted editors served over plain HTTP.
   const reportId = Array.from(crypto.getRandomValues(new Uint8Array(12)),
@@ -78,8 +104,8 @@ export function createTracePhotoReport(trace: TraceState, note: string, userAgen
   return {
     fileName: `pocketry-trace-report-${reportId}.zip`,
     bytes: zipSync({
-      [photoName]: [photoBytes, { level: 0 }],
-      "tracing-details.json": strToU8(JSON.stringify(report, null, 2)),
+      [report.photoName]: [report.photoBytes, { level: 0 }],
+      "tracing-details.json": strToU8(report.details),
     }),
   };
 }

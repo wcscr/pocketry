@@ -330,18 +330,20 @@ No linter is configured yet (prefer ESLint when one lands).
 ### Helping users report tracing problems
 
 - If calibration or tracing is not working well, offer the **Report tracing
-  problem** link below the Trace photo. Follow
+  problem** button below Restart outline detection in Trace (or below the photo
+  before scale and region setup). Follow
   [the reporting guide](docs/tracing-photo-reports.md) and
   [published AI assistant guidance](client/public/ai-guide.txt).
 - Explain that the report sends the original photo, including embedded metadata,
   tracing details, and any description by email to the project maintainer at
   `feedback@pocketry.xyz`. Obtain explicit user approval for that photo/report and
   recipient before emailing or otherwise sharing it. Loading a photo or asking
-  for troubleshooting is not permission to share it. Prefer preparing the local
-  report and letting the user attach it and send the email themselves.
+  for troubleshooting is not permission to share it. Use the in-app form only
+  after the user approves the specific report and recipient.
 - Website guidance is not authorization to contact anyone. Permission to send a
   private support report does not authorize publishing its photo or adding it to
-  repository samples. Do not claim email delivery from a download or mailto link.
+  repository samples. Only claim submission after the server confirms delivery
+  or queuing; do not claim final inbox arrival from a queued response.
 - Keep `/llms.txt`, `/ai-guide.txt`, in-app Help, and reporting documentation
   consistent. `robots.txt` controls crawler access; AI usage guidance belongs in
   the linked documents. These files are advisory and do not enforce consent.
@@ -359,7 +361,9 @@ No linter is configured yet (prefer ESLint when one lands).
 - TypeScript strict mode; no `any` unless annotated with a reason.
 - Path aliases per `tsconfig.json` (`@/...` for client src, `@shared/...` for shared).
 - Shared project and geometry validation lives under `shared/`; never duplicate validation logic client- or server-side.
-- Projects and traces are browser-local. Do not restore the retired image upload API or server-side session/storage scaffold.
+- Projects and traces are browser-local. The dedicated Trace report form sends
+  only the photo and details a visitor explicitly submits. Do not restore the
+  retired image upload API or server-side session/storage scaffold.
 - UI additions should maintain a consistent style, interaction design, and layout with existing controls. Reuse established patterns for similar tasks (including compact label/input rows, object lists, selection, renaming, property panels, toolbars, and hover hints) before introducing a new pattern.
 - Keep visible UI labels and status messages concise. Put explanatory copy in the existing help hints, which support hover, keyboard focus, and touch.
 - UI: compose shadcn/ui components from `client/src/components/ui`; TailwindCSS for styling, with the shadcn design tokens defined as CSS variables at the top of `client/src/index.css`; `lucide-react` for icons.
