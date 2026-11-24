@@ -28,6 +28,7 @@ import type { CutoutBuildReport } from "./cutouts";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SHADOW_INLAY_METHOD,
   BUILD_SURFACE_FIT_CHECK_METHOD,
   type BuildBinRequest,
   type BuildBinResult,
@@ -35,6 +36,7 @@ import {
   type BuildBinStats,
   type BuildFitCheckRequest,
   type BuildFitCheckResult,
+  type BuildShadowInlayRequest,
   type BuildSurfaceFitCheckRequest,
   type BuildSurfaceFitCheckResult,
 } from "./worker-api";
@@ -103,8 +105,15 @@ export interface BinGeometryState {
       colorDividerTops?: boolean;
     },
   ) => Promise<BuildBinResult>;
-  /** Builds the standalone shadow inlay using the current pocket floor. */
+  /** Builds the original standalone silhouette coupon. */
   buildFitCheck: (
+    shape: TracedShape,
+    cutout: CutoutPlacement,
+    depthMm: number,
+    quality: BuildQuality,
+  ) => Promise<BuildFitCheckResult>;
+  /** Builds the standalone shadow inlay using the current pocket floor. */
+  buildShadowInlay: (
     cutoutId: string,
     depthMm: number,
     quality: BuildQuality,
@@ -550,6 +559,14 @@ export function useBinGeometry(
   );
 
   const buildFitCheck = useCallback(
+    (shape: TracedShape, cutout: CutoutPlacement, depthMm: number, quality: BuildQuality) => {
+      const request: BuildFitCheckRequest = { shape, cutout, depthMm, quality };
+      return ensureClient().call<BuildFitCheckResult>(BUILD_FIT_CHECK_METHOD, request, { channel: "fit-check-export" });
+    },
+    [ensureClient],
+  );
+
+  const buildShadowInlay = useCallback(
     (
       cutoutId: string,
       depthMm: number,
@@ -557,7 +574,7 @@ export function useBinGeometry(
       gapMm?: number,
     ): Promise<BuildFitCheckResult> => {
       if (!layout) return Promise.reject(new Error("Select a tool pocket before exporting its shadow inlay."));
-      const request: BuildFitCheckRequest = {
+      const request: BuildShadowInlayRequest = {
         spec: withoutFontSources(spec),
         layout: {
           shapes: layout.shapes,
@@ -569,8 +586,8 @@ export function useBinGeometry(
         quality: exportQuality,
         gapMm,
       };
-      return ensureClient().call<BuildFitCheckResult>(BUILD_FIT_CHECK_METHOD, request, {
-        channel: "fit-check-export",
+      return ensureClient().call<BuildFitCheckResult>(BUILD_SHADOW_INLAY_METHOD, request, {
+        channel: "shadow-inlay-export",
       });
     },
     [ensureClient, spec, layout],
@@ -632,6 +649,7 @@ export function useBinGeometry(
     retryPreview,
     buildOnce,
     buildFitCheck,
+    buildShadowInlay,
     buildSurfaceFitCheck,
   };
 }

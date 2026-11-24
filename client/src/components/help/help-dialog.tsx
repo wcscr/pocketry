@@ -163,6 +163,7 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               Choose <strong>Save surface fit test STL</strong>.
               Print at <strong>100% scale</strong> and try your tools. This checks
               surface openings, not pocket depth or baseplate fit.
+              Select a pocket to export its silhouette coupon under <strong>Tool fit template</strong>.
             </p>
           </li>
           <li className="pl-1">

@@ -999,7 +999,7 @@ describe("BinDesignerPage", () => {
         await React.act(async () => exports.querySelector<HTMLButtonElement>('[data-testid="button-export-open-fit-check"]')!.click());
         const fitChecks = document.querySelector('#bin-settings-fit')!;
         expect(fitChecks.querySelector('[data-testid="button-export-shadow-inlay"]')).toBeNull();
-        for (const [id, title] of [["button-export-surface-fit-test", "Save surface fit test STL?"]]) {
+        for (const [id, title] of [["button-export-surface-fit-test", "Save surface fit test STL?"], ["button-export-fit-check", "Save fit template STL?"]]) {
           React.act(() => fitChecks.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
           expect([...document.querySelectorAll('[role="dialog"]')].some(dialog => dialog.textContent?.includes(title))).toBe(true);
           expect(downloadBlob).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { POCKET_DEPTH_EPSILON_MM, resolvePlacedPocketDepth, type CutoutPlacement, type TracedShape } from "./cutout";
+import { resolvePlacedPocketDepth, type CutoutPlacement, type TracedShape } from "./cutout";
 import { hasPocketTilt } from "./pocket-orientation";
 import type { BinSpec } from "./types";
 
@@ -21,11 +21,6 @@ export function shadowInlayUnavailableReason(
   const pocket = resolvePlacedPocketDepth(spec, cutout.depth, shape, cutout);
   if (cutout.depth.mode === "through" || pocket.floorZ === null || pocket.floorZ <= 0) {
     return "This pocket has no supporting floor for a shadow inlay.";
-  }
-  if (cutout.elevationMm !== undefined && !cutout.insertionMode &&
-      pocket.axialDepthMm !== null &&
-      cutout.elevationMm + pocket.axialDepthMm < pocket.infillTopZ - POCKET_DEPTH_EPSILON_MM) {
-    return "This pocket has no opening at the fill surface for a shadow inlay.";
   }
   if (spec.fill !== "solid" || (pocket.depthMm ?? 0) < thicknessMm) {
     return "The shadow inlay must fit below the fill surface of a solid bin.";

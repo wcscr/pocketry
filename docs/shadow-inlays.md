@@ -3,7 +3,8 @@
 Open **Export → Export shadow inlay**, choose a pocket, and save its STL.
 Print it in a contrasting color at 100% scale and place it on the pocket floor.
 This provides a separate color insert without an AMS or another multicolor
-printing system. Surface fit tests remain under **Check fit**.
+printing system. **Check fit** also offers the original **Tool fit template**
+for the selected tool silhouette and the surface fit tests for the bin layout.
 
 The default thickness is 0.6 mm. It occupies that much of the available tool
 depth; allow for it when choosing the pocket depth. **Edge gap** defaults to
@@ -20,14 +21,16 @@ enlarge the insert.
 Inlays currently require a solid bin and an untilted pocket with a single
 supporting floor and an opening large enough to lower the insert into place.
 Through cuts, kept-hole selections, split floors, tilted pockets, and buried
-cavities show an explanation when an inlay cannot be installed. Export also
-checks that some of the floor remains beneath the inlay after overlapping cuts.
+cavities show an explanation when an inlay cannot be installed. Export checks
+the opening after all bin cuts and tests whether each printed piece can rest
+on the remaining floor without tipping. A piece can bridge an opening if the
+surrounding floor supports it.
 Inspect the slicer's layer preview and test the fit on your printer and material.
 
 ## Existing feature history
 
-This is the renamed and relocated **Tool fit template → Save fit template STL**
-export, rather than a newly introduced silhouette-export feature. It is present
+Shadow inlay export extends the original **Tool fit template → Save fit template STL**
+with geometry that seats in the finished pocket. The original export is present
 in the current repository's
 [August 26, 2026 Pocketry snapshot](https://github.com/wcscr/pocketry/commit/91aa2deb5bbd55193a5a971a3e924ed8a9c8ed05):
 [original Pocketry controls](https://github.com/wcscr/pocketry/blob/91aa2deb5bbd55193a5a971a3e924ed8a9c8ed05/client/src/components/gridfinity/bin-controls-panel.tsx)
@@ -37,6 +40,5 @@ The locally retained ToolTrace predecessor history dates the implementation to
 That predecessor commit belongs to ToolTrace, rather than Pocketry's current
 history. Dates here use America/New_York.
 
-The current change exposes that existing export in the main workflow and adds
-the floor-fit adjustments needed for its use as a separate inlay: bottom
-rounding, assembly clearance, preserved islands, and seat checks.
+The main export workflow adds bottom rounding, assembly clearance, preserved
+islands, and seat checks for the separate inlay.

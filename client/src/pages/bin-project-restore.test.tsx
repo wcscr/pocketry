@@ -36,7 +36,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
   useBinGeometry: () => ({
     geometry: null, stats: null, builtSpec: null, cutoutReports: [],
     hasPocketFloor: false, hasStackingRim: false, building: false, progress: 1, error: null,
-    buildOnce: vi.fn(), buildFitCheck: vi.fn(), buildSurfaceFitCheck: vi.fn(),
+    buildOnce: vi.fn(), buildFitCheck: vi.fn(), buildShadowInlay: vi.fn(), buildSurfaceFitCheck: vi.fn(),
   }),
 }));
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }));

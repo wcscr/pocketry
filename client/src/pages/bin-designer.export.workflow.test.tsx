@@ -49,7 +49,7 @@ describe("BinDesignerPage", () => {
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Right wrench");
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("0.35 mm clearance on each side");
       expect(document.querySelector('[role="dialog"]')?.textContent).toContain("uses 0.6 mm of the pocket’s tool depth");
-      expect(binGeometryMock.buildFitCheck).not.toHaveBeenCalled();
+      expect(binGeometryMock.buildShadowInlay).not.toHaveBeenCalled();
       React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
       expect(container.querySelector('#bin-settings-export')!.textContent).toContain("Export shadow inlay");
     } finally { unmount(); }
@@ -57,7 +57,7 @@ describe("BinDesignerPage", () => {
 
   it.each([
     ["through", { depth: { mode: "through" } }, "no supporting floor"],
-    ["buried", { elevationMm: 23, depth: { mode: "mm", value: 8 } }, "no opening at the fill surface"],
+    ["split", { split: { boundary: [{ x: 0, y: -5 }, { x: 0, y: 5 }], depths: [{ mode: "through" }, { mode: "mm", value: 4 }] } }, "single floor"],
   ] as const)("explains why a %s pocket cannot hold a shadow inlay", async (_kind, placement, message) => {
     const shape = rectangularShape("tool", "Wrench");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
@@ -299,6 +299,7 @@ describe("BinDesignerPage", () => {
     ["prusa-3mf", "-prusa-color-preview", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.6mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.6mm-thick", "stl"],
+    ["fit-check", "-Left-wrench-fit-template-0.6mm", "stl"],
     ["shadow-inlay", "-Left-wrench-shadow-inlay-0.6mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
@@ -310,7 +311,9 @@ describe("BinDesignerPage", () => {
       ...EMPTY_PROJECT,
       spec: parseBinSpec({ gridX: 4, gridY: 4, heightUnits: 6.5 }),
       shapes: [shape, rectangularShape("unused", "Unplaced tool")],
-      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, name: "Left wrench", position: { x: 0, y: 0 } })],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, name: "Left wrench", position: { x: 0, y: 0 },
+        ...(kind === "fit-check" ? { split: { boundary: [{ x: 0, y: -5 }, { x: 0, y: 5 }], depths: [{ mode: "through" }, { mode: "mm", value: 4 }] } } : {}),
+      })],
       fingerHoles: [fingerHoleSchema.parse({ id: "hole", kind: "straight", center: { x: 40, y: 0 } })],
     };
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(project);
@@ -326,18 +329,19 @@ describe("BinDesignerPage", () => {
     const result = { mesh, materialMeshes: { body: mesh, pocketFloors: mesh, stackingRim: mesh } };
     binGeometryMock.buildOnce.mockResolvedValue(result);
     binGeometryMock.buildFitCheck.mockResolvedValue(result);
+    binGeometryMock.buildShadowInlay.mockResolvedValue(result);
     binGeometryMock.buildSurfaceFitCheck.mockResolvedValue(result);
     const { container, unmount } = renderPage();
     await flushHydration();
     try {
-      if (kind === "shadow-inlay") {
+      if (kind === "shadow-inlay" || kind === "fit-check") {
         openSettingsSection(container, "tool-cutouts");
         React.act(() => {
           selectPocket(container, "pocket");
         });
       }
       openSettingsSection(container, "export");
-      if (kind.startsWith("surface-")) {
+      if (kind.startsWith("surface-") || kind === "fit-check") {
         await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-export-open-fit-check"]')!.click());
       }
       if (kind === "surface-fit-test") {
@@ -374,7 +378,10 @@ describe("BinDesignerPage", () => {
       if (kind.startsWith("surface-")) {
         expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(0.6, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
       }
-      if (kind === "shadow-inlay") expect(binGeometryMock.buildFitCheck).toHaveBeenCalledWith(
+      if (kind === "fit-check") expect(binGeometryMock.buildFitCheck).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "tool" }), expect.objectContaining({ id: "pocket", split: expect.any(Object) }), 0.6, expect.any(Object),
+      );
+      if (kind === "shadow-inlay") expect(binGeometryMock.buildShadowInlay).toHaveBeenCalledWith(
         "pocket", 0.6, expect.any(Object), 0.2,
       );
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;

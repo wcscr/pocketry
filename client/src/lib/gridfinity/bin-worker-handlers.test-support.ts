@@ -7,10 +7,12 @@ import { createBinWorkerHandlers } from "./bin-worker-handlers";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SHADOW_INLAY_METHOD,
   BUILD_SURFACE_FIT_CHECK_METHOD,
   type BuildBinRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
+  type BuildShadowInlayRequest,
   type BuildFitCheckResult,
   type BuildSurfaceFitCheckRequest,
   type BuildSurfaceFitCheckResult,
@@ -52,6 +54,12 @@ function getFitCheckHandler(): FitCheckHandler {
   return createBinWorkerHandlers(loadManifold)[
     BUILD_FIT_CHECK_METHOD
   ] as unknown as FitCheckHandler;
+}
+
+function getShadowInlayHandler() {
+  return createBinWorkerHandlers(loadManifold)[BUILD_SHADOW_INLAY_METHOD] as (
+    payload: BuildShadowInlayRequest, context: HandlerContext,
+  ) => Promise<TransferableResult<BuildFitCheckResult>>;
 }
 
 type SurfaceFitCheckHandler = (
@@ -124,6 +132,7 @@ export {
   previewMeshVolume,
   FitCheckHandler,
   getFitCheckHandler,
+  getShadowInlayHandler,
   SurfaceFitCheckHandler,
   getSurfaceFitCheckHandler,
   context,

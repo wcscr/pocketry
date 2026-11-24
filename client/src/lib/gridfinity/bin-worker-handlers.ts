@@ -4,7 +4,7 @@ import { pegBottomExtensionMm } from "@shared/gridfinity/peg-bottom";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { hasPocketTilt } from "@shared/gridfinity/pocket-orientation";
-import type { ManifoldToplevel } from "manifold-3d";
+import type { Manifold, ManifoldToplevel } from "manifold-3d";
 
 import {
   cutoutPlacementSchema,
@@ -15,7 +15,7 @@ import {
 import { parseBinSpec } from "@shared/gridfinity/types";
 
 import { Arena } from "@/lib/manifold/arena";
-import { createKernel } from "@/lib/manifold/kernel";
+import { createKernel, type Kernel } from "@/lib/manifold/kernel";
 import { extractMeshData, extractPrintableMeshData } from "@/lib/mesh/mesh-data";
 import { objectEdges } from "@/lib/mesh/object-edges";
 import type { HandlerContext, HandlerMap } from "@/lib/worker/host";
@@ -31,12 +31,13 @@ import {
   type BinMaterialParts,
   type BinLayout,
 } from "./bin";
-import { buildFitCheckSolid, buildSurfaceFitCheckSolid } from "./fit-check";
+import { buildFitCheckSolid, buildShadowInlaySolid, buildSurfaceFitCheckSolid } from "./fit-check";
 import { resolvedPocketGeometry } from "./pocket-geometry";
 import { resolvedProfileFootprint } from "./profile-bottom";
 import {
   BUILD_BIN_METHOD,
   BUILD_FIT_CHECK_METHOD,
+  BUILD_SHADOW_INLAY_METHOD,
   BUILD_SURFACE_FIT_CHECK_METHOD,
   RESOLVE_POCKET_GEOMETRY_METHOD,
   type ResolvePocketGeometryRequest,
@@ -45,9 +46,9 @@ import {
   type BuildBinLayoutRequest,
   type BuildBinResult,
   type BuildFitCheckRequest,
+  type BuildShadowInlayRequest,
   type BuildFitCheckResult,
   type BuildSurfaceFitCheckRequest,
-  type BuildSurfaceFitCheckResult,
 } from "./worker-api";
 
 function parseBinLayout(layout: BuildBinLayoutRequest): BinLayout {
@@ -308,12 +309,10 @@ export function createBinWorkerHandlers(
     }
   };
 
-  const buildFitCheckHandler = async (
-    payload: BuildFitCheckRequest,
+  const buildFitExport = async (
     context: HandlerContext,
+    buildSolid: (kernel: Kernel) => Manifold,
   ) => {
-    const spec = parseBinSpec(payload.spec);
-    const layout = parseBinLayout(payload.layout);
     context.progress(0.05);
 
     const wasm = await loadRuntime();
@@ -323,15 +322,7 @@ export function createBinWorkerHandlers(
     try {
       const kernel = createKernel(wasm, arena);
       const started = performance.now();
-      const solid = buildFitCheckSolid(
-        kernel,
-        spec,
-        layout,
-        payload.cutoutId,
-        payload.depthMm,
-        payload.quality,
-        payload.gapMm,
-      );
+      const solid = buildSolid(kernel);
       context.progress(0.7);
       if (context.signal.aborted) throw new WorkerCancelledError();
 
@@ -354,6 +345,26 @@ export function createBinWorkerHandlers(
     }
   };
 
+  const buildFitCheckHandler = async (
+    payload: BuildFitCheckRequest,
+    context: HandlerContext,
+  ) => {
+    const shape = tracedShapeSchema.parse(payload.shape);
+    const cutout = cutoutPlacementSchema.parse(payload.cutout);
+    return buildFitExport(context, (kernel) => buildFitCheckSolid(kernel, shape, cutout, payload.depthMm, payload.quality));
+  };
+
+  const buildShadowInlayHandler = async (
+    payload: BuildShadowInlayRequest,
+    context: HandlerContext,
+  ) => {
+    const spec = parseBinSpec(payload.spec);
+    const layout = parseBinLayout(payload.layout);
+    return buildFitExport(context, (kernel) => buildShadowInlaySolid(
+      kernel, spec, layout, payload.cutoutId, payload.depthMm, payload.quality, payload.gapMm,
+    ));
+  };
+
   const buildSurfaceFitCheckHandler = async (
     payload: BuildSurfaceFitCheckRequest,
     context: HandlerContext,
@@ -363,43 +374,9 @@ export function createBinWorkerHandlers(
     const unfinished = validateLayout(spec, layout.cutouts, layout.shapesById, layout.fingerHoles)
       .filter(issue => issue.code === "pocket-depth-needed");
     if (unfinished.length) throw new Error(unfinished.map(issue => issue.message).join("\n"));
-    context.progress(0.05);
-
-    const wasm = await loadRuntime();
-    if (context.signal.aborted) throw new WorkerCancelledError();
-
-    const arena = new Arena();
-    try {
-      const kernel = createKernel(wasm, arena);
-      const started = performance.now();
-      const solid = buildSurfaceFitCheckSolid(
-        kernel,
-        spec,
-        layout,
-        payload.thicknessMm,
-        payload.quality,
-        payload.style,
-      );
-      context.progress(0.7);
-      if (context.signal.aborted) throw new WorkerCancelledError();
-
-      const volumeMm3 = solid.volume();
-      const mesh = extractPrintableMeshData(kernel, solid);
-      context.progress(0.9);
-      const value: BuildSurfaceFitCheckResult = {
-        mesh,
-        stats: {
-          triangles: mesh.indices.length / 3,
-          volumeMm3,
-          buildMs: performance.now() - started,
-        },
-      };
-      const transfer: Transferable[] = [mesh.positions.buffer, mesh.indices.buffer];
-      if (mesh.normals) transfer.push(mesh.normals.buffer);
-      return { value, transfer };
-    } finally {
-      arena.dispose();
-    }
+    return buildFitExport(context, (kernel) => buildSurfaceFitCheckSolid(
+      kernel, spec, layout, payload.thicknessMm, payload.quality, payload.style,
+    ));
   };
 
   const resolvePocketGeometryHandler = async (payload: ResolvePocketGeometryRequest, context: HandlerContext) => {
@@ -430,6 +407,7 @@ export function createBinWorkerHandlers(
   return {
     [BUILD_BIN_METHOD]: buildBinHandler,
     [BUILD_FIT_CHECK_METHOD]: buildFitCheckHandler,
+    [BUILD_SHADOW_INLAY_METHOD]: buildShadowInlayHandler,
     [BUILD_SURFACE_FIT_CHECK_METHOD]: buildSurfaceFitCheckHandler,
     [RESOLVE_POCKET_GEOMETRY_METHOD]: resolvePocketGeometryHandler,
   } satisfies HandlerMap;

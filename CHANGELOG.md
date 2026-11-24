@@ -4,7 +4,7 @@
 
 ## 1.19.0 — 2026-11-24
 
-- Find the former Tool fit template under **Export → Export shadow inlay**. Print a contrasting insert without an AMS, with matching pocket-bottom rounding and adjustable clearance around retained islands.
+- **Export → Export shadow inlay** builds on the Tool fit template to print a contrasting insert without an AMS, with matching pocket-bottom rounding and adjustable clearance around retained islands. The original silhouette coupon remains in **Check fit**.
 
 ## 1.18.0 — 2026-11-24
 

@@ -6,7 +6,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { PREVIEW_QUALITY, EXPORT_QUALITY } from "@/lib/gridfinity/bin";
 import { useBinGeometry, type BinGeometryState } from "@/lib/gridfinity/use-bin-geometry";
-import type { BuildBinRequest, BuildBinResult, BuildFitCheckRequest, BuildSurfaceFitCheckRequest } from "@/lib/gridfinity/worker-api";
+import type { BuildBinRequest, BuildBinResult, BuildFitCheckRequest, BuildShadowInlayRequest, BuildSurfaceFitCheckRequest } from "@/lib/gridfinity/worker-api";
 import type { ClientMessage, WorkerMessage } from "@/lib/worker/protocol";
 
 type Call = Extract<ClientMessage, { kind: "call" }>;
@@ -220,27 +220,32 @@ describe("bin preview worker lifecycle", () => {
     await render(2, false, { 3: { axis: "x", offsetMm: 0 } }); await tick();
     let normal!: ReturnType<BinGeometryState["buildOnce"]>;
     let fit!: ReturnType<BinGeometryState["buildFitCheck"]>;
+    let shadow!: ReturnType<BinGeometryState["buildShadowInlay"]>;
     let surface!: ReturnType<BinGeometryState["buildSurfaceFitCheck"]>;
     await React.act(async () => {
       normal = state!.buildOnce(EXPORT_QUALITY, { pocketFloorMaterialThicknessMm: 0.8 });
-      fit = state!.buildFitCheck(cutout.id, 8, EXPORT_QUALITY, 0.3);
+      fit = state!.buildFitCheck(layout.shapes[0], cutout, 2, EXPORT_QUALITY);
+      shadow = state!.buildShadowInlay(cutout.id, 8, EXPORT_QUALITY, 0.3);
       surface = state!.buildSurfaceFitCheck(0.8, EXPORT_QUALITY, "full");
     });
     await render(3); await tick(); await render(4); await tick();
     expect(worker().calls).toHaveLength(1);
-    expect(detailWorker().calls).toHaveLength(3);
+    expect(detailWorker().calls).toHaveLength(4);
     const preview = worker().calls[0];
-    const [exported, fitCall, surfaceCall] = detailWorker().calls;
+    const [exported, fitCall, shadowCall, surfaceCall] = detailWorker().calls;
     expect(preview.method).toBe("buildBin");
     expect(exported.payload as BuildBinRequest).toMatchObject({ spec: { heightUnits: 2 }, quality: EXPORT_QUALITY, exportTopology: true, pocketFloorMaterialThicknessMm: 0.8 });
     expect((exported.payload as BuildBinRequest).section).toBeUndefined();
     expect(fitCall.method).toBe("buildFitCheck");
-    expect(fitCall.payload as BuildFitCheckRequest).toMatchObject({ spec: { heightUnits: 2 }, layout, cutoutId: cutout.id, depthMm: 8, gapMm: 0.3 });
+    expect(fitCall.payload as BuildFitCheckRequest).toMatchObject({ shape: layout.shapes[0], cutout, depthMm: 2 });
+    expect(shadowCall.method).toBe("buildShadowInlay");
+    expect(shadowCall.payload as BuildShadowInlayRequest).toMatchObject({ spec: { heightUnits: 2 }, layout, cutoutId: cutout.id, depthMm: 8, gapMm: 0.3 });
     expect(surfaceCall.method).toBe("buildSurfaceFitCheck");
     expect(surfaceCall.payload as BuildSurfaceFitCheckRequest).toMatchObject({ spec: { heightUnits: 2 }, thicknessMm: 0.8, style: "full" });
     await reply(() => worker().finish(0)); expect(worker().calls).toHaveLength(2);
-    await reply(() => { detailWorker().finish(0, resultFor(11)); detailWorker().finish(1, resultFor(12)); detailWorker().finish(2, resultFor(13)); worker().finish(1); });
-    expect((await normal).stats.volumeMm3).toBe(11); expect((await fit).stats.volumeMm3).toBe(12); expect((await surface).stats.volumeMm3).toBe(13);
+    await reply(() => { detailWorker().finish(0, resultFor(11)); detailWorker().finish(1, resultFor(12)); detailWorker().finish(2, resultFor(13)); detailWorker().finish(3, resultFor(14)); worker().finish(1); });
+    expect((await normal).stats.volumeMm3).toBe(11); expect((await fit).stats.volumeMm3).toBe(12);
+    expect((await shadow).stats.volumeMm3).toBe(13); expect((await surface).stats.volumeMm3).toBe(14);
     expect(state!.builtSpec?.heightUnits).toBe(4);
   });
 

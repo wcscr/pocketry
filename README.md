@@ -114,6 +114,8 @@ at **100% scale** (recommended thickness **0.6–0.8 mm**) and try the real
 tools. Adjust the outline or clearance as needed. This checks openings, not
 depth or baseplate fit. The older screenshot shows a 1.2 mm test.
 
+Select a pocket to export its silhouette coupon with **Tool fit template**.
+
 ![The original Wolfbox tool-outline fit check in Bambu Studio, with a 1.2 mm thickness shown in the model information](docs/images/fit-check-slicer.jpg)
 
 ### 5. Export and print the finished bin

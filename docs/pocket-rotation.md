@@ -48,9 +48,9 @@ references into equivalent ordinary pockets.
 
 Preview and STL/3MF export share the cavity builder, including floor-color
 material. A surface fit test checks the current opening.
-[Shadow inlays](shadow-inlays.md), formerly tool fit templates, export separate
-inserts for untilted pockets with a single supporting floor. These exports do
-not establish physical fit.
+[Shadow inlays](shadow-inlays.md) export separate inserts for untilted pockets
+with a single supporting floor. The original Tool fit template in **Check fit**
+exports a silhouette coupon, including for split pockets.
 
 ## Shared placement path for future model import
 

@@ -141,6 +141,7 @@ const binGeometryMock = vi.hoisted(() => ({
   hasStackingRim: true,
   buildOnce: vi.fn(),
   buildFitCheck: vi.fn(),
+  buildShadowInlay: vi.fn(),
   buildSurfaceFitCheck: vi.fn(),
 }));
 
@@ -164,6 +165,7 @@ vi.mock("@/lib/gridfinity/use-bin-geometry", () => ({
     error: binGeometryMock.error,
     buildOnce: binGeometryMock.buildOnce,
     buildFitCheck: binGeometryMock.buildFitCheck,
+    buildShadowInlay: binGeometryMock.buildShadowInlay,
     buildSurfaceFitCheck: binGeometryMock.buildSurfaceFitCheck,
   })),
 }));

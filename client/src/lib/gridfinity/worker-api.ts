@@ -23,6 +23,7 @@ import type { CutoutBuildReport } from "./cutouts";
 
 export const BUILD_BIN_METHOD = "buildBin";
 export const BUILD_FIT_CHECK_METHOD = "buildFitCheck";
+export const BUILD_SHADOW_INLAY_METHOD = "buildShadowInlay";
 export const BUILD_SURFACE_FIT_CHECK_METHOD = "buildSurfaceFitCheck";
 export const RESOLVE_POCKET_GEOMETRY_METHOD = "resolvePocketGeometry";
 
@@ -111,6 +112,13 @@ export interface BuildBinResult {
 }
 
 export interface BuildFitCheckRequest {
+  shape: TracedShape;
+  cutout: CutoutPlacementInput;
+  depthMm: number;
+  quality: BuildQuality;
+}
+
+export interface BuildShadowInlayRequest {
   spec: BinSpecInput;
   layout: BuildBinLayoutRequest;
   cutoutId: string;

@@ -236,7 +236,8 @@ export interface BinControlsPanelProps {
   previewIsDraft?: boolean;
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => void;
-  onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean, gapMm: number) => void;
+  onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
+  onExportShadowInlay: (cutoutId: string, depthMm: number, includeProject: boolean, gapMm: number) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
   onAutoArrange: () => void;
@@ -315,6 +316,7 @@ export function BinControlsPanel({
   exporting,
   onExport,
   onExportFitCheck,
+  onExportShadowInlay,
   onExportSurfaceFitCheck,
   onExportLayout,
   onAutoArrange,
@@ -490,6 +492,7 @@ export function BinControlsPanel({
   // Fit tests and alignment SVGs contain no lettering, so misplaced labels do not block them.
   const hasNonTextErrors = issues.some((issue) => issue.severity === "error" && !issue.surfaceTextIds?.length);
   const showNoCutoutsWarning = spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0;
+  const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
   const [shadowInlayThicknessMm, setShadowInlayThicknessMm] = useState(0.6);
   const [shadowInlayGapMm, setShadowInlayGapMm] = useState(DEFAULT_SHADOW_INLAY_GAP_MM);
   const [shadowInlayCutoutId, setShadowInlayCutoutId] = useState<string | null>(null);
@@ -736,7 +739,7 @@ export function BinControlsPanel({
             title: "Save shadow inlay STL?",
             description: `Download a separate ${shadowInlayThicknessMm} mm thick inlay for “${pocketName(inlayCutout, inlayShape)}”, with ${shadowInlayGapMm} mm clearance on each side and matching bottom rounding. Print at 100% scale. The inlay uses ${shadowInlayThicknessMm} mm of the pocket’s tool depth.`,
             confirmLabel: "Download STL",
-            onConfirm: includeProject => onExportFitCheck(inlayCutout.id, shadowInlayThicknessMm, includeProject, shadowInlayGapMm),
+            onConfirm: includeProject => onExportShadowInlay(inlayCutout.id, shadowInlayThicknessMm, includeProject, shadowInlayGapMm),
           });
         }} data-testid="button-export-shadow-inlay">
         <Download className="h-4 w-4" />{exporting ? "Building…" : "Save shadow inlay STL"}
@@ -812,9 +815,34 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-            {cutouts.length === 0 && fingerHoles.length === 0 && (
+            {selectedCutout && selectedShape ? (
+              <div className="space-y-2 border-t pt-2.5">
+                <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
+                  ? "Print the source silhouette with its Trace margin and profile scale. Use a surface fit test to check the slot width."
+                  : "A filled silhouette coupon with the Trace margin, pocket clearance, and corner rounding."} />
+                <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
+                <div className="flex items-center gap-2">
+                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+                  <DraftNumberInput className="h-8" value={fitCheckDepthMm} min={0.5} max={30} step={0.1}
+                    normalize={value => Math.min(30, Math.max(0.5, value))} onValueChange={setFitCheckDepthMm}
+                    aria-label="Fit template thickness in millimeters" data-testid="input-fit-check-depth" />
+                  <span className="text-xs text-muted-foreground">mm</span>
+                </div>
+                <Button variant="outline" size="sm" className="w-full" disabled={exporting}
+                  onClick={() => setPendingExport({
+                    title: "Save fit template STL?",
+                    description: `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
+                    confirmLabel: "Download STL",
+                    onConfirm: includeProject => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
+                  })} data-testid="button-export-fit-check">
+                  <Download className="h-4 w-4" />{exporting ? "Building…" : "Save fit template STL"}
+                </Button>
+              </div>
+            ) : cutouts.length > 0 ? (
+              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">Select a tool cutout to export a fit template.</p>
+            ) : fingerHoles.length === 0 && (
               <div className="space-y-2" data-testid="export-preview-empty">
-                <p className="text-[11px] text-muted-foreground">Add a tool cutout to enable surface fit tests.</p>
+                <p className="text-[11px] text-muted-foreground">Add a tool cutout to export fit templates and surface fit tests.</p>
                 <Button variant="outline" size="sm" className="w-full" onClick={() => navigate("/")} data-testid="button-go-to-trace">
                   Go to Trace
                 </Button>
