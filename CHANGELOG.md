@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.17.0 — 2026-11-24
+
+- Find the former Tool fit template under **Export → Export shadow inlay**. Print a contrasting insert without an AMS, with matching pocket-bottom rounding and an adjustable edge gap.
+
 ## 1.16.1 — 2026-11-24
 
 - Search sample designs by tool, model, or feature. Share individual design pages with photos and print downloads, or open an editable copy directly in Pocketry.

@@ -1100,7 +1100,7 @@ export interface PlacementFootprint {
  * Conservative allowance for synchronous layout checks and packing. These
  * operate on the traced rings without kernel offsets, so inward clearance
  * cannot be credited as extra room (it can split or erase thin features).
- * The actual cutter and fit template apply the full signed clearance.
+ * The actual cutter and shadow inlay apply the full signed clearance.
  */
 export function pocketLayoutAllowanceMm(
   cutout: Pick<CutoutPlacement, "clearanceMm" | "topFilletMm"> & Partial<Pick<CutoutPlacement, "tilt" | "rotationDeg" | "profileBottom">>,

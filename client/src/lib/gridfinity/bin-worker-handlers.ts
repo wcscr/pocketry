@@ -313,6 +313,7 @@ export function createBinWorkerHandlers(
     payload: BuildFitCheckRequest,
     context: HandlerContext,
   ) => {
+    const spec = parseBinSpec(payload.spec);
     const shape = tracedShapeSchema.parse(payload.shape);
     const cutout = cutoutPlacementSchema.parse(payload.cutout);
     context.progress(0.05);
@@ -330,6 +331,8 @@ export function createBinWorkerHandlers(
         cutout,
         payload.depthMm,
         payload.quality,
+        spec,
+        payload.gapMm,
       );
       context.progress(0.7);
       if (context.signal.aborted) throw new WorkerCancelledError();

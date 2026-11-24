@@ -111,10 +111,12 @@ export interface BuildBinResult {
 }
 
 export interface BuildFitCheckRequest {
+  spec: BinSpecInput;
   shape: TracedShape;
   cutout: CutoutPlacementInput;
   depthMm: number;
   quality: BuildQuality;
+  gapMm?: number;
 }
 
 export interface BuildFitCheckResult {

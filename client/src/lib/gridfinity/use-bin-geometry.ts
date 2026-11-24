@@ -103,12 +103,13 @@ export interface BinGeometryState {
       colorDividerTops?: boolean;
     },
   ) => Promise<BuildBinResult>;
-  /** Builds a standalone filled outline for an inexpensive print-fit check. */
+  /** Builds the standalone shadow inlay using the current pocket floor. */
   buildFitCheck: (
     shape: TracedShape,
     cutout: CutoutPlacement,
     depthMm: number,
     quality: BuildQuality,
+    gapMm?: number,
   ) => Promise<BuildFitCheckResult>;
   /** Builds the complete pocket-layout surface as a thin printable plate. */
   buildSurfaceFitCheck: (
@@ -555,18 +556,21 @@ export function useBinGeometry(
       cutout: CutoutPlacement,
       depthMm: number,
       exportQuality: BuildQuality,
+      gapMm?: number,
     ): Promise<BuildFitCheckResult> => {
       const request: BuildFitCheckRequest = {
+        spec: withoutFontSources(spec),
         shape,
         cutout,
         depthMm,
         quality: exportQuality,
+        gapMm,
       };
       return ensureClient().call<BuildFitCheckResult>(BUILD_FIT_CHECK_METHOD, request, {
         channel: "fit-check-export",
       });
     },
-    [ensureClient],
+    [ensureClient, spec],
   );
 
   const buildSurfaceFitCheck = useCallback(

@@ -21,7 +21,7 @@ for user-visible changes.
 | Materials | Body, floor/interior, rim/top-border, optional divider-top, label-background, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
 | Fixtures | Wham Bam Systems ULTIM8-compatible pegs, arbitrary dimensions, and 1:1 alignment SVG | [Jig geometry and export](ultim8-peg-bottom.md) |
 | Persistence | Browser-local autosave, named library, undo/redo, project and library import/export | [Project schema/migrations](../shared/gridfinity/project.ts), [project storage](../client/src/lib/project/) |
-| Output | Single- or multi-color 3MF, STL, thin fit checks, and SVG/DXF layouts | [DXF](dxf-compatibility.md), [mesh writers](../client/src/lib/mesh/) |
+| Output | Single- or multi-color 3MF, STL, thin fit checks, shadow inlays, and SVG/DXF layouts | [Shadow inlays](shadow-inlays.md), [DXF](dxf-compatibility.md), [mesh writers](../client/src/lib/mesh/) |
 
 Construction is grouped into **Interior**, **Walls & rim**, **Compartments**,
 **Floor & scoops**, **Base & mounting**, and **Label tabs**. Feature switches and

@@ -172,6 +172,12 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               <strong> 100% scale</strong>, choose filament and print settings,
               and review the layer preview before printing.
             </p>
+            <p className="mt-1 text-muted-foreground">
+              For a contrasting pocket insert without an AMS, choose
+              <strong> Export shadow inlay</strong>, select a pocket, and save
+              its STL. The insert follows the pocket’s bottom rounding. Allow
+              for its thickness when setting tool depth.
+            </p>
           </li>
           <li className="pl-1">
             <h3 className="font-semibold">Save for later</h3>

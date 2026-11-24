@@ -47,8 +47,10 @@ profile prototype's centered extrusion, edge rotation, history and creation
 references into equivalent ordinary pockets.
 
 Preview and STL/3MF export share the cavity builder, including floor-color
-material. A surface fit test checks the current opening; a tool fit template
-checks the original outline. These checks do not establish physical fit.
+material. A surface fit test checks the current opening.
+[Shadow inlays](shadow-inlays.md), formerly tool fit templates, export separate
+inserts for untilted pockets with a single supporting floor. These exports do
+not establish physical fit.
 
 ## Shared placement path for future model import
 

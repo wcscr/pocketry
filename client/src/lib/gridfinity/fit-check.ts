@@ -9,6 +9,7 @@ import {
 } from "@shared/gridfinity/cutout";
 import { BASE_TOP_RADIUS, binFootprintMm } from "@shared/gridfinity/standard";
 import type { BinSpec } from "@shared/gridfinity/types";
+import { DEFAULT_SHADOW_INLAY_GAP_MM, shadowInlayGapSchema, shadowInlayUnavailableReason } from "@shared/gridfinity/shadow-inlay";
 import {
   SURFACE_FIT_CHECK_OUTLINE_WIDTH_MM,
   surfaceFitCheckStyleSchema,
@@ -27,6 +28,7 @@ import {
 } from "./cutouts";
 import { footprintOuterSection } from "./footprint-section";
 import { roundedRectPolygon } from "./profiles";
+import { bottomFilletCutter, FILLET_PROFILE_STEP_MM } from "./fillet-stack";
 import {
   SURFACE_FIT_CHECK_MAX_THICKNESS_MM,
   SURFACE_FIT_CHECK_MIN_THICKNESS_MM,
@@ -37,15 +39,14 @@ const CLEANUP_EPSILON = 1e-6;
 export const FIT_CHECK_MIN_DEPTH_MM = 0.5;
 export const FIT_CHECK_MAX_DEPTH_MM = 30;
 /**
- * Builds a small, positive fit template from one selected pocket.
+ * Builds a separate shadow inlay from the existing positive fit-template export.
  *
  * The traced outline already contains the Trace-page margin. This builder
  * then applies the pocket's additional clearance and vertical-corner round,
- * exactly as the bin cutter does, before extruding it to the requested test
- * thickness. Interior rings are deliberately filled: the template represents
- * the tool's outside silhouette, not incidental holes detected inside it.
- * Finger access and top/bottom edge fillets are bin-only geometry and are not
- * part of this inexpensive silhouette check.
+ * exactly as the bin cutter does. The bottom uses the same fillet profile and
+ * radius clamp as the cavity, even when the inlay is thinner than that radius.
+ * Interior islands remain clear; mirroring and scaling match the pocket, while
+ * position and Z rotation are omitted for printing on the build plate.
  */
 export function buildFitCheckSolid(
   kernel: Kernel,
@@ -53,6 +54,8 @@ export function buildFitCheckSolid(
   cutout: CutoutPlacement,
   depthMm: number,
   quality: BuildQuality,
+  spec: BinSpec,
+  gapMm = DEFAULT_SHADOW_INLAY_GAP_MM,
 ): Manifold {
   if (
     !Number.isFinite(depthMm) ||
@@ -60,34 +63,33 @@ export function buildFitCheckSolid(
     depthMm > FIT_CHECK_MAX_DEPTH_MM
   ) {
     throw new Error(
-      `Fit template thickness must be ${FIT_CHECK_MIN_DEPTH_MM}–${FIT_CHECK_MAX_DEPTH_MM} mm.`,
+      `Shadow inlay thickness must be ${FIT_CHECK_MIN_DEPTH_MM}–${FIT_CHECK_MAX_DEPTH_MM} mm.`,
     );
   }
+  shadowInlayGapSchema.parse(gapMm);
+  const unavailable = shadowInlayUnavailableReason(spec, shape, cutout, depthMm);
+  if (unavailable) throw new Error(unavailable);
 
   const { arena } = kernel;
   const segments = quality.circularSegments;
   const budget = quality.cutoutVertexBudget ?? 150;
-  const filled = budgetOutline(shape.outlineMm, budget).map((part) => ({
-    outer: part.outer,
-    holes: [],
-  }));
-  const normalized = transformOutlinePlacement(filled, {
+  const normalized = transformOutlinePlacement(budgetOutline(shape.outlineMm, budget), {
     position: { x: 0, y: 0 },
     rotationDeg: 0,
-    mirrored: false,
+    mirrored: cutout.mirrored,
     scaleX: cutout.scaleX,
     scaleY: cutout.scaleY,
   });
 
   let section = toCrossSection(kernel, normalized);
-  if (!cutout.profileBottom && cutout.clearanceMm !== 0) {
+  if (cutout.clearanceMm !== 0) {
     section = arena.track(
       arena
         .track(section.offset(cutout.clearanceMm, "Round", 2, segments))
         .simplify(CLEANUP_EPSILON),
     );
   }
-  if (!cutout.profileBottom && cutout.cornerRoundMm > 0) {
+  if (cutout.cornerRoundMm > 0) {
     section = arena.track(
       arena
         .track(section.offset(-cutout.cornerRoundMm, "Round", 2, segments))
@@ -99,15 +101,27 @@ export function buildFitCheckSolid(
         .simplify(CLEANUP_EPSILON),
     );
   }
+  if (gapMm > 0) {
+    section = arena.track(arena.track(section.offset(-gapMm, "Round", 2, segments)).simplify(CLEANUP_EPSILON));
+  }
   if (section.isEmpty()) {
     throw new Error(
       "The selected outline collapsed under its clearance and corner-round settings.",
     );
   }
 
-  const solid = arena.track(section.extrude(depthMm));
+  const pocketDepth = cutout.depth.mode === "mm" ? cutout.depth.value
+    : cutout.depth.sourceDepthMm ?? resolvePocketDepth(spec, cutout.depth).depthMm ?? 0;
+  const radiusMm = Math.min(cutout.bottomFilletMm, pocketDepth / 2);
+  const rounded = bottomFilletCutter(kernel, section, Math.max(depthMm, radiusMm), {
+    radiusMm,
+    profileStepMm: quality.filletProfileStepMm ?? FILLET_PROFILE_STEP_MM,
+    circularSegments: segments,
+  });
+  const solid = arena.track(rounded.trimByPlane([0, 0, -1], -depthMm));
   const status = solid.status();
-  if (status !== "NoError") {
+  if (status !== "NoError" || solid.isEmpty() || solid.boundingBox().min[2] > CLEANUP_EPSILON) {
+    if (status === "NoError") throw new Error("The shadow inlay has no flat seat after bottom rounding. Reduce the gap or bottom fillet.");
     throw new Error(`buildFitCheckSolid: manifold reported ${status}`);
   }
   return solid;

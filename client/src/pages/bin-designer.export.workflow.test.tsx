@@ -20,6 +20,55 @@ import { strFromU8, unzipSync } from "fflate";
 
 describe("BinDesignerPage", () => {
 
+  it.each([false, true])("offers shadow inlays directly in Export without selecting a canvas pocket (mobile=%s)", async mobile => {
+    const shape = rectangularShape("tool", "Wrench");
+    const cutouts = ["Left wrench", "Right wrench"].map((name, index) => parseCutoutPlacement({
+      id: `pocket-${index}`, name, shapeId: shape.id, position: { x: index * 20, y: 0 },
+      depth: { mode: "mm", value: 8 },
+    }));
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape], cutouts });
+    const { container, unmount } = renderPage({ mobile });
+    try {
+      await flushHydration();
+      if (mobile) React.act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Export")!.click());
+      else openSettingsSection(container, "export");
+      const inlay = container.querySelector('[data-testid="export-shadow-inlay"]')!;
+      expect(inlay.closest('[hidden], [inert], .hidden')).toBeNull();
+      expect(inlay.textContent).toContain("No AMS needed");
+      const selector = inlay.querySelector<HTMLButtonElement>('[data-testid="select-shadow-inlay-pocket"]')!;
+      expect(selector.textContent).toBe("Left wrench");
+      React.act(() => selector.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+      React.act(() => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === "Right wrench")!.click());
+      const gap = inlay.querySelector<HTMLInputElement>('[data-testid="input-shadow-inlay-gap"]')!;
+      React.act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(gap, "0.35");
+        gap.dispatchEvent(new Event("input", { bubbles: true }));
+        gap.dispatchEvent(new Event("blur", { bubbles: true }));
+      });
+      React.act(() => inlay.querySelector<HTMLButtonElement>('[data-testid="button-export-shadow-inlay"]')!.click());
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Right wrench");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("0.35 mm clearance on each side");
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("uses 0.6 mm of the pocket’s tool depth");
+      expect(binGeometryMock.buildFitCheck).not.toHaveBeenCalled();
+      React.act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "Cancel")!.click());
+      expect(container.querySelector('#bin-settings-export')!.textContent).toContain("Export shadow inlay");
+    } finally { unmount(); }
+  });
+
+  it("explains why a through pocket cannot hold a shadow inlay", async () => {
+    const shape = rectangularShape("tool", "Wrench");
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, shapes: [shape],
+      cutouts: [parseCutoutPlacement({ id: "pocket", shapeId: shape.id, position: { x: 0, y: 0 }, depth: { mode: "through" } })],
+    });
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      openSettingsSection(container, "export");
+      expect(container.querySelector('[data-testid="shadow-inlay-unavailable"]')?.textContent).toContain("no supporting floor");
+      expect(container.querySelector<HTMLButtonElement>('[data-testid="button-export-shadow-inlay"]')!.disabled).toBe(true);
+    } finally { unmount(); }
+  });
+
   it.each([
     { layout: "standard", mobile: false, named: false }, { layout: "workflow", mobile: false, named: true },
     { layout: "standard", mobile: true, named: true }, { layout: "workflow", mobile: true, named: true },
@@ -246,7 +295,7 @@ describe("BinDesignerPage", () => {
     ["prusa-3mf", "-prusa-color-preview", "3mf"],
     ["surface-fit-test", "-surface-fit-test-0.6mm", "stl"],
     ["surface-outline", "-tool-outlines-5mm-wide-0.6mm-thick", "stl"],
-    ["fit-check", "-Left-wrench-fit-template-0.6mm", "stl"],
+    ["shadow-inlay", "-Left-wrench-shadow-inlay-0.6mm", "stl"],
     ["layout-svg", "-layout", "svg"],
     ["layout-dxf", "-layout", "dxf"],
   ].flatMap(([kind, suffix, extension]) => [false, true].map((includeProject) => ({ kind, suffix, extension, includeProject }))))(
@@ -277,14 +326,14 @@ describe("BinDesignerPage", () => {
     const { container, unmount } = renderPage();
     await flushHydration();
     try {
-      if (kind === "fit-check") {
+      if (kind === "shadow-inlay") {
         openSettingsSection(container, "tool-cutouts");
         React.act(() => {
           selectPocket(container, "pocket");
         });
       }
       openSettingsSection(container, "export");
-      if (kind.startsWith("surface-") || kind === "fit-check") {
+      if (kind.startsWith("surface-")) {
         await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-export-open-fit-check"]')!.click());
       }
       if (kind === "surface-fit-test") {
@@ -321,6 +370,9 @@ describe("BinDesignerPage", () => {
       if (kind.startsWith("surface-")) {
         expect(binGeometryMock.buildSurfaceFitCheck).toHaveBeenCalledWith(0.6, expect.any(Object), kind === "surface-outline" ? "outline" : "full");
       }
+      if (kind === "shadow-inlay") expect(binGeometryMock.buildFitCheck).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "tool" }), expect.objectContaining({ id: "pocket" }), 0.6, expect.any(Object), 0.2,
+      );
       const [model, modelName] = vi.mocked(downloadBlob).mock.calls.at(-1)!;
       expect(modelName).toMatch(new RegExp(`^Layout-2-bin-4x4x6\\.5${suffix.replaceAll(".", "\\.")}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}\\.${extension}$`));
       expect(model.size).toBeGreaterThan(84);

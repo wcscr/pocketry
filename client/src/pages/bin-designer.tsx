@@ -1181,15 +1181,15 @@ function BinDesignerWorkspace(): JSX.Element {
   );
 
   const handleExportFitCheck = useCallback(
-    async (cutoutId: string, depthMm: number, includeProject: boolean) => {
+    async (cutoutId: string, depthMm: number, includeProject: boolean, gapMm: number) => {
       const cutout = exportProjectDoc.cutouts.find((candidate) => candidate.id === cutoutId);
       const shape = cutout
         ? library.shapes.find((candidate) => candidate.id === cutout.shapeId)
         : null;
       if (!cutout || !shape) {
         toast({
-          title: "Fit template unavailable",
-          description: "Select a tool pocket before exporting its fit template.",
+          title: "Shadow inlay unavailable",
+          description: "Select a tool pocket before exporting its shadow inlay.",
           variant: "destructive",
         });
         return;
@@ -1201,12 +1201,12 @@ function BinDesignerWorkspace(): JSX.Element {
         const project = prepareProjectExport(
           exportProjectDoc,
           currentProjectName,
-          `${exportFilePart(pocketName(cutout, shape)) || "tool"}-fit-template-${depthLabel}mm`,
+          `${exportFilePart(pocketName(cutout, shape)) || "tool"}-shadow-inlay-${depthLabel}mm`,
         );
-        const result = await buildFitCheck(shape, cutout, depthMm, EXPORT_QUALITY);
+        const result = await buildFitCheck(shape, cutout, depthMm, EXPORT_QUALITY, gapMm);
         const stl = writeBinarySTL(
           { positions: result.mesh.positions, indices: result.mesh.indices },
-          `Pocketry ${pocketName(cutout, shape)} fit template ${depthLabel} mm`,
+          `Pocketry ${pocketName(cutout, shape)} shadow inlay ${depthLabel} mm`,
         );
         downloadModelWithProject(
           new Blob([stl], { type: "application/octet-stream" }),
@@ -1215,13 +1215,13 @@ function BinDesignerWorkspace(): JSX.Element {
           includeProject,
         );
         toast({
-          title: "Fit template saved",
-          description: `Exported “${pocketName(cutout, shape)}” as a ${depthLabel} mm filled outline${includeProject ? " with an editable project JSON" : ""}.`,
+          title: "Shadow inlay saved",
+          description: `Exported “${pocketName(cutout, shape)}” as a ${depthLabel} mm shadow inlay${includeProject ? " with an editable project JSON" : ""}.`,
         });
       } catch (cause) {
         if (!(cause instanceof WorkerCancelledError)) {
           toast({
-            title: "Fit template export failed",
+            title: "Shadow inlay export failed",
             description: cause instanceof Error ? cause.message : String(cause),
             variant: "destructive",
           });
@@ -1319,8 +1319,8 @@ function BinDesignerWorkspace(): JSX.Element {
           previewIsDraft={previewIsDraft}
           exporting={exporting}
           onExport={(format, includeProject) => void handleExport(format, includeProject)}
-          onExportFitCheck={(cutoutId, depthMm, includeProject) =>
-            void handleExportFitCheck(cutoutId, depthMm, includeProject)
+          onExportFitCheck={(cutoutId, depthMm, includeProject, gapMm) =>
+            void handleExportFitCheck(cutoutId, depthMm, includeProject, gapMm)
           }
           onExportSurfaceFitCheck={(thicknessMm, includeProject, style) =>
             void handleExportSurfaceFitCheck(thicknessMm, includeProject, style)

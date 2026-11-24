@@ -27,6 +27,7 @@ import { useSelectionInspector } from "./selection-inspector-context";
 import { useExperimentalFeatures } from "@/state/experimental-features";
 import { issueSettingsTarget } from "@/lib/gridfinity/issue-settings";
 import { hasPocketTilt, pocketAxis } from "@shared/gridfinity/pocket-orientation";
+import { DEFAULT_SHADOW_INLAY_GAP_MM, shadowInlayUnavailableReason } from "@shared/gridfinity/shadow-inlay";
 import { wallSlantTopOffsetMm } from "@shared/gridfinity/wall-slant";
 import {
   Box,
@@ -227,7 +228,7 @@ export interface BinControlsPanelProps {
   previewIsDraft?: boolean;
   exporting: boolean;
   onExport: (format: "3mf" | "3mf-multicolor" | "3mf-bambu" | "3mf-prusa" | "stl", includeProject: boolean) => void;
-  onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean) => void;
+  onExportFitCheck: (cutoutId: string, depthMm: number, includeProject: boolean, gapMm: number) => void;
   onExportSurfaceFitCheck: (thicknessMm: number, includeProject: boolean, style: SurfaceFitCheckStyle) => void;
   onExportLayout: (format: "dxf" | "svg", includeProject: boolean) => void;
   onAutoArrange: () => void;
@@ -469,7 +470,9 @@ export function BinControlsPanel({
   // Fit tests and alignment SVGs contain no lettering, so misplaced labels do not block them.
   const hasNonTextErrors = issues.some((issue) => issue.severity === "error" && !issue.surfaceTextIds?.length);
   const showNoCutoutsWarning = spec.fill === "solid" && cutouts.length === 0 && fingerHoles.length === 0;
-  const [fitCheckDepthMm, setFitCheckDepthMm] = useState(0.6);
+  const [shadowInlayThicknessMm, setShadowInlayThicknessMm] = useState(0.6);
+  const [shadowInlayGapMm, setShadowInlayGapMm] = useState(DEFAULT_SHADOW_INLAY_GAP_MM);
+  const [shadowInlayCutoutId, setShadowInlayCutoutId] = useState<string | null>(null);
   const [surfaceFitCheckThicknessMm, setSurfaceFitCheckThicknessMm] = useState(
     SURFACE_FIT_CHECK_DEFAULT_THICKNESS_MM,
   );
@@ -669,6 +672,58 @@ export function BinControlsPanel({
     });
   };
 
+  const inlayPockets = cutouts.filter(cutout => cutout.role !== "hole");
+  const inlayCutout = inlayPockets.find(cutout => cutout.id === shadowInlayCutoutId)
+    ?? inlayPockets.find(cutout => cutout.id === selectedCutoutId) ?? inlayPockets[0];
+  const inlayShape = inlayCutout ? shapesById.get(inlayCutout.shapeId) : undefined;
+  const inlayUnavailable = inlayCutout && inlayShape
+    ? shadowInlayUnavailableReason(spec, inlayShape, inlayCutout, shadowInlayThicknessMm)
+    : "Add a tool pocket to export a shadow inlay.";
+  const shadowInlayControls = (
+    <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5" data-testid="export-shadow-inlay">
+      <SettingLabel label="Export shadow inlay" hint="Print a separate insert in a contrasting color and place it in the pocket without an AMS or other multicolor printer. The insert follows the pocket’s bottom rounding. Thickness uses some of the tool’s available depth. Edge gap is the clearance on each side for assembly; adjust it for your printer and material." />
+      <p className="text-xs text-muted-foreground">Print in a different color, then place in the pocket. No AMS needed.</p>
+      {inlayCutout && inlayShape && <>
+        <div className="flex items-center gap-2">
+          <Label className="w-20 shrink-0 text-xs">Pocket</Label>
+          <Select value={inlayCutout.id} onValueChange={setShadowInlayCutoutId}>
+            <SelectTrigger className="h-8 min-w-0" aria-label="Shadow inlay pocket" data-testid="select-shadow-inlay-pocket"><SelectValue /></SelectTrigger>
+            <SelectContent>{inlayPockets.map(cutout => <SelectItem key={cutout.id} value={cutout.id}>
+              {pocketName(cutout, shapesById.get(cutout.shapeId))}
+            </SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="w-20 shrink-0 text-xs">Thickness</Label>
+          <DraftNumberInput className="h-8" value={shadowInlayThicknessMm} min={0.5} max={30} step={0.1}
+            normalize={value => Math.min(30, Math.max(0.5, value))} onValueChange={setShadowInlayThicknessMm}
+            aria-label="Shadow inlay thickness in millimeters" data-testid="input-shadow-inlay-thickness" />
+          <span className="text-xs text-muted-foreground">mm</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <SettingLabel label="Edge gap" hint="Clearance on each side, in addition to the pocket’s tool clearance. Defaults to 0.2 mm. A larger gap gives a looser fit." className="w-20 shrink-0" />
+          <DraftNumberInput className="h-8" value={shadowInlayGapMm} min={0} max={1} step={0.05}
+            normalize={value => Math.min(1, Math.max(0, value))} onValueChange={setShadowInlayGapMm}
+            aria-label="Shadow inlay edge gap in millimeters" data-testid="input-shadow-inlay-gap" />
+          <span className="text-xs text-muted-foreground">mm</span>
+        </div>
+      </>}
+      {inlayUnavailable && <p className="text-xs text-muted-foreground" data-testid="shadow-inlay-unavailable">{inlayUnavailable}</p>}
+      <Button variant="outline" size="sm" className="w-full" disabled={exporting || !!inlayUnavailable}
+        onClick={() => {
+          if (!inlayCutout || !inlayShape || inlayUnavailable) return;
+          setPendingExport({
+            title: "Save shadow inlay STL?",
+            description: `Download a separate ${shadowInlayThicknessMm} mm thick inlay for “${pocketName(inlayCutout, inlayShape)}”, with ${shadowInlayGapMm} mm clearance on each side and matching bottom rounding. Print at 100% scale. The inlay uses ${shadowInlayThicknessMm} mm of the pocket’s tool depth.`,
+            confirmLabel: "Download STL",
+            onConfirm: includeProject => onExportFitCheck(inlayCutout.id, shadowInlayThicknessMm, includeProject, shadowInlayGapMm),
+          });
+        }} data-testid="button-export-shadow-inlay">
+        <Download className="h-4 w-4" />{exporting ? "Building…" : "Save shadow inlay STL"}
+      </Button>
+    </div>
+  );
+
   const fitTestControls = (
           <div
             className="space-y-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 p-3"
@@ -737,68 +792,10 @@ export function BinControlsPanel({
                 </Button>
               </div>
             )}
-
-            {selectedCutout && selectedShape ? (
-              <div className="space-y-2 border-t pt-2.5">
-                <div>
-                  <SettingLabel label="Tool fit template" hint={selectedCutout.profileBottom
-                    ? "The source silhouette, including its Trace margin and profile scale. Use a surface fit test to check the straight slot width."
-                    : "A filled tool outline without the bin or finger access features. Includes its Trace margin, signed pocket clearance, and outline corner rounding."} />
-                  <p className="truncate text-xs font-medium" title={pocketName(selectedCutout, selectedShape)}>{pocketName(selectedCutout, selectedShape)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="w-20 shrink-0 text-xs">Thickness</Label>
-                  <DraftNumberInput
-                    className="h-8"
-                    value={fitCheckDepthMm}
-                    min={0.5}
-                    max={30}
-                    step={0.1}
-                    normalize={(value) => Math.min(30, Math.max(0.5, value))}
-                    onValueChange={setFitCheckDepthMm}
-                    aria-label="Fit template thickness in millimetres"
-                    data-testid="input-fit-check-depth"
-                  />
-                  <span className="text-xs text-muted-foreground">mm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={exporting}
-                  onClick={() => setPendingExport({
-                    title: "Save fit template STL?",
-                    description: selectedCutout.profileBottom
-                      ? `Download the source profile of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick. Use a surface fit test to check the slot width.`
-                      : `Download the filled outline of “${pocketName(selectedCutout, selectedShape)}” at ${fitCheckDepthMm} mm thick.`,
-                    confirmLabel: "Download STL",
-                    onConfirm: (includeProject) => onExportFitCheck(selectedCutout.id, fitCheckDepthMm, includeProject),
-                  })}
-                  data-testid="button-export-fit-check"
-                >
-                  <Download className="h-4 w-4" />
-                  {exporting ? "Building…" : "Save fit template STL"}
-                </Button>
-              </div>
-            ) : cutouts.length > 0 ? (
-              <p className="border-t pt-2.5 text-[11px] text-muted-foreground">
-                Select a tool cutout to export a fit template.
-              </p>
-            ) : (
-              <div
-                className="space-y-2 border-t pt-2.5"
-                data-testid="export-preview-empty"
-              >
-                <p className="text-[11px] text-muted-foreground">
-                  Add a tool cutout to enable fit templates.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => navigate("/")}
-                  data-testid="button-go-to-trace"
-                >
+            {cutouts.length === 0 && fingerHoles.length === 0 && (
+              <div className="space-y-2" data-testid="export-preview-empty">
+                <p className="text-[11px] text-muted-foreground">Add a tool cutout to enable surface fit tests.</p>
+                <Button variant="outline" size="sm" className="w-full" onClick={() => navigate("/")} data-testid="button-go-to-trace">
                   Go to Trace
                 </Button>
               </div>
@@ -2542,6 +2539,8 @@ export function BinControlsPanel({
               </Button>
             </div>
           </div>
+
+          {shadowInlayControls}
 
           {(cutouts.length > 0 || spec.pegBottom) && (
             <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5">

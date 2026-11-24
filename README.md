@@ -123,6 +123,10 @@ Open it in your slicer at **100% scale** and check the layer preview. For color,
 choose **Multi-color 3MF**, **Bambu 3MF**, or **Prusa color preview 3MF**.
 Select your printer and materials before printing.
 
+For a separately printed pocket insert, choose **Export → Export shadow inlay**.
+The STL follows the pocket’s bottom rounding, with an adjustable edge gap for
+assembly. See [shadow inlays](docs/shadow-inlays.md) for supported pocket types.
+
 ![Current 3MF choices: Single-color, Multi-color, Bambu, and Prusa color preview](docs/images/export-3mf.jpg)
 
 ![The original printed black-and-orange Wolfbox bin with the duster, nozzles, and cable in place](docs/images/printed-bin-loaded.jpg)
