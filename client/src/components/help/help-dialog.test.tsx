@@ -41,6 +41,10 @@ it("keeps GitHub feedback available in Help after the welcome has been dismissed
     const github = dialog.querySelector('a[href="https://github.com/wcscr/pocketry/issues/new"]');
     expect(github?.getAttribute("target")).toBe("_blank");
     expect(github?.getAttribute("rel")).toContain("noopener");
+    const aiGuide = dialog.querySelector('a[href="/ai-guide.txt"]');
+    expect(aiGuide?.textContent).toContain("AI assistant guide");
+    expect(aiGuide?.getAttribute("target")).toBe("_blank");
+    expect(aiGuide?.getAttribute("rel")).toContain("noopener");
     expect(dialog.querySelector('a[href="/help/ultim8"]')?.textContent).toBe("ULTIM8-compatible fixture guide");
     expect(dialog.textContent?.match(/ULTIM8/g)).toHaveLength(1);
     expect(dialog.querySelector('a[href="/ultim8"]')).toBeNull();
