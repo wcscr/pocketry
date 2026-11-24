@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.16.1 — 2026-11-24
+
+- Offer to resize an occupied bin when a traced outline needs more room, keeping existing pockets and finger access in place.
+
 ## 1.16.0 — 2026-11-24
 
 - Trace detects paper corners when it can't identify a Pocketry sheet. Review the handles and confirm A4 or US Letter to correct perspective.

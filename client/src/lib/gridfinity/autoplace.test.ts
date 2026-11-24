@@ -1,4 +1,4 @@
-import { parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
+import { fingerHoleSchema, parseCutoutPlacement, type TracedShape } from "@shared/gridfinity/cutout";
 import { parseBinSpec } from "@shared/gridfinity/types";
 import { validateLayout } from "@shared/gridfinity/validate";
 import { describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import {
   autoArrangeLayout,
   autoPlaceFresh,
   autoPlaceIncremental,
+  autoPlaceWithGrowth,
   fitLayoutToPlacements,
   fitFootprintToPlacements,
   fitRectangularBinToPlacements,
@@ -258,6 +259,35 @@ describe("autoPlaceIncremental", () => {
       byId,
     ).filter((issue) => issue.severity === "error");
     expect(errors).toEqual([]);
+  });
+
+  it("leaves room for existing finger access when proposing a larger exact-mm bin", () => {
+    const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6, flatBottom: true,
+      arbitrarySizeMm: { width: 41.2, length: 35.8 } });
+    const access = fingerHoleSchema.parse({ id: "access", center: { x: 2, y: -1 }, diameterMm: 18 });
+    const newShape = rectShape("incoming", 30, 20);
+    const byId = new Map([[newShape.id, newShape]]);
+    const options = { spec, gridX: spec.gridX, gridY: spec.gridY, lip: spec.lip, existing: [],
+      fingerHoles: [access], shapesById: byId, keepBinSize: true };
+    expect(autoPlaceIncremental([newShape], options).overflow).toBe(true);
+    const resized = autoPlaceWithGrowth([newShape], options)!;
+    expect(resized.arbitrarySizeMm).toBeDefined();
+    const size = resized.arbitrarySizeMm!;
+    expect(size.width === 41.2 || size.length === 35.8).toBe(true);
+    const fitted = parseBinSpec({ ...spec, arbitrarySizeMm: size });
+    expect(validateLayout(fitted, resized.cutouts, byId, [access])).toEqual([]);
+    const [placed] = resized.cutouts;
+    expect(Math.abs(placed.position.x - access.center.x) >= 24 || Math.abs(placed.position.y - access.center.y) >= 19).toBe(true);
+    expect(access.center).toEqual({ x: 2, y: -1 });
+  });
+
+  it("does not offer a resize beyond the maximum supported span", () => {
+    const spec = parseBinSpec({ gridX: 1, gridY: 1, heightUnits: 6 });
+    const oldShape = rectShape("old", 20, 20);
+    const old = autoPlaceFresh([oldShape], spec.lip).cutouts;
+    const tooWide = rectShape("wide", 710, 20);
+    expect(autoPlaceWithGrowth([tooWide], { spec, gridX: spec.gridX, gridY: spec.gridY, lip: spec.lip,
+      existing: old, shapesById: new Map([[oldShape.id, oldShape]]) })).toBeNull();
   });
 });
 

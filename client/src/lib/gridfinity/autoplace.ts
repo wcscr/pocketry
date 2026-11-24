@@ -283,6 +283,7 @@ export interface AutoPlaceResult {
   cutouts: CutoutPlacement[];
   gridX: number;
   gridY: number;
+  arbitrarySizeMm?: NonNullable<BinSpec["arbitrarySizeMm"]>;
   /** True when nothing fit at the maximum physical span; placements are still returned. */
   overflow: boolean;
 }
@@ -388,6 +389,7 @@ export interface AutoPlaceIncrementalOptions {
   gridX: number;
   gridY: number;
   existing: readonly CutoutPlacement[];
+  fingerHoles?: readonly FingerHole[];
   shapesById: ReadonlyMap<string, TracedShape>;
 }
 
@@ -401,15 +403,24 @@ export function autoPlaceIncremental(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions,
 ): AutoPlaceResult {
-  const occupied = existingBounds(options.existing, options.shapesById, [], options.spec);
+  const occupied = existingBounds(options.existing, options.shapesById, options.fingerHoles, options.spec);
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]));
+  const fitsFootprint = (grid: BinSizeSpec, cutouts: CutoutPlacement[]) => {
+    const spec = options.spec;
+    if (!spec || (spec.footprint.kind === "rectangle" && !spec.wallSlant && !spec.labelTab)) return true;
+    const footprint = options.keepBinSize ? spec.footprint : { kind: "rectangle" as const };
+    return !validateLayout({ ...spec, ...grid, gridPitch: spec.gridPitch, footprint }, cutouts, byId).some(issue =>
+      ["out-of-bounds", "wall-breach", "lip-collision", "label-tab-shadow"].includes(issue.code));
+  };
   if (!occupied) {
     if (options.keepBinSize || options.spec?.arbitrarySizeMm) {
       const interior = interiorMm(options.spec ?? options, placementInsetMm(options.lip), options.gridPitch);
       const block = packShapes(shapes, interior.widthMm, options.placements ?? {});
-      const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-      return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
+      const cutouts = block.items.map((item) => toPlacement(item, byId, 0, 0));
+      return { cutouts,
         gridX: options.gridX, gridY: options.gridY,
-        overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
+        overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm ||
+          !fitsFootprint(options.spec ?? options, cutouts) };
     }
     const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.placements);
     return {
@@ -428,8 +439,6 @@ export function autoPlaceIncremental(
   }
 
   const inset = placementInsetMm(options.lip);
-  const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-
   for (const grid of (options.keepBinSize || options.spec?.arbitrarySizeMm) ? [options.spec ?? options] : gridCandidates(options.gridPitch, options.gridX, options.gridY)) {
     const interior = interiorMm(grid, inset, options.gridPitch);
     const halfW = interior.widthMm / 2;
@@ -457,8 +466,10 @@ export function autoPlaceIncremental(
       if (block.widthMm <= strip.width && block.heightMm <= strip.height) {
         const cx = strip.minX + strip.width / 2;
         const cy = strip.minY + strip.height / 2;
+        const cutouts = block.items.map((item) => toPlacement(item, byId, cx, cy));
+        if (!fitsFootprint(grid, cutouts)) continue;
         return {
-          cutouts: block.items.map((item) => toPlacement(item, byId, cx, cy)),
+          cutouts,
           gridX: grid.gridX,
           gridY: grid.gridY,
           overflow: false,
@@ -476,6 +487,48 @@ export function autoPlaceIncremental(
     gridY: Math.max(options.gridY, 1),
     overflow: true,
   };
+}
+
+/** Find a larger centered bin for only the arriving pockets. Exact-mm bins
+ * retain their construction and the dimension that does not need to grow. */
+export function autoPlaceWithGrowth(
+  shapes: readonly TracedShape[],
+  options: AutoPlaceIncrementalOptions & { spec: BinSpec },
+): AutoPlaceResult | null {
+  const size = options.spec.arbitrarySizeMm;
+  if (!size) {
+    const resized = autoPlaceIncremental(shapes, { ...options, keepBinSize: false });
+    return resized.overflow ? null : resized;
+  }
+  const maxSize = binFootprintMm(maxGridCells("full"));
+  const trySize = (width: number, length: number) => {
+    const arbitrarySizeMm = { width, length };
+    const placement = autoPlaceIncremental(shapes, {
+      ...options, spec: { ...options.spec, arbitrarySizeMm }, keepBinSize: true,
+    });
+    return placement.overflow ? null : { ...placement, arbitrarySizeMm };
+  };
+  const candidates = [[true, false], [false, true], [true, true]].flatMap(([width, length]) => {
+    const dimensions = (fraction: number) => {
+      const grow = (value: number, enabled: boolean) => enabled && value < maxSize
+        ? Math.min(maxSize, Math.ceil((value + (maxSize - value) * fraction) * 10) / 10)
+        : value;
+      return trySize(grow(size.width, width), grow(size.length, length));
+    };
+    let best = dimensions(1);
+    if (!best) return [];
+    let low = 0, high = 1;
+    // Search to within 0.1 mm over the longest supported span.
+    for (let step = 0; step < 13; step++) {
+      const middle = (high + low) / 2;
+      const fit = dimensions(middle);
+      if (fit) { best = fit; high = middle; }
+      else low = middle;
+    }
+    return [best];
+  });
+  return candidates.sort((a, b) =>
+    a.arbitrarySizeMm.width * a.arbitrarySizeMm.length - b.arbitrarySizeMm.width * b.arbitrarySizeMm.length)[0] ?? null;
 }
 
 /**

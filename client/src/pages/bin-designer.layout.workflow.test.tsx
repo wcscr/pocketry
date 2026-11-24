@@ -137,10 +137,17 @@ describe("BinDesignerPage", () => {
       const sizes = [[160,45],[190,30],[65,20],[55,18],[240,75]];
       const shapes = sizes.map(([width,height], i) => createBasicPocket("rectangle", {x:-width/2,y:-height/2}, {x:width/2,y:height/2}, `photo-tool-${i}`)!.shape);
       for (const batch of [[0],[1],[2,3],[4]]) {
+        const existing = vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts;
         React.act(() => batch.forEach((i, offset) => library.addShape(shapes[i], {mode:"mm",value:12+i}, undefined,
           {batchId:`photo-${batch[0]}`,center:{x:offset*200,y:0}})));
         await flushHydration();
+        const offer = container.querySelector('[data-testid="trace-resize-offer"]');
+        if (offer) {
+          expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual(existing);
+          React.act(() => [...offer.querySelectorAll("button")].find(button => button.textContent === "Resize and add")!.click());
+        }
         const [currentSpec, , currentLayout] = vi.mocked(useBinGeometry).mock.lastCall!;
+        expect(currentLayout!.cutouts.slice(0, existing.length)).toEqual(existing);
         expect(validateLayout(currentSpec, currentLayout!.cutouts, new Map(shapes.map(shape => [shape.id, shape]))).filter(issue => issue.code === "cutout-overlap")).toEqual([]);
       }
       const current = () => vi.mocked(useBinGeometry).mock.lastCall!;

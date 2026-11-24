@@ -198,6 +198,74 @@ describe("BinDesignerPage", () => {
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(1);
   });
 
+  it.each([
+    { size: "fixed grid", resize: true },
+    { size: "adjustable grid", resize: false },
+    { size: "exact millimetres", resize: true },
+  ])("offers to resize an occupied $size bin without moving its pocket", async ({ size, resize }) => {
+    const existing = rectangularShape("existing-tool", "Existing tool");
+    const pocket = parseCutoutPlacement({ id: "existing-pocket", shapeId: existing.id,
+      position: { x: 2, y: -1 }, rotationDeg: 12, scaleX: 0.8, scaleY: 0.8 });
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 1, gridY: 1,
+      ...(size === "exact millimetres" ? { arbitrarySizeMm: { width: 41.5, length: 41.5 }, flatBottom: true } : {}),
+    });
+    const stored = { ...EMPTY_PROJECT, spec, keepBinSize: size === "fixed grid", shapes: [existing], cutouts: [pocket] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...rectangularShape("incoming-tool", "Incoming tool"),
+      pendingDepth: { mode: "mm", value: 8 },
+    }]));
+    const geometry = () => vi.mocked(useBinGeometry).mock.lastCall!;
+    const first = renderPage();
+    await flushHydration();
+    expect(first.container.querySelector('[data-testid="trace-resize-offer"]')).not.toBeNull();
+    expect(geometry()[2]!.cutouts).toEqual([pocket]);
+    expect(geometry()[0]).toEqual(spec);
+    first.unmount();
+
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const prompt = container.querySelector('[data-testid="trace-resize-offer"]')!;
+      const choice = [...prompt.querySelectorAll("button")].find(button =>
+        button.textContent === (resize ? "Resize and add" : "Keep size and add"))!;
+      React.act(() => choice.click());
+      expect(container.querySelector('[data-testid="trace-resize-offer"]')).toBeNull();
+      expect(geometry()[2]!.cutouts).toHaveLength(2);
+      expect(geometry()[2]!.cutouts[0]).toEqual(pocket);
+      expect(geometry()[2]!.cutouts[1]).toMatchObject({ shapeId: "incoming-tool", depth: { mode: "mm", value: 8 } });
+      if (!resize) expect(geometry()[0]).toEqual(spec);
+      else if (spec.arbitrarySizeMm) {
+        expect(geometry()[0].arbitrarySizeMm).not.toEqual(spec.arbitrarySizeMm);
+        expect(geometry()[0]).toMatchObject({ gridX: 1, gridY: 1, flatBottom: true });
+      } else {
+        expect(geometry()[0].gridX * geometry()[0].gridY).toBeGreaterThan(1);
+      }
+      clickBinHistory(container, "undo");
+      expect(geometry()[0]).toEqual(spec);
+      expect(geometry()[2]!.cutouts).toEqual([pocket]);
+      clickBinHistory(container, "redo");
+      expect(geometry()[2]!.cutouts).toHaveLength(2);
+      expect(geometry()[2]!.cutouts[0]).toEqual(pocket);
+    } finally { unmount(); }
+  });
+
+  it("adds an outline that already fits without asking to resize", async () => {
+    const existing = rectangularShape("old-tool", "Existing tool");
+    const pocket = parseCutoutPlacement({ id: "old-pocket", shapeId: existing.id, position: { x: -15, y: 0 } });
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3, gridY: 2 });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [existing], cutouts: [pocket] });
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([rectangularShape("new-tool", "New tool")]));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="trace-resize-offer"]')).toBeNull();
+      const [currentSpec, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+      expect(currentSpec).toEqual(spec);
+      expect(layout!.cutouts).toHaveLength(2);
+      expect(layout!.cutouts[0]).toEqual(pocket);
+    } finally { unmount(); }
+  });
+
   it("keeps geometry needed by undo history when the same tool is waiting for another destination", async () => {
     const shape = rectangularShape("historic-tool", "Historic tool");
     const pocket = parseCutoutPlacement({ id: "historic-pocket", shapeId: shape.id, position: { x: 0, y: 0 } });

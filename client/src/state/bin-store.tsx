@@ -164,6 +164,7 @@ export type BinAction = (
       gridX: number;
       gridY: number;
       footprint?: BinSpec["footprint"];
+      specPatch?: Partial<Pick<BinSpec, "arbitrarySizeMm" | "fill">>;
       historyLabel?: string;
     }
   | {
@@ -650,6 +651,7 @@ function reduceBin(state: BinState, action: BinAction): BinState {
         {
           spec: withLabelsOnTabs(state, parseBinSpec({
             ...state.spec,
+            ...action.specPatch,
             gridX: action.gridX,
             gridY: action.gridY,
             ...(action.footprint ? { footprint: action.footprint } : {}),
