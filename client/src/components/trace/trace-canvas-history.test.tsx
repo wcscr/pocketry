@@ -147,7 +147,7 @@ function ScaleStateProbe(): JSX.Element {
   );
 }
 
-function SeedPerspectiveSelection(): null {
+function SeedPerspectiveSelection({ detected = false }: { detected?: boolean }): null {
   const { dispatch } = useTrace();
   React.useEffect(() => {
     dispatch({
@@ -156,8 +156,10 @@ function SeedPerspectiveSelection(): null {
       fileName: "tool.png",
     });
     dispatch({ type: "SOURCE_READY", imageSize: { width: 100, height: 100 } });
-    dispatch({ type: "START_PERSPECTIVE_SELECTION" });
-  }, [dispatch]);
+    dispatch({ type: "START_PERSPECTIVE_SELECTION", points: detected
+      ? [{ x: 10, y: 10 }, { x: 90, y: 12 }, { x: 88, y: 90 }, { x: 12, y: 88 }]
+      : undefined });
+  }, [detected, dispatch]);
   return null;
 }
 
@@ -2039,6 +2041,39 @@ describe("TraceCanvas edit history", () => {
     } finally {
       React.act(() => root.unmount());
       restoreSvgCoordinates();
+    }
+  });
+
+  it("lets touch users drag a detected corner while the canvas is in pan mode", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("ResizeObserver", NoopResizeObserver);
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+    const restore = installIdentitySvgCoordinates();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await React.act(async () => root.render(<TraceProvider>
+        <SeedPerspectiveSelection detected />
+        <TooltipProvider><TraceCanvas onReprocess={() => {}} /></TooltipProvider>
+      </TraceProvider>));
+      const handle = host.querySelector('[data-perspective-handle="0"] circle')!;
+      const svg = handle.closest("svg")!;
+      Object.defineProperty(svg, "setPointerCapture", { value: vi.fn() });
+      const touch = (target: Element, type: string, x: number, y: number) => {
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+        Object.defineProperties(event, { pointerType: { value: "touch" }, pointerId: { value: 1 }, isPrimary: { value: true } });
+        React.act(() => target.dispatchEvent(event));
+      };
+      touch(handle, "pointerdown", 10, 10);
+      touch(svg, "pointermove", 16, 18);
+      touch(svg, "pointerup", 16, 18);
+      expect(host.querySelector('[data-testid="perspective-outline"]')?.getAttribute("d")).toBe("M 16 18 L 90 12 L 88 90 L 12 88 Z");
+    } finally {
+      React.act(() => root.unmount());
+      host.remove();
+      restore();
     }
   });
 });

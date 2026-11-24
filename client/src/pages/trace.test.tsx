@@ -23,6 +23,8 @@ import { generateSTL } from "@/lib/export/stl";
 import { parseProjectDoc } from "@shared/gridfinity/project";
 import type { Outline } from "@shared/geometry/types";
 import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
+import { detectPaperCorners } from "@/lib/calibrate/paper-corners";
+import type { PerspectiveQuad } from "@/lib/calibrate/perspective";
 import type { DetectionFrame } from "@/components/trace/use-image-source";
 import { TRACE_PHOTO_MAX_BYTES } from "@/lib/trace-photo";
 
@@ -75,7 +77,7 @@ vi.mock("@/components/layout/workspace-layout", () => ({
 }));
 
 vi.mock("@/components/trace/trace-controls-panel", () => ({
-  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver, onReprocess }: TraceControlsPanelProps) => <>
+  TraceControlsPanel: ({ handoff, onExport, onApplyPerspective, onStartOver, onReprocess, onDetectPaperCorners }: TraceControlsPanelProps) => <>
     <div data-testid="controls-handoff"><TraceHandoffOptions handoff={handoff} /></div>
     <button data-testid="controls-add-to-bin" onClick={handoff.addToBin}>Add to bin</button>
     <button data-testid="controls-start-over" onClick={onStartOver}>Reset confirmed trace</button>
@@ -83,6 +85,7 @@ vi.mock("@/components/trace/trace-controls-panel", () => ({
     <button data-testid="switch-detection" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, boundary: "color", restart: true })}>Switch detection</button>
     <button data-testid="re-detect-native" onClick={() => onReprocess({ sensitivity: 128, includeInteriorHoles: false, editableCurves: true })}>Re-detect with curves</button>
     <button onClick={onExport} data-testid="export-trace">Export trace</button>
+    <button data-testid="detect-paper-corners" onClick={onDetectPaperCorners}>Detect paper corners</button>
     <button data-testid="perspective-only" onClick={() => onApplyPerspective({ source: "manual", paper: "letter",
       points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
     }, "letter", false)}>Correct perspective only</button>
@@ -102,6 +105,7 @@ vi.mock("@/lib/trace-draft", async (original) => ({
 vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
 vi.mock("@/lib/export/stl", () => ({ generateSTL: vi.fn() }));
 vi.mock("@/lib/calibrate/auto-calibrate", () => ({ autoCalibrate: vi.fn() }));
+vi.mock("@/lib/calibrate/paper-corners", () => ({ detectPaperCorners: vi.fn() }));
 
 const exportOutline: Outline = [{ outer: [{ x: 10, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 60 }, { x: 10, y: 60 }], holes: [] }];
 
@@ -257,6 +261,7 @@ describe("Trace detection workflow", () => {
     getDetectionFrameMock.mockReturnValue(null);
     getToolDetectionFrameMock.mockReturnValue(null);
     vi.mocked(autoCalibrate).mockReset().mockResolvedValue({ kind: "no-markers" });
+    vi.mocked(detectPaperCorners).mockReset().mockResolvedValue(null);
     getImageDataMock.mockReturnValue({
       width: 300,
       height: 200,
@@ -326,6 +331,41 @@ describe("Trace detection workflow", () => {
     sourceImageUrl: "data:image/png;base64,source",
     toWorking: { x: retry ? 0.25 : 0.375, y: retry ? 0.25 : 0.375 },
   });
+
+  it("automatically offers detected corners in working coordinates when there are no markers", async () => {
+    const frame = { ...detectionFrame(), toWorking: { x: 0.4, y: 0.375 } };
+    getDetectionFrameMock.mockReturnValue(frame);
+    const points: PerspectiveQuad = [{ x: 100, y: 200 }, { x: 900, y: 200 }, { x: 900, y: 1400 }, { x: 100, y: 1400 }];
+    vi.mocked(detectPaperCorners).mockResolvedValue(points);
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(autoCalibrate).toHaveBeenCalledWith(frame.imageData);
+    expect(detectPaperCorners).toHaveBeenCalledWith(frame.imageData);
+    expect(current.manualPerspectivePoints).toEqual(points.map(({ x, y }) => ({ x: x * 0.4, y: y * 0.375 })));
+    expect(current.mode).toBe("pan");
+    expect(current.processing).toBe(false);
+    expect(current.manualPerspectivePaper).toBeNull();
+    expect(current.calibration).toBeNull();
+    expect(correctPerspectiveMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores paper corners that arrive after the photo is cleared", async () => {
+    getDetectionFrameMock.mockReturnValue(detectionFrame());
+    let finish!: (points: PerspectiveQuad) => void;
+    vi.mocked(detectPaperCorners).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(detectPaperCorners).toHaveBeenCalledOnce();
+    expect(current.processing).toBe(true);
+    await React.act(async () => host.querySelector<HTMLButtonElement>('[data-testid="controls-start-over"]')!.click());
+    await React.act(async () => finish([{ x: 100, y: 200 }, { x: 900, y: 200 }, { x: 900, y: 1400 }, { x: 100, y: 1400 }]));
+    expect(current.imageUrl).toBeNull();
+    expect(current.manualPerspectivePoints).toEqual([]);
+    expect(current.processing).toBe(false);
+  });
+
   const detectedSheet = (factor = 1): Extract<AutoCalibrationResult, { kind: "calibrated" }> => ({
     kind: "calibrated", paper: "letter", template: "letter-experimental", stripFallbackReason: "invalid-geometry",
     calibration: { startX: 100 * factor, startY: 200 * factor, endX: 1100 * factor, endY: 200 * factor, lengthMm: 167.9 },
@@ -340,6 +380,21 @@ describe("Trace detection workflow", () => {
     calibration: { startX: 300, startY: 600, endX: 510, endY: 600, lengthMm: 35 },
     solution: { mmPerPx: 1 / 6, markerIds: [22, 23], pairCount: 1, maxDeviation: 0.04,
       ruler: { a: { x: 300, y: 600 }, b: { x: 510, y: 600 }, lengthMm: 35 } },
+  });
+
+  it("offers paper corners alongside a valid aid when there is no signed sheet", async () => {
+    getDetectionFrameMock.mockReturnValue(detectionFrame());
+    vi.mocked(autoCalibrate).mockResolvedValueOnce(detectedAid());
+    vi.mocked(detectPaperCorners).mockResolvedValueOnce([
+      { x: 100, y: 200 }, { x: 900, y: 200 }, { x: 900, y: 1400 }, { x: 100, y: 1400 },
+    ]);
+    let current!: ReturnType<typeof useTrace>;
+    function Probe(): null { current = useTrace(); return null; }
+    await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><Probe /><TracePage /></TraceProvider></PanelProvider>));
+    expect(current.manualPerspectivePoints).toHaveLength(4);
+    expect(current.pendingCalibrationSource).toBe("strip");
+    expect(current.manualPerspectivePaper).toBeNull();
+    expect(current.calibration).toBeNull();
   });
 
   it.each([true, false])("retries a rejected aid and maps both references from their detection frames (retry finds paper=%s)", async (withPaper) => {
@@ -383,6 +438,7 @@ describe("Trace detection workflow", () => {
       : scenario === "paper-only" ? paper : scenario === "native-size" ? detectedSheet() : { kind: "no-markers" });
     await React.act(async () => root.render(<PanelProvider><TraceProvider><WorkflowController /><TracePage /></TraceProvider></PanelProvider>));
     expect(autoCalibrate).toHaveBeenCalledTimes(1);
+    expect(detectPaperCorners).toHaveBeenCalledTimes(scenario === "valid-aid" || scenario === "no-markers" ? 1 : 0);
     expect(getDetectionFrameMock).toHaveBeenCalledTimes(scenario === "native-size" ? 2 : 1);
   });
 

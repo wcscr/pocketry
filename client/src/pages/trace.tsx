@@ -28,6 +28,7 @@ import {
   fitWithin,
   IMAGE_CANVAS_MAX,
   useImageSource,
+  type DetectionFrame,
 } from "@/components/trace/use-image-source";
 import { useOutlineRefinement } from "@/components/trace/use-outline-refinement";
 import {
@@ -44,7 +45,8 @@ import { tracePhotoError } from "@/lib/trace-photo";
 import { Button } from "@/components/ui/button";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useToast } from "@/hooks/use-toast";
-import { autoCalibrate } from "@/lib/calibrate/auto-calibrate";
+import { autoCalibrate, type AutoCalibrationResult } from "@/lib/calibrate/auto-calibrate";
+import { detectPaperCorners } from "@/lib/calibrate/paper-corners";
 import {
   correctPerspective,
   RECTIFIED_IMAGE_MAX,
@@ -82,6 +84,11 @@ export default function TracePage(): JSX.Element {
 function resizeCalibration(calibration: Calibration, x: number, y: number): Calibration {
   return { ...calibration, startX: calibration.startX * x, startY: calibration.startY * y,
     endX: calibration.endX * x, endY: calibration.endY * y };
+}
+
+async function paperCornersInWorkingFrame(frame: DetectionFrame) {
+  const points = await detectPaperCorners(frame.imageData);
+  return points && scalePerspectiveProposal({ source: "manual", points }, frame.toWorking.x, frame.toWorking.y).points;
 }
 
 function imageDataToPngUrl(image: ImageData): string {
@@ -378,8 +385,7 @@ function TraceWorkspace(): JSX.Element {
    * sits under the tool, outside any region the user drew). `manual` widens
    * the reporting: a click deserves an answer even when nothing is found,
    * and may overwrite an existing scale; the automatic pass on image load
-   * stays quiet on the common no-markers case and never clobbers a
-   * calibration the user already placed.
+   * checks for paper corners when no signed sheet is found.
    */
   const detectMarkers = useCallback(
     async (manual: boolean) => {
@@ -389,11 +395,14 @@ function TraceWorkspace(): JSX.Element {
       const initialFrame = getDetectionFrame();
       if (!initialFrame) return;
       let frame = initialFrame;
+      const sourceRevision = latestStore.current.sourceRevision;
+      const isCurrent = () => activeImageUrlRef.current === initialFrame.sourceImageUrl &&
+        latestStore.current.sourceRevision === sourceRevision;
 
       dispatch({ type: "SET_PROCESSING", processing: true });
       try {
-        const initialResult = await autoCalibrate(frame.imageData);
-        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+        const initialResult = await autoCalibrate(frame.imageData).catch((): AutoCalibrationResult => ({ kind: "unsupported" }));
+        if (!isCurrent()) return;
         let result = initialResult;
         if (
           result.kind === "invalid-strip" ||
@@ -421,7 +430,21 @@ function TraceWorkspace(): JSX.Element {
         // OpenCV work cannot be cancelled once running. Bind its result to the
         // pixels it actually read so an old sheet can never paint overlays or
         // toasts over a replacement image.
-        if (activeImageUrlRef.current !== frame.sourceImageUrl) return;
+        if (!isCurrent()) return;
+        const sheet = result.kind === "calibrated" ? result
+          : result.kind === "calibrated-strip"
+            ? result.sheet ?? (initialResult.kind === "calibrated" ? initialResult : undefined)
+            : undefined;
+        let paperCorners = null;
+        if (!manual && !sheet) {
+          paperCorners = await paperCornersInWorkingFrame(initialFrame).catch(() => null);
+          if (!isCurrent()) return;
+          const current = latestStore.current;
+          // A ruler or corner placement started during the scan takes precedence.
+          if (current.calibration || current.pendingAutoCalibration || current.draftCalibration ||
+              current.mode !== "pan" || current.manualPerspectivePoints.length) paperCorners = null;
+          if (paperCorners && isMobile) setPanelOpen(false);
+        }
         if (
           !manual &&
           result.kind !== "calibrated" &&
@@ -430,14 +453,13 @@ function TraceWorkspace(): JSX.Element {
           dispatch({
             type: "AUTO_CALIBRATION_FAILED",
             sourceImageUrl: frame.sourceImageUrl,
+            paperCorners: paperCorners ?? undefined,
           });
         }
         switch (result.kind) {
           case "calibrated-strip":
           case "calibrated": {
             const strip = result.kind === "calibrated-strip";
-            const sheet = result.kind === "calibrated" ? result
-              : result.sheet ?? (initialResult.kind === "calibrated" ? initialResult : undefined);
             // A retry may recover the aid without rediscovering a previously valid
             // sheet. Map each reference from the frame that actually detected it.
             const sheetFrame = result.kind === "calibrated-strip" && !result.sheet ? initialFrame : frame;
@@ -458,6 +480,7 @@ function TraceWorkspace(): JSX.Element {
                     sheetFrame.toWorking.y,
                   )
                 : null,
+              paperCorners: paperCorners ?? undefined,
             });
             const { solution } = result;
             const mmPerPx = mmPerPixel(calibration);
@@ -485,6 +508,7 @@ function TraceWorkspace(): JSX.Element {
             break;
           }
           case "invalid-strip":
+            if (paperCorners) break;
             toast({
               title: "Reference strip could not be calibrated",
               description: result.reason === "incomplete-signature"
@@ -494,6 +518,7 @@ function TraceWorkspace(): JSX.Element {
             });
             break;
           case "foreign-sheet":
+            if (paperCorners) break;
             toast({
               title:
                 result.reason === "incomplete-signature"
@@ -530,12 +555,12 @@ function TraceWorkspace(): JSX.Element {
             break;
         }
       } finally {
-        if (activeImageUrlRef.current === frame.sourceImageUrl) {
+        if (isCurrent()) {
           dispatch({ type: "SET_PROCESSING", processing: false });
         }
       }
     },
-    [getDetectionFrame, dispatch, toast],
+    [getDetectionFrame, dispatch, toast, isMobile, setPanelOpen],
   );
 
   const performPerspectiveCorrection = useCallback(
@@ -612,6 +637,35 @@ function TraceWorkspace(): JSX.Element {
     },
     [getDetectionFrame, dispatch, toast, isMobile, setPanelOpen],
   );
+
+  const findPageCorners = async () => {
+    const { imageUrl, sourceRevision, processing } = latestStore.current;
+    if (!imageUrl || processing || source.status !== "ready") return;
+    const isCurrent = () => activeImageUrlRef.current === imageUrl && latestStore.current.sourceRevision === sourceRevision;
+    dispatch({ type: "SET_PROCESSING", processing: true });
+    try {
+      const frame = getDetectionFrame();
+      if (!frame || frame.sourceImageUrl !== imageUrl) throw new Error("The photo is not ready yet.");
+      const points = await paperCornersInWorkingFrame(frame);
+      if (!isCurrent()) return;
+      if (!points) {
+        toast({
+          title: "Couldn’t find four paper corners",
+          description: "Select corners manually or try a photo with all four edges visible against a darker background.",
+        });
+        return;
+      }
+      dispatch({ type: "START_PERSPECTIVE_SELECTION", points });
+      showCanvas();
+    } catch {
+      if (isCurrent()) toast({
+        title: "Paper corner detection unavailable",
+        description: "Try again or select corners manually.",
+      });
+    } finally {
+      if (isCurrent()) dispatch({ type: "SET_PROCESSING", processing: false });
+    }
+  };
 
   const applyPerspective = (proposal: PerspectiveProposal, template: TemplateVariant, scale: boolean | Calibration = true) => {
     const current = latestStore.current;
@@ -856,6 +910,7 @@ function TraceWorkspace(): JSX.Element {
             onExport={requestExport}
             onReprocess={(settings) => void runDetection(settings)}
             onDetectMarkers={() => void detectMarkers(true)}
+            onDetectPaperCorners={() => void findPageCorners()}
             onApplyPerspective={(proposal, paper, usePaperScale) =>
               void applyPerspective(proposal, paper, usePaperScale)
             }

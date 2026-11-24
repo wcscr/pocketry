@@ -124,11 +124,17 @@ describe("Mobile trace progression", () => {
     for (const point of [{ x: 10, y: 10 }, { x: 500, y: 10 }, { x: 500, y: 400 }, { x: 10, y: 400 }]) {
       React.act(() => trace.dispatch({ type: "ADD_PERSPECTIVE_POINT", point }));
     }
-    React.act(() => button("Review corners").click());
+    const picker = host.querySelector<HTMLButtonElement>("#mobile-perspective-paper")!;
+    expect(picker.labels?.[0]?.textContent).toBe("Confirm paper size");
+    expect(button("Apply correction").disabled).toBe(true);
+    React.act(() => trace.dispatch({ type: "SET_PERSPECTIVE_PAPER", paper: "a4" }));
+    React.act(() => button("Apply correction").click());
+    expect(applyPerspective).toHaveBeenCalledWith(expect.objectContaining({ points: trace.manualPerspectivePoints }), "a4");
+    React.act(() => button("Corner options").click());
     expect(openSettings).toHaveBeenCalledWith("trace-settings-scale");
     expect(trace.manualPerspectivePoints).toHaveLength(4);
     expect(trace.mode).toBe("pan");
-    React.act(() => trace.dispatch({ type: "SET_MODE", mode: "calibrate" }));
+    React.act(() => button("Use a ruler instead").click());
     expect(trace.manualPerspectivePoints).toHaveLength(0);
     expect(button("Set scale")).toBeDefined();
   });

@@ -55,7 +55,7 @@ function Panel(): JSX.Element {
   trace = useTrace();
   const handoff = useTraceHandoff();
   return <TraceControlsPanel handoff={handoff} onCanvasInteraction={imported} onReplaceImage={() => {}} onStartOver={() => {}}
-    onRotateImage={() => {}} onExport={() => {}} onReprocess={() => {}} onDetectMarkers={() => {}} onApplyPerspective={() => {}} />;
+    onRotateImage={() => {}} onExport={() => {}} onReprocess={() => {}} onDetectMarkers={() => {}} onDetectPaperCorners={() => {}} onApplyPerspective={() => {}} />;
 }
 
 function render(node: JSX.Element): void {
