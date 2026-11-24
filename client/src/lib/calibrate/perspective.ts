@@ -31,6 +31,8 @@ export interface PerspectiveProposal {
   paper?: TemplatePaper;
   /** Exact stable or experimental sheet encoded by the marker-id family. */
   template?: TemplateVariant;
+  /** Orientation of the selected page edges in the photo. */
+  paperOrientation?: "landscape";
   /** Redundant marker-corner correspondences for a precision homography. */
   correspondences?: {
     source: Point[];
@@ -276,7 +278,7 @@ export function perspectiveLayout(
   max: ImageRasterLimit = RECTIFIED_IMAGE_MAX,
 ): PerspectiveLayout {
   const paper = templatePaper(template);
-  const page = TEMPLATE_PAPER_MM[paper];
+  const page = perspectivePaperDimensions(proposal, paper);
   const availableX = Math.max(1, max.width - 1) / page.width;
   const availableY = Math.max(1, max.height - 1) / page.height;
   let pxPerMm = Math.min(RECTIFIED_PX_PER_MM, availableX, availableY);
@@ -303,6 +305,13 @@ export function perspectiveLayout(
   return { width, height, pxPerMm, destination };
 }
 
+function perspectivePaperDimensions(proposal: PerspectiveProposal, paper: TemplatePaper) {
+  const page = TEMPLATE_PAPER_MM[paper];
+  return proposal.source === "manual" && proposal.paperOrientation === "landscape"
+    ? { width: page.height, height: page.width }
+    : page;
+}
+
 /** Rejects collapsed, self-intersecting, or incorrectly ordered quads. */
 export function validPerspectiveQuad(points: readonly Point[]): boolean {
   if (points.length !== 4) return false;
@@ -323,6 +332,15 @@ export function validPerspectiveQuad(points: readonly Point[]): boolean {
   const positive = turns.every((turn) => turn > 1e-6);
   const negative = turns.every((turn) => turn < -1e-6);
   return positive || negative;
+}
+
+/** Converts editable page corners into a correction using the photographed orientation. */
+export function proposalFromPageCorners(points: Point[]): PerspectiveProposal | null {
+  if (!validPerspectiveQuad(points)) return null;
+  const [a, b, c, d] = points;
+  const length = (from: Point, to: Point) => Math.hypot(to.x - from.x, to.y - from.y);
+  const landscape = length(a, b) + length(c, d) > length(b, c) + length(d, a);
+  return { source: "manual", points: [a, b, c, d], ...(landscape && { paperOrientation: "landscape" }) };
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- opencv.js is untyped */
@@ -353,6 +371,7 @@ export function runPerspectiveCorrection(
     throw new Error("The detected template does not match the requested correction.");
   }
 
+  const page = perspectivePaperDimensions(proposal, paper);
   const paperLayout = perspectiveLayout(proposal, template, max);
   let source: any | null = null;
   let corrected: any | null = null;
@@ -427,8 +446,8 @@ export function runPerspectiveCorrection(
       const x = Math.max(0, originX);
       const y = Math.max(0, originY);
       paperBounds = { x, y,
-        width: Math.min(layout.width, originX + TEMPLATE_PAPER_MM[paper].width * layout.pxPerMm + 1) - x,
-        height: Math.min(layout.height, originY + TEMPLATE_PAPER_MM[paper].height * layout.pxPerMm + 1) - y };
+        width: Math.min(layout.width, originX + page.width * layout.pxPerMm + 1) - x,
+        height: Math.min(layout.height, originY + page.height * layout.pxPerMm + 1) - y };
     } catch (error) {
       if (!(error instanceof PhotoPerspectiveBoundsError)) throw error;
       // Preserve the established paper crop even when extrapolating its plane
@@ -463,7 +482,7 @@ export function runPerspectiveCorrection(
     const lengthMm =
       proposal.source === "template"
         ? Math.hypot(markerSpacing.width, markerSpacing.height)
-        : Math.hypot(TEMPLATE_PAPER_MM[paper].width, TEMPLATE_PAPER_MM[paper].height);
+        : Math.hypot(page.width, page.height);
 
     let calibration: Calibration = {
       startX: start.x,

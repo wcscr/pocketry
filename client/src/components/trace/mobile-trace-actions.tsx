@@ -15,6 +15,7 @@ import { hasPendingManualCalibration, useTrace } from "@/state/trace-store";
 import { AutoCalibrationOptions } from "./auto-calibration-options";
 import { TraceDetectionControls, type DetectionSettings } from "./trace-detection-controls";
 import { RulerLengthInput, useRulerConfirmation } from "./ruler-length-input";
+import { PaperCornerReview } from "./paper-corner-review";
 
 export interface MobileTraceActionsProps {
   onChoosePhoto: () => void;
@@ -38,7 +39,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
   const { enabled: advancedEditing } = useExperimentalFeatures();
   const trace = useTrace();
   const manualScale = useRulerConfirmation();
-  const { dispatch, pendingAutoCalibration, pendingPerspective, calibration, draftCalibration, processing } = trace;
+  const { dispatch, pendingAutoCalibration, calibration, draftCalibration, processing } = trace;
   const [reviewStep, setReviewStep] = useState<"photo" | "scale" | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -46,7 +47,8 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
   useTraceRestartAction(trace.imageUrl ? requestRestart : null);
   useEffect(() => { setReviewStep(null); setRestartOpen(false); }, [trace.sourceRevision]);
   useEffect(() => { if (trace.mode !== "pan" || pendingAutoCalibration) setReviewStep(null); }, [trace.mode, pendingAutoCalibration]);
-  const reviewingCorners = trace.mode === "perspective" || trace.manualPerspectivePoints.length === 4;
+  const hasPageCorners = trace.manualPerspectivePoints.length === 4;
+  const reviewingCorners = trace.mode === "perspective" || hasPageCorners;
   const replacingRuler = hasPendingManualCalibration(trace);
   const manualPending = hasCalibrationEndpoints(draftCalibration);
   const hasRegion = Boolean(trace.region && trace.region.width > 5 && trace.region.height > 5);
@@ -60,6 +62,7 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
   const back = () => {
     if (pendingAutoCalibration) dispatch({ type: "DISMISS_AUTO_CALIBRATION" });
     if (replacingRuler) dispatch({ type: "CANCEL_MANUAL_CALIBRATION" });
+    if (reviewingCorners) dispatch({ type: "CANCEL_PERSPECTIVE_SELECTION" });
     if (step === "outline") dispatch({ type: "SET_MODE", mode: "region" });
     else {
       setReviewStep(step === "region" ? "scale" : "photo");
@@ -75,8 +78,8 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
   let guidance = "Set the photo's real size to continue.";
   if (step === "photo") guidance = "Keep this photo or choose a different one.";
   else if (processing) guidance = "Analyzing photo…";
-  else if (reviewingCorners) guidance = trace.manualPerspectivePoints.length === 4
-    ? "Review the four page corners and apply the correction." : `Tap the page corners clockwise (${trace.manualPerspectivePoints.length}/4).`;
+  else if (reviewingCorners) guidance = hasPageCorners
+    ? "Drag any corner to adjust it. Confirm the paper size below." : `Tap the page corners clockwise from the top-left (${trace.manualPerspectivePoints.length}/4).`;
   else if (step === "scale" && calibration && !replacingRuler) guidance = "Scale is set. Keep it or redraw the ruler.";
   else if (pendingAutoCalibration) guidance = "Scale detected. Check the ruler on the photo.";
   else if (manualPending) guidance = "Enter the real distance between the ruler points.";
@@ -117,7 +120,10 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
       <label className="text-xs" htmlFor="mobile-ruler-length">Reference length (mm)</label>
       <RulerLengthInput id="mobile-ruler-length" showConfirm={false} onConfirmed={continueToRegion} />
     </div>}
-    {step === "scale" && pendingAutoCalibration && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
+    {step === "scale" && hasPageCorners && <div className="mb-2" data-mobile-expanded="true">
+      <PaperCornerReview mobile onApplyPerspective={onApplyPerspective} />
+    </div>}
+    {step === "scale" && pendingAutoCalibration && !hasPageCorners && <div className="mb-2 max-h-[35dvh] overflow-y-auto" data-mobile-expanded="true">
       <AutoCalibrationOptions onSetManually={redrawScale} onApplyPerspective={onApplyPerspective} onDetectMarkers={onDetectMarkers} />
     </div>}
     {step === "outline" && trace.outline.length > 0 && !adjustOpen && <div className="mb-1">{addToBinHint}</div>}
@@ -139,15 +145,18 @@ export function MobileTraceActions({ onChoosePhoto, onAddToBin, onExport, addToB
       </> : step === "scale" && calibration && !replacingRuler && !pendingAutoCalibration && !reviewingCorners ? <>
         <Button variant="outline" className={actionClass} onClick={redrawScale}>Redraw scale</Button>
         <Button className={actionClass} onClick={continueToRegion}>Use this scale</Button>
+      </> : step === "scale" && reviewingCorners ? <>
+        {hasPageCorners && <Button variant="ghost" className={actionClass} disabled={processing} onClick={redrawScale}>Use a ruler instead</Button>}
+        <Button variant="outline" className={actionClass} disabled={processing}
+          onClick={() => openFullSettings("trace-settings-scale")}>Corner options</Button>
       </> : <>
         <Button variant="outline" className="min-h-11 gap-1.5 px-3" aria-expanded={hasTuning ? adjustOpen : undefined} onClick={() => {
           if (hasTuning) setAdjustOpen(open => !open);
           else openFullSettings(step === "scale" ? "trace-settings-scale"
             : step === "region" ? "trace-settings-crop" : "trace-settings-detect");
         }}><SlidersHorizontal className="h-4 w-4" aria-hidden />Adjust</Button>
-        {!processing && !pendingAutoCalibration && (reviewingCorners || ((!calibration || replacingRuler) && !manualPending)) ? <Button className={actionClass} onClick={() => {
-          if (reviewingCorners) openFullSettings("trace-settings-scale"); else redrawScale();
-        }}>{reviewingCorners ? "Review corners" : "Set scale"}</Button>
+        {!processing && !pendingAutoCalibration && (!calibration || replacingRuler) && !manualPending
+          ? <Button className={actionClass} onClick={redrawScale}>Set scale</Button>
         : !processing && !pendingAutoCalibration && step === "region" && hasRegion ? <Button className={actionClass} onClick={() => dispatch({ type: "SET_MODE", mode: trace.outline.length ? "edit" : "pan" })}>Keep this region</Button>
         : !processing && !pendingAutoCalibration && step === "outline" && trace.outline.length > 0 ? <Button className={actionClass} onClick={onAddToBin} disabled={!addToBinReady}>Add to bin</Button>
         : !processing && !pendingAutoCalibration && calibration && !replacingRuler && trace.mode !== "region" ? <Button className={actionClass} onClick={continueToRegion}>Draw tool region</Button>

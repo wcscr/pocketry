@@ -174,6 +174,7 @@ function Harness(): JSX.Element {
         onReprocess={reprocess}
         onSmoothOutline={simplifyOutline}
         onDetectMarkers={detectMarkers}
+        onDetectPaperCorners={() => {}}
         onApplyPerspective={applyPerspective}
       />
     </>
