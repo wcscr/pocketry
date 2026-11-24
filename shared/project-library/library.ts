@@ -316,9 +316,18 @@ export class ConnectedLibrary {
     return this.readAt(await this.scan(), projectId, revisionId);
   }
 
-  private async readAt(index: FolderIndex, projectId: string, revisionId?: string) {
+  async assertProjectExists(projectId: string): Promise<void> {
+    this.projectAt(await this.scan(), projectId);
+  }
+
+  private projectAt(index: FolderIndex, projectId: string): FolderProject {
     const project = index.projects.get(projectId);
     if (!project) throw new LibraryError("not-found", "The project is not in this folder.", { projectId });
+    return project;
+  }
+
+  private async readAt(index: FolderIndex, projectId: string, revisionId?: string) {
+    const project = this.projectAt(index, projectId);
     if (revisionId === undefined && project.conflicted) {
       throw new LibraryError("conflict", "Choose a revision to review the competing versions.", { project });
     }

@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -84,6 +84,23 @@ describe("automation project locks across worker processes", () => {
     await Promise.all([owner.initialize(), other.initialize()]);
     return { owner, other };
   };
+
+  it("rejects unknown project IDs without leaving lock files or revisions", async () => {
+    const { owner } = await pair();
+    const before = await readdir(root);
+    const otherRevision = "e".repeat(64);
+    const attempts = [
+      ["begin_edit", { projectId: "missing-session" }],
+      ["commit_project", { projectId: "missing-commit", requestId: "missing-commit", expectedBase: base, edits }],
+      ["keep_both", { projectId: "missing-conflict", requestId: "missing-conflict", expectedHeads: [base, otherRevision], keep: base }],
+      ["copy_project", { projectId: "missing-source", requestId: "missing-copy", revision: base, expectedBase: null, name: "Missing" }],
+    ] as const;
+    for (const [command, args] of attempts) {
+      expect(await owner.call(command, args)).toMatchObject({ ok: false, error: { code: "not-found" } });
+    }
+    expect(await readdir(root)).toEqual(before);
+    expect(await library.list()).toHaveLength(2);
+  }, 20_000);
 
   it("excludes competing MCP and CLI edits while permitting reads and edits to another project", async () => {
     const { owner, other } = await pair();

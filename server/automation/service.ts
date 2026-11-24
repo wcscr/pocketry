@@ -157,11 +157,15 @@ export class AutomationService {
       }),
     begin_edit: tool(z.strictObject({ projectId: projectIdSchema }),
       "Start an exclusive edit session for this project. Returns the current revision and an edit token. MCP only.", false,
-      async ({ projectId }, signal) => this.locks.begin(projectId, async () => {
-        const saved = await this.library.read(projectId);
+      async ({ projectId }, signal) => {
+        await this.library.assertProjectExists(projectId);
         checkCancellation(signal);
-        return { projectId, revision: saved.revision };
-      })),
+        return this.locks.begin(projectId, async () => {
+          const saved = await this.library.read(projectId);
+          checkCancellation(signal);
+          return { projectId, revision: saved.revision };
+        });
+      }),
     end_edit: tool(z.strictObject({ projectId: projectIdSchema, editToken: editTokenSchema }),
       "Release this worker’s project edit session. MCP only.", false, ({ projectId, editToken }) => {
         this.locks.end(projectId, editToken);
@@ -233,11 +237,14 @@ export class AutomationService {
       expectedHeads: z.array(revisionIdSchema).min(2).max(FOLDER_LIMITS.parents),
       keep: revisionIdSchema, editToken: editTokenSchema.optional(),
     }), "Retain the chosen head under the original ID and copy competing live heads to new IDs.", false,
-      async ({ requestId, projectId, expectedHeads, keep, editToken }, signal) =>
-        this.locks.run(projectId, editToken, async () => {
+      async ({ requestId, projectId, expectedHeads, keep, editToken }, signal) => {
+        await this.library.assertProjectExists(projectId);
+        checkCancellation(signal);
+        return this.locks.run(projectId, editToken, async () => {
           checkCancellation(signal);
           return this.library.keepBoth(requestId, projectId, expectedHeads, keep, () => checkCancellation(signal));
-        })),
+        });
+      }),
     export_revision: tool(projectRef.extend({ format: exportFormat }),
       "Export an exact saved revision to a local artifact. Formats include STL, 3MF, multicolor 3MF, and editable backup.", false,
       async ({ projectId, revision, format }, signal) => {
@@ -289,13 +296,22 @@ export class AutomationService {
       throw new LibraryError("request-reused", "This request ID already has different input.", { requestId: input.requestId });
     }
     const projectId = target?.projectId ?? await assignedProjectId(input.requestId);
-    return this.locks.run(projectId, target?.editToken, async () => {
+    const preparePublication = async () => {
       checkCancellation(signal);
       const { project, parents, requireValidLayout } = await prepare();
       const validation = validationFor(project);
       if (requireValidLayout && !validation.ok) {
         throw new LibraryError("validation", "The batch would leave the project with design errors. No changes were published.", { validation });
       }
+      return { project, parents, validation };
+    };
+    // Check known targets before creating a sidecar. For new projects, validate
+    // the input (including a copy's pinned source) before locking the new ID.
+    if (target) await this.library.assertProjectExists(projectId);
+    const prepared = target ? undefined : await preparePublication();
+    checkCancellation(signal);
+    return this.locks.run(projectId, target?.editToken, async () => {
+      const { project, parents, validation } = prepared ?? await preparePublication();
       checkCancellation(signal);
       const outcome = await this.library.commit({
         requestId: input.requestId, fingerprint,
