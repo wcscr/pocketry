@@ -5,6 +5,28 @@ Use the CLI or an MCP host to work with completed revisions in a
 remain in the editor. The process operator selects the library root before
 starting the tool.
 
+## AI-assisted bin-design handoff
+
+Work with the person to confirm tool dimensions, pocket depths, finger access,
+and clearance before publishing a design. Outline tools from calibrated photos
+or measured SVGs, and show the proposed footprint, layout, depths, and grip
+access for review. Treat photo-derived dimensions as estimates.
+
+`create_project` publishes an **empty** Gridfinity bin with basic size and fill
+settings. It cannot add a tool outline, pocket, depth, or finger access.
+`import_project` can publish a complete, schema-valid editable Pocketry backup;
+the editor can also create and save the full design to the connected folder.
+The edit commands cover only the settings listed below, including clearance
+on an existing pocket in millimeters per side. Use Pocketry for other design
+changes rather than assuming an unsupported command exists.
+
+After a successful publication, check its outcome and validation findings.
+In Pocketry, refresh the connected folder and open the named project in Bin
+with the person. Review Layout and 3D and let them adjust the design. The CLI
+and MCP do not open the browser editor. Encourage a thin fit-check print with
+the real tools before the full bin; a surface check does not test pocket depth,
+insertion, or baseplate fit.
+
 ## Setup
 
 From a checkout with Node.js 26, run `npm ci` and `npm run build:automation`.

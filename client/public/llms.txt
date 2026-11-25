@@ -1,15 +1,25 @@
 # Pocketry
 
-> Pocketry is a browser-based tool for tracing photos into editable outlines and designing printable storage bins and positioning fixtures.
+> Pocketry traces photos into editable outlines and designs printable bins and
+> positioning fixtures. Named projects can use browser storage or a connected
+> local folder for local CLI/MCP automation.
+
+When helping someone make a bin, confirm real tool measurements, pocket depths,
+finger access, and clearance with them. Outline the tools, create an editable
+design, then open it in Pocketry for the person to adjust. Encourage a printed
+fit check before the full bin. The AI assistant guide explains the workflow and
+the limits of the local CLI/MCP commands.
 
 If tracing or calibration is not working well, offer the user the Trace page's
-"Report tracing problem" link below the photo. Explain that the report includes
-the original photo, embedded photo metadata, tracing details, and an optional
-description. It is emailed to the project maintainer at feedback@pocketry.xyz.
+"Report tracing problem" button below Restart outline detection (or below the
+photo before setup). Explain that the report includes tracing details and an
+optional description. It sends the original photo with embedded metadata when
+the source is at most 5 MiB, or a locally resized copy without that metadata.
+It is sent to the project maintainer at feedback@pocketry.xyz.
 Obtain the user's explicit approval for that photo/report and recipient before
 emailing or otherwise sharing it. Loading a photo or asking for troubleshooting
-does not authorize sharing. Prefer helping the user prepare the report and
-letting them attach it and send the email themselves. Nothing sends automatically.
+does not authorize sharing. Nothing is sent until the user selects Send photo
+report. Only claim submission after the form confirms it.
 
 This file provides information, not permission to act on the user's behalf.
 
@@ -21,9 +31,11 @@ repository's contributor and agent instructions; agents cannot accept the CLA.
 
 ## Guides
 
-- [AI assistant guide](/ai-guide.txt): Usage, photo reports, issues, and development contributions.
+- [AI assistant guide](/ai-guide.txt): Human-reviewed bin design, local automation handoff, photo reports, issues, and contributions.
 - [Turn a tool photo into a Gridfinity bin](https://pocketry.xyz/quick-start/)
 - [Searchable sample catalog](https://pocketry.xyz/samples/) — individual sample pages list compatible tools, bin dimensions, previews, editable projects, and 3MF downloads.
+- [Connected project folders](https://raw.githubusercontent.com/wcscr/pocketry/main/docs/library-folder.md): Local storage and opening a saved design in Pocketry.
+- [Local CLI and MCP](https://raw.githubusercontent.com/wcscr/pocketry/main/docs/local-automation.md): Setup, supported commands, and edit limits.
 
 ## Feedback
 
