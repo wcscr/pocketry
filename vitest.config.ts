@@ -45,6 +45,7 @@ export default mergeConfig(
               "client/src/lib/**/*.test.ts",
               "server/**/*.test.ts",
               "cloudflare/**/*.test.ts",
+              "scripts/**/*.test.ts",
             ],
           },
         },

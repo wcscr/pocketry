@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Plan and export SVG pocket bins and saved projects from the command line with `npm run export:bin`. Empty-bin exports keep their existing options and output.
+
 ## 1.19.0 — 2026-11-24
 
 - Send a photo report directly from the Trace Outline controls with tracing details and an optional reply email. Pocketry automatically resizes a copy of large photos to fit.
