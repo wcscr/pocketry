@@ -335,6 +335,7 @@ No linter is configured yet (prefer ESLint when one lands).
   [the reporting guide](docs/tracing-photo-reports.md) and
   [published AI assistant guidance](client/public/ai-guide.txt).
 - Explain that the report sends the original photo, including embedded metadata,
+  or a resized copy without that metadata when the original exceeds 5 MiB. It sends
   tracing details, and any description by email to the project maintainer at
   `feedback@pocketry.xyz`. Obtain explicit user approval for that photo/report and
   recipient before emailing or otherwise sharing it. Loading a photo or asking

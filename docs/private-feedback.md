@@ -95,7 +95,8 @@ duplicate if the visitor retries; there is no durable deduplication store.
 The dedicated `POST /api/trace-report` route uses the same fixed sender,
 recipient, hostname allowlist, and single-use Turnstile verification. It accepts
 a bounded original PNG, JPEG, or WebP and tracing details only after the user
-selects Send. The Pages Function caps photos at 5 MiB, details at 1 MiB, and the
+selects Send. The browser resizes a copy of photos above the 5 MiB attachment
+limit. The Pages Function caps photos at 5 MiB, details at 1 MiB, and the
 streamed request at 9 MiB. It sends two attachments through Email Service and
 retains no server-side copy. The optional reply email is plain text in the message body,
 never a header or recipient.

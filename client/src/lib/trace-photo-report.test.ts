@@ -77,12 +77,12 @@ it("opens an addressed draft with an encoded subject and manual attachment remin
   expect(params.has("attach")).toBe(false);
 });
 
-it("prepares the same original photo and details for direct submission with optional email", () => {
+it("prepares the same original photo and details for direct submission with optional email", async () => {
   const trace = { ...initialTraceState, imageUrl: "data:image/png;base64,corrected", perspectiveOriginalImageUrl: png };
-  const payload = createTracePhotoSubmission(trace, "  Missing tip  ", " visitor@example.com ", "browser", now);
+  const payload = await createTracePhotoSubmission(trace, "  Missing tip  ", " visitor@example.com ", "browser", now);
   expect(payload.photo).toEqual({ type: "image/png", content: png.split(",")[1] });
   expect(payload.replyEmail).toBe("visitor@example.com");
   expect(JSON.parse(payload.details)).toMatchObject({ description: "Missing tip", photo: { file: "original-photo.png" } });
-  expect(createTracePhotoSubmission(trace, "", "", "browser", now).replyEmail).toBe("");
-  expect(() => createTracePhotoSubmission(trace, "", "invalid", "browser", now)).toThrow();
+  await expect(createTracePhotoSubmission(trace, "", "", "browser", now)).resolves.toMatchObject({ replyEmail: "" });
+  await expect(createTracePhotoSubmission(trace, "", "invalid", "browser", now)).rejects.toThrow();
 });

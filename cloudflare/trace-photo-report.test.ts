@@ -41,6 +41,15 @@ it("accepts no reply address and queued delivery without claiming final arrival"
   expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body)).text).toContain("Reply email: Not provided");
 });
 
+it("labels the resized attachment in the email", async () => {
+  const resized = JSON.stringify({ ...JSON.parse(details), photo: { file: "report-photo.png", attachmentSize: { width: 1, height: 1 } } });
+  verified(); fetchMock.mockResolvedValueOnce(Response.json(accepted));
+  expect((await handleTracePhotoReport(request({ ...submission, details: resized }), env)).status).toBe(200);
+  const outgoing = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+  expect(outgoing.attachments[0].filename).toBe("report-photo.png");
+  expect(outgoing.text).toContain("A resized copy of the photo");
+});
+
 it("accepts a photo attachment at the byte limit", async () => {
   const bytes = Buffer.alloc(TRACE_REPORT_SEND_PHOTO_MAX_BYTES);
   Buffer.from(photo, "base64").copy(bytes);

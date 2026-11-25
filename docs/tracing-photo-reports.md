@@ -7,27 +7,29 @@ is required.
 
 The dialog warns that the photo will be sent via email to the project maintainer
 at **feedback@pocketry.xyz**. Review the original-photo preview for personal or
-sensitive content. Embedded photo metadata, including location if present, is
-preserved. Add an optional description and reply email, then choose **Send photo report**.
+sensitive content. Add an optional description and reply email, then choose **Send photo report**.
 This submits the report privately through a Cloudflare Pages form to the fixed
 maintainer inbox. Nothing is sent until the visitor selects Send. The form
 confirms submission only after Cloudflare reports the message delivered or queued.
 A queued response does not prove final inbox arrival.
 
-Pocketry accepts photos up to 5 MiB and tracing details up to 1 MiB in the hosted
-form. For larger photos, choose a smaller image or email the maintainer at
-[feedback@pocketry.xyz](mailto:feedback@pocketry.xyz). The app does not store a
-report on its server.
+Pocketry attaches the original when it fits the 5 MiB limit. That attachment
+includes embedded metadata such as location if present. For larger photos,
+Pocketry resizes and compresses a copy on your device before sending it. The copy
+omits the original embedded metadata. The source stays in your trace. The form
+accepts up to 1 MiB of tracing details, and the app does not store a report on its server.
 
 If you self-host Pocketry, email issues or recommendations to the same address.
 
 The email has two attachments:
 
-- `original-photo.png`, `.jpg`, or `.webp`: the original loaded photo bytes,
-  including the full calibration sheet. Perspective correction, rotation,
-  cropping, and contour editing do not replace this source.
+- `original-photo.png`, `.jpg`, or `.webp` when the source fits, or `report-photo`
+  with the resized file's extension. Either includes the full scene from the
+  original loaded photo. Perspective correction, rotation, cropping, and contour
+  editing do not replace this source.
 - `tracing-details.json`: the report format version, app version, preparation
   time, optional description, browser user agent, source name and dimensions,
+  resized attachment dimensions if applicable,
   working image transforms, calibration, region, detection settings/corrections,
   and current and raw outlines. Coordinates describe the working image.
 

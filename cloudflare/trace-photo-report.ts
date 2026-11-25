@@ -14,7 +14,7 @@ const verificationSchema = z.object({ success: z.literal(true), hostname: z.stri
 const deliverySchema = z.object({ success: z.literal(true), result: z.object({ delivered: z.array(z.string()),
   queued: z.array(z.string()), permanent_bounces: z.array(z.string()) }) });
 const detailsSchema = z.object({ reportSchemaVersion: z.literal(1), appVersion: z.string().max(32).regex(/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/),
-  photo: z.object({ file: z.enum(["original-photo.png", "original-photo.jpg", "original-photo.webp"]) }),
+  photo: z.object({ file: z.string().regex(/^(?:original|report)-photo\.(?:png|jpg|webp)$/) }),
   trace: z.object({}).passthrough() }).passthrough();
 
 function json(status: number, body: object): Response {
@@ -100,20 +100,23 @@ export async function handleTracePhotoReport(request: Request, env: FeedbackEnv)
   const detailsBytes = new TextEncoder().encode(report.details) as Base64Bytes;
   if (detailsBytes.length > TRACE_REPORT_SEND_DETAILS_MAX_BYTES ||
       !validPhoto(report.photo.type, report.photo.content)) {
-    return json(400, { error: "The original photo or tracing details could not be accepted." });
+    return json(400, { error: "The photo or tracing details could not be accepted." });
   }
   let details: z.infer<typeof detailsSchema>;
   try { details = detailsSchema.parse(JSON.parse(report.details)); }
   catch { return json(400, { error: "The tracing details could not be accepted." }); }
   const suffix = report.photo.type === "image/jpeg" ? "jpg" : report.photo.type.split("/")[1];
-  if (details.photo.file !== `original-photo.${suffix}`) return json(400, { error: "The photo and tracing details do not match." });
+  const original = details.photo.file === `original-photo.${suffix}`;
+  if (!original && details.photo.file !== `report-photo.${suffix}`) {
+    return json(400, { error: "The photo and tracing details do not match." });
+  }
   try {
     const delivery = await fetch(`https://api.cloudflare.com/client/v4/accounts/${config.FEEDBACK_ACCOUNT_ID}/email/sending/send`, {
       method: "POST", headers: { Authorization: `Bearer ${config.FEEDBACK_EMAIL_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: config.FEEDBACK_FROM, to: config.FEEDBACK_TO,
         subject: `[Pocketry Trace] Photo report (${details.appVersion})`,
-        text: `Trace photo report\nReply email: ${report.replyEmail || "Not provided"}\n\nThe original photo and tracing details are attached.`,
+        text: `Trace photo report\nReply email: ${report.replyEmail || "Not provided"}\n\n${original ? "The original photo" : "A resized copy of the photo"} and tracing details are attached.`,
         attachments: [
           { content: report.photo.content, filename: details.photo.file, type: report.photo.type, disposition: "attachment" },
           { content: detailsBytes.toBase64(), filename: "tracing-details.json", type: "application/json", disposition: "attachment" },

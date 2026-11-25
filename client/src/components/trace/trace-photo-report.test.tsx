@@ -1,6 +1,7 @@
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { TRACE_REPORT_SEND_PHOTO_MAX_BYTES } from "@shared/trace-photo-report-schema";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TracePhotoReport } from "./trace-photo-report";
 
@@ -14,7 +15,7 @@ const fetchMock = vi.fn<typeof fetch>();
 function Harness() { trace = useTrace(); return <TracePhotoReport key={trace.sourceRevision} />; }
 function button(text: string) { return [...document.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === text)!; }
 async function click(text: string) { await React.act(async () => button(text).click()); }
-async function loadPhoto() { await React.act(async () => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: png, fileName: "My tool" })); }
+async function loadPhoto(imageUrl = png) { await React.act(async () => trace.dispatch({ type: "SOURCE_LOADED", imageUrl, fileName: "My tool" })); }
 async function typeInto(selector: string, value: string) {
   await React.act(async () => {
     const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
@@ -105,6 +106,38 @@ it("submits the captured original photo and optional email after the explicit se
   expect(body.replyEmail).toBe("visitor@example.com");
   expect(JSON.parse(body.details)).toMatchObject({ description: "Missing tip", trace: { sensitivity: snapshot.sensitivity } });
   expect(document.querySelector('[role="status"]')?.textContent).toContain("submitted");
+});
+
+it("discloses resizing and submits a smaller attachment without changing the trace photo", async () => {
+  const source = Buffer.from(png.split(",")[1], "base64");
+  const extraChunk = Buffer.alloc(TRACE_REPORT_SEND_PHOTO_MAX_BYTES + 12);
+  extraChunk.writeUInt32BE(TRACE_REPORT_SEND_PHOTO_MAX_BYTES);
+  extraChunk.write("tEXt", 4);
+  const oversized = `data:image/png;base64,${Buffer.concat([source.subarray(0, -12), extraChunk, source.subarray(-12)]).toString("base64")}`;
+  vi.stubGlobal("Image", class { src = ""; naturalWidth = 4000; naturalHeight = 3000; async decode() {} });
+  const drawImage = vi.fn();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+  const toBlob = vi.spyOn(HTMLCanvasElement.prototype, "toBlob")
+    .mockImplementationOnce(callback => callback(new Blob([extraChunk], { type: "image/png" })))
+    .mockImplementationOnce(callback => callback(new Blob([source], { type: "image/png" })));
+
+  await loadPhoto(oversized); await click("Report tracing problem");
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("omits the original embedded metadata");
+  expect(toBlob).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(button("Complete spam check")).toBeTruthy());
+  await click("Complete spam check");
+  fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
+  await click("Send photo report");
+  await React.act(async () => {
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === "/api/trace-report")).toBe(true));
+  });
+
+  expect(drawImage.mock.calls.map(call => call.slice(3))).toEqual([[2560, 1920], [1920, 1440]]);
+  const post = fetchMock.mock.calls.find(([url]) => url === "/api/trace-report")!;
+  const body = JSON.parse(String(post[1]?.body));
+  expect(body.photo).toEqual({ type: "image/png", content: png.split(",")[1] });
+  expect(JSON.parse(body.details).photo).toMatchObject({ file: "report-photo.png", attachmentSize: { width: 1920, height: 1440 } });
+  expect(trace.imageUrl === oversized).toBe(true);
 });
 
 it("preserves the form on failed delivery and resets for a replacement photo", async () => {

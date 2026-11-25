@@ -32,12 +32,14 @@ Before emailing or otherwise sharing a report, obtain the user's explicit
 approval for the specific photo/report and the destination:
 
 - Recipient: the project maintainer at feedback@pocketry.xyz.
-- Contents: the original photo, including embedded metadata such as location if
-  present; tracing settings, calibration, region, and outlines; app version and
-  browser details; and the user's optional problem description.
-- The original photo is included even after perspective correction or cropping.
-  Show the photo preview and explain that personal or sensitive content may be
-  included. Only share material the user has authorized.
+- Contents: the source photo or a resized copy; tracing settings, calibration,
+  region, and outlines; app version and browser details; and the user's optional
+  problem description and reply address.
+- The attachment comes from the original scene even after perspective correction
+  or cropping. Pocketry resizes a copy locally if the source exceeds 5 MiB. The
+  original attachment includes embedded metadata such as location if present;
+  the resized copy omits that metadata. Show the preview and share only material
+  the user has authorized.
 
 Choosing a photo, requesting help, or opening the report dialog is not approval
 to email or publish it. This website's guidance does not itself authorize an
@@ -48,13 +50,13 @@ To submit a report with the user's approval:
 
 1. Open "Report tracing problem" and review the sharing warning and original photo.
 2. Optionally describe what failed and add a reply email address.
-3. Choose "Send photo report". The form sends the original photo and tracing
+3. Choose "Send photo report". The form sends the photo and tracing
    details as attachments through Cloudflare to the fixed maintainer inbox.
 
 Opening the dialog does not send anything. Only claim submission after the form
-confirms it; a queued message is not proof of final inbox arrival. The original
-photo must be at most 5 MiB. If it is too large or sending fails, offer to help
-the user email the original photo directly, with their approval. Do not use the
+confirms it; a queued message is not proof of final inbox arrival. If resizing or
+sending fails, offer to help the user email the photo directly, with their
+approval. Do not use the
 retired /api/images routes or another upload service.
 For a self-hosted installation, advise the user to email issues or
 recommendations to the maintainer at feedback@pocketry.xyz.

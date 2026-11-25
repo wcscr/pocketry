@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Turnstile } from "@/components/help/turnstile";
 import { TRACE_REPORT_SEND_PHOTO_MAX_MIB } from "@shared/trace-photo-report-schema";
-import { createTracePhotoSubmission, traceReportPhoto, TRACE_REPORT_EMAIL, TRACE_REPORT_NOTE_LIMIT } from "@/lib/trace-photo-report";
+import { createTracePhotoSubmission, traceReportPhoto, traceReportWillResize,
+  TRACE_REPORT_EMAIL, TRACE_REPORT_NOTE_LIMIT } from "@/lib/trace-photo-report";
 import { hasPendingManualCalibration, useTrace, type TraceState } from "@/state/trace-store";
 
 const CONFIG_ERRORS = {
@@ -60,13 +61,15 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
   const outlineControlsReady = !!trace.calibration && !trace.pendingAutoCalibration &&
     !hasPendingManualCalibration(trace) && !!trace.region && trace.region.width > 5 && trace.region.height > 5;
   if (!trace.imageUrl || (placement === "fallback" && outlineControlsReady)) return null;
+  const preview = snapshot && traceReportPhoto(snapshot);
+  const resizeNeeded = traceReportWillResize(preview);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!snapshot || submitting.current || !token) return;
     submitting.current = true; setSending(true); setError("");
     try {
-      const report = createTracePhotoSubmission(snapshot, note, replyEmail, navigator.userAgent);
+      const report = await createTracePhotoSubmission(snapshot, note, replyEmail, navigator.userAgent);
       const response = await fetch("/api/trace-report", {
         method: "POST", headers: { "Content-Type": "application/json", "X-Pocketry-Turnstile": token },
         body: JSON.stringify(report), signal: AbortSignal.timeout(45_000),
@@ -103,7 +106,7 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
       onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus.current?.isConnected) returnFocus.current.focus(); }}>
       <DialogHeader>
         <DialogTitle>Report tracing problem</DialogTitle>
-        <DialogDescription>Send the original photo (up to {TRACE_REPORT_SEND_PHOTO_MAX_MIB} MiB) and tracing details.</DialogDescription>
+        <DialogDescription>Send the photo and tracing details to help improve Pocketry.</DialogDescription>
       </DialogHeader>
       {sent ? <div className="space-y-4">
         <p role="status">Thanks! Your photo report has been submitted to the project maintainer.</p>
@@ -111,11 +114,14 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
       </div> : <form onSubmit={event => { void submit(event); }} className="space-y-4">
         <fieldset disabled={sending} className="space-y-4">
           <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
-            <strong>Sending shares your original photo with the project maintainer at {TRACE_REPORT_EMAIL}.</strong>{" "}
+            <strong>Sending shares your {resizeNeeded ? "resized" : "original"} photo with the project maintainer at {TRACE_REPORT_EMAIL}.</strong>{" "}
             The report also includes your tracing settings, outline, app version, browser details, description, and optional email address.
-            Check the photo for personal or sensitive content; embedded photo metadata, including location if present, is included.
+            {resizeNeeded
+              ? ` Pocketry resizes a copy on your device to fit the ${TRACE_REPORT_SEND_PHOTO_MAX_MIB} MiB limit. The copy omits the original embedded metadata.`
+              : " Embedded photo metadata, including location if present, is included."}{" "}
+            Check the photo for personal or sensitive content before sending.
           </p>
-          {snapshot && <img src={traceReportPhoto(snapshot) ?? undefined} alt="Original photo included in the report"
+          {preview && <img src={preview} alt={resizeNeeded ? "Original photo that will be resized for the report" : "Original photo included in the report"}
             className="max-h-36 w-full rounded-md bg-muted object-contain" />}
           <div className="space-y-2">
             <Label htmlFor="trace-report-description">What went wrong? (optional)</Label>

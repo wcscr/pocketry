@@ -142,9 +142,11 @@ If tracing is not working well, choose **Report tracing problem** below
 **Restart outline detection** in the Outline controls, or below the photo before
 scale and region setup. Review the sharing warning and photo, optionally describe
 the problem and provide a reply email, then select **Send photo report**. The form
-sends the original photo (including embedded metadata), tracing settings and
-outline, app version, browser details, and description to the project maintainer
-at **feedback@pocketry.xyz**. Nothing is sent until you select Send. See
+sends the photo, tracing settings and outline, app version, browser details, and
+description to the project maintainer at **feedback@pocketry.xyz**. Pocketry
+attaches the original with its embedded metadata if it fits the 5 MiB limit.
+Larger photos are resized on your device and sent without their original
+embedded metadata. Nothing is sent until you select Send. See
 [photo reports](docs/tracing-photo-reports.md).
 
 The static application processes images and generates models locally in the

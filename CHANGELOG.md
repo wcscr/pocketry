@@ -4,7 +4,7 @@
 
 ## 1.19.0 — 2026-11-24
 
-- Send a Trace photo report directly from the Outline controls, with the original photo, tracing details, and an optional reply email.
+- Send a photo report directly from the Trace Outline controls with tracing details and an optional reply email. Pocketry automatically resizes a copy of large photos to fit.
 
 ## 1.18.0 — 2026-11-24
 
