@@ -138,7 +138,7 @@ describe("BinDesignerPage", () => {
     expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
     await React.act(async () => sampleButton("Open sample").click());
     expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(sampleDoc);
-    expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My draft" }), "project-1");
+    expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My draft" }), "project-1", []);
     expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(sampleDoc.spec);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
@@ -1519,7 +1519,7 @@ describe("BinDesignerPage", () => {
       };
       const replaceProject = action === "new" ? ProjectPersistence.startNewProject : ProjectPersistence.importProjectToLibrary;
       await replace();
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }), "cutter");
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }), "cutter", []);
       expect(replaceProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(false));
       expect(replaceProject).not.toHaveBeenCalled();
@@ -1599,7 +1599,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "project");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter");
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter", []);
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       await React.act(async () => finishSave(true));
       expect(activeProjectId).toBe("other");
@@ -1792,7 +1792,7 @@ describe("BinDesignerPage", () => {
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
       expect(document.querySelector('[data-testid="button-discard-draft-open"]')).toBeNull();
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: cutter.cutouts }), "cutter");
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: cutter.cutouts }), "cutter", []);
       expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledWith("other");
     } finally { unmount(); }
   });
@@ -1958,7 +1958,7 @@ describe("BinDesignerPage", () => {
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
       expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe(imported.name);
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: previous.name }), previous.id);
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: previous.name }), previous.id, []);
       expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(doc);
       expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(doc.spec);
@@ -2214,7 +2214,7 @@ describe("BinDesignerPage", () => {
       } else {
         expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({
           spec: expect.objectContaining({ heightUnits: 9 }),
-        }), "current");
+        }), "current", []);
         expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
       }
     } finally { unmount(); }

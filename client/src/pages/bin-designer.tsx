@@ -409,8 +409,8 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
-    saveProject(browserWorkingDoc, projectLibrary.activeProjectId);
-  }, [bin.hydrated, browserWorkingDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
+    saveProject(browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds);
+  }, [bin.hydrated, browserWorkingDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed, library.pendingIds]);
 
   useEffect(() => {
     projectActivity?.publish({ name: currentProjectName, activeProjectId: projectLibrary.activeProjectId,
@@ -760,11 +760,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const saveBeforeReplacingProject = useCallback(async () => {
     saveProject.cancel();
     if (!projectLibrary.activeProjectId) return;
-    const saved = await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId);
+    const saved = await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds);
     setSaveStatus(saved ? "saved" : "error");
     if (!saved) setSaveError("Your current changes could not be saved. Keep this page open and download a backup before switching projects.");
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
-  }, [saveProject, browserWorkingDoc, projectLibrary.activeProjectId]);
+  }, [saveProject, browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds]);
 
   const loadFolderProject = useCallback(async (document: ProjectDoc, target: FolderDraft) => {
     const draft = { ...document, name: undefined };
@@ -929,7 +929,7 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectBusy(true);
     saveProject.cancel();
     try {
-      if (!await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId)) throw new Error("Could not save this fixture. Keep it open and try again.");
+      if (!await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds)) throw new Error("Could not save this fixture. Keep it open and try again.");
       navigate("/");
     } catch (cause) {
       toast({ title: "Could not open Trace", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });

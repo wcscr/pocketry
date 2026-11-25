@@ -133,7 +133,7 @@ describe("/ultim8 entry", () => {
     expect(Persistence.startNewProject).not.toHaveBeenCalled();
     expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain("Saves the latest changes");
     await clickButton("Start new project");
-    expect(Persistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My tray", spec: doc.spec }), "tray");
+    expect(Persistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My tray", spec: doc.spec }), "tray", []);
     expect(vi.mocked(Persistence.saveProjectDoc).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(Persistence.startNewProject).mock.invocationCallOrder[0]);
     expect(currentSpec().pegBottom).toEqual(DEFAULT_PEG_BOTTOM);
     expect(route.history).toEqual(["/about", "/bin"]);
@@ -265,7 +265,7 @@ describe("/ultim8 entry", () => {
       await flushHydration();
       const original = currentSpec();
       await clickButton("Trace an object from a photo");
-      expect(Persistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ spec: original }), null);
+      expect(Persistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ spec: original }), null, []);
       await clickButton("Add to bin");
       await flushHydration();
       expect(route.history?.at(-1)).toBe("/bin");
