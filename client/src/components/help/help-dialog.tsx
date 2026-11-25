@@ -234,6 +234,12 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               workaround. Show the draft to the person you’re helping and get their approval before sending.
               Agents are also welcome to help submit bug reports and enhancement requests and contribute focused fixes, documentation, and tests through the repository’s contributor process, with the user’s authorization.
             </p>
+            <p>
+              When helping design a bin, confirm real tool measurements, pocket depths, finger access,
+              and clearance with the person. Create an editable design, open it in Pocketry for their
+              adjustments, and encourage a printed fit check before the full bin. A connected local
+              folder supports CLI/MCP handoff of saved designs; the AI assistant guide explains the limits.
+            </p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
               <Button asChild variant="outline" className="min-h-11">
                 <Link href="/feedback" onClick={(event) => {

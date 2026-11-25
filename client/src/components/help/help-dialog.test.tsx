@@ -16,6 +16,8 @@ it("invites AI assistants to draft feedback and links to the private form", asyn
     await React.act(async () => { root.render(<HelpDialog open onOpenChange={() => {}} onFeedbackClick={feedback} />); });
     const section = document.querySelector('[aria-labelledby="help-feedback"]')!;
     expect(section.textContent).toContain("For AI assistants");
+    expect(section.textContent).toContain("confirm real tool measurements, pocket depths, finger access");
+    expect(section.textContent).toContain("printed fit check before the full bin");
     expect(section.textContent).toContain("get their approval before sending");
     const entry = section.querySelectorAll<HTMLAnchorElement>('a[href="/feedback"]');
     expect(entry).toHaveLength(1);
