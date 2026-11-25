@@ -18,6 +18,7 @@ import { SampleLibraryDialog } from "@/components/project/sample-library-dialog"
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
 import { LibraryProjectAction } from "@/components/project/library-project-action";
 import type { SampleLibrary } from "@/lib/project/samples";
+import { loadOpenLinkSource } from "@/lib/project/open-link";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
@@ -241,6 +242,7 @@ export interface BinControlsPanelProps {
   onAutoArrange: () => void;
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
+  onOpenLinkedProject: (doc: ProjectDoc, name: string) => Promise<boolean>;
   projectLibraryReady: boolean;
   projectLibraryError?: string | null;
   projectBusy: boolean;
@@ -319,6 +321,7 @@ export function BinControlsPanel({
   onAutoArrange,
   onExportProject,
   onImportProject,
+  onOpenLinkedProject,
   projectLibraryReady,
   projectLibraryError,
   projectBusy,
@@ -2687,6 +2690,7 @@ export function BinControlsPanel({
             onNewProject={onNewProject}
             onExportProject={onExportProject}
             onImportProject={onImportProject}
+            onOpenLinkedProject={onOpenLinkedProject}
           />
       , projectControlsHost)}
 
@@ -2968,11 +2972,19 @@ interface ProjectControlsProps {
   onNewProject: (saveDraftName?: string, fixture?: boolean) => Promise<boolean>;
   onExportProject: () => void;
   onImportProject: (doc: ProjectDoc) => Promise<boolean>;
+  onOpenLinkedProject: (doc: ProjectDoc, name: string) => Promise<boolean>;
 }
 
 type ProjectOpenTarget =
   | { kind: "library"; project: ProjectLibraryItem }
-  | { kind: "file"; doc: ProjectDoc };
+  | { kind: "file"; doc: ProjectDoc }
+  | { kind: "link"; doc: ProjectDoc; name: string; key: string };
+
+type LinkedProject = Extract<Awaited<ReturnType<typeof loadOpenLinkSource>>, { kind: "library" }>["projects"][number];
+type OpenLinkState =
+  | { kind: "loading"; key: string }
+  | { kind: "picker"; key: string; projects: LinkedProject[] }
+  | { kind: "error"; key: string; message: string };
 
 const projectActionClass = "h-auto min-h-11 min-w-0 gap-1.5 whitespace-normal px-2 py-2 text-xs";
 
@@ -3008,6 +3020,7 @@ function ProjectControls({
   onNewProject,
   onExportProject,
   onImportProject,
+  onOpenLinkedProject,
   saveStatus = "saved",
 }: ProjectControlsProps): JSX.Element {
   const ready = hydrated && libraryReady;
@@ -3019,6 +3032,23 @@ function ProjectControls({
   const [location, navigate] = useLocation();
   const search = useSearch();
   const linkedSampleId = /^\/bin\/?$/.test(location) ? new URLSearchParams(search).get("sample") : null;
+  const linkParams = new URLSearchParams(search);
+  const linkedSource = /^\/bin\/?$/.test(location) ? linkParams.get("source") : null;
+  const linkedProjectId = linkParams.get("project");
+  const linkedKey = linkedSource === null ? null : JSON.stringify([linkedSource, linkedProjectId]);
+  const currentLinkedKey = useRef(linkedKey);
+  currentLinkedKey.current = linkedKey;
+  const handledLinkedKey = useRef<string | null>(null);
+  const [linkRetry, setLinkRetry] = useState(0);
+  const [openLinkState, setOpenLinkState] = useState<OpenLinkState | null>(null);
+  const clearOpenLink = () => {
+    handledLinkedKey.current = null;
+    const params = new URLSearchParams(search);
+    params.delete("source");
+    params.delete("project");
+    const remaining = params.toString();
+    navigate(remaining ? `${location}?${remaining}` : location, { replace: true });
+  };
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [librarySettingsOpen, setLibrarySettingsOpen] = useState(false);
@@ -3141,19 +3171,27 @@ function ProjectControls({
 
   const openProject = async (target: ProjectOpenTarget, discardDraft = false, source?: HTMLElement | null) => {
     if (!ready || busy || (target.kind === "library" && (target.project.id === activeProjectId || target.project.unavailable))) return;
-    // A later library-open choice supersedes any file still being validated.
-    if (target.kind === "library") projectFileReadRevision.current += 1;
+    if (target.kind === "link" && currentLinkedKey.current !== target.key) return;
+    // A later open choice supersedes any file still being validated.
+    if (target.kind !== "file") projectFileReadRevision.current += 1;
     if (!activeProjectId && hasDraftWork && !discardDraft) {
       openProjectSourceRef.current = source ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
       setPendingOpenProject(target);
+      if (target.kind === "link") setOpenLinkState(null);
       return;
     }
     const opened = target.kind === "library"
       ? await onOpenProject(target.project.id)
-      : await onImportProject(target.doc);
+      : target.kind === "link" ? await onOpenLinkedProject(target.doc, target.name) : await onImportProject(target.doc);
     if (opened) {
       setPendingOpenProject(null);
       setLibraryOpen(false);
+      if (target.kind === "link" && currentLinkedKey.current === target.key) {
+        setOpenLinkState(null);
+        clearOpenLink();
+      }
+    } else if (target.kind === "link" && !pendingOpenProject) {
+      setOpenLinkState({ kind: "error", key: target.key, message: "The linked design could not be opened. Your current project is still open. Try again." });
     }
   };
   // File reads may finish after the draft, active project, or persistence
@@ -3161,6 +3199,45 @@ function ProjectControls({
   // captured when the picker first selected the file.
   const latestOpenProject = useRef(openProject);
   latestOpenProject.current = openProject;
+
+  useEffect(() => {
+    if (linkedSource === null) { handledLinkedKey.current = null; return; }
+    if (!ready || busy || linkedKey === null || handledLinkedKey.current === linkedKey) return;
+    handledLinkedKey.current = linkedKey;
+    const controller = new AbortController();
+    let active = true;
+    let fetching = true;
+    setPendingOpenProject(current => current?.kind === "link" ? null : current);
+    setOpenLinkState({ kind: "loading", key: linkedKey });
+    void loadOpenLinkSource(linkedSource, controller.signal).then(async result => {
+      fetching = false;
+      if (!active || currentLinkedKey.current !== linkedKey) return;
+      if (result.kind === "project") {
+        if (linkedProjectId) throw new Error("This is a standalone project file; remove the project ID from the link.");
+        await latestOpenProject.current({ kind: "link", doc: result.doc, name: result.doc.name ?? "Linked design", key: linkedKey });
+        return;
+      }
+      if (!linkedProjectId) {
+        if (result.projects.length === 0) throw new Error("This Pocketry library contains no projects to open.");
+        setOpenLinkState({ kind: "picker", key: linkedKey, projects: result.projects });
+        return;
+      }
+      const selected = result.projects.find(project => project.id === linkedProjectId);
+      if (!selected) throw new Error(`Project ID “${linkedProjectId}” was not found in this library. Check the ID, or remove it from the link to choose a project.`);
+      await latestOpenProject.current({ kind: "link", doc: selected.doc, name: selected.name, key: linkedKey });
+    }).catch(cause => {
+      fetching = false;
+      if (!active || controller.signal.aborted || currentLinkedKey.current !== linkedKey) return;
+      setOpenLinkState({ kind: "error", key: linkedKey, message: cause instanceof Error ? cause.message : "The link could not be opened." });
+    });
+    return () => {
+      active = false;
+      controller.abort();
+      // Another project operation can interrupt a download. Try the current
+      // link again when the editor is ready, while keeping completed downloads.
+      if (fetching && handledLinkedKey.current === linkedKey) handledLinkedKey.current = null;
+    };
+  }, [ready, busy, linkedSource, linkedProjectId, linkedKey, linkRetry]);
 
   const readProjectFile = async (file: File) => {
     if (busy) return;
@@ -3265,7 +3342,7 @@ function ProjectControls({
     );
   };
 
-  const librarySubdialogOpen = samplesOpen || sampleAction || saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || settingsOpen;
+  const librarySubdialogOpen = samplesOpen || sampleAction || saveOpen || renameProjectId || removeProject || pendingLibraryFile || pendingOpenProject || openLinkState || settingsOpen;
 
   const renderLibraryDialog = (): JSX.Element => (
     <Dialog
@@ -3724,8 +3801,35 @@ function ProjectControls({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={openLinkState !== null && openLinkState.key === linkedKey} onOpenChange={open => {
+        if (!open) { setOpenLinkState(null); clearOpenLink(); }
+      }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" data-testid="open-link-dialog">
+          <DialogHeader>
+            <DialogTitle>{openLinkState?.kind === "picker" ? "Choose a design to open" : openLinkState?.kind === "error" ? "Could not open this link" : "Opening linked design…"}</DialogTitle>
+            <DialogDescription>
+              {openLinkState?.kind === "picker" ? "This library contains multiple projects. Choose one to open as an editable copy." : openLinkState?.kind === "error" ? openLinkState.message : "Loading and checking the Pocketry JSON file."}
+            </DialogDescription>
+          </DialogHeader>
+          {openLinkState?.kind === "picker" && <div className="max-h-[50dvh] space-y-2 overflow-y-auto" data-testid="open-link-project-picker">
+            {openLinkState.projects.map(project => <Button key={project.id} variant="outline" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left" disabled={busy}
+              onClick={() => { setOpenLinkState(null); void latestOpenProject.current({ kind: "link", doc: project.doc, name: project.name, key: openLinkState.key }); }}>
+              {project.name}
+            </Button>)}
+          </div>}
+          {openLinkState?.kind === "error" && <p role="alert" className="text-sm text-destructive">{openLinkState.message}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpenLinkState(null); clearOpenLink(); }}>Close</Button>
+            {openLinkState?.kind === "error" && <Button onClick={() => { handledLinkedKey.current = null; setOpenLinkState(null); setLinkRetry(value => value + 1); }}>Try again</Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={pendingOpenProject !== null} onOpenChange={(open) => {
-        if (!open && !busy) setPendingOpenProject(null);
+        if (!open && !busy) {
+          if (pendingOpenProject?.kind === "link" && currentLinkedKey.current === pendingOpenProject.key) clearOpenLink();
+          setPendingOpenProject(null);
+        }
       }}>
         <AlertDialogContent className="grid-cols-1" onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -3737,7 +3841,7 @@ function ProjectControls({
           <AlertDialogHeader className="min-w-0 [overflow-wrap:anywhere]">
             <AlertDialogTitle>Replace the current draft?</AlertDialogTitle>
             <AlertDialogDescription>
-              This draft has work that is not saved in your library. Opening “{pendingOpenProject?.kind === "library" ? pendingOpenProject.project.name : pendingOpenProject?.doc.name}”
+              This draft has work that is not saved in your library. Opening “{pendingOpenProject?.kind === "library" ? pendingOpenProject.project.name : pendingOpenProject?.kind === "link" ? pendingOpenProject.name : pendingOpenProject?.doc.name}”
               {" "}will replace it. Keep working to save or export the draft first.
             </AlertDialogDescription>
           </AlertDialogHeader>

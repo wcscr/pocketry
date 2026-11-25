@@ -188,6 +188,7 @@ vi.mock("@/lib/project/persist", () => ({
   exportProjectLibrary: vi.fn(),
   importProjectLibrary: vi.fn(),
   importProjectToLibrary: vi.fn(),
+  openLinkedProjectCopy: vi.fn(),
   startNewProject: vi.fn(async () => ({ activeProjectId: null, projects: [] })),
   createDebouncedProjectSaver: (_delay: number, onSaved?: (success: boolean, error?: Error) => void) => {
     projectSaveMock.onSaved = onSaved;
@@ -322,6 +323,10 @@ beforeEach(() => {
     const project = { id: "imported", name: doc.name ?? "Imported project", updatedAt: "2026-09-21T12:00:00.000Z" };
     return { doc: { ...doc, name: project.name }, project, library: { activeProjectId: project.id, projects: [project] } };
   });
+  vi.mocked(ProjectPersistence.openLinkedProjectCopy).mockImplementation(async input => ({
+    doc: { ...(input as ProjectDoc), name: undefined },
+    library: { activeProjectId: null, projects: [] },
+  }));
   vi.mocked(ProjectPersistence.saveProjectToLibrary).mockImplementation(
     async (_doc, name, projectId) => ({
       activeProjectId: projectId ?? "project-1",
