@@ -136,6 +136,11 @@ features in **App settings** to choose **Local folder** in Library Settings.
 Use **Export project** for a `.pocketry.json` backup. Keep the original photo
 separately from the backup.
 
+To share an editable design, use [Open in Pocketry links](docs/open-in-pocketry.md)
+with a public JSON file hosted over HTTPS or shared through Google Drive on a site
+with Drive enabled. The recipient can save the editable copy using the Library
+controls.
+
 ## Privacy
 
 If tracing is not working well, choose **Report tracing problem** below

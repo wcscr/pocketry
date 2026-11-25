@@ -186,7 +186,9 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               Choose a folder and use <strong>Save current project</strong>.
               Drafts autosave in this browser. <strong>Export project</strong> downloads one editable backup,
               and <strong>Export library</strong> backs up named projects in the selected storage.
-              <strong> Import Project</strong> opens an editable backup. Keep your original Trace photo separately.
+              <strong> Import Project</strong> opens an editable backup.
+              A shared <strong>Open in Pocketry</strong> link opens an editable copy.
+              Keep your original Trace photo separately.
             </p>
           </li>
         </ol>

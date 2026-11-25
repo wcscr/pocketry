@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.20.0 — 2026-11-25
+
+- Open an editable design from a public HTTPS JSON link or a Google Drive file link on sites with Drive enabled. Choose a project from a shared library or link directly to it.
+
 ## 1.19.1 — 2026-11-25
 
 - Guide AI assistants through locally saved, human-reviewed bin designs and encourage a printed fit check before the full bin.

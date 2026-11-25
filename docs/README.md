@@ -12,6 +12,7 @@ and internal refactors usually need no changelog entry.
 
 ## Start here
 
+- [Open in Pocketry links](open-in-pocketry.md): share an editable project or select one from a library export.
 - [Connected project folders](library-folder.md)
 - [Local automation CLI and MCP](local-automation.md)
 - [Photo-to-bin quick start](https://pocketry.xyz/quick-start/) and [sample downloads](https://pocketry.xyz/samples/).
