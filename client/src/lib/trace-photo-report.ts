@@ -2,7 +2,7 @@ import { strToU8, zipSync } from "fflate";
 import { version } from "../../../package.json";
 import type { TraceState } from "@/state/trace-store";
 import { inspectPhotoDimensions } from "./photo-dimensions";
-import { TRACE_REPORT_SEND_DETAILS_MAX_BYTES, TRACE_REPORT_SEND_PHOTO_MAX_BYTES,
+import { TRACE_REPORT_SEND_DETAILS_MAX_BYTES, TRACE_REPORT_SEND_PHOTO_MAX_BYTES, TRACE_REPORT_SEND_PHOTO_MAX_MIB,
   tracePhotoSubmissionSchema, type TracePhotoSubmission } from "@shared/trace-photo-report-schema";
 
 export const TRACE_REPORT_EMAIL = "feedback@pocketry.xyz";
@@ -27,7 +27,7 @@ function prepareTracePhotoReport(trace: TraceState, note: string, userAgent: str
   }
   if (photo.length - comma - 1 > Math.ceil(maxPhotoBytes / 3) * 4) {
     throw new Error(maxPhotoBytes === TRACE_REPORT_SEND_PHOTO_MAX_BYTES
-      ? "This photo is too large to email from Pocketry (15 MiB maximum). Choose a smaller photo and retry."
+      ? `This photo is larger than ${TRACE_REPORT_SEND_PHOTO_MAX_MIB} MiB. Choose a smaller photo or email the maintainer directly.`
       : "The original photo is too large to include.");
   }
   const binary = atob(photo.slice(comma + 1));

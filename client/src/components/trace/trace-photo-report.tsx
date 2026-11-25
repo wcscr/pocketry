@@ -6,10 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Turnstile } from "@/components/help/turnstile";
+import { TRACE_REPORT_SEND_PHOTO_MAX_MIB } from "@shared/trace-photo-report-schema";
 import { createTracePhotoSubmission, traceReportPhoto, TRACE_REPORT_EMAIL, TRACE_REPORT_NOTE_LIMIT } from "@/lib/trace-photo-report";
 import { hasPendingManualCalibration, useTrace, type TraceState } from "@/state/trace-store";
 
-const UNAVAILABLE = "Photo reporting is temporarily unavailable. Please try again later.";
+const CONFIG_ERRORS = {
+  timeout: "Connecting to photo reporting took too long.",
+  unavailable: "Photo reporting is temporarily unavailable.",
+  unsupported: "This installation does not provide in-app photo reporting.",
+};
 
 /** A prominent Outline action, with a fallback before scale or region setup. */
 export function TracePhotoReport({ placement = "fallback" }: { placement?: "controls" | "fallback" }): JSX.Element | null {
@@ -18,6 +23,8 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
   const [note, setNote] = useState("");
   const [replyEmail, setReplyEmail] = useState("");
   const [siteKey, setSiteKey] = useState("");
+  const [configAttempt, setConfigAttempt] = useState(0);
+  const [configError, setConfigError] = useState<keyof typeof CONFIG_ERRORS | null>(null);
   const [token, setToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const [error, setError] = useState("");
@@ -29,18 +36,26 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
   useEffect(() => {
     if (!snapshot) return;
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 10_000);
+    const timeout = window.setTimeout(() => {
+      setConfigError("timeout");
+      controller.abort();
+    }, 10_000);
     void fetch("/api/feedback", { signal: controller.signal, cache: "no-store" })
       .then(async response => {
-        if (!response.ok) throw new Error(UNAVAILABLE);
+        if (controller.signal.aborted) return;
+        if (response.status === 404) {
+          setConfigError("unsupported");
+          return;
+        }
+        if (!response.ok) throw new Error();
         const config: unknown = await response.json();
-        if (typeof config !== "object" || config === null || !("siteKey" in config) || typeof config.siteKey !== "string" || !config.siteKey) throw new Error(UNAVAILABLE);
+        if (typeof config !== "object" || config === null || !("siteKey" in config) || typeof config.siteKey !== "string" || !config.siteKey) throw new Error();
         if (!controller.signal.aborted) setSiteKey(config.siteKey);
       })
-      .catch(() => { if (!controller.signal.aborted) setError(UNAVAILABLE); })
+      .catch(() => { if (!controller.signal.aborted) setConfigError("unavailable"); })
       .finally(() => window.clearTimeout(timeout));
     return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [snapshot]);
+  }, [snapshot, configAttempt]);
 
   const outlineControlsReady = !!trace.calibration && !trace.pendingAutoCalibration &&
     !hasPendingManualCalibration(trace) && !!trace.region && trace.region.width > 5 && trace.region.height > 5;
@@ -74,7 +89,7 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
   return <Dialog open={snapshot !== null} onOpenChange={open => {
     if (sending) return;
     setSnapshot(open ? trace : null);
-    if (open) { setNote(""); setReplyEmail(""); setSiteKey(""); setToken(""); setError(""); setSent(false); }
+    if (open) { setNote(""); setReplyEmail(""); setSiteKey(""); setConfigError(null); setToken(""); setError(""); setSent(false); }
   }}>
     <div className={placement === "controls" ? "border-t pt-2" : "order-last flex shrink-0 justify-end px-3 py-2"}>
       <DialogTrigger asChild>
@@ -88,7 +103,7 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
       onCloseAutoFocus={event => { event.preventDefault(); if (returnFocus.current?.isConnected) returnFocus.current.focus(); }}>
       <DialogHeader>
         <DialogTitle>Report tracing problem</DialogTitle>
-        <DialogDescription>Send the original photo and tracing details to help improve Pocketry.</DialogDescription>
+        <DialogDescription>Send the original photo (up to {TRACE_REPORT_SEND_PHOTO_MAX_MIB} MiB) and tracing details.</DialogDescription>
       </DialogHeader>
       {sent ? <div className="space-y-4">
         <p role="status">Thanks! Your photo report has been submitted to the project maintainer.</p>
@@ -117,9 +132,20 @@ export function TracePhotoReport({ placement = "fallback" }: { placement?: "cont
           {siteKey && <Turnstile resetKey={challenge} siteKey={siteKey} onToken={setToken}
             onError={() => setError("The spam check could not load. Check your connection or content blocker, then retry.")} />}
           {error && <div role="alert" className="space-y-2 text-sm"><p>{error}</p>
+            <a className="inline-block underline" href={`mailto:${TRACE_REPORT_EMAIL}`}>Email the maintainer</a>
             {siteKey && <Button type="button" variant="outline" className="min-h-11" onClick={() => { setToken(""); setError(""); setChallenge(value => value + 1); }}>Retry spam check</Button>}
           </div>}
-          {!siteKey && !error && <p role="status" className="text-sm text-muted-foreground">Connecting…</p>}
+          {configError && <div role="alert" className="space-y-2 text-sm">
+            <p>{CONFIG_ERRORS[configError]}</p>
+            <p>Email issues or recommendations to the maintainer at{" "}
+              <a className="underline" href={`mailto:${TRACE_REPORT_EMAIL}`}>{TRACE_REPORT_EMAIL}</a>.
+            </p>
+            {configError !== "unsupported" && <Button type="button" variant="outline" className="min-h-11" onClick={() => {
+              setConfigError(null);
+              setConfigAttempt(value => value + 1);
+            }}>Retry connection</Button>}
+          </div>}
+          {!siteKey && !configError && <p role="status" className="text-sm text-muted-foreground">Connecting…</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setSnapshot(null)}>Cancel</Button>
             <Button type="submit" disabled={!siteKey || !token || sending}>{sending ? "Sending…" : "Send photo report"}</Button>

@@ -53,9 +53,11 @@ To submit a report with the user's approval:
 
 Opening the dialog does not send anything. Only claim submission after the form
 confirms it; a queued message is not proof of final inbox arrival. The original
-photo must be at most 15 MiB. If it is too large or sending fails, offer to help
+photo must be at most 5 MiB. If it is too large or sending fails, offer to help
 the user email the original photo directly, with their approval. Do not use the
 retired /api/images routes or another upload service.
+For a self-hosted installation, advise the user to email issues or
+recommendations to the maintainer at feedback@pocketry.xyz.
 
 ## Report bugs, request improvements, and contribute
 

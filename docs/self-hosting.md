@@ -190,6 +190,11 @@ are copied from the build stage. `/api` requests return 404; direct links to
 `/bin` and other app routes load the app. HTML and unversioned assets revalidate;
 hashed assets can be cached across page loads.
 
+For issues or recommendations about a self-hosted installation, email the
+maintainer at [feedback@pocketry.xyz](mailto:feedback@pocketry.xyz). Include your
+Pocketry version, browser, and what you were trying to do. Review any attachments
+for private information before sending.
+
 After starting the container, maintainers can run the HTTP smoke test with Node 26 and dependencies installed (`npm ci`):
 
 ```sh

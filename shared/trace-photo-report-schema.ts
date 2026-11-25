@@ -1,9 +1,11 @@
 import { z } from "zod";
 
-// Leave room under Email Service's 25 MiB message limit for MIME encoding and details.
-export const TRACE_REPORT_SEND_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
-export const TRACE_REPORT_SEND_DETAILS_MAX_BYTES = 1024 * 1024;
-export const TRACE_REPORT_SEND_BODY_MAX_BYTES = 22 * 1024 * 1024;
+// Keep the upload within the Pages Function's processing budget, well below the email size limit.
+const MIB = 1024 * 1024;
+export const TRACE_REPORT_SEND_PHOTO_MAX_MIB = 5;
+export const TRACE_REPORT_SEND_PHOTO_MAX_BYTES = TRACE_REPORT_SEND_PHOTO_MAX_MIB * MIB;
+export const TRACE_REPORT_SEND_DETAILS_MAX_BYTES = MIB;
+export const TRACE_REPORT_SEND_BODY_MAX_BYTES = 9 * MIB;
 
 /** Only an explicit Trace submission may include a photo. */
 export const tracePhotoSubmissionSchema = z.object({

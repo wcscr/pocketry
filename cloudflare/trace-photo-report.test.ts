@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { TRACE_REPORT_SEND_PHOTO_MAX_BYTES } from "../shared/trace-photo-report-schema";
+import { TRACE_REPORT_SEND_BODY_MAX_BYTES, TRACE_REPORT_SEND_PHOTO_MAX_BYTES } from "../shared/trace-photo-report-schema";
 import { handleTracePhotoReport } from "./trace-photo-report";
 import { onRequest } from "../functions/api/trace-report";
 
@@ -8,7 +8,7 @@ const env = { TURNSTILE_SECRET_KEY: "secret", TURNSTILE_HOSTNAMES: "pocketry.exa
   FEEDBACK_ACCOUNT_ID: "a".repeat(32), FEEDBACK_EMAIL_TOKEN: "private-token" };
 const photo = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
 const details = JSON.stringify({ reportSchemaVersion: 1, appVersion: "1.18.0", photo: { file: "original-photo.png" },
-  trace: { outline: [], calibration: null } });
+  trace: { outline: [], calibration: null }, description: "The outline skips the café logo." });
 const submission = { photo: { type: "image/png", content: photo }, details, replyEmail: "", website: "" };
 const fetchMock = vi.fn<typeof fetch>();
 function request(data: object = submission, headers: Record<string, string> = {}) {
@@ -30,7 +30,7 @@ it("sends the photo and details to the fixed inbox only after a verified form su
     subject: "[Pocketry Trace] Photo report (1.18.0)", text: expect.stringContaining("visitor@example.com") });
   expect(outgoing.attachments).toEqual([
     { content: photo, filename: "original-photo.png", type: "image/png", disposition: "attachment" },
-    { content: btoa(details), filename: "tracing-details.json", type: "application/json", disposition: "attachment" },
+    { content: Buffer.from(details).toString("base64"), filename: "tracing-details.json", type: "application/json", disposition: "attachment" },
   ]);
   expect(JSON.stringify(outgoing)).not.toContain("verified-token");
 });
@@ -52,6 +52,19 @@ it("accepts a photo attachment at the byte limit", async () => {
   expect(response.status).toBe(200);
   const outgoing = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
   expect(outgoing.attachments[0].content === content).toBe(true);
+});
+
+it("rejects a photo one byte over the limit even when its Base64 length fits", async () => {
+  const bytes = Buffer.alloc(TRACE_REPORT_SEND_PHOTO_MAX_BYTES + 1);
+  Buffer.from(photo, "base64").copy(bytes);
+  verified();
+
+  const response = await handleTracePhotoReport(request({ ...submission,
+    photo: { ...submission.photo, content: bytes.toString("base64") },
+  }), env);
+
+  expect(response.status).toBe(400);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
 it.each<{ headers: Record<string, string>; status: number }>([
@@ -84,7 +97,7 @@ it.each([
 
 it("bounds the request body and requires provider acceptance for the fixed inbox", async () => {
   verified();
-  expect((await handleTracePhotoReport(request(submission, { "Content-Length": String(23 * 1024 * 1024) }), env)).status).toBe(413);
+  expect((await handleTracePhotoReport(request(submission, { "Content-Length": String(TRACE_REPORT_SEND_BODY_MAX_BYTES + 1) }), env)).status).toBe(413);
   expect(fetchMock).toHaveBeenCalledTimes(1);
   verified(); fetchMock.mockResolvedValueOnce(Response.json({ success: true, result: { delivered: ["other@example.com"], queued: [], permanent_bounces: [] } }));
   expect((await handleTracePhotoReport(request(), env)).status).toBe(502);

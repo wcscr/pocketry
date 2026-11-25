@@ -14,10 +14,12 @@ maintainer inbox. Nothing is sent until the visitor selects Send. The form
 confirms submission only after Cloudflare reports the message delivered or queued.
 A queued response does not prove final inbox arrival.
 
-The original photo is limited to 15 MiB and the tracing details to 1 MiB so the
-email fits Cloudflare Email Service's 25 MiB message limit. If the form rejects
-a larger photo, choose a smaller image or email the original photo directly to
-**feedback@pocketry.xyz**. The app does not store a report on its server.
+Pocketry accepts photos up to 5 MiB and tracing details up to 1 MiB in the hosted
+form. For larger photos, choose a smaller image or email the maintainer at
+[feedback@pocketry.xyz](mailto:feedback@pocketry.xyz). The app does not store a
+report on its server.
+
+If you self-host Pocketry, email issues or recommendations to the same address.
 
 The email has two attachments:
 

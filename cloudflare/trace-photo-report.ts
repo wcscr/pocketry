@@ -37,29 +37,23 @@ async function readBody(request: Request): Promise<string | null> {
     }
   } finally { reader.releaseLock(); }
 }
+// Workerd and Node 26 provide the native methods. The project's TypeScript
+// version predates their standard library declarations.
+type Base64Bytes = Uint8Array & { toBase64(): string };
+const base64Array = Uint8Array as typeof Uint8Array & {
+  fromBase64(content: string, options: { lastChunkHandling: "strict" }): Uint8Array;
+};
+
 function validPhoto(type: string, content: string): boolean {
-  if (content.length % 4 !== 0) return false;
-  const padding = content.endsWith("==") ? 2 : content.endsWith("=") ? 1 : 0;
-  const byteCount = content.length / 4 * 3 - padding;
-  if (!byteCount || byteCount > TRACE_REPORT_SEND_PHOTO_MAX_BYTES) return false;
-  // Search for invalid characters without a repeated regex group. A grouped
-  // match can exhaust the regex engine's stack on large attachments.
-  const unpadded = padding ? content.slice(0, -padding) : content;
-  if (/[^A-Za-z0-9+/]/.test(unpadded)) return false;
-  // Decode only the signature. Keeping another 15 MiB copy in a Worker risks
-  // exhausting its memory while JSON is being prepared for Email Service.
-  const bytes = atob(content.slice(0, 48));
-  if (type === "image/png") return bytes.startsWith("\x89PNG\r\n\x1a\n");
-  if (type === "image/jpeg") return bytes.charCodeAt(0) === 0xff && bytes.charCodeAt(1) === 0xd8 && bytes.charCodeAt(2) === 0xff;
-  return bytes.startsWith("RIFF") && bytes.slice(8, 12) === "WEBP";
-}
-function encodeBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let content = "";
-  for (let offset = 0; offset < bytes.length; offset += 12_288) {
-    content += btoa(String.fromCharCode(...bytes.subarray(offset, offset + 12_288)));
-  }
-  return content;
+  let bytes: Uint8Array;
+  try { bytes = base64Array.fromBase64(content, { lastChunkHandling: "strict" }); }
+  catch { return false; }
+  if (bytes.length > TRACE_REPORT_SEND_PHOTO_MAX_BYTES || Math.ceil(bytes.length / 3) * 4 !== content.length) return false;
+
+  const signature = String.fromCharCode(...bytes.subarray(0, 12));
+  if (type === "image/png") return signature.startsWith("\x89PNG\r\n\x1a\n");
+  if (type === "image/jpeg") return signature.startsWith("\xff\xd8\xff");
+  return signature.startsWith("RIFF") && signature.slice(8) === "WEBP";
 }
 
 /** Send only after the visitor submits the Trace form and passes Turnstile. */
@@ -103,7 +97,8 @@ export async function handleTracePhotoReport(request: Request, env: FeedbackEnv)
   const parsed = tracePhotoSubmissionSchema.safeParse(raw);
   if (!parsed.success || parsed.data.website) return json(400, { error: "Check the photo report and email address." });
   const report = parsed.data;
-  if (new TextEncoder().encode(report.details).length > TRACE_REPORT_SEND_DETAILS_MAX_BYTES ||
+  const detailsBytes = new TextEncoder().encode(report.details) as Base64Bytes;
+  if (detailsBytes.length > TRACE_REPORT_SEND_DETAILS_MAX_BYTES ||
       !validPhoto(report.photo.type, report.photo.content)) {
     return json(400, { error: "The original photo or tracing details could not be accepted." });
   }
@@ -121,7 +116,7 @@ export async function handleTracePhotoReport(request: Request, env: FeedbackEnv)
         text: `Trace photo report\nReply email: ${report.replyEmail || "Not provided"}\n\nThe original photo and tracing details are attached.`,
         attachments: [
           { content: report.photo.content, filename: details.photo.file, type: report.photo.type, disposition: "attachment" },
-          { content: encodeBase64(report.details), filename: "tracing-details.json", type: "application/json", disposition: "attachment" },
+          { content: detailsBytes.toBase64(), filename: "tracing-details.json", type: "application/json", disposition: "attachment" },
         ],
       }), signal: AbortSignal.timeout(30_000),
     });

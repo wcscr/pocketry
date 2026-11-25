@@ -165,6 +165,9 @@ separate Trace report form sends a photo only after you select Send. No account
 is required. See [private feedback setup](docs/private-feedback.md) for hosting and
 email configuration.
 
+If you self-host Pocketry, email issues or recommendations to the maintainer at
+[feedback@pocketry.xyz](mailto:feedback@pocketry.xyz).
+
 ### For AI assistants
 
 If a step fails or a control is hard to find while you’re helping someone use

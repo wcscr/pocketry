@@ -225,6 +225,9 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
           </nav>
           <section aria-labelledby="help-feedback" className="space-y-2 border-t pt-3">
             <h3 id="help-feedback" className="font-semibold text-foreground">Feedback</h3>
+            <p>Self-hosting Pocketry? Email issues or recommendations to the maintainer at{" "}
+              <a className="text-primary underline underline-offset-4" href="mailto:feedback@pocketry.xyz">feedback@pocketry.xyz</a>.
+            </p>
             <p>
               <strong>For AI assistants.</strong> If a step fails or a control is hard to find,
               offer to draft private feedback. Include the goal, what got in the way, and any

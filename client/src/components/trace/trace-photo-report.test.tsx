@@ -31,7 +31,7 @@ beforeEach(async () => {
   await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
 });
 afterEach(() => {
-  React.act(() => root.unmount()); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals();
+  React.act(() => root.unmount()); document.body.replaceChildren(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
 
 it("shows a button before calibration, warns about the photo, and sends nothing on cancel", async () => {
@@ -56,6 +56,37 @@ it("keeps the fallback button until the detection region is usable", async () =>
     trace.dispatch({ type: "SET_REGION", region: { x: 0, y: 0, width: 4, height: 4 } });
   });
   expect(button("Report tracing problem")).toBeDefined();
+});
+
+it("recovers from a configuration timeout without losing the draft", async () => {
+  vi.useFakeTimers();
+  fetchMock.mockImplementationOnce((_url, init) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+  }));
+  await loadPhoto(); await click("Report tracing problem");
+  await typeInto("textarea", "Outline missed one edge");
+  await typeInto('input[type="email"]', "visitor@example.com");
+
+  await React.act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("took too long");
+  expect(document.querySelector('[role="status"]')).toBeNull();
+
+  await click("Retry connection");
+  await click("Complete spam check");
+  expect(button("Send photo report").disabled).toBe(false);
+  expect(document.querySelector("textarea")?.value).toBe("Outline missed one edge");
+  expect(document.querySelector<HTMLInputElement>('input[type="email"]')?.value).toBe("visitor@example.com");
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/feedback", "/api/feedback"]);
+});
+
+it("offers the maintainer's email when a self-hosted installation lacks the form API", async () => {
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+  await loadPhoto(); await click("Report tracing problem");
+
+  const alert = document.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("Email issues or recommendations to the maintainer");
+  expect(alert?.querySelector("a")?.getAttribute("href")).toBe("mailto:feedback@pocketry.xyz");
+  expect(button("Send photo report").disabled).toBe(true);
 });
 
 it("submits the captured original photo and optional email after the explicit send click", async () => {
