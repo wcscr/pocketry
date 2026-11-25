@@ -1,0 +1,32 @@
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.21 building for production...
+transforming...
+Browserslist: browsers data (caniuse-lite) is 23 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+[plugin:vite:resolve] [plugin vite:resolve] Module "node:module" has been externalized for browser compatibility, imported by "/Users/willcobb/Code.local/pocketry/node_modules/manifold-3d/manifold.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin:vite:resolve] [plugin vite:resolve] Module "node:module" has been externalized for browser compatibility, imported by "/Users/willcobb/Code.local/pocketry/node_modules/manifold-3d/manifold.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 2444 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                                      0.45 kB │ gzip:   0.31 kB
+../dist/public/NOTICE.txt                                      9.97 kB │ gzip:   3.22 kB
+../dist/public/LICENSE.txt                                    34.52 kB │ gzip:  11.73 kB
+../dist/public/assets/bin.worker-CbMKqHIM.js                 146.46 kB
+../dist/public/assets/manifold-BE4c7gO-.wasm                 541.47 kB
+../dist/public/assets/index-C8ISM27R.css                      93.35 kB │ gzip:  16.21 kB
+../dist/public/assets/__vite-browser-external-BIHI7g3E.js      0.03 kB │ gzip:   0.05 kB
+../dist/public/assets/index-BPQUzosn.js                    1,865.39 kB │ gzip: 544.24 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.17s
+
+  dist/index.js  8.7kb
+
+⚡ Done in 4ms
