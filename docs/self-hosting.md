@@ -104,9 +104,11 @@ not the development server or an unchanged Node production server.
 
 ## Where designs are saved
 
-Projects, library entries, and Trace recovery data are stored **in the browser**,
-primarily in IndexedDB. The hosting server stores none of them. There is no shared
-library or automatic synchronization between users, browsers, or devices.
+Drafts, Trace recovery data, and Browser storage projects live **in the browser**,
+primarily in IndexedDB. In a supported browser, experimental Local folder storage
+can keep named projects in a [connected folder](library-folder.md) on the user's
+device. The hosting server stores none of them. There is no shared online library
+or automatic synchronization between users, browsers, or devices.
 
 Browser storage belongs to an **origin**: the exact scheme, hostname, and port.
 `http://localhost:8080`, `http://127.0.0.1:8080`, another port, and an HTTPS domain
@@ -116,9 +118,12 @@ Export backups at the old address and import them at the new one before moving.
 The public Pocketry site and your self-hosted site also have separate storage.
 
 Clearing site data, deleting a browser profile, private-browsing sessions, or
-browser storage eviction can lose designs. Container backups, Docker volumes,
-and server disk snapshots **do not back up browser projects**. Recreating the
-container does not itself clear browser storage, but it is not a backup strategy.
+browser storage eviction can lose browser projects and the folder connection.
+Named projects already saved to a connected folder remain in that folder, which
+needs its own backup. Container backups, Docker volumes, and server disk
+snapshots **do not back up browser projects or a folder on the user's device**.
+Recreating the container does not itself clear browser storage, but it is not a
+backup strategy.
 
 ## Back up and restore
 

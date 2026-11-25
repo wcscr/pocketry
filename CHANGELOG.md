@@ -6,6 +6,10 @@
 
 - Open an editable design from a public HTTPS JSON link or a Google Drive file link on sites with Drive enabled. Choose a project from a shared library or link directly to it.
 
+## 1.19.1 — 2026-11-25
+
+- Guide AI assistants through locally saved, human-reviewed bin designs and encourage a printed fit check before the full bin.
+
 ## 1.19.0 — 2026-11-24
 
 - Send a photo report directly from the Trace Outline controls with tracing details and an optional reply email. Pocketry automatically resizes a copy of large photos to fit.

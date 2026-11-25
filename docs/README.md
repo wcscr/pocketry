@@ -23,7 +23,7 @@ and internal refactors usually need no changelog entry.
 - [In-app Help](../client/src/components/help/help-dialog.tsx): the shipped guide
   available from Help, or More options on a phone.
 - [Reporting a tracing problem](tracing-photo-reports.md): original-photo reports sent by email.
-- [AI assistant guide](../client/public/ai-guide.txt) and [AI information index](../client/public/llms.txt): app guidance, issue reporting, and development contributions.
+- [AI assistant guide](../client/public/ai-guide.txt) and [AI information index](../client/public/llms.txt): measurement review, editable bin handoff, local automation, and feedback.
 - [Sample projects](../samples/README.md): 16 editable designs, original print
   photos, and variant-specific limits.
 

@@ -23,8 +23,10 @@ fixtures. Baseplates are outside the application's scope.
 
 Exports include single- or multi-color 3MF, STL, fit checks, and SVG/DXF outlines
 and layouts. Processing, geometry generation, autosave, and the named project
-library run on the user's device. Editable project/library downloads provide
-backups; there is no server-side project storage or cross-device sync.
+library run on the user's device. Named projects can use browser storage or a
+connected local folder; the local CLI/MCP works with saved folder revisions.
+Editable project/library downloads provide backups; there is no server-side
+project storage or cross-device sync.
 
 Slanted walls, linking, and grouping have experimental editing controls; saved
 designs remain visible and exportable. See [the documentation index](docs/README.md)
@@ -326,6 +328,21 @@ No linter is configured yet (prefer ESLint when one lands).
   support a claim that the end-to-end workflow passes. Synthetic unit tests may
   continue checking isolated algorithms and state transitions; report their
   results separately from photo workflow validation.
+
+### Helping users design bins
+
+- Follow the [published AI assistant guide](client/public/ai-guide.txt). Work
+  with the human to confirm real tool dimensions, orientation, pocket depths,
+  remaining floor, finger access, insertion/removal, and clearance. Treat
+  photo-derived measurements as estimates until checked against the tool.
+- Prefer an editable handoff: outline the tool, design the bin and its settings,
+  then open the saved design in Pocketry for the human to inspect and adjust.
+  A connected local folder lets the CLI/MCP create or import a saved project;
+  the human refreshes the folder and opens it in Bin. See
+  [connected folders](docs/library-folder.md) and
+  [local automation](docs/local-automation.md) for setup and command limits.
+- Encourage a physical fit check before the full bin. A thin surface fit check
+  does not prove pocket depth, insertion, finger access, or baseplate fit.
 
 ### Helping users report tracing problems
 
