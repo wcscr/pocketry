@@ -97,7 +97,8 @@ In **Bin**, set **Bin size** (the example is **4 × 4 cells**, **6.5u** high).
 Arrange pockets in **Layout**, add finger access, and set depths. Choose
 **Construction → Base & mounting → Bottom → Flat bottom** for a standalone bin.
 If a new trace needs more room, choose **Resize and add** to keep existing pockets in place.
-For a custom footprint, choose whether to keep it for manual placement or convert it to a rectangle.
+For a custom footprint, you can convert it to a rectangle when the label tab still fits.
+If the app cannot find a suitable placement, you can add the outlines for manual placement in Layout.
 To add vector artwork, use **Add pocket → Import SVG pocket** with a closed SVG.
 
 ![The four Wolfbox kit pockets and two lifting scoops in Layout, with the 4 by 4 cell and 6.5u bin settings visible](docs/images/bin-layout.jpg)

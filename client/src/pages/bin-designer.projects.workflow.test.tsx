@@ -347,6 +347,29 @@ describe("BinDesignerPage", () => {
     } finally { unmount(); }
   });
 
+  it("keeps a tool queued when rectangular conversion would remove a label-tab edge", async () => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", footprint: {
+      kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    }, labelTab: { wall: "north", edge: { cell: { x: 1, y: 0 }, side: "north" } } });
+    const existing = createBasicPocket("rectangle", { x: -36, y: -36 }, { x: -16, y: -16 }, "Existing")!;
+    const incoming = createBasicPocket("square", { x: -11, y: -11 }, { x: 11, y: 11 }, "Incoming")!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: true,
+      spec, shapes: [existing.shape], cutouts: [existing.cutout] });
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([incoming.shape]));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="trace-resize-offer"]')).toBeNull();
+      const manual = container.querySelector('[data-testid="trace-manual-placement"] button') as HTMLButtonElement;
+      expect(manual.textContent?.trim()).toBe("Add for manual placement");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([existing.cutout]);
+      React.act(() => manual.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(spec);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.map(pocket => pocket.shapeId))
+        .toEqual([existing.shape.id, incoming.shape.id]);
+    } finally { unmount(); }
+  });
+
   it("adds an outline that already fits without asking to resize", async () => {
     const existing = rectangularShape("old-tool", "Existing tool");
     const pocket = parseCutoutPlacement({ id: "old-pocket", shapeId: existing.id, position: { x: -15, y: 0 } });

@@ -444,7 +444,7 @@ function BinDesignerWorkspace(): JSX.Element {
         pendingDestinationChanged || !library.pendingIds.length) return null;
     const newShapes = library.shapes.filter(shape => library.pendingIds.includes(shape.id) &&
       !committedCutouts.some(cutout => cutout.shapeId === shape.id));
-    if (!newShapes.length) return { current: null, resized: null };
+    if (!newShapes.length) return { current: null, resized: null, manualPlacementOnly: false };
     const occupied = committedCutouts.length > 0 || committedFingerHoles.length > 0 || committedSpec.surfaceTexts.length > 0;
     const options = {
       spec: committedSpec,
@@ -462,7 +462,7 @@ function BinDesignerWorkspace(): JSX.Element {
       ? autoPlaceFresh(newShapes, options.lip, options.gridPitch, options.placements)
       : autoPlaceIncremental(newShapes, options);
     const resized = occupied && current.overflow ? autoPlaceWithGrowth(newShapes, options) : null;
-    return { current, resized };
+    return { current, resized, manualPlacementOnly: occupied && current.overflow && !resized };
   }, [bin.hydrated, bin.pendingHistoryLabel, projectRestoreFailed, projectBusy, pendingDestinationChanged,
     library.pendingIds, library.pendingPlacements, library.shapes, committedSpec, committedCutouts, committedFingerHoles, fixedBinSize]);
 
@@ -497,7 +497,7 @@ function BinDesignerWorkspace(): JSX.Element {
   }, [library, dispatch, committedSpec, customFootprint, fixedBinSize, toast]);
 
   useEffect(() => {
-    if (pendingPlacement && !pendingPlacement.resized) placePending(pendingPlacement.current);
+    if (pendingPlacement && !pendingPlacement.resized && !pendingPlacement.manualPlacementOnly) placePending(pendingPlacement.current);
   }, [pendingPlacement, placePending]);
 
   // Only the shapes the layout references ride along to the worker.
@@ -1404,6 +1404,13 @@ function BinDesignerWorkspace(): JSX.Element {
             </Button>
             <Button size="sm" className="min-h-11" onClick={() => placePending(pendingPlacement.resized, true)}>
               {customFootprint ? "Convert to rectangle and add" : "Resize and add"}
+            </Button>
+          </section>}
+          {pendingPlacement?.manualPlacementOnly && <section aria-label="Incoming outlines need manual placement" data-testid="trace-manual-placement"
+            className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b bg-background px-3 py-2 text-sm">
+            <span role="status" className="flex-1 font-medium">Position the incoming outlines in Layout.</span>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => placePending(pendingPlacement.current)}>
+              Add for manual placement
             </Button>
           </section>}
           {saveError && <div role="alert" data-testid="bin-save-error" className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b border-destructive/40 bg-background px-3 py-2 text-sm text-destructive">

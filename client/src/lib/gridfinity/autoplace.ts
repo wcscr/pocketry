@@ -29,6 +29,7 @@ import {
   type BinFootprint,
 } from "@shared/gridfinity/footprint";
 import { parseBinSpec } from "@shared/gridfinity/types";
+import { textsAfterLabelTabEdit } from "@shared/gridfinity/label-tab-surfaces";
 import { ringInsideBoundary, validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
 import { wallSlantCloses, wallSlantOutlineMm } from "@shared/gridfinity/wall-slant";
 import { minAreaObb } from "@shared/geometry/obb";
@@ -432,36 +433,40 @@ function placeIncrementally(
     maxY: Math.max(...labelBounds.map(bounds => bounds.maxY)),
   } : null);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-  const fitsFootprint = (grid: BinSizeSpec, cutouts: CutoutPlacement[]) => {
+  const isPocket = (cutout: CutoutPlacement) => options.placements?.[cutout.shapeId]?.role !== "hole";
+  const placementCheck = (grid: BinSizeSpec): ((cutouts: CutoutPlacement[]) => boolean) | null => {
     const spec = options.spec;
-    if (!spec) return true;
-    if (!labelBounds) return false;
+    if (!spec) return () => true;
+    if (!labelBounds) return null;
     const footprint = options.keepBinSize ? spec.footprint : { kind: "rectangle" as const };
-    if (footprint.kind === "rectangle" && !spec.wallSlant && !spec.labelTab && !labelBounds.length) return true;
-    const candidate = { ...spec, ...grid, gridPitch: spec.gridPitch, footprint };
-    const pockets = cutouts.filter(cutout => options.placements?.[cutout.shapeId]?.role !== "hole");
-    if (!pockets.length) return true;
-    if ((footprint.kind === "custom" || spec.labelTab) &&
-        validateLayout(candidate, pockets, byId).some(issue =>
-          ["out-of-bounds", "wall-breach", "lip-collision", "label-tab-shadow"].includes(issue.code))) return false;
-    if (!spec.wallSlant && !labelBounds.length) return true;
-    if (wallSlantCloses(candidate)) return false;
-    // The incoming tools are vertical. Keep their cutter bounds inside the base
-    // and the opening at the rim so the full path clears a slanted wall.
+    const candidate: BinSpec = { ...spec, ...grid, gridPitch: spec.gridPitch, footprint, fill: "solid" };
+    if (!validateBinSpec(candidate).ok) return null;
+    const orphaned = new Set(spec.surfaceTexts.filter(label => label.orphanedTab).map(label => label.id));
+    if (textsAfterLabelTabEdit(spec, spec, candidate).some(label => label.orphanedTab && !orphaned.has(label.id))) return null;
+    if (footprint.kind === "rectangle" && !spec.wallSlant && !spec.labelTab && !labelBounds.length) return () => true;
+    const needsLayoutCheck = footprint.kind === "custom" || !!candidate.labelTab;
+    // Check vertical cutters at the base and rim of a slanted body. A closing
+    // slant has no full-height opening to propose for automatic placement.
+    const closingSlant = wallSlantCloses(candidate);
     const interior = spec.wallSlant ? footprintInsetRingMm(candidate, binWallThicknessMm(candidate)) : null;
     const opening = interior && wallSlantOutlineMm(candidate, interior, binHeightMm(candidate.heightUnits));
-    return pockets.every(cutout => {
-      const bounds = existingBounds([cutout], byId, [], candidate);
-      if (!bounds) return false;
-      if (labelBounds.some(label => bounds.minX < label.maxX && bounds.maxX > label.minX &&
-          bounds.minY < label.maxY && bounds.maxY > label.minY)) return false;
-      if (!interior || !opening) return true;
-      const corners = [
-        { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
-        { x: bounds.maxX, y: bounds.maxY }, { x: bounds.minX, y: bounds.maxY },
-      ];
-      return ringInsideBoundary(corners, interior) && ringInsideBoundary(corners, opening);
-    });
+    return cutouts => {
+      const pockets = cutouts.filter(isPocket);
+      if (!pockets.length) return true;
+      if (closingSlant) return false;
+      if ((interior || labelBounds.length) && !pockets.every(cutout => {
+        const bounds = existingBounds([cutout], byId, [], candidate);
+        if (!bounds || labelBounds.some(label => overlapsBounds(bounds, label))) return false;
+        if (!interior || !opening) return true;
+        const corners = [
+          { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
+          { x: bounds.maxX, y: bounds.maxY }, { x: bounds.minX, y: bounds.maxY },
+        ];
+        return ringInsideBoundary(corners, interior) && ringInsideBoundary(corners, opening);
+      })) return false;
+      return !needsLayoutCheck || !validateLayout(candidate, pockets, byId).some(issue =>
+        ["out-of-bounds", "wall-breach", "lip-collision", "label-tab-shadow"].includes(issue.code));
+    };
   };
   if (!occupied) {
     if (options.keepBinSize || options.spec?.arbitrarySizeMm) {
@@ -471,14 +476,11 @@ function placeIncrementally(
       return { cutouts,
         gridX: options.gridX, gridY: options.gridY,
         overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm ||
-          !fitsFootprint(options.spec ?? options, cutouts) };
+          !placementCheck(options.spec ?? options)?.(cutouts) };
     }
     const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.placements);
-    return {
-      ...fresh,
-      gridX: Math.max(fresh.gridX, options.gridX),
-      gridY: Math.max(fresh.gridY, options.gridY),
-    };
+    const grid = { gridX: Math.max(fresh.gridX, options.gridX), gridY: Math.max(fresh.gridY, options.gridY) };
+    return { ...fresh, ...grid, overflow: fresh.overflow || !placementCheck(grid)?.(fresh.cutouts) };
   }
   if (shapes.length === 0) {
     return {
@@ -512,33 +514,84 @@ function placeIncrementally(
       .filter((strip) => strip.width > 0 && strip.height > 0)
       .sort((a, b) => b.width * b.height - a.width * a.height);
 
+    let check: ReturnType<typeof placementCheck> | undefined;
     for (const strip of strips) {
       const block = packShapes(shapes, strip.width, options.placements ?? {});
-      if (block.widthMm <= strip.width && block.heightMm <= strip.height) {
-        const cx = strip.minX + strip.width / 2;
-        const cy = strip.minY + strip.height / 2;
-        const cutouts = block.items.map((item) => toPlacement(item, byId, cx, cy));
-        if (!fitsFootprint(grid, cutouts)) continue;
-        return {
-          cutouts,
-          gridX: grid.gridX,
-          gridY: grid.gridY,
-          overflow: false,
-        };
-      }
+      if (block.widthMm > strip.width || block.heightMm > strip.height) continue;
+      check ??= placementCheck(grid);
+      if (!check) break;
+      const cx = strip.minX + strip.width / 2;
+      const cy = strip.minY + strip.height / 2;
+      const centered = block.items.map((item) => toPlacement(item, byId, cx, cy));
+      const cutouts = check(centered) ? centered : labelBounds?.length ? placeBesideLabels(
+        centered, labelBounds, byId, options.spec, isPocket, check,
+        (strip.width - block.widthMm) / 2, (strip.height - block.heightMm) / 2,
+      ) : null;
+      if (cutouts) return { cutouts, gridX: grid.gridX, gridY: grid.gridY, overflow: false };
     }
   }
 
-  // Give up gracefully: drop the block to the right of everything.
+  // Keep oversized arrivals available for manual placement. A right-aligned
+  // placement can also fit where the centered strip candidates did not.
   const block = packShapes(shapes, Number.POSITIVE_INFINITY, options.placements ?? {});
   const right = Math.max(occupied.maxX, ...(labelBounds ?? []).map(bounds => bounds.maxX));
   const cx = right + ITEM_GAP_MM + block.widthMm / 2;
+  const cutouts = block.items.map((item) => toPlacement(item, byId, cx, 0));
+  const fixed = options.keepBinSize || !!options.spec?.arbitrarySizeMm;
+  const current = options.spec ?? options;
+  const interior = interiorMm(current, inset, options.gridPitch);
+  const fallbackFits = fixed && cx - block.widthMm / 2 >= -interior.widthMm / 2 &&
+    cx + block.widthMm / 2 <= interior.widthMm / 2 && block.heightMm <= interior.heightMm &&
+    placementCheck(current)?.(cutouts);
   return {
-    cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
-    gridX: (options.keepBinSize || options.spec?.arbitrarySizeMm) ? options.gridX : maxGridCells(options.gridPitch),
-    gridY: Math.max(options.gridY, 1),
-    overflow: true,
+    cutouts,
+    gridX: fixed ? options.gridX : maxGridCells(options.gridPitch),
+    gridY: options.gridY,
+    overflow: !fallbackFits,
   };
+}
+
+function overlapsBounds(a: Bounds, b: Bounds, x = 0, y = 0): boolean {
+  return a.minX + x < b.maxX && a.maxX + x > b.minX &&
+    a.minY + y < b.maxY && a.maxY + y > b.minY;
+}
+
+/** Try nearby shifts of the whole photo block, keeping the original spacing. */
+function placeBesideLabels(
+  cutouts: CutoutPlacement[],
+  labels: readonly Bounds[],
+  shapes: ReadonlyMap<string, TracedShape>,
+  spec: BinSpec | undefined,
+  isPocket: (cutout: CutoutPlacement) => boolean,
+  check: (cutouts: CutoutPlacement[]) => boolean,
+  roomX: number,
+  roomY: number,
+): CutoutPlacement[] | null {
+  const xs = [0, -roomX, roomX], ys = [0, -roomY, roomY];
+  const pockets = cutouts.filter(isPocket).flatMap(cutout => {
+    const bounds = existingBounds([cutout], shapes, [], spec);
+    return bounds ? [bounds] : [];
+  });
+  for (const pocket of pockets) {
+    for (const label of labels) {
+      xs.push(label.minX - pocket.maxX - 0.01, label.maxX - pocket.minX + 0.01);
+      ys.push(label.minY - pocket.maxY - 0.01, label.maxY - pocket.minY + 0.01);
+    }
+  }
+  // Bound work on the UI thread when several tools and labels share a bin.
+  const nearby = (values: number[], room: number) =>
+    [...new Set(values.filter(value => Math.abs(value) <= room))]
+      .sort((a, b) => Math.abs(a) - Math.abs(b)).slice(0, 12);
+  const xShifts = nearby(xs, roomX), yShifts = nearby(ys, roomY);
+  const offsets = xShifts.flatMap(x => yShifts.map(y => ({ x, y })))
+    .filter(({ x, y }) => x !== 0 || y !== 0)
+    .sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y));
+  for (const { x, y } of offsets) {
+    if (pockets.some(pocket => labels.some(label => overlapsBounds(pocket, label, x, y)))) continue;
+    const shifted = cutouts.map(cutout => ({ ...cutout, position: { x: cutout.position.x + x, y: cutout.position.y + y } }));
+    if (check(shifted)) return shifted;
+  }
+  return null;
 }
 
 /** Find a larger centered bin for only the arriving pockets. Exact-mm bins
