@@ -9,9 +9,12 @@ import { BinDesignerPage, EMPTY_PROJECT, flushHydration, openSettingsSection, re
 import { loadOpenLinkSource } from "@/lib/project/open-link";
 import * as ProjectPersistence from "@/lib/project/persist";
 
-vi.mock("@/lib/project/open-link", () => ({ loadOpenLinkSource: vi.fn() }));
+vi.mock("@/lib/project/open-link", async original => ({
+  ...await original<typeof import("@/lib/project/open-link")>(),
+  loadOpenLinkSource: vi.fn(),
+}));
 
-const source = "https://example.com/trays.json";
+const source = "https://raw.githubusercontent.com/example/trays/main/trays.json";
 const linkedDoc = { ...sampleDoc, name: "Shared tray" };
 const projects = [
   { id: "first", name: "First tray", updatedAt: "2026-11-25T12:00:00Z", doc: { ...linkedDoc, name: "First tray" } },
@@ -119,7 +122,7 @@ describe("Open in Pocketry links", () => {
 
   it("ignores an earlier fetch that settles after a different link opens", async () => {
     let resolveFirst: (value: Awaited<ReturnType<typeof loadOpenLinkSource>>) => void = () => {};
-    const nextSource = "https://example.com/other.json";
+    const nextSource = "https://raw.githubusercontent.com/example/trays/main/other.json";
     const nextDoc = { ...linkedDoc, name: "Next tray", spec: parseBinSpec({ ...linkedDoc.spec, gridX: 5 }) };
     vi.mocked(loadOpenLinkSource).mockImplementation(url => url === source
       ? new Promise(resolve => { resolveFirst = resolve; })
@@ -133,6 +136,45 @@ describe("Open in Pocketry links", () => {
     await React.act(async () => resolveFirst({ kind: "project", doc: linkedDoc }));
     expect(ProjectPersistence.openLinkedProjectCopy).toHaveBeenCalledOnce();
     expect(vi.mocked(loadOpenLinkSource).mock.calls[0][1]?.aborted).toBe(true);
+  });
+
+  it("shows the destination and waits for permission before reading an external host", async () => {
+    const external = "https://example.com/tray.pocketry.json";
+    vi.mocked(loadOpenLinkSource).mockResolvedValue({ kind: "project", doc: linkedDoc });
+    const path = `/bin?source=${encodeURIComponent(external)}`;
+    const { route, navigate } = renderLink(undefined, path);
+    await settleLink();
+    expect(document.querySelector('[data-testid="open-link-dialog"]')?.textContent).toContain("https://example.com");
+    expect(loadOpenLinkSource).not.toHaveBeenCalled();
+    await React.act(async () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-link-download"]')!.click();
+    });
+    expect(loadOpenLinkSource).toHaveBeenCalledExactlyOnceWith(external, expect.any(AbortSignal));
+    expect(ProjectPersistence.openLinkedProjectCopy).toHaveBeenCalledExactlyOnceWith(linkedDoc);
+    expect(route.history).toEqual(["/bin"]);
+    await React.act(async () => navigate(path));
+    await settleLink();
+    expect(document.querySelector('[data-testid="button-confirm-link-download"]')).not.toBeNull();
+    expect(loadOpenLinkSource).toHaveBeenCalledOnce();
+  });
+
+  it("opens an encoded resource key through the fragment and rejects it in the query", async () => {
+    const drive = "https://drive.google.com/file/d/public-id/view?resourcekey=0-file-key";
+    const params = new URLSearchParams({ source: drive, project: "second" });
+    vi.mocked(loadOpenLinkSource).mockResolvedValue({ kind: "library", projects });
+    renderLink(undefined, `/bin?${params}`);
+    await settleLink();
+    expect(loadOpenLinkSource).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-testid="open-link-dialog"]')?.textContent).toContain("Use #source=");
+
+    try {
+      await React.act(async () => window.history.replaceState(null, "", `#${params}`));
+      await settleLink();
+      expect(loadOpenLinkSource).toHaveBeenCalledExactlyOnceWith(drive, expect.any(AbortSignal));
+      expect(ProjectPersistence.openLinkedProjectCopy).toHaveBeenCalledExactlyOnceWith(projects[1].doc);
+    } finally {
+      await React.act(async () => window.history.replaceState(null, "", window.location.pathname));
+    }
   });
 
   it("resumes a link download interrupted by a pending file import", async () => {

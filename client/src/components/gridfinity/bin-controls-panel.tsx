@@ -18,7 +18,7 @@ import { SampleLibraryDialog } from "@/components/project/sample-library-dialog"
 import { ProjectBackupPrompt } from "@/components/project/project-backup-prompt";
 import { LibraryProjectAction } from "@/components/project/library-project-action";
 import type { SampleLibrary } from "@/lib/project/samples";
-import { loadOpenLinkSource } from "@/lib/project/open-link";
+import { canOpenLinkAutomatically, loadOpenLinkSource, openLinkNeedsFragment, parseOpenLinkSourceUrl } from "@/lib/project/open-link";
 import { EditableObjectName, ObjectActions } from "./object-list-controls";
 import { hasRigidPocket } from "@shared/gridfinity/rigid-pocket";
 import { pocketDepthChangePatch } from "@shared/gridfinity/pocket-depth-change";
@@ -68,6 +68,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDelayedBusy } from "@/hooks/use-delayed-busy";
 import { useLocation, useSearch } from "wouter";
+import { useLocationProperty } from "wouter/use-browser-location";
 import { LinkedDesignControls } from "./linked-design-controls";
 import { AddPocketMenu } from "./add-pocket-menu";
 import { AddFingerAccessButton } from "./add-finger-access-button";
@@ -2982,6 +2983,7 @@ type ProjectOpenTarget =
 
 type LinkedProject = Extract<Awaited<ReturnType<typeof loadOpenLinkSource>>, { kind: "library" }>["projects"][number];
 type OpenLinkState =
+  | { kind: "confirm"; key: string; origin: string }
   | { kind: "loading"; key: string }
   | { kind: "picker"; key: string; projects: LinkedProject[] }
   | { kind: "error"; key: string; message: string };
@@ -3032,22 +3034,33 @@ function ProjectControls({
   const [location, navigate] = useLocation();
   const search = useSearch();
   const linkedSampleId = /^\/bin\/?$/.test(location) ? new URLSearchParams(search).get("sample") : null;
-  const linkParams = new URLSearchParams(search);
+  const hash = useLocationProperty(() => window.location.hash, () => "");
+  const hashParams = new URLSearchParams(hash.slice(1));
+  const fromFragment = hashParams.has("source");
+  const linkParams = fromFragment ? hashParams : new URLSearchParams(search);
   const linkedSource = /^\/bin\/?$/.test(location) ? linkParams.get("source") : null;
   const linkedProjectId = linkParams.get("project");
-  const linkedKey = linkedSource === null ? null : JSON.stringify([linkedSource, linkedProjectId]);
+  const linkedKey = linkedSource === null ? null : JSON.stringify([linkedSource, linkedProjectId, fromFragment]);
+  const approvedLinkedKey = useRef<string | null>(null);
   const currentLinkedKey = useRef(linkedKey);
+  if (currentLinkedKey.current !== linkedKey) approvedLinkedKey.current = null;
   currentLinkedKey.current = linkedKey;
   const handledLinkedKey = useRef<string | null>(null);
   const [linkRetry, setLinkRetry] = useState(0);
   const [openLinkState, setOpenLinkState] = useState<OpenLinkState | null>(null);
   const clearOpenLink = () => {
     handledLinkedKey.current = null;
+    approvedLinkedKey.current = null;
     const params = new URLSearchParams(search);
     params.delete("source");
     params.delete("project");
     const remaining = params.toString();
-    navigate(remaining ? `${location}?${remaining}` : location, { replace: true });
+    navigate(`${location}${remaining ? `?${remaining}` : ""}${fromFragment ? "" : hash}`, { replace: true });
+  };
+  const retryOpenLink = () => {
+    handledLinkedKey.current = null;
+    setOpenLinkState(null);
+    setLinkRetry(value => value + 1);
   };
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -3204,10 +3217,26 @@ function ProjectControls({
     if (linkedSource === null) { handledLinkedKey.current = null; return; }
     if (!ready || busy || linkedKey === null || handledLinkedKey.current === linkedKey) return;
     handledLinkedKey.current = linkedKey;
+    setPendingOpenProject(current => current?.kind === "link" ? null : current);
+
+    let url: URL;
+    try {
+      url = parseOpenLinkSourceUrl(linkedSource);
+      if (!fromFragment && openLinkNeedsFragment(url)) {
+        throw new Error("Use #source= in Pocketry links for file URLs with query parameters or resource keys.");
+      }
+    } catch (cause) {
+      setOpenLinkState({ kind: "error", key: linkedKey, message: cause instanceof Error ? cause.message : "The link could not be opened." });
+      return;
+    }
+    if (!canOpenLinkAutomatically(url) && approvedLinkedKey.current !== linkedKey) {
+      setOpenLinkState({ kind: "confirm", key: linkedKey, origin: url.origin });
+      return;
+    }
+
     const controller = new AbortController();
     let active = true;
     let fetching = true;
-    setPendingOpenProject(current => current?.kind === "link" ? null : current);
     setOpenLinkState({ kind: "loading", key: linkedKey });
     void loadOpenLinkSource(linkedSource, controller.signal).then(async result => {
       fetching = false;
@@ -3237,7 +3266,7 @@ function ProjectControls({
       // link again when the editor is ready, while keeping completed downloads.
       if (fetching && handledLinkedKey.current === linkedKey) handledLinkedKey.current = null;
     };
-  }, [ready, busy, linkedSource, linkedProjectId, linkedKey, linkRetry]);
+  }, [ready, busy, linkedSource, linkedProjectId, linkedKey, fromFragment, linkRetry]);
 
   const readProjectFile = async (file: File) => {
     if (busy) return;
@@ -3806,9 +3835,11 @@ function ProjectControls({
       }}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto" data-testid="open-link-dialog">
           <DialogHeader>
-            <DialogTitle>{openLinkState?.kind === "picker" ? "Choose a design to open" : openLinkState?.kind === "error" ? "Could not open this link" : "Opening linked design…"}</DialogTitle>
+            <DialogTitle>{openLinkState?.kind === "confirm" ? "Open a linked design?" : openLinkState?.kind === "picker" ? "Choose a design to open" : openLinkState?.kind === "error" ? "Could not open this link" : "Opening linked design…"}</DialogTitle>
             <DialogDescription>
-              {openLinkState?.kind === "picker" ? "This library contains multiple projects. Choose one to open as an editable copy." : openLinkState?.kind === "error" ? openLinkState.message : "Loading and checking the Pocketry JSON file."}
+              {openLinkState?.kind === "confirm" ? <>Download the Pocketry file from <strong className="break-all">{openLinkState.origin}</strong>?</>
+                : openLinkState?.kind === "picker" ? "Choose a design from this library to open as an editable copy."
+                : openLinkState?.kind === "error" ? openLinkState.message : "Loading and checking the Pocketry JSON file."}
             </DialogDescription>
           </DialogHeader>
           {openLinkState?.kind === "picker" && <div className="max-h-[50dvh] space-y-2 overflow-y-auto" data-testid="open-link-project-picker">
@@ -3820,7 +3851,11 @@ function ProjectControls({
           {openLinkState?.kind === "error" && <p role="alert" className="text-sm text-destructive">{openLinkState.message}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpenLinkState(null); clearOpenLink(); }}>Close</Button>
-            {openLinkState?.kind === "error" && <Button onClick={() => { handledLinkedKey.current = null; setOpenLinkState(null); setLinkRetry(value => value + 1); }}>Try again</Button>}
+            {openLinkState?.kind === "confirm" && <Button data-testid="button-confirm-link-download" onClick={() => {
+              approvedLinkedKey.current = openLinkState.key;
+              retryOpenLink();
+            }}>Download and open</Button>}
+            {openLinkState?.kind === "error" && <Button onClick={retryOpenLink}>Try again</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -4,18 +4,25 @@ An Open in Pocketry link opens an editable copy of a project export, or one
 project from a library export, in Bin:
 
 ```text
-https://pocketry.xyz/bin?source=ENCODED_FILE_URL&project=PROJECT_ID
+https://pocketry.xyz/bin#source=ENCODED_FILE_URL&project=PROJECT_ID
 ```
 
-`source` is the URL-encoded address of a public Pocketry JSON file. For a
-direct HTTPS URL, the host must allow a browser at `pocketry.xyz` to fetch it
-(CORS). The file is read in the recipient's browser.
+`source` is the URL-encoded address of a Pocketry JSON file. Use the fragment
+format above to keep the file URL out of the request to the Pocketry website.
+The `?source=…` format also works for ordinary public file URLs with no query
+parameters or fragment. A Drive link with only the standard `usp` parameter is
+also accepted in that format.
+
+For a direct HTTPS URL, use the address that serves the file without redirecting.
+The host must allow a browser at `pocketry.xyz` to fetch it (CORS). Google Drive
+and GitHub raw file links start loading automatically. For other hosts, Pocketry
+shows the destination and asks the recipient to confirm the download.
 
 On sites with Drive enabled, you can also use a standard Google Drive file share
 URL (`https://drive.google.com/file/d/FILE_ID/view`). Set the file to
 **Anyone with the link** and allow viewers to download it. Encode the full
-share URL, including its resource key if present. Use the link to the JSON file
-itself, since a folder link does not identify a file.
+share URL, including its resource key if present, and use the `#source=…` format.
+Use the link to the JSON file itself, since a folder link does not identify a file.
 
 For a standalone `.pocketry.json` project, omit `project`. For a library export,
 `project` must exactly match one of its exported `projects[].id` values. That ID
@@ -25,9 +32,9 @@ current design in place.
 
 After this version is deployed, these examples use versioned, public sample files:
 
-- [Open a standalone Mini Socket Set project](https://pocketry.xyz/bin?source=https%3A%2F%2Fraw.githubusercontent.com%2Fwcscr%2Fpocketry%2F7731753d%2Fsamples%2Fmini-socket-set%2Fmini-socket-set.pocketry.json)
-- [Open Mini Socket Set from the sample library](https://pocketry.xyz/bin?source=https%3A%2F%2Fraw.githubusercontent.com%2Fwcscr%2Fpocketry%2F7731753d%2Fsamples%2Fpocketry-sample-library.json&project=pocketry-sample-mini-socket-set)
-- [Choose a design from the sample library](https://pocketry.xyz/bin?source=https%3A%2F%2Fraw.githubusercontent.com%2Fwcscr%2Fpocketry%2F7731753d%2Fsamples%2Fpocketry-sample-library.json)
+- [Open a standalone Mini Socket Set project](https://pocketry.xyz/bin#source=https%3A%2F%2Fraw.githubusercontent.com%2Fwcscr%2Fpocketry%2F7731753d%2Fsamples%2Fmini-socket-set%2Fmini-socket-set.pocketry.json)
+- [Open Mini Socket Set from the sample library](https://pocketry.xyz/bin#source=https%3A%2F%2Fraw.githubusercontent.com%2Fwcscr%2Fpocketry%2F7731753d%2Fsamples%2Fpocketry-sample-library.json&project=pocketry-sample-mini-socket-set)
+- [Choose a design from the sample library](https://pocketry.xyz/bin#source=https%3A%2F%2Fraw.githubusercontent.com%2Fwcscr%2Fpocketry%2F7731753d%2Fsamples%2Fpocketry-sample-library.json)
 
 Opening one design leaves the recipient's saved library intact. Pocketry checks
 for unsaved work before replacing the current editor design. The recipient can

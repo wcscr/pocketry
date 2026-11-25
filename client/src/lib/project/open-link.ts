@@ -8,6 +8,34 @@ export type OpenLinkSource =
 
 const FETCH_ERROR = "Could not load the linked file. It may be unavailable, or its host may block browser access (CORS). Your current design is still open.";
 
+const DRIVE_ORIGIN = "https://drive.google.com";
+
+export function parseOpenLinkSourceUrl(source: string): URL {
+  const message = "The source must be a direct HTTPS URL to a Pocketry JSON file.";
+  let url: URL;
+  try {
+    url = new URL(source);
+  } catch {
+    throw new Error(message);
+  }
+  if (url.protocol !== "https:" || url.username || url.password) throw new Error(message);
+  return url;
+}
+
+// Drive is fetched only through Google's fixed API endpoint. The other
+// automatic source serves static files and hosts Pocketry's public examples.
+export function canOpenLinkAutomatically(url: URL): boolean {
+  return url.origin === DRIVE_ORIGIN || url.origin === "https://raw.githubusercontent.com";
+}
+
+export function openLinkNeedsFragment(url: URL): boolean {
+  // Standard Drive links append a harmless sharing marker.
+  if (url.origin === DRIVE_ORIGIN && [...url.searchParams.keys()].every(key => key === "usp")) {
+    return Boolean(url.hash);
+  }
+  return Boolean(url.search || url.hash);
+}
+
 function driveFileRequest(shareUrl: URL): { url: URL; options: RequestInit } {
   const fileId = /^\/file\/d\/([\w-]+)(?:\/view)?\/?$/.exec(shareUrl.pathname)?.[1];
   if (!fileId) {
@@ -26,7 +54,7 @@ function driveFileRequest(shareUrl: URL): { url: URL; options: RequestInit } {
   if (resourceKey) headers["X-Goog-Drive-Resource-Keys"] = `${fileId}/${resourceKey}`;
   // Google checks the website restriction against the referrer. Send only the
   // origin so the Pocketry link and its query parameters stay out of that header.
-  return { url, options: { headers, referrerPolicy: "origin", redirect: "error" } };
+  return { url, options: { headers, referrerPolicy: "origin" } };
 }
 
 /** Read a cross-origin response with the same byte ceilings as file imports. */
@@ -72,17 +100,12 @@ async function readJsonResponse(response: Response, signal?: AbortSignal): Promi
 
 /** Fetch an exported project or library without changing local browser storage. */
 export async function loadOpenLinkSource(sourceUrl: string, signal?: AbortSignal): Promise<OpenLinkSource> {
-  let url: URL;
-  try { url = new URL(sourceUrl); }
-  catch { throw new Error("The source must be a direct HTTPS URL to a Pocketry JSON file."); }
-  if (url.protocol !== "https:" || url.username || url.password) {
-    throw new Error("The source must be a direct HTTPS URL to a Pocketry JSON file.");
-  }
-  const drive = url.origin === "https://drive.google.com" ? driveFileRequest(url) : null;
+  const url = parseOpenLinkSourceUrl(sourceUrl);
+  const drive = url.origin === DRIVE_ORIGIN ? driveFileRequest(url) : null;
   let response: Response;
   try {
     response = await fetch((drive?.url ?? url).href, {
-      mode: "cors", credentials: "omit", referrerPolicy: "no-referrer", signal, ...drive?.options,
+      mode: "cors", credentials: "omit", redirect: "error", referrerPolicy: "no-referrer", signal, ...drive?.options,
     });
   } catch (cause) {
     if (signal?.aborted) throw cause;

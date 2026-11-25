@@ -25,7 +25,7 @@ describe("Open in Pocketry URL loading", () => {
     const fetcher = vi.fn(async () => reply(doc));
     vi.stubGlobal("fetch", fetcher);
     expect(await loadOpenLinkSource(source)).toEqual({ kind: "project", doc });
-    expect(fetcher).toHaveBeenCalledWith(source, { mode: "cors", credentials: "omit", referrerPolicy: "no-referrer", signal: undefined });
+    expect(fetcher).toHaveBeenCalledWith(source, { mode: "cors", credentials: "omit", redirect: "error", referrerPolicy: "no-referrer", signal: undefined });
   });
 
   it("validates every library project and preserves exported IDs for selection", async () => {
