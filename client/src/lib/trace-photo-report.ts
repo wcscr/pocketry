@@ -2,30 +2,42 @@ import { strToU8, zipSync } from "fflate";
 import { version } from "../../../package.json";
 import type { TraceState } from "@/state/trace-store";
 import { inspectPhotoDimensions } from "./photo-dimensions";
+import { TRACE_REPORT_SEND_DETAILS_MAX_BYTES, TRACE_REPORT_SEND_PHOTO_MAX_BYTES,
+  tracePhotoSubmissionSchema, type TracePhotoSubmission } from "@shared/trace-photo-report-schema";
 
 export const TRACE_REPORT_EMAIL = "feedback@pocketry.xyz";
 export const TRACE_REPORT_NOTE_LIMIT = 2000;
 // Match the existing recovery limit, including photos from older app versions.
 const MAX_PHOTO_BYTES = 45_000_000;
+type ReportPhoto = TracePhotoSubmission["photo"];
+type PhotoSize = { width: number; height: number };
 
 /** Use the retained source even after perspective correction or photo rotation. */
 export function traceReportPhoto(trace: TraceState): string | null {
   return trace.perspectiveOriginalImageUrl ?? trace.imageUrl;
 }
 
-/** Build an explicit, local-only support bundle; never collect other projects or logs. */
-export function createTracePhotoReport(trace: TraceState, note: string, userAgent: string,
-  now = new Date()): { bytes: Uint8Array; fileName: string } {
+export function traceReportWillResize(photo: string | null): boolean {
+  if (!photo) return false;
+  const length = photo.length - photo.indexOf(",") - 1;
+  const padding = photo.endsWith("==") ? 2 : photo.endsWith("=") ? 1 : 0;
+  return length / 4 * 3 - padding > TRACE_REPORT_SEND_PHOTO_MAX_BYTES;
+}
+
+/** Include only this Trace photo and settings, never other projects or logs. */
+function prepareTracePhotoReport(trace: TraceState, note: string, userAgent: string, now: Date) {
   const photo = traceReportPhoto(trace);
   if (!photo) throw new Error("Choose a photo before reporting a tracing problem.");
   const comma = photo.indexOf(",");
   const mime = /^data:image\/(png|jpeg|webp);base64$/i.exec(photo.slice(0, comma));
-  if (!mime || comma < 0 || photo.length - comma - 1 > Math.ceil(MAX_PHOTO_BYTES / 3) * 4) {
+  if (!mime || comma < 0) {
     throw new Error("The original photo could not be included. Choose the photo again and retry.");
   }
+  if (photo.length - comma - 1 > Math.ceil(MAX_PHOTO_BYTES / 3) * 4) throw new Error("The original photo is too large to include.");
   const binary = atob(photo.slice(comma + 1));
   if (binary.length > MAX_PHOTO_BYTES) throw new Error("The original photo is too large to include.");
-  const photoBytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+  const photoBytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) photoBytes[i] = binary.charCodeAt(i);
   const originalSize = inspectPhotoDimensions(photoBytes);
   const extension = mime[1].toLowerCase() === "jpeg" ? "jpg" : mime[1].toLowerCase();
   const photoName = `original-photo.${extension}`;
@@ -71,6 +83,78 @@ export function createTracePhotoReport(trace: TraceState, note: string, userAgen
       processing: trace.processing,
     },
   };
+  return { photo, photoBytes, photoType: `image/${mime[1].toLowerCase()}` as ReportPhoto["type"],
+    photoContent: photo.slice(comma + 1), details: report };
+}
+
+async function resizeReportPhoto(source: string, sourceType: ReportPhoto["type"]): Promise<ReportPhoto & { size: PhotoSize }> {
+  const image = new Image();
+  image.src = source;
+  await image.decode();
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context || !image.naturalWidth || !image.naturalHeight) throw new Error("Could not draw the photo.");
+  // JPEG for opaque JPEG inputs. WebP preserves transparency in PNG and WebP
+  // inputs; browsers without a WebP encoder return PNG instead.
+  const format = sourceType === "image/jpeg" ? "image/jpeg" : "image/webp";
+  const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+  const sides = [Math.min(2560, longestSide), ...[1920, 1280, 768, 384].filter(side => side < longestSide)];
+  try {
+    for (const side of sides) {
+      const scale = side / longestSide;
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      canvas.width = width;
+      canvas.height = height;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(image, 0, 0, width, height);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, format, 0.9));
+      if (blob && blob.size > 0 && blob.size <= TRACE_REPORT_SEND_PHOTO_MAX_BYTES &&
+          (blob.type === "image/jpeg" || blob.type === "image/webp" || blob.type === "image/png")) {
+        const url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read the resized photo."));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        return { type: blob.type, content: url.slice(url.indexOf(",") + 1), size: { width, height } };
+      }
+    }
+    throw new Error("Could not fit the photo in the report.");
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+}
+
+/** Keep the original attachment when it fits. Resize a copy in the browser otherwise. */
+export async function createTracePhotoSubmission(trace: TraceState, note: string, replyEmail: string,
+  userAgent: string, now = new Date()): Promise<TracePhotoSubmission> {
+  const report = prepareTracePhotoReport(trace, note, userAgent, now);
+  let photo = { type: report.photoType, content: report.photoContent };
+  const details = report.details;
+  let attachmentSize: PhotoSize | undefined;
+  if (report.photoBytes.length > TRACE_REPORT_SEND_PHOTO_MAX_BYTES) {
+    const resized = await resizeReportPhoto(report.photo, report.photoType).catch(() => {
+      throw new Error("Pocketry couldn’t resize this photo for the report. Try again or email the maintainer directly.");
+    });
+    photo = { type: resized.type, content: resized.content };
+    const extension = resized.type === "image/jpeg" ? "jpg" : resized.type.split("/")[1];
+    details.photo.file = `report-photo.${extension}`;
+    attachmentSize = resized.size;
+  }
+  const serializedDetails = JSON.stringify({ ...details, photo: { ...details.photo, attachmentSize } });
+  if (new TextEncoder().encode(serializedDetails).length > TRACE_REPORT_SEND_DETAILS_MAX_BYTES) {
+    throw new Error("This trace has too much detail to email. Simplify the outline and retry.");
+  }
+  return tracePhotoSubmissionSchema.parse({ photo, details: serializedDetails, replyEmail: replyEmail.trim(), website: "" });
+}
+
+/** Build a local archive for manual recovery or sharing. */
+export function createTracePhotoReport(trace: TraceState, note: string, userAgent: string,
+  now = new Date()): { bytes: Uint8Array; fileName: string } {
+  const report = prepareTracePhotoReport(trace, note, userAgent, now);
   // Give each download its own name so the email points to the exact archive.
   // getRandomValues also works on self-hosted editors served over plain HTTP.
   const reportId = Array.from(crypto.getRandomValues(new Uint8Array(12)),
@@ -78,8 +162,8 @@ export function createTracePhotoReport(trace: TraceState, note: string, userAgen
   return {
     fileName: `pocketry-trace-report-${reportId}.zip`,
     bytes: zipSync({
-      [photoName]: [photoBytes, { level: 0 }],
-      "tracing-details.json": strToU8(JSON.stringify(report, null, 2)),
+      [report.details.photo.file]: [report.photoBytes, { level: 0 }],
+      "tracing-details.json": strToU8(JSON.stringify(report.details, null, 2)),
     }),
   };
 }

@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-## 1.18.1 — 2026-11-24
+## 1.19.1 — 2026-11-25
 
 - Offer to resize an occupied bin when a traced outline needs more room, keeping existing pockets and finger access in place.
+
+## 1.19.0 — 2026-11-24
+
+- Send a photo report directly from the Trace Outline controls with tracing details and an optional reply email. Pocketry automatically resizes a copy of large photos to fit.
 
 ## 1.18.0 — 2026-11-24
 

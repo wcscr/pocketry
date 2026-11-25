@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/api/feedback", "/api/feedback/"],
+  "include": ["/api/feedback", "/api/feedback/", "/api/trace-report", "/api/trace-report/"],
   "exclude": []
 }
