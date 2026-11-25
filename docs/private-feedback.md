@@ -5,14 +5,15 @@ from Help or the header feedback menu. In the shared form, the visitor chooses a
 problem report or suggestion and enters a summary, message, and optional reply
 email. No account is required. Leaving the reply address blank does not identify
 the visitor to Pocketry. Cloudflare still processes normal request and Turnstile
-metadata. Photos, projects, browser details, and URLs are never attached to the
-submission. Draft text stays in memory after closing or a failed send, but a page
+metadata. The general feedback form never attaches photos, projects, browser details, or
+URLs. Trace has a separate, explicit photo report form; see
+[photo reports](tracing-photo-reports.md). Draft text stays in memory after closing or a failed send, but a page
 reload clears it.
 
 ## Free-plan design
 
 Keep the app on Cloudflare Pages. The static app is served normally; `_routes.json`
-invokes a Pages Function only for `/api/feedback`. That function validates the
+invokes Pages Functions for `/api/feedback` and `/api/trace-report`. That function validates the
 form and a single-use Turnstile token, then uses Cloudflare Email Service's REST
 API to send plain text to one **verified Email Routing destination address**.
 The reports live in that inbox, with no application database or public issue.
@@ -25,7 +26,7 @@ is the public address and fixed sender; its forwarding destination is configured
 separately as a secret.
 
 Pages Functions share Workers Free's 100,000 requests/day and 10 ms CPU limit.
-Only feedback requests consume Function invocations. Turnstile Free includes
+Only feedback and Trace photo report requests consume Function invocations. Turnstile Free includes
 unlimited verifications and up to 10 hostnames per widget. No extra Worker,
 database, or paid email provider is needed. Confirm current plan availability in
 the account before enabling it; Email Sending remains a beta service.
@@ -57,8 +58,7 @@ the account before enabling it; Email Sending remains a beta service.
    variables for secrets. A missing setting makes the form report unavailable.
 5. Deploy the reviewed Pages branch using the existing Pages Git integration.
    Keep GitHub CI disabled. The root `wrangler.jsonc` uses
-   `pages_build_output_dir`; the `functions/api/feedback.ts` adapter handles the
-   request. `npm run dev` alone does not emulate that Pages Function.
+   `pages_build_output_dir`; the adapters in `functions/api/` handle the requests. `npm run dev` alone does not emulate that Pages Function.
 6. Open the deployed form with a fresh Turnstile token and send one clearly
    marked test report. Confirm the response and actual arrival in the verified
    inbox, including its sender, subject prefix, body, and optional reply address.
@@ -92,6 +92,15 @@ and the destination mailbox provider process their normal metadata and retain
 messages under their own settings. An ambiguous provider timeout can cause a
 duplicate if the visitor retries; there is no durable deduplication store.
 
+The dedicated `POST /api/trace-report` route uses the same fixed sender,
+recipient, hostname allowlist, and single-use Turnstile verification. It accepts
+a bounded original PNG, JPEG, or WebP and tracing details only after the user
+selects Send. The browser resizes a copy of photos above the 5 MiB attachment
+limit. The Pages Function caps photos at 5 MiB, details at 1 MiB, and the
+streamed request at 9 MiB. It sends two attachments through Email Service and
+retains no server-side copy. The optional reply email is plain text in the message body,
+never a header or recipient.
+
 The app has no per-IP rate limiter or queue. Add a narrowly scoped Cloudflare
 rate-limiting rule for `POST /api/feedback` if inbox volume warrants it and the
 account's free-plan rule allowance permits it.
@@ -107,6 +116,7 @@ dedicated test inbox/widget. Never commit `.dev.vars`.
 ## References
 
 - [Cloudflare Pages Functions routing](https://developers.cloudflare.com/pages/functions/routing/)
+- [Cloudflare Email Service attachments](https://developers.cloudflare.com/email-service/api/send-emails/rest-api/#attachments)
 - [Pages Wrangler configuration](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)
 - [Pages Function pricing](https://developers.cloudflare.com/pages/functions/pricing/)
 - [Workers Free limits](https://developers.cloudflare.com/workers/platform/limits/)

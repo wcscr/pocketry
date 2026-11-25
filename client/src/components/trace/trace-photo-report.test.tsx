@@ -1,104 +1,157 @@
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { downloadBlob } from "@/lib/download";
-import * as reports from "@/lib/trace-photo-report";
+import { TRACE_REPORT_SEND_PHOTO_MAX_BYTES } from "@shared/trace-photo-report-schema";
 import { TraceProvider, useTrace, type TraceStore } from "@/state/trace-store";
 import { TracePhotoReport } from "./trace-photo-report";
 
-vi.mock("@/lib/download", () => ({ downloadBlob: vi.fn() }));
+vi.mock("@/components/help/turnstile", () => ({ Turnstile: ({ onToken }: { onToken: (token: string) => void }) =>
+  <button type="button" onClick={() => onToken("verified-token")}>Complete spam check</button> }));
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
 let root: Root;
 let host: HTMLDivElement;
 let trace: TraceStore;
+const fetchMock = vi.fn<typeof fetch>();
 function Harness() { trace = useTrace(); return <TracePhotoReport key={trace.sourceRevision} />; }
-const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === text)!;
-const click = (text: string) => React.act(async () => button(text).click());
-const email = () => document.querySelector<HTMLAnchorElement>('a[href^="mailto:"]');
+function button(text: string) { return [...document.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === text)!; }
+async function click(text: string) { await React.act(async () => button(text).click()); }
+async function loadPhoto(imageUrl = png) { await React.act(async () => trace.dispatch({ type: "SOURCE_LOADED", imageUrl, fileName: "My tool" })); }
+async function typeInto(selector: string, value: string) {
+  await React.act(async () => {
+    const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
+    const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
 
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  fetchMock.mockReset(); fetchMock.mockResolvedValue(Response.json({ siteKey: "site-key" })); vi.stubGlobal("fetch", fetchMock);
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await React.act(async () => root.render(<TraceProvider><Harness /></TraceProvider>));
 });
 afterEach(() => {
-  React.act(() => root.unmount());
-  document.body.replaceChildren(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals();
+  React.act(() => root.unmount()); document.body.replaceChildren(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
-async function loadPhoto() {
-  await React.act(async () => trace.dispatch({ type: "SOURCE_LOADED", imageUrl: png, fileName: "My tool" }));
-}
 
-it("waits for a photo, warns before preparing anything, and cancels without a download or email", async () => {
+it("shows a button before calibration, warns about the photo, and sends nothing on cancel", async () => {
   expect(host.querySelector("button")).toBeNull();
   await loadPhoto();
-  expect(trace.region).toBeNull(); expect(trace.outline).toEqual([]); expect(trace.calibration).toBeNull();
-  expect(button("Report tracing problem").getAttribute("aria-haspopup")).toBe("dialog");
+  expect(trace.region).toBeNull(); expect(trace.outline).toEqual([]);
   await click("Report tracing problem");
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.textContent).toContain("Your photo will be sent via email to the project maintainer at feedback@pocketry.xyz.");
-  expect(dialog.textContent).toContain("Nothing is sent until you attach the report and send the email yourself.");
+  expect(dialog.textContent).toContain("Sending shares your original photo");
   expect(dialog.querySelector("img")?.getAttribute("src")).toBe(png);
-  expect(downloadBlob).not.toHaveBeenCalled(); expect(email()).toBeNull();
+  expect(dialog.querySelector('input[type="email"]')).not.toBeNull();
+  await vi.waitFor(() => expect(button("Complete spam check")).toBeTruthy());
   await click("Cancel");
   expect(document.querySelector('[role="dialog"]')).toBeNull();
-  expect(downloadBlob).not.toHaveBeenCalled(); expect(email()).toBeNull();
-  await vi.waitFor(() => expect(document.activeElement).toBe(button("Report tracing problem")));
+  expect(fetchMock.mock.calls.filter(([url]) => url === "/api/trace-report")).toHaveLength(0);
 });
 
-it("downloads a ZIP before offering an email draft, without changing the trace", async () => {
+it("keeps the fallback button until the detection region is usable", async () => {
   await loadPhoto();
-  const before = trace;
-  await click("Report tracing problem");
-  await click("Download photo report");
-  expect(downloadBlob).toHaveBeenCalledOnce();
-  const [blob, fileName] = vi.mocked(downloadBlob).mock.calls[0];
-  expect(blob.type).toBe("application/zip");
-  expect(email()?.href).toBe(reports.traceReportEmailHref(fileName));
-  expect(document.querySelector('[role="status"]')?.textContent).toContain(fileName);
-  expect(document.querySelector('[role="status"]')?.textContent).toContain("Attach it to your email before sending.");
-  expect(document.body.textContent).not.toContain("Report sent");
-  expect(trace).toBe(before);
-});
-
-it("keeps the captured photo and settings consistent while processing finishes", async () => {
-  await loadPhoto();
-  await click("Report tracing problem");
-  const snapshot = trace;
-  await React.act(async () => trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 }));
-  const build = vi.spyOn(reports, "createTracePhotoReport");
-  await click("Download photo report");
-  expect(build.mock.calls[0][0]).toBe(snapshot);
-  expect(build.mock.calls[0][0].sensitivity).toBe(128);
-});
-
-it("requires a fresh download after the description changes, and resets for a replacement photo", async () => {
-  await loadPhoto(); await click("Report tracing problem"); await click("Download photo report");
-  const [, firstName] = vi.mocked(downloadBlob).mock.calls[0];
   await React.act(async () => {
-    const textarea = document.querySelector("textarea")!;
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Missing tip");
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    trace.dispatch({ type: "SET_CALIBRATION", calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 } });
+    trace.dispatch({ type: "SET_REGION", region: { x: 0, y: 0, width: 4, height: 4 } });
   });
-  expect(email()).toBeNull();
-  const build = vi.spyOn(reports, "createTracePhotoReport");
-  await click("Download photo report");
-  expect(build.mock.calls[0][1]).toBe("Missing tip");
-  const [, secondName] = vi.mocked(downloadBlob).mock.calls[1];
-  expect(secondName).not.toBe(firstName);
-  expect(email()?.href).toBe(reports.traceReportEmailHref(secondName));
+  expect(button("Report tracing problem")).toBeDefined();
+});
+
+it("recovers from a configuration timeout without losing the draft", async () => {
+  vi.useFakeTimers();
+  fetchMock.mockImplementationOnce((_url, init) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+  }));
+  await loadPhoto(); await click("Report tracing problem");
+  await typeInto("textarea", "Outline missed one edge");
+  await typeInto('input[type="email"]', "visitor@example.com");
+
+  await React.act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("took too long");
+  expect(document.querySelector('[role="status"]')).toBeNull();
+
+  await click("Retry connection");
+  await click("Complete spam check");
+  expect(button("Send photo report").disabled).toBe(false);
+  expect(document.querySelector("textarea")?.value).toBe("Outline missed one edge");
+  expect(document.querySelector<HTMLInputElement>('input[type="email"]')?.value).toBe("visitor@example.com");
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/feedback", "/api/feedback"]);
+});
+
+it("offers the maintainer's email when a self-hosted installation lacks the form API", async () => {
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+  await loadPhoto(); await click("Report tracing problem");
+
+  const alert = document.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("Email issues or recommendations to the maintainer");
+  expect(alert?.querySelector("a")?.getAttribute("href")).toBe("mailto:feedback@pocketry.xyz");
+  expect(button("Send photo report").disabled).toBe(true);
+});
+
+it("submits the captured original photo and optional email after the explicit send click", async () => {
+  await loadPhoto(); await click("Report tracing problem");
+  const snapshot = trace;
+  await typeInto("textarea", "Missing tip"); await typeInto('input[type="email"]', "visitor@example.com");
+  await React.act(async () => trace.dispatch({ type: "SET_SENSITIVITY", sensitivity: 97 }));
+  await vi.waitFor(() => expect(button("Complete spam check")).toBeTruthy());
+  await click("Complete spam check");
+  fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
+  await click("Send photo report");
+  const post = fetchMock.mock.calls.find(([url]) => url === "/api/trace-report")!;
+  expect(post[1]?.headers).toEqual({ "Content-Type": "application/json", "X-Pocketry-Turnstile": "verified-token" });
+  const body = JSON.parse(String(post[1]?.body));
+  expect(body.photo).toEqual({ type: "image/png", content: png.split(",")[1] });
+  expect(body.replyEmail).toBe("visitor@example.com");
+  expect(JSON.parse(body.details)).toMatchObject({ description: "Missing tip", trace: { sensitivity: snapshot.sensitivity } });
+  expect(document.querySelector('[role="status"]')?.textContent).toContain("submitted");
+});
+
+it("discloses resizing and submits a smaller attachment without changing the trace photo", async () => {
+  const source = Buffer.from(png.split(",")[1], "base64");
+  const extraChunk = Buffer.alloc(TRACE_REPORT_SEND_PHOTO_MAX_BYTES + 12);
+  extraChunk.writeUInt32BE(TRACE_REPORT_SEND_PHOTO_MAX_BYTES);
+  extraChunk.write("tEXt", 4);
+  const oversized = `data:image/png;base64,${Buffer.concat([source.subarray(0, -12), extraChunk, source.subarray(-12)]).toString("base64")}`;
+  vi.stubGlobal("Image", class { src = ""; naturalWidth = 4000; naturalHeight = 3000; async decode() {} });
+  const drawImage = vi.fn();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+  const toBlob = vi.spyOn(HTMLCanvasElement.prototype, "toBlob")
+    .mockImplementationOnce(callback => callback(new Blob([extraChunk], { type: "image/png" })))
+    .mockImplementationOnce(callback => callback(new Blob([source], { type: "image/png" })));
+
+  await loadPhoto(oversized); await click("Report tracing problem");
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("omits the original embedded metadata");
+  expect(toBlob).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(button("Complete spam check")).toBeTruthy());
+  await click("Complete spam check");
+  fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
+  await click("Send photo report");
+  await React.act(async () => {
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === "/api/trace-report")).toBe(true));
+  });
+
+  expect(drawImage.mock.calls.map(call => call.slice(3))).toEqual([[2560, 1920], [1920, 1440]]);
+  const post = fetchMock.mock.calls.find(([url]) => url === "/api/trace-report")!;
+  const body = JSON.parse(String(post[1]?.body));
+  expect(body.photo).toEqual({ type: "image/png", content: png.split(",")[1] });
+  expect(JSON.parse(body.details).photo).toMatchObject({ file: "report-photo.png", attachmentSize: { width: 1920, height: 1440 } });
+  expect(trace.imageUrl === oversized).toBe(true);
+});
+
+it("preserves the form on failed delivery and resets for a replacement photo", async () => {
+  await loadPhoto(); await click("Report tracing problem");
+  await typeInto("textarea", "Outline includes shadow");
+  await vi.waitFor(() => expect(button("Complete spam check")).toBeTruthy());
+  await click("Complete spam check");
+  fetchMock.mockResolvedValueOnce(Response.json({ error: "Delivery failed" }, { status: 502 }));
+  await click("Send photo report");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("Delivery failed");
+  expect(document.querySelector("textarea")?.value).toBe("Outline includes shadow");
+  expect(document.body.textContent).not.toContain("has been submitted");
   await loadPhoto();
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   await click("Report tracing problem");
-  expect(document.querySelector("textarea")?.value).toBe(""); expect(email()).toBeNull();
-});
-
-it("reports preparation failures without opening email or claiming delivery, and allows retry", async () => {
-  await loadPhoto(); await click("Report tracing problem");
-  vi.spyOn(reports, "createTracePhotoReport").mockImplementationOnce(() => { throw new Error("Cannot build report"); });
-  await click("Download photo report");
-  expect(document.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t prepare the photo report.");
-  expect(email()).toBeNull(); expect(downloadBlob).not.toHaveBeenCalled();
-  await click("Download photo report");
-  expect(document.querySelector('[role="alert"]')).toBeNull(); expect(email()).not.toBeNull();
+  expect(document.querySelector("textarea")?.value).toBe("");
 });

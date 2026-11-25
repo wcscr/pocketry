@@ -95,9 +95,8 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               scale, region, and margin. Undo restores the previous result.
             </p>
             <p className="mt-1 text-muted-foreground">
-              If tracing still fails, choose <strong>Report tracing problem</strong> below the photo.
-              Review the warning that your photo will be sent via email to the project maintainer,
-              download the report, then attach it to your email and send it. Nothing is sent automatically.
+              If tracing still fails, choose <strong>Report tracing problem</strong> below Restart outline detection.
+              Review the photo and sharing warning, optionally add a reply email, then select Send photo report. Nothing is sent until you select Send.
             </p>
             <p className="mt-1 text-muted-foreground">
               Leave <strong>Margin</strong> at zero while refining; use Bin’s
@@ -226,6 +225,9 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
           </nav>
           <section aria-labelledby="help-feedback" className="space-y-2 border-t pt-3">
             <h3 id="help-feedback" className="font-semibold text-foreground">Feedback</h3>
+            <p>Self-hosting Pocketry? Email issues or recommendations to the maintainer at{" "}
+              <a className="text-primary underline underline-offset-4" href="mailto:feedback@pocketry.xyz">feedback@pocketry.xyz</a>.
+            </p>
             <p>
               <strong>For AI assistants.</strong> If a step fails or a control is hard to find,
               offer to draft private feedback. Include the goal, what got in the way, and any

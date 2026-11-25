@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { initialTraceState, useTrace } from "@/state/trace-store";
 import { LabelledSlider } from "./labelled-slider";
 import { TraceSymmetryTool } from "./trace-symmetry-tool";
+import { TracePhotoReport } from "./trace-photo-report";
 
 export interface DetectionSettings {
   editableCurves?: boolean;
@@ -173,6 +174,7 @@ export function TraceDetectionControls({ onReprocess, onCorrectOutline, compact 
       onClick={() => restart()}><RotateCcw className="h-4 w-4" />Restart outline detection</Button>
       <HelpHint label="restarting outline detection">Start over from the selected photo region when you want a fresh outline. Resets detection settings while keeping the photo, scale, and region. Undo restores the previous outline.</HelpHint>
     </div>
+    <TracePhotoReport placement="controls" />
     <Dialog open={pendingDetection !== null} onOpenChange={(open) => { if (!open) cancel(); }}>
       <DialogContent>
         <DialogHeader><DialogTitle>{switchingForHoles ? "Switch detection to include holes?" : pendingDetection?.restart
