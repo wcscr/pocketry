@@ -432,6 +432,7 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Exports and autosaves use the same committed design/history snapshot.
   const exportProjectDoc = currentProjectDoc;
+  const customFootprint = committedSpec.footprint.kind === "custom";
   const pendingDestinationChanged = library.pendingIds.some(id => {
     const target = library.pendingDestinations[id];
     return target && target.key !== restoredDestination;
@@ -444,7 +445,7 @@ function BinDesignerWorkspace(): JSX.Element {
     const newShapes = library.shapes.filter(shape => library.pendingIds.includes(shape.id) &&
       !committedCutouts.some(cutout => cutout.shapeId === shape.id));
     if (!newShapes.length) return { current: null, resized: null };
-    const occupied = committedCutouts.length > 0 || committedFingerHoles.length > 0;
+    const occupied = committedCutouts.length > 0 || committedFingerHoles.length > 0 || committedSpec.surfaceTexts.length > 0;
     const options = {
       spec: committedSpec,
       lip: committedSpec.lip,
@@ -483,7 +484,9 @@ function BinDesignerWorkspace(): JSX.Element {
       gridY: placement.gridY,
       footprint: resize ? { kind: "rectangle" } : committedSpec.footprint,
       specPatch: { fill: "solid", ...(placement.arbitrarySizeMm && { arbitrarySizeMm: placement.arbitrarySizeMm }) },
-      historyLabel: resize ? "Resize bin and add outlines" : undefined,
+      historyLabel: resize
+        ? (customFootprint ? "Convert footprint and add outlines" : "Resize bin and add outlines")
+        : undefined,
     });
     if (placement.overflow) toast({
       title: "Tool does not fit",
@@ -491,7 +494,7 @@ function BinDesignerWorkspace(): JSX.Element {
         : "Adjust the highlighted outline or check its scale.",
       variant: "destructive",
     });
-  }, [library, dispatch, committedSpec, fixedBinSize, toast]);
+  }, [library, dispatch, committedSpec, customFootprint, fixedBinSize, toast]);
 
   useEffect(() => {
     if (pendingPlacement && !pendingPlacement.resized) placePending(pendingPlacement.current);
@@ -1385,18 +1388,23 @@ function BinDesignerWorkspace(): JSX.Element {
               library.retargetPending({ key: destinationKey, name: currentProjectName ?? "Untitled project" });
             }}>Add waiting tools to {currentProjectName ?? "this unnamed bin"}</Button>
           </div>}
-          {pendingPlacement?.resized && <section aria-label="Resize for incoming outlines" data-testid="trace-resize-offer"
+          {pendingPlacement?.resized && <section aria-label="Fit incoming outlines" data-testid="trace-resize-offer"
             className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b bg-background px-3 py-2 text-sm">
             <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
-              <span className="font-medium">Resize {isJig ? "fixture" : "bin"} for new outlines?</span>
+              <span className="font-medium">{customFootprint
+                ? "Replace the custom footprint with a rectangle?"
+                : `Resize ${isJig ? "fixture" : "bin"} for new outlines?`}</span>
               <span className="text-muted-foreground">
                 {binWidthMm({ ...pendingPlacement.resized, gridPitch: committedSpec.gridPitch })} × {binLengthMm({ ...pendingPlacement.resized, gridPitch: committedSpec.gridPitch })} mm
-                {committedSpec.footprint.kind === "custom" && " · Rectangular"}
               </span>
-              <HelpHint label="resizing for new outlines">Existing pockets and finger access stay in place. Keep size and add leaves any outlines that do not fit available for manual placement.</HelpHint>
+              <HelpHint label="resizing for new outlines">Existing pockets and finger access stay in place. Keeping the current footprint leaves any outlines that do not fit available for manual placement.</HelpHint>
             </div>
-            <Button size="sm" variant="outline" className="min-h-11" onClick={() => placePending(pendingPlacement.current)}>Keep size and add</Button>
-            <Button size="sm" className="min-h-11" onClick={() => placePending(pendingPlacement.resized, true)}>Resize and add</Button>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => placePending(pendingPlacement.current)}>
+              {customFootprint ? "Keep footprint and add" : "Keep size and add"}
+            </Button>
+            <Button size="sm" className="min-h-11" onClick={() => placePending(pendingPlacement.resized, true)}>
+              {customFootprint ? "Convert to rectangle and add" : "Resize and add"}
+            </Button>
           </section>}
           {saveError && <div role="alert" data-testid="bin-save-error" className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b border-destructive/40 bg-background px-3 py-2 text-sm text-destructive">
             <p className="min-w-0 flex-1">{saveError}</p>

@@ -4,7 +4,7 @@
 
 ## 1.19.1 — 2026-11-25
 
-- Offer to resize an occupied bin when a traced outline needs more room, keeping existing pockets and finger access in place.
+- Offer to resize an occupied bin for a new trace, preserving pockets, finger access, and raised text on the bin surface. Custom footprints require an explicit conversion to a rectangle.
 
 ## 1.19.0 — 2026-11-24
 

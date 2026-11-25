@@ -42,6 +42,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { projectDestinationKey } from "@/lib/project/destination";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import * as ProjectPersistence from "@/lib/project/persist";
 import { loadSampleLibrary } from "@/lib/project/samples";
@@ -316,6 +317,33 @@ describe("BinDesignerPage", () => {
       clickBinHistory(container, "redo");
       expect(geometry()[2]!.cutouts).toHaveLength(2);
       expect(geometry()[2]!.cutouts[0]).toEqual(pocket);
+    } finally { unmount(); }
+  });
+
+  it.each([false, true])("requires an explicit choice to turn a custom footprint into a rectangle (convert: %s)", async convert => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", footprint: {
+      kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    } });
+    const existing = createBasicPocket("rectangle", { x: -36, y: -36 }, { x: -16, y: -16 }, "Existing")!;
+    const incoming = createBasicPocket("rectangle", { x: -11, y: -11 }, { x: 11, y: 11 }, "Incoming")!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: true,
+      spec, shapes: [existing.shape], cutouts: [existing.cutout] });
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([incoming.shape]));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const prompt = container.querySelector('[data-testid="trace-resize-offer"]')!;
+      expect(prompt.textContent).toContain("Replace the custom footprint with a rectangle?");
+      expect(prompt.textContent).toContain("83.5 × 83.5 mm");
+      const choice = [...prompt.querySelectorAll("button")].find(button => button.textContent?.trim() ===
+        (convert ? "Convert to rectangle and add" : "Keep footprint and add"))!;
+      React.act(() => choice.click());
+      const [after, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+      expect(after).toMatchObject({ gridX: 2, gridY: 2, footprint: convert ? { kind: "rectangle" } : spec.footprint });
+      expect(layout!.cutouts[0]).toEqual(existing.cutout);
+      expect(layout!.cutouts[1]?.shapeId).toEqual(incoming.shape.id);
+      clickBinHistory(container, "undo");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(spec);
     } finally { unmount(); }
   });
 

@@ -12,6 +12,8 @@ import {
 } from "@shared/gridfinity/cutout";
 import {
   binFootprintMm,
+  binHeightMm,
+  binWallThicknessMm,
   D_DIV,
   D_WALL,
   STACKING_LIP_DEPTH,
@@ -21,12 +23,14 @@ import { maxGridCells, type BinSpec } from "@shared/gridfinity/types";
 import {
   canonicalCells,
   cellCenterMm,
+  footprintInsetRingMm,
   footprintTopologyError,
   rectangleCells,
   type BinFootprint,
 } from "@shared/gridfinity/footprint";
 import { parseBinSpec } from "@shared/gridfinity/types";
-import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
+import { ringInsideBoundary, validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
+import { wallSlantCloses, wallSlantOutlineMm } from "@shared/gridfinity/wall-slant";
 import { minAreaObb } from "@shared/geometry/obb";
 import type { Bounds, Point } from "@shared/geometry/types";
 import type { TracePlacements } from "@shared/gridfinity/trace-placement";
@@ -52,17 +56,9 @@ export function linkedPocketCopyPosition(spec: BinSpec, source: CutoutPlacement,
     ...cutouts.map(c => existingBounds([c], shapes, [], spec)),
     ...fingerHoles.map(h => existingBounds([], shapes, [h], spec)),
   ].filter((bounds): bounds is Bounds => bounds !== null);
-  for (const label of spec.surfaceTexts) {
-    if (surfaceTextSurface(spec, label) !== "bin") continue;
-    try {
-      const bounds = outlineBounds(surfaceTextOutline(label));
-      if (!bounds) return null;
-      obstacles.push(bounds);
-    } catch {
-      // Unresolved lettering cannot safely steer a new placement.
-      return null;
-    }
-  }
+  const labels = binSurfaceTextBounds(spec);
+  if (!labels) return null;
+  obstacles.push(...labels);
   const inset = placementInsetMm(spec.lip);
   const halfW = binWidthMm(spec) / 2 - inset, halfH = binLengthMm(spec) / 2 - inset;
   const minX = -halfW - local.minX, maxX = halfW - local.maxX;
@@ -114,6 +110,22 @@ const ITEM_GAP_MM = D_DIV + 0.01;
  */
 export function placementInsetMm(lip: BinSpec["lip"], clearanceMm = 0): number {
   return D_WALL + clearanceMm + (lip === "standard" ? STACKING_LIP_DEPTH - D_WALL : 0) + 1;
+}
+
+function binSurfaceTextBounds(spec?: BinSpec): Bounds[] | null {
+  if (!spec) return [];
+  const labels: Bounds[] = [];
+  for (const label of spec.surfaceTexts) {
+    if (surfaceTextSurface(spec, label) !== "bin") continue;
+    try {
+      const bounds = outlineBounds(surfaceTextOutline(label));
+      if (!bounds) return null;
+      labels.push(bounds);
+    } catch {
+      return null;
+    }
+  }
+  return labels;
 }
 
 /** Anything with a footprint the packer can shelve. */
@@ -403,14 +415,53 @@ export function autoPlaceIncremental(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions,
 ): AutoPlaceResult {
-  const occupied = existingBounds(options.existing, options.shapesById, options.fingerHoles, options.spec);
+  return placeIncrementally(shapes, options, binSurfaceTextBounds(options.spec));
+}
+
+function placeIncrementally(
+  shapes: readonly TracedShape[],
+  options: AutoPlaceIncrementalOptions,
+  labelBounds: readonly Bounds[] | null,
+): AutoPlaceResult {
+  const existing = existingBounds(options.existing, options.shapesById, options.fingerHoles, options.spec);
+  // A labeled bin still has occupied space before its first pocket is added.
+  const occupied = existing ?? (labelBounds?.length ? {
+    minX: Math.min(...labelBounds.map(bounds => bounds.minX)),
+    maxX: Math.max(...labelBounds.map(bounds => bounds.maxX)),
+    minY: Math.min(...labelBounds.map(bounds => bounds.minY)),
+    maxY: Math.max(...labelBounds.map(bounds => bounds.maxY)),
+  } : null);
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const fitsFootprint = (grid: BinSizeSpec, cutouts: CutoutPlacement[]) => {
     const spec = options.spec;
-    if (!spec || (spec.footprint.kind === "rectangle" && !spec.wallSlant && !spec.labelTab)) return true;
+    if (!spec) return true;
+    if (!labelBounds) return false;
     const footprint = options.keepBinSize ? spec.footprint : { kind: "rectangle" as const };
-    return !validateLayout({ ...spec, ...grid, gridPitch: spec.gridPitch, footprint }, cutouts, byId).some(issue =>
-      ["out-of-bounds", "wall-breach", "lip-collision", "label-tab-shadow"].includes(issue.code));
+    if (footprint.kind === "rectangle" && !spec.wallSlant && !spec.labelTab && !labelBounds.length) return true;
+    const candidate = { ...spec, ...grid, gridPitch: spec.gridPitch, footprint };
+    const pockets = cutouts.filter(cutout => options.placements?.[cutout.shapeId]?.role !== "hole");
+    if (!pockets.length) return true;
+    if ((footprint.kind === "custom" || spec.labelTab) &&
+        validateLayout(candidate, pockets, byId).some(issue =>
+          ["out-of-bounds", "wall-breach", "lip-collision", "label-tab-shadow"].includes(issue.code))) return false;
+    if (!spec.wallSlant && !labelBounds.length) return true;
+    if (wallSlantCloses(candidate)) return false;
+    // The incoming tools are vertical. Keep their cutter bounds inside the base
+    // and the opening at the rim so the full path clears a slanted wall.
+    const interior = spec.wallSlant ? footprintInsetRingMm(candidate, binWallThicknessMm(candidate)) : null;
+    const opening = interior && wallSlantOutlineMm(candidate, interior, binHeightMm(candidate.heightUnits));
+    return pockets.every(cutout => {
+      const bounds = existingBounds([cutout], byId, [], candidate);
+      if (!bounds) return false;
+      if (labelBounds.some(label => bounds.minX < label.maxX && bounds.maxX > label.minX &&
+          bounds.minY < label.maxY && bounds.maxY > label.minY)) return false;
+      if (!interior || !opening) return true;
+      const corners = [
+        { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
+        { x: bounds.maxX, y: bounds.maxY }, { x: bounds.minX, y: bounds.maxY },
+      ];
+      return ringInsideBoundary(corners, interior) && ringInsideBoundary(corners, opening);
+    });
   };
   if (!occupied) {
     if (options.keepBinSize || options.spec?.arbitrarySizeMm) {
@@ -480,7 +531,8 @@ export function autoPlaceIncremental(
 
   // Give up gracefully: drop the block to the right of everything.
   const block = packShapes(shapes, Number.POSITIVE_INFINITY, options.placements ?? {});
-  const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
+  const right = Math.max(occupied.maxX, ...(labelBounds ?? []).map(bounds => bounds.maxX));
+  const cx = right + ITEM_GAP_MM + block.widthMm / 2;
   return {
     cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
     gridX: (options.keepBinSize || options.spec?.arbitrarySizeMm) ? options.gridX : maxGridCells(options.gridPitch),
@@ -495,17 +547,19 @@ export function autoPlaceWithGrowth(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions & { spec: BinSpec },
 ): AutoPlaceResult | null {
+  const labelBounds = binSurfaceTextBounds(options.spec);
+  if (!labelBounds) return null;
   const size = options.spec.arbitrarySizeMm;
   if (!size) {
-    const resized = autoPlaceIncremental(shapes, { ...options, keepBinSize: false });
+    const resized = placeIncrementally(shapes, { ...options, keepBinSize: false }, labelBounds);
     return resized.overflow ? null : resized;
   }
   const maxSize = binFootprintMm(maxGridCells("full"));
   const trySize = (width: number, length: number) => {
     const arbitrarySizeMm = { width, length };
-    const placement = autoPlaceIncremental(shapes, {
+    const placement = placeIncrementally(shapes, {
       ...options, spec: { ...options.spec, arbitrarySizeMm }, keepBinSize: true,
-    });
+    }, labelBounds);
     return placement.overflow ? null : { ...placement, arbitrarySizeMm };
   };
   const candidates = [[true, false], [false, true], [true, true]].flatMap(([width, length]) => {
