@@ -42,6 +42,7 @@ import { parseBinSpec } from "@shared/gridfinity/types";
 import { downloadBlob } from "@/lib/download";
 import { projectDestinationKey } from "@/lib/project/destination";
 import { useBinGeometry } from "@/lib/gridfinity/use-bin-geometry";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 import ryobiReloadFixture from "@shared/gridfinity/fixtures/ryobi-split-reload.pocketry.json";
 import * as ProjectPersistence from "@/lib/project/persist";
 import { loadSampleLibrary } from "@/lib/project/samples";
@@ -137,7 +138,7 @@ describe("BinDesignerPage", () => {
     expect(ProjectPersistence.importProjectToLibrary).not.toHaveBeenCalled();
     await React.act(async () => sampleButton("Open sample").click());
     expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(sampleDoc);
-    expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My draft" }), "project-1");
+    expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: "My draft" }), "project-1", []);
     expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(sampleDoc.spec);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
@@ -266,6 +267,124 @@ describe("BinDesignerPage", () => {
     await flushHydration();
     expect(reopened.container.querySelector('[data-testid="queued-destination-changed"]')).toBeNull();
     expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toHaveLength(1);
+  });
+
+  it.each([
+    { size: "fixed grid", resize: true },
+    { size: "adjustable grid", resize: false },
+    { size: "exact millimetres", resize: true },
+  ])("offers to resize an occupied $size bin without moving its pocket", async ({ size, resize }) => {
+    const existing = rectangularShape("existing-tool", "Existing tool");
+    const pocket = parseCutoutPlacement({ id: "existing-pocket", shapeId: existing.id,
+      position: { x: 2, y: -1 }, rotationDeg: 12, scaleX: 0.8, scaleY: 0.8 });
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 1, gridY: 1,
+      ...(size === "exact millimetres" ? { arbitrarySizeMm: { width: 41.5, length: 41.5 }, flatBottom: true } : {}),
+    });
+    const stored = { ...EMPTY_PROJECT, spec, keepBinSize: size === "fixed grid", shapes: [existing], cutouts: [pocket] };
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(stored);
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([{ ...rectangularShape("incoming-tool", "Incoming tool"),
+      pendingDepth: { mode: "mm", value: 8 },
+    }]));
+    const geometry = () => vi.mocked(useBinGeometry).mock.lastCall!;
+    const first = renderPage();
+    await flushHydration();
+    expect(first.container.querySelector('[data-testid="trace-resize-offer"]')).not.toBeNull();
+    expect(geometry()[2]!.cutouts).toEqual([pocket]);
+    expect(geometry()[0]).toEqual(spec);
+    first.unmount();
+
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const prompt = container.querySelector('[data-testid="trace-resize-offer"]')!;
+      const choice = [...prompt.querySelectorAll("button")].find(button =>
+        button.textContent === (resize ? "Resize and add" : "Keep size and add"))!;
+      React.act(() => choice.click());
+      expect(container.querySelector('[data-testid="trace-resize-offer"]')).toBeNull();
+      expect(geometry()[2]!.cutouts).toHaveLength(2);
+      expect(geometry()[2]!.cutouts[0]).toEqual(pocket);
+      expect(geometry()[2]!.cutouts[1]).toMatchObject({ shapeId: "incoming-tool", depth: { mode: "mm", value: 8 } });
+      if (!resize) expect(geometry()[0]).toEqual(spec);
+      else if (spec.arbitrarySizeMm) {
+        expect(geometry()[0].arbitrarySizeMm).not.toEqual(spec.arbitrarySizeMm);
+        expect(geometry()[0]).toMatchObject({ gridX: 1, gridY: 1, flatBottom: true });
+      } else {
+        expect(geometry()[0].gridX * geometry()[0].gridY).toBeGreaterThan(1);
+      }
+      clickBinHistory(container, "undo");
+      expect(geometry()[0]).toEqual(spec);
+      expect(geometry()[2]!.cutouts).toEqual([pocket]);
+      clickBinHistory(container, "redo");
+      expect(geometry()[2]!.cutouts).toHaveLength(2);
+      expect(geometry()[2]!.cutouts[0]).toEqual(pocket);
+    } finally { unmount(); }
+  });
+
+  it.each([false, true])("requires an explicit choice to turn a custom footprint into a rectangle (convert: %s)", async convert => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", footprint: {
+      kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    } });
+    const existing = createBasicPocket("rectangle", { x: -36, y: -36 }, { x: -16, y: -16 }, "Existing")!;
+    const incoming = createBasicPocket("rectangle", { x: -11, y: -11 }, { x: 11, y: 11 }, "Incoming")!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: true,
+      spec, shapes: [existing.shape], cutouts: [existing.cutout] });
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([incoming.shape]));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      const prompt = container.querySelector('[data-testid="trace-resize-offer"]')!;
+      expect(prompt.textContent).toContain("Replace the custom footprint with a rectangle?");
+      expect(prompt.textContent).toContain("83.5 × 83.5 mm");
+      const choice = [...prompt.querySelectorAll("button")].find(button => button.textContent?.trim() ===
+        (convert ? "Convert to rectangle and add" : "Keep footprint and add"))!;
+      React.act(() => choice.click());
+      const [after, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+      expect(after).toMatchObject({ gridX: 2, gridY: 2, footprint: convert ? { kind: "rectangle" } : spec.footprint });
+      expect(layout!.cutouts[0]).toEqual(existing.cutout);
+      expect(layout!.cutouts[1]?.shapeId).toEqual(incoming.shape.id);
+      clickBinHistory(container, "undo");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(spec);
+    } finally { unmount(); }
+  });
+
+  it("keeps a tool queued when rectangular conversion would remove a label-tab edge", async () => {
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, lip: "none", footprint: {
+      kind: "custom", cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    }, labelTab: { wall: "north", edge: { cell: { x: 1, y: 0 }, side: "north" } } });
+    const existing = createBasicPocket("rectangle", { x: -36, y: -36 }, { x: -16, y: -16 }, "Existing")!;
+    const incoming = createBasicPocket("square", { x: -11, y: -11 }, { x: 11, y: 11 }, "Incoming")!;
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, keepBinSize: true,
+      spec, shapes: [existing.shape], cutouts: [existing.cutout] });
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([incoming.shape]));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="trace-resize-offer"]')).toBeNull();
+      const manual = container.querySelector('[data-testid="trace-manual-placement"] button') as HTMLButtonElement;
+      expect(manual.textContent?.trim()).toBe("Add for manual placement");
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([existing.cutout]);
+      React.act(() => manual.click());
+      expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(spec);
+      expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts.map(pocket => pocket.shapeId))
+        .toEqual([existing.shape.id, incoming.shape.id]);
+    } finally { unmount(); }
+  });
+
+  it("adds an outline that already fits without asking to resize", async () => {
+    const existing = rectangularShape("old-tool", "Existing tool");
+    const pocket = parseCutoutPlacement({ id: "old-pocket", shapeId: existing.id, position: { x: -15, y: 0 } });
+    const spec = parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 3, gridY: 2 });
+    vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue({ ...EMPTY_PROJECT, spec, shapes: [existing], cutouts: [pocket] });
+    sessionStorage.setItem("pocketry:queued-tools", JSON.stringify([rectangularShape("new-tool", "New tool")]));
+    const { container, unmount } = renderPage();
+    try {
+      await flushHydration();
+      expect(container.querySelector('[data-testid="trace-resize-offer"]')).toBeNull();
+      const [currentSpec, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+      expect(currentSpec).toEqual(spec);
+      expect(layout!.cutouts).toHaveLength(2);
+      expect(layout!.cutouts[0]).toEqual(pocket);
+    } finally { unmount(); }
   });
 
   it("keeps geometry needed by undo history when the same tool is waiting for another destination", async () => {
@@ -1085,10 +1204,15 @@ describe("BinDesignerPage", () => {
     }
   });
 
-  it("saves a recovered folder draft to its original revision without opening Library", async () => {
+  it.each([false, true])("saves a recovered folder draft to its original revision without opening Library (resize: %s)", async traceResize => {
     const folder = new BrowserLibraryFolder({ name: "pocketry-library" } as ConstructorParameters<typeof BrowserLibraryFolder>[0]);
     const target = { connectionId: folder.id, projectId: "tray", revision: "a".repeat(64), name: "Socket tray" };
-    const edited = { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
+    const shape = rectangularShape("existing-tool", "Existing tool");
+    const pocket = parseCutoutPlacement({ id: "existing-pocket", shapeId: shape.id,
+      position: { x: 2, y: -1 }, rotationDeg: 12, scaleX: 0.8, scaleY: 0.8 });
+    const edited = traceResize
+      ? { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 1, gridY: 1 }), shapes: [shape], cutouts: [pocket] }
+      : { ...EMPTY_PROJECT, spec: parseBinSpec({ ...EMPTY_PROJECT.spec, gridX: 4 }) };
     const revision = "b".repeat(64);
     const mocks = [
       vi.spyOn(BrowserLibraryFolder, "supported").mockReturnValue(true),
@@ -1107,23 +1231,52 @@ describe("BinDesignerPage", () => {
     localStorage.setItem("pocketry:library-storage", "folder");
     vi.mocked(ProjectPersistence.loadProjectDoc).mockResolvedValue(edited);
     vi.mocked(ProjectPersistence.loadProjectLibrary).mockResolvedValue({ activeProjectId: null, projects: [], folderDraft: target });
-
-    const { container, unmount } = renderPage();
+    vi.mocked(ProjectPersistence.readProjectOverview).mockResolvedValue({ doc: edited, activeProjectId: null, folderDraft: target });
+    const trace = traceResize ? vi.spyOn(TraceStoreReview, "useTrace").mockReturnValue({ ...TraceStoreReview.initialTraceState,
+      detectedOutlineReview: { showing: false, preview: null, pending: false, error: undefined, unavailable: undefined,
+        unchanged: false, hint: "", close: vi.fn(), setShowing: vi.fn(), useOutline: vi.fn() },
+      dispatch: vi.fn(), canUndo: false, canRedo: false, undo: vi.fn(), redo: vi.fn(), draftSaveStatus: "saved",
+      fileName: "New tool", imageSize: { width: 100, height: 100 },
+      calibration: { startX: 0, startY: 0, endX: 100, endY: 0, lengthMm: 50 },
+      outline: [{ outer: [{ x: 10, y: 10 }, { x: 74, y: 10 }, { x: 74, y: 54 }, { x: 10, y: 54 }], holes: [] }],
+    }) : undefined;
+    const route = memoryLocation({ path: traceResize ? "/" : "/bin" });
+    const { container, unmount } = render(<Router hook={route.hook}><PanelProvider><ProjectActivityProvider><ShapeLibraryProvider>
+      <Route path="/"><TraceHandoff /></Route><Route path="/bin"><BinDesignerPage /></Route>
+    </ShapeLibraryProvider></ProjectActivityProvider></PanelProvider></Router>);
     try {
       await flushHydration();
+      if (traceResize) {
+        expect(container.textContent).toContain("Adding to: Socket tray");
+        const add = [...container.querySelectorAll("button")].find(button => button.textContent === "Add to bin")!;
+        await React.act(async () => add.click());
+        expect(container.querySelector('[data-testid="queued-destination-changed"]')).toBeNull();
+        const prompt = container.querySelector('[data-testid="trace-resize-offer"]')!;
+        expect(prompt).not.toBeNull();
+        expect(vi.mocked(useBinGeometry).mock.lastCall![2]!.cutouts).toEqual([pocket]);
+        const resize = [...prompt.querySelectorAll("button")].find(button => button.textContent === "Resize and add")!;
+        await React.act(async () => resize.click());
+      }
       expect(container.querySelector('[data-testid="project-status-title"]')?.textContent).toBe(target.name);
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-edit-project-name"]')!.click());
       const save = document.querySelector<HTMLButtonElement>('[data-testid="button-confirm-save-library"]')!;
       expect(save.textContent).toBe("Save changes");
       await React.act(async () => save.click());
 
+      const [spec, , layout] = vi.mocked(useBinGeometry).mock.lastCall!;
+      if (traceResize) {
+        expect(spec.gridX * spec.gridY).toBeGreaterThan(1);
+        expect(layout!.cutouts).toHaveLength(2);
+        expect(layout!.cutouts[0]).toEqual(pocket);
+      }
       expect(commit.mock.calls[0][0].changes[0]).toMatchObject({ projectId: target.projectId,
-        parents: [target.revision], name: target.name, doc: { spec: { gridX: 4 } } });
+        parents: [target.revision], name: target.name, doc: { spec, cutouts: layout!.cutouts } });
       expect(ProjectPersistence.advanceFolderDraft).toHaveBeenCalledWith(
         { ...target, revision }, { requestId: commit.mock.calls[0][0].requestId });
       expect(ProjectPersistence.saveProjectToLibrary).not.toHaveBeenCalled();
     } finally {
       unmount();
+      trace?.mockRestore();
       for (const mock of [commit, ...mocks]) mock.mockRestore();
       localStorage.removeItem("pocketry:library-storage");
     }
@@ -1366,7 +1519,7 @@ describe("BinDesignerPage", () => {
       };
       const replaceProject = action === "new" ? ProjectPersistence.startNewProject : ProjectPersistence.importProjectToLibrary;
       await replace();
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }), "cutter");
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: edited }), "cutter", []);
       expect(replaceProject).not.toHaveBeenCalled();
       await React.act(async () => finishSave(false));
       expect(replaceProject).not.toHaveBeenCalled();
@@ -1446,7 +1599,7 @@ describe("BinDesignerPage", () => {
       openSettingsSection(container, "project");
       React.act(() => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter");
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: intended.cutouts }), "cutter", []);
       expect(ProjectPersistence.openProjectFromLibrary).not.toHaveBeenCalled();
       await React.act(async () => finishSave(true));
       expect(activeProjectId).toBe("other");
@@ -1639,7 +1792,7 @@ describe("BinDesignerPage", () => {
       await React.act(async () => container.querySelector<HTMLButtonElement>('[data-testid="button-manage-library"]')!.click());
       await React.act(async () => document.querySelector<HTMLButtonElement>('[data-testid="button-open-project-other"]')!.click());
       expect(document.querySelector('[data-testid="button-discard-draft-open"]')).toBeNull();
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: cutter.cutouts }), "cutter");
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ cutouts: cutter.cutouts }), "cutter", []);
       expect(ProjectPersistence.openProjectFromLibrary).toHaveBeenCalledWith("other");
     } finally { unmount(); }
   });
@@ -1805,7 +1958,7 @@ describe("BinDesignerPage", () => {
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       await React.act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
       expect(container.querySelector('[data-testid="current-project-title"]')?.textContent).toBe(imported.name);
-      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: previous.name }), previous.id);
+      expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({ name: previous.name }), previous.id, []);
       expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith(doc);
       expect(ProjectPersistence.startNewProject).not.toHaveBeenCalled();
       expect(vi.mocked(useBinGeometry).mock.lastCall![0]).toEqual(doc.spec);
@@ -2061,7 +2214,7 @@ describe("BinDesignerPage", () => {
       } else {
         expect(ProjectPersistence.saveProjectDoc).toHaveBeenCalledWith(expect.objectContaining({
           spec: expect.objectContaining({ heightUnits: 9 }),
-        }), "current");
+        }), "current", []);
         expect(ProjectPersistence.importProjectToLibrary).toHaveBeenCalledExactlyOnceWith({ ...EMPTY_PROJECT, name: "Replacement" });
       }
     } finally { unmount(); }

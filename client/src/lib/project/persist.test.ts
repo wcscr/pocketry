@@ -1,6 +1,7 @@
 import "@/lib/project/mock-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { set, setMany } from "idb-keyval";
+import { createBasicPocket } from "@/lib/gridfinity/basic-shape";
 
 import { parseProjectDoc, PROJECT_SCHEMA_VERSION, serializeProjectDoc, type ProjectDoc } from "@shared/gridfinity/project";
 import { withinImportLimits } from "@shared/gridfinity/import-limits";
@@ -543,6 +544,103 @@ describe("current project persistence", () => {
     const loaded = await loadProjectDoc();
     expect(loaded).not.toBeNull();
     expect(loaded!.spec.gridX).toBe(2);
+  });
+
+  it.each([
+    { named: true, keepRedo: true },
+    { named: false, keepRedo: true },
+    { named: true, keepRedo: false },
+    { named: false, keepRedo: false },
+  ])("acknowledges a trace after rapid Undo (named: $named, redo retained: $keepRedo)", async ({ named, keepRedo }) => {
+    const existing = createBasicPocket("square", { x: -10, y: -10 }, { x: 10, y: 10 }, "existing")!;
+    const incoming = createBasicPocket("rectangle", { x: -15, y: -10 }, { x: 15, y: 10 }, "incoming")!;
+    const waiting = createBasicPocket("square", { x: -6, y: -6 }, { x: 6, y: 6 }, "waiting")!.shape;
+    const elsewhere = { ...waiting, id: "elsewhere" };
+    const before = { spec: DOC.spec, cutouts: [existing.cutout], fingerHoles: [] };
+    const resized = { ...before, spec: WIDE_DOC.spec, cutouts: [
+      existing.cutout, { ...incoming.cutout, position: { x: 35, y: 0 } },
+    ] };
+    const initial = { ...DOC, ...before, shapes: [existing.shape] };
+    const id = named ? (await saveProjectToLibrary(initial, "Tray", null)).activeProjectId : null;
+    const target = { key: named ? `project:${id}` : "draft:trace-destination", name: "Tray" };
+    const queueKey = "pocketry:queued-tools";
+    const queue = [
+      { ...incoming.shape, pendingDestination: target },
+      { ...waiting, pendingDestination: { key: "draft:some-other-draft", name: "Other draft" } },
+      { ...elsewhere, pendingDestination: { key: "project:other", name: "Other project" } },
+    ];
+    let raw = JSON.stringify(queue);
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => key === queueKey ? raw : null,
+      setItem: (key: string, value: string) => { if (key === queueKey) raw = value; },
+    });
+    const shapes = [existing.shape, incoming.shape, waiting, elsewhere];
+    const history = { stack: [{ doc: before, label: "Original" }, { doc: resized, label: "Resize and add" }] };
+    const edited = { ...before, spec: { ...before.spec, gridY: 3 } };
+    const final = keepRedo
+      ? { ...DOC, ...before, shapes, history: { ...history, index: 0 } }
+      : { ...DOC, ...edited, shapes, history: { index: 1, stack: [
+        history.stack[0], { doc: edited, label: "Change bin length" },
+      ] } };
+    try {
+      const save = createDebouncedProjectSaver(500);
+      save({ ...DOC, ...resized, shapes, history: { ...history, index: 1 } }, id, [waiting.id]);
+      save(final, id, [waiting.id]);
+      expect(await save.flush()).toBe(true);
+      const stored = await loadProjectDoc();
+      expect(stored?.spec).toEqual(final.spec);
+      expect(stored?.cutouts).toEqual(before.cutouts);
+      expect(stored?.history).toEqual(final.history);
+      expect(stored?.shapes.some(shape => shape.id === incoming.shape.id)).toBe(true);
+      expect(JSON.parse(raw)).toEqual(queue.slice(1));
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("keeps a consumed outline recoverable after a failed write and clears it after retry", async () => {
+    const incoming = createBasicPocket("square", { x: -10, y: -10 }, { x: 10, y: 10 }, "incoming")!;
+    const queue = [{ ...incoming.shape, pendingDestination: { key: "draft:trace-destination", name: "Tray" } }];
+    const queueKey = "pocketry:queued-tools";
+    let raw = JSON.stringify(queue);
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => key === queueKey ? raw : null,
+      setItem: (key: string, value: string) => { if (key === queueKey) raw = value; },
+    });
+    try {
+      const snapshot = { ...DOC, shapes: [incoming.shape] };
+      vi.mocked(set).mockRejectedValueOnce(new Error("Storage is full"));
+      expect(await saveProjectDoc(snapshot, null, [])).toBe(false);
+      expect(JSON.parse(raw)).toEqual(queue);
+      expect(await loadProjectDoc()).toBeNull();
+      expect(await saveProjectDoc(snapshot, null, [])).toBe(true);
+      expect(JSON.parse(raw)).toEqual([]);
+      expect((await loadProjectDoc())?.shapes).toEqual([incoming.shape]);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("preserves a trace retargeted while a previous project snapshot is being written", async () => {
+    const incoming = createBasicPocket("square", { x: -10, y: -10 }, { x: 10, y: 10 }, "incoming")!;
+    const queueKey = "pocketry:queued-tools";
+    const queued = { ...incoming.shape, pendingDestination: { key: "draft:original", name: "Tray" } };
+    const newer = { ...queued, pendingDestination: { key: "draft:different", name: "Different tray" } };
+    let raw = JSON.stringify([queued]);
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => key === queueKey ? raw : null,
+      setItem: (key: string, value: string) => { if (key === queueKey) raw = value; },
+    });
+    let release!: () => void;
+    const write = new Promise<void>(resolve => { release = resolve; });
+    vi.mocked(set).mockImplementationOnce(async (key, value) => {
+      await write;
+      memory.set(String(key), value);
+    });
+    try {
+      const save = saveProjectDoc({ ...DOC, shapes: [incoming.shape] }, null, []);
+      await vi.waitFor(() => expect(set).toHaveBeenCalledOnce());
+      raw = JSON.stringify([newer]);
+      release();
+      expect(await save).toBe(true);
+      expect(JSON.parse(raw)).toEqual([newer]);
+    } finally { release(); vi.unstubAllGlobals(); }
   });
 
   it("distinguishes an empty store from an unreadable saved project", async () => {

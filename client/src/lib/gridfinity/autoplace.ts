@@ -12,6 +12,8 @@ import {
 } from "@shared/gridfinity/cutout";
 import {
   binFootprintMm,
+  binHeightMm,
+  binWallThicknessMm,
   D_DIV,
   D_WALL,
   STACKING_LIP_DEPTH,
@@ -21,12 +23,15 @@ import { maxGridCells, type BinSpec } from "@shared/gridfinity/types";
 import {
   canonicalCells,
   cellCenterMm,
+  footprintInsetRingMm,
   footprintTopologyError,
   rectangleCells,
   type BinFootprint,
 } from "@shared/gridfinity/footprint";
 import { parseBinSpec } from "@shared/gridfinity/types";
-import { validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
+import { textsAfterLabelTabEdit } from "@shared/gridfinity/label-tab-surfaces";
+import { ringInsideBoundary, validateBinSpec, validateLayout } from "@shared/gridfinity/validate";
+import { wallSlantCloses, wallSlantOutlineMm } from "@shared/gridfinity/wall-slant";
 import { minAreaObb } from "@shared/geometry/obb";
 import type { Bounds, Point } from "@shared/geometry/types";
 import type { TracePlacements } from "@shared/gridfinity/trace-placement";
@@ -52,17 +57,9 @@ export function linkedPocketCopyPosition(spec: BinSpec, source: CutoutPlacement,
     ...cutouts.map(c => existingBounds([c], shapes, [], spec)),
     ...fingerHoles.map(h => existingBounds([], shapes, [h], spec)),
   ].filter((bounds): bounds is Bounds => bounds !== null);
-  for (const label of spec.surfaceTexts) {
-    if (surfaceTextSurface(spec, label) !== "bin") continue;
-    try {
-      const bounds = outlineBounds(surfaceTextOutline(label));
-      if (!bounds) return null;
-      obstacles.push(bounds);
-    } catch {
-      // Unresolved lettering cannot safely steer a new placement.
-      return null;
-    }
-  }
+  const labels = binSurfaceTextBounds(spec);
+  if (!labels) return null;
+  obstacles.push(...labels);
   const inset = placementInsetMm(spec.lip);
   const halfW = binWidthMm(spec) / 2 - inset, halfH = binLengthMm(spec) / 2 - inset;
   const minX = -halfW - local.minX, maxX = halfW - local.maxX;
@@ -114,6 +111,22 @@ const ITEM_GAP_MM = D_DIV + 0.01;
  */
 export function placementInsetMm(lip: BinSpec["lip"], clearanceMm = 0): number {
   return D_WALL + clearanceMm + (lip === "standard" ? STACKING_LIP_DEPTH - D_WALL : 0) + 1;
+}
+
+function binSurfaceTextBounds(spec?: BinSpec): Bounds[] | null {
+  if (!spec) return [];
+  const labels: Bounds[] = [];
+  for (const label of spec.surfaceTexts) {
+    if (surfaceTextSurface(spec, label) !== "bin") continue;
+    try {
+      const bounds = outlineBounds(surfaceTextOutline(label));
+      if (!bounds) return null;
+      labels.push(bounds);
+    } catch {
+      return null;
+    }
+  }
+  return labels;
 }
 
 /** Anything with a footprint the packer can shelve. */
@@ -283,6 +296,7 @@ export interface AutoPlaceResult {
   cutouts: CutoutPlacement[];
   gridX: number;
   gridY: number;
+  arbitrarySizeMm?: NonNullable<BinSpec["arbitrarySizeMm"]>;
   /** True when nothing fit at the maximum physical span; placements are still returned. */
   overflow: boolean;
 }
@@ -388,6 +402,7 @@ export interface AutoPlaceIncrementalOptions {
   gridX: number;
   gridY: number;
   existing: readonly CutoutPlacement[];
+  fingerHoles?: readonly FingerHole[];
   shapesById: ReadonlyMap<string, TracedShape>;
 }
 
@@ -401,22 +416,71 @@ export function autoPlaceIncremental(
   shapes: readonly TracedShape[],
   options: AutoPlaceIncrementalOptions,
 ): AutoPlaceResult {
-  const occupied = existingBounds(options.existing, options.shapesById, [], options.spec);
+  return placeIncrementally(shapes, options, binSurfaceTextBounds(options.spec));
+}
+
+function placeIncrementally(
+  shapes: readonly TracedShape[],
+  options: AutoPlaceIncrementalOptions,
+  labelBounds: readonly Bounds[] | null,
+): AutoPlaceResult {
+  const existing = existingBounds(options.existing, options.shapesById, options.fingerHoles, options.spec);
+  // A labeled bin still has occupied space before its first pocket is added.
+  const occupied = existing ?? (labelBounds?.length ? {
+    minX: Math.min(...labelBounds.map(bounds => bounds.minX)),
+    maxX: Math.max(...labelBounds.map(bounds => bounds.maxX)),
+    minY: Math.min(...labelBounds.map(bounds => bounds.minY)),
+    maxY: Math.max(...labelBounds.map(bounds => bounds.maxY)),
+  } : null);
+  const byId = new Map(shapes.map((shape) => [shape.id, shape]));
+  const isPocket = (cutout: CutoutPlacement) => options.placements?.[cutout.shapeId]?.role !== "hole";
+  const placementCheck = (grid: BinSizeSpec): ((cutouts: CutoutPlacement[]) => boolean) | null => {
+    const spec = options.spec;
+    if (!spec) return () => true;
+    if (!labelBounds) return null;
+    const footprint = options.keepBinSize ? spec.footprint : { kind: "rectangle" as const };
+    const candidate: BinSpec = { ...spec, ...grid, gridPitch: spec.gridPitch, footprint, fill: "solid" };
+    if (!validateBinSpec(candidate).ok) return null;
+    const orphaned = new Set(spec.surfaceTexts.filter(label => label.orphanedTab).map(label => label.id));
+    if (textsAfterLabelTabEdit(spec, spec, candidate).some(label => label.orphanedTab && !orphaned.has(label.id))) return null;
+    if (footprint.kind === "rectangle" && !spec.wallSlant && !spec.labelTab && !labelBounds.length) return () => true;
+    const needsLayoutCheck = footprint.kind === "custom" || !!candidate.labelTab;
+    // Check vertical cutters at the base and rim of a slanted body. A closing
+    // slant has no full-height opening to propose for automatic placement.
+    const closingSlant = wallSlantCloses(candidate);
+    const interior = spec.wallSlant ? footprintInsetRingMm(candidate, binWallThicknessMm(candidate)) : null;
+    const opening = interior && wallSlantOutlineMm(candidate, interior, binHeightMm(candidate.heightUnits));
+    return cutouts => {
+      const pockets = cutouts.filter(isPocket);
+      if (!pockets.length) return true;
+      if (closingSlant) return false;
+      if ((interior || labelBounds.length) && !pockets.every(cutout => {
+        const bounds = existingBounds([cutout], byId, [], candidate);
+        if (!bounds || labelBounds.some(label => overlapsBounds(bounds, label))) return false;
+        if (!interior || !opening) return true;
+        const corners = [
+          { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
+          { x: bounds.maxX, y: bounds.maxY }, { x: bounds.minX, y: bounds.maxY },
+        ];
+        return ringInsideBoundary(corners, interior) && ringInsideBoundary(corners, opening);
+      })) return false;
+      return !needsLayoutCheck || !validateLayout(candidate, pockets, byId).some(issue =>
+        ["out-of-bounds", "wall-breach", "lip-collision", "label-tab-shadow"].includes(issue.code));
+    };
+  };
   if (!occupied) {
     if (options.keepBinSize || options.spec?.arbitrarySizeMm) {
       const interior = interiorMm(options.spec ?? options, placementInsetMm(options.lip), options.gridPitch);
       const block = packShapes(shapes, interior.widthMm, options.placements ?? {});
-      const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-      return { cutouts: block.items.map((item) => toPlacement(item, byId, 0, 0)),
+      const cutouts = block.items.map((item) => toPlacement(item, byId, 0, 0));
+      return { cutouts,
         gridX: options.gridX, gridY: options.gridY,
-        overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm };
+        overflow: block.widthMm > interior.widthMm || block.heightMm > interior.heightMm ||
+          !placementCheck(options.spec ?? options)?.(cutouts) };
     }
     const fresh = autoPlaceFresh(shapes, options.lip, options.gridPitch, options.placements);
-    return {
-      ...fresh,
-      gridX: Math.max(fresh.gridX, options.gridX),
-      gridY: Math.max(fresh.gridY, options.gridY),
-    };
+    const grid = { gridX: Math.max(fresh.gridX, options.gridX), gridY: Math.max(fresh.gridY, options.gridY) };
+    return { ...fresh, ...grid, overflow: fresh.overflow || !placementCheck(grid)?.(fresh.cutouts) };
   }
   if (shapes.length === 0) {
     return {
@@ -428,8 +492,6 @@ export function autoPlaceIncremental(
   }
 
   const inset = placementInsetMm(options.lip);
-  const byId = new Map(shapes.map((shape) => [shape.id, shape]));
-
   for (const grid of (options.keepBinSize || options.spec?.arbitrarySizeMm) ? [options.spec ?? options] : gridCandidates(options.gridPitch, options.gridX, options.gridY)) {
     const interior = interiorMm(grid, inset, options.gridPitch);
     const halfW = interior.widthMm / 2;
@@ -452,30 +514,128 @@ export function autoPlaceIncremental(
       .filter((strip) => strip.width > 0 && strip.height > 0)
       .sort((a, b) => b.width * b.height - a.width * a.height);
 
+    let check: ReturnType<typeof placementCheck> | undefined;
     for (const strip of strips) {
       const block = packShapes(shapes, strip.width, options.placements ?? {});
-      if (block.widthMm <= strip.width && block.heightMm <= strip.height) {
-        const cx = strip.minX + strip.width / 2;
-        const cy = strip.minY + strip.height / 2;
-        return {
-          cutouts: block.items.map((item) => toPlacement(item, byId, cx, cy)),
-          gridX: grid.gridX,
-          gridY: grid.gridY,
-          overflow: false,
-        };
-      }
+      if (block.widthMm > strip.width || block.heightMm > strip.height) continue;
+      check ??= placementCheck(grid);
+      if (!check) break;
+      const cx = strip.minX + strip.width / 2;
+      const cy = strip.minY + strip.height / 2;
+      const centered = block.items.map((item) => toPlacement(item, byId, cx, cy));
+      const cutouts = check(centered) ? centered : labelBounds?.length ? placeBesideLabels(
+        centered, labelBounds, byId, options.spec, isPocket, check,
+        (strip.width - block.widthMm) / 2, (strip.height - block.heightMm) / 2,
+      ) : null;
+      if (cutouts) return { cutouts, gridX: grid.gridX, gridY: grid.gridY, overflow: false };
     }
   }
 
-  // Give up gracefully: drop the block to the right of everything.
+  // Keep oversized arrivals available for manual placement. A right-aligned
+  // placement can also fit where the centered strip candidates did not.
   const block = packShapes(shapes, Number.POSITIVE_INFINITY, options.placements ?? {});
-  const cx = occupied.maxX + ITEM_GAP_MM + block.widthMm / 2;
+  const right = Math.max(occupied.maxX, ...(labelBounds ?? []).map(bounds => bounds.maxX));
+  const cx = right + ITEM_GAP_MM + block.widthMm / 2;
+  const cutouts = block.items.map((item) => toPlacement(item, byId, cx, 0));
+  const fixed = options.keepBinSize || !!options.spec?.arbitrarySizeMm;
+  const current = options.spec ?? options;
+  const interior = interiorMm(current, inset, options.gridPitch);
+  const fallbackFits = fixed && cx - block.widthMm / 2 >= -interior.widthMm / 2 &&
+    cx + block.widthMm / 2 <= interior.widthMm / 2 && block.heightMm <= interior.heightMm &&
+    placementCheck(current)?.(cutouts);
   return {
-    cutouts: block.items.map((item) => toPlacement(item, byId, cx, 0)),
-    gridX: (options.keepBinSize || options.spec?.arbitrarySizeMm) ? options.gridX : maxGridCells(options.gridPitch),
-    gridY: Math.max(options.gridY, 1),
-    overflow: true,
+    cutouts,
+    gridX: fixed ? options.gridX : maxGridCells(options.gridPitch),
+    gridY: options.gridY,
+    overflow: !fallbackFits,
   };
+}
+
+function overlapsBounds(a: Bounds, b: Bounds, x = 0, y = 0): boolean {
+  return a.minX + x < b.maxX && a.maxX + x > b.minX &&
+    a.minY + y < b.maxY && a.maxY + y > b.minY;
+}
+
+/** Try nearby shifts of the whole photo block, keeping the original spacing. */
+function placeBesideLabels(
+  cutouts: CutoutPlacement[],
+  labels: readonly Bounds[],
+  shapes: ReadonlyMap<string, TracedShape>,
+  spec: BinSpec | undefined,
+  isPocket: (cutout: CutoutPlacement) => boolean,
+  check: (cutouts: CutoutPlacement[]) => boolean,
+  roomX: number,
+  roomY: number,
+): CutoutPlacement[] | null {
+  const xs = [0, -roomX, roomX], ys = [0, -roomY, roomY];
+  const pockets = cutouts.filter(isPocket).flatMap(cutout => {
+    const bounds = existingBounds([cutout], shapes, [], spec);
+    return bounds ? [bounds] : [];
+  });
+  for (const pocket of pockets) {
+    for (const label of labels) {
+      xs.push(label.minX - pocket.maxX - 0.01, label.maxX - pocket.minX + 0.01);
+      ys.push(label.minY - pocket.maxY - 0.01, label.maxY - pocket.minY + 0.01);
+    }
+  }
+  // Bound work on the UI thread when several tools and labels share a bin.
+  const nearby = (values: number[], room: number) =>
+    [...new Set(values.filter(value => Math.abs(value) <= room))]
+      .sort((a, b) => Math.abs(a) - Math.abs(b)).slice(0, 12);
+  const xShifts = nearby(xs, roomX), yShifts = nearby(ys, roomY);
+  const offsets = xShifts.flatMap(x => yShifts.map(y => ({ x, y })))
+    .filter(({ x, y }) => x !== 0 || y !== 0)
+    .sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y));
+  for (const { x, y } of offsets) {
+    if (pockets.some(pocket => labels.some(label => overlapsBounds(pocket, label, x, y)))) continue;
+    const shifted = cutouts.map(cutout => ({ ...cutout, position: { x: cutout.position.x + x, y: cutout.position.y + y } }));
+    if (check(shifted)) return shifted;
+  }
+  return null;
+}
+
+/** Find a larger centered bin for only the arriving pockets. Exact-mm bins
+ * retain their construction and the dimension that does not need to grow. */
+export function autoPlaceWithGrowth(
+  shapes: readonly TracedShape[],
+  options: AutoPlaceIncrementalOptions & { spec: BinSpec },
+): AutoPlaceResult | null {
+  const labelBounds = binSurfaceTextBounds(options.spec);
+  if (!labelBounds) return null;
+  const size = options.spec.arbitrarySizeMm;
+  if (!size) {
+    const resized = placeIncrementally(shapes, { ...options, keepBinSize: false }, labelBounds);
+    return resized.overflow ? null : resized;
+  }
+  const maxSize = binFootprintMm(maxGridCells("full"));
+  const trySize = (width: number, length: number) => {
+    const arbitrarySizeMm = { width, length };
+    const placement = placeIncrementally(shapes, {
+      ...options, spec: { ...options.spec, arbitrarySizeMm }, keepBinSize: true,
+    }, labelBounds);
+    return placement.overflow ? null : { ...placement, arbitrarySizeMm };
+  };
+  const candidates = [[true, false], [false, true], [true, true]].flatMap(([width, length]) => {
+    const dimensions = (fraction: number) => {
+      const grow = (value: number, enabled: boolean) => enabled && value < maxSize
+        ? Math.min(maxSize, Math.ceil((value + (maxSize - value) * fraction) * 10) / 10)
+        : value;
+      return trySize(grow(size.width, width), grow(size.length, length));
+    };
+    let best = dimensions(1);
+    if (!best) return [];
+    let low = 0, high = 1;
+    // Search to within 0.1 mm over the longest supported span.
+    for (let step = 0; step < 13; step++) {
+      const middle = (high + low) / 2;
+      const fit = dimensions(middle);
+      if (fit) { best = fit; high = middle; }
+      else low = middle;
+    }
+    return [best];
+  });
+  return candidates.sort((a, b) =>
+    a.arbitrarySizeMm.width * a.arbitrarySizeMm.length - b.arbitrarySizeMm.width * b.arbitrarySizeMm.length)[0] ?? null;
 }
 
 /**

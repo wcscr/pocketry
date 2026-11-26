@@ -16,6 +16,7 @@ import { usePocketGeometry } from "@/hooks/use-pocket-geometry";
 import { Box, History, Redo2, Undo2 } from "lucide-react";
 import { defaultPocketFloorThicknessMm, pocketName, resolvePocketDepth } from "@shared/gridfinity/cutout";
 import { binWallThicknessMm, defaultBinWallThicknessMm } from "@shared/gridfinity/standard";
+import { binLengthMm, binWidthMm } from "@shared/gridfinity/bin-size";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingPocketDepthPrompt } from "@/components/gridfinity/pocket-depth-question";
@@ -36,6 +37,7 @@ import { EditHistoryMenu } from "@/components/history/edit-history-menu";
 import { usePanelState } from "@/components/layout/panel-context";
 import { BinEditingWorkspace } from "@/components/gridfinity/selection-inspector";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Ultim8Link } from "@/components/ui/ultim8-link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -54,6 +56,8 @@ import {
   autoArrangeLayout,
   autoPlaceFresh,
   autoPlaceIncremental,
+  autoPlaceWithGrowth,
+  type AutoPlaceResult,
 } from "@/lib/gridfinity/autoplace";
 import {
   binDimensionsMm,
@@ -407,8 +411,8 @@ function BinDesignerWorkspace(): JSX.Element {
   useEffect(() => {
     if (!bin.hydrated || projectBusy || projectRestoreFailed) return;
     setSaveStatus("saving");
-    saveProject(browserWorkingDoc, projectLibrary.activeProjectId);
-  }, [bin.hydrated, browserWorkingDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed]);
+    saveProject(browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds);
+  }, [bin.hydrated, browserWorkingDoc, saveProject, projectLibrary.activeProjectId, projectBusy, projectRestoreFailed, library.pendingIds]);
 
   useEffect(() => {
     projectActivity?.publish({ name: currentProjectName, activeProjectId: projectLibrary.activeProjectId,
@@ -430,72 +434,73 @@ function BinDesignerWorkspace(): JSX.Element {
 
   // Exports and autosaves use the same committed design/history snapshot.
   const exportProjectDoc = currentProjectDoc;
+  const customFootprint = committedSpec.footprint.kind === "custom";
   const pendingDestinationChanged = library.pendingIds.some(id => {
     const target = library.pendingDestinations[id];
     return target && target.key !== restoredDestination;
   });
 
-  // Consume shapes freshly arrived from the trace workspace: auto-place them
-  // (incrementally when the bin already has arranged pockets) and make sure
-  // the bin is solid — pockets need material.
-  useEffect(() => {
-    if (!bin.hydrated || projectRestoreFailed || projectBusy || pendingDestinationChanged) return;
-    const pendingIds = library.consumePending();
-    if (pendingIds.length === 0) return;
-    const newShapes = library.shapes.filter((shape) => pendingIds.includes(shape.id) && !cutouts.some((cutout) => cutout.shapeId === shape.id));
-    if (newShapes.length === 0) return;
+  // Keep arriving outlines queued until the user chooses how to place them.
+  const pendingPlacement = useMemo(() => {
+    if (!bin.hydrated || bin.pendingHistoryLabel || projectRestoreFailed || projectBusy ||
+        pendingDestinationChanged || !library.pendingIds.length) return null;
+    const newShapes = library.shapes.filter(shape => library.pendingIds.includes(shape.id) &&
+      !committedCutouts.some(cutout => cutout.shapeId === shape.id));
+    if (!newShapes.length) return { current: null, resized: null, manualPlacementOnly: false };
+    const occupied = committedCutouts.length > 0 || committedFingerHoles.length > 0 || committedSpec.surfaceTexts.length > 0;
+    const options = {
+      spec: committedSpec,
+      lip: committedSpec.lip,
+      gridPitch: committedSpec.gridPitch,
+      gridX: committedSpec.gridX,
+      gridY: committedSpec.gridY,
+      existing: committedCutouts,
+      fingerHoles: committedFingerHoles,
+      keepBinSize: true,
+      shapesById: new Map(library.shapes.map(shape => [shape.id, shape])),
+      placements: library.pendingPlacements,
+    };
+    const current = !occupied && !fixedBinSize && committedSpec.footprint.kind === "rectangle"
+      ? autoPlaceFresh(newShapes, options.lip, options.gridPitch, options.placements)
+      : autoPlaceIncremental(newShapes, options);
+    const resized = occupied && current.overflow ? autoPlaceWithGrowth(newShapes, options) : null;
+    return { current, resized, manualPlacementOnly: occupied && current.overflow && !resized };
+  }, [bin.hydrated, bin.pendingHistoryLabel, projectRestoreFailed, projectBusy, pendingDestinationChanged,
+    library.pendingIds, library.pendingPlacements, library.shapes, committedSpec, committedCutouts, committedFingerHoles, fixedBinSize]);
 
-    const shapesById = new Map(library.shapes.map((shape) => [shape.id, shape]));
-    const result =
-      cutouts.length === 0 && !fixedBinSize
-        ? autoPlaceFresh(newShapes, spec.lip, spec.gridPitch, library.pendingPlacements)
-        : autoPlaceIncremental(newShapes, {
-            spec,
-            lip: spec.lip,
-            gridPitch: spec.gridPitch,
-            gridX: spec.gridX,
-            gridY: spec.gridY,
-            existing: cutouts,
-            keepBinSize: fixedBinSize,
-            shapesById,
-            placements: library.pendingPlacements,
-          });
-
-    const gridX = fixedBinSize ? spec.gridX : Math.max(result.gridX, cutouts.length > 0 ? spec.gridX : 0);
-    const gridY = fixedBinSize ? spec.gridY : Math.max(result.gridY, cutouts.length > 0 ? spec.gridY : 0);
+  const placePending = useCallback((placement: AutoPlaceResult | null, resize = false) => {
+    const ids = new Set(library.consumePending());
+    const incoming = placement?.cutouts.filter(cutout => ids.has(cutout.shapeId)) ?? [];
+    if (!placement || !incoming.length) return;
     dispatch({
       type: "ADD_PLACED",
-      cutouts: result.cutouts.map(cutout => {
+      cutouts: incoming.map(cutout => {
         const chosen = library.pendingDepths[cutout.shapeId];
         if (library.pendingPlacements[cutout.shapeId]?.role === "hole") return { ...cutout, role: "hole" as const,
           depth: { mode: "through" as const }, cornerRoundMm: 0, topFilletMm: 0, bottomFilletMm: 0 };
-        // Resolve defaults against the loaded bin, including older queued tools
-        // that have no depth choice yet.
         return { ...cutout, depth: !chosen || chosen.mode === "unset" || chosen.mode === "to-floor"
-          ? { mode: "remaining" as const, floorThicknessMm: defaultPocketFloorThicknessMm(spec) }
+          ? { mode: "remaining" as const, floorThicknessMm: defaultPocketFloorThicknessMm(committedSpec) }
           : chosen };
       }),
-      gridX,
-      gridY,
-      // Automatic placement chooses the smallest rectangular Gridfinity bin.
-      // Irregular footprints require the explicit footprint editor.
-      footprint: fixedBinSize ? spec.footprint : { kind: "rectangle" },
+      gridX: placement.gridX,
+      gridY: placement.gridY,
+      footprint: resize ? { kind: "rectangle" } : committedSpec.footprint,
+      specPatch: { fill: "solid", ...(placement.arbitrarySizeMm && { arbitrarySizeMm: placement.arbitrarySizeMm }) },
+      historyLabel: resize
+        ? (customFootprint ? "Convert footprint and add outlines" : "Resize bin and add outlines")
+        : undefined,
     });
-    if (gridX !== spec.gridX || gridY !== spec.gridY) toast({ title: "Bin resized for new tools", description: "Undo restores the previous layout. Turn on Keep bin size fixed to prevent automatic growth." });
-    if (spec.fill !== "solid") {
-      dispatch({ type: "PATCH_SPEC", patch: { fill: "solid" } });
-    }
-    if (result.overflow) {
-      toast({
-        title: "Tool does not fit",
-        description:
-          fixedBinSize ? "The bin size is fixed. Move the highlighted tools, reduce their size, or enlarge the bin." : "Even the largest bin cannot hold this layout — check the trace's scale.",
-        variant: "destructive",
-      });
-    }
-    // Pending arrivals and hydration are the triggers; the rest reads fresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [library.pendingIds, library.pendingDestinations, bin.hydrated, projectRestoreFailed, projectBusy, pendingDestinationChanged]);
+    if (placement.overflow) toast({
+      title: "Tool does not fit",
+      description: fixedBinSize ? "The bin size is fixed. Adjust the highlighted outline or enlarge the bin."
+        : "Adjust the highlighted outline or check its scale.",
+      variant: "destructive",
+    });
+  }, [library, dispatch, committedSpec, customFootprint, fixedBinSize, toast]);
+
+  useEffect(() => {
+    if (pendingPlacement && !pendingPlacement.resized && !pendingPlacement.manualPlacementOnly) placePending(pendingPlacement.current);
+  }, [pendingPlacement, placePending]);
 
   // Only the shapes the layout references ride along to the worker.
   const layout = useMemo(() => {
@@ -757,11 +762,11 @@ function BinDesignerWorkspace(): JSX.Element {
   const saveBeforeReplacingProject = useCallback(async () => {
     saveProject.cancel();
     if (!projectLibrary.activeProjectId) return;
-    const saved = await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId);
+    const saved = await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds);
     setSaveStatus(saved ? "saved" : "error");
     if (!saved) setSaveError("Your current changes could not be saved. Keep this page open and download a backup before switching projects.");
     if (!saved) throw new Error("Your current changes could not be saved. The current project has been kept open.");
-  }, [saveProject, browserWorkingDoc, projectLibrary.activeProjectId]);
+  }, [saveProject, browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds]);
 
   const loadFolderProject = useCallback(async (document: ProjectDoc, target: FolderDraft) => {
     const draft = { ...document, name: undefined };
@@ -964,7 +969,7 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectBusy(true);
     saveProject.cancel();
     try {
-      if (!await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId)) throw new Error("Could not save this fixture. Keep it open and try again.");
+      if (!await saveProjectDoc(browserWorkingDoc, projectLibrary.activeProjectId, library.pendingIds)) throw new Error("Could not save this fixture. Keep it open and try again.");
       navigate("/");
     } catch (cause) {
       toast({ title: "Could not open Trace", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
@@ -1427,6 +1432,31 @@ function BinDesignerWorkspace(): JSX.Element {
               library.retargetPending({ key: destinationKey, name: currentProjectName ?? "Untitled project" });
             }}>Add waiting tools to {currentProjectName ?? "this unnamed bin"}</Button>
           </div>}
+          {pendingPlacement?.resized && <section aria-label="Fit incoming outlines" data-testid="trace-resize-offer"
+            className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b bg-background px-3 py-2 text-sm">
+            <div role="status" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2">
+              <span className="font-medium">{customFootprint
+                ? "Replace the custom footprint with a rectangle?"
+                : `Resize ${isJig ? "fixture" : "bin"} for new outlines?`}</span>
+              <span className="text-muted-foreground">
+                {binWidthMm({ ...pendingPlacement.resized, gridPitch: committedSpec.gridPitch })} × {binLengthMm({ ...pendingPlacement.resized, gridPitch: committedSpec.gridPitch })} mm
+              </span>
+              <HelpHint label="resizing for new outlines">Existing pockets and finger access stay in place. Keeping the current footprint leaves any outlines that do not fit available for manual placement.</HelpHint>
+            </div>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => placePending(pendingPlacement.current)}>
+              {customFootprint ? "Keep footprint and add" : "Keep size and add"}
+            </Button>
+            <Button size="sm" className="min-h-11" onClick={() => placePending(pendingPlacement.resized, true)}>
+              {customFootprint ? "Convert to rectangle and add" : "Resize and add"}
+            </Button>
+          </section>}
+          {pendingPlacement?.manualPlacementOnly && <section aria-label="Incoming outlines need manual placement" data-testid="trace-manual-placement"
+            className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b bg-background px-3 py-2 text-sm">
+            <span role="status" className="flex-1 font-medium">Position the incoming outlines in Layout.</span>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => placePending(pendingPlacement.current)}>
+              Add for manual placement
+            </Button>
+          </section>}
           {saveError && <div role="alert" data-testid="bin-save-error" className="z-40 flex shrink-0 flex-wrap items-center gap-2 border-b border-destructive/40 bg-background px-3 py-2 text-sm text-destructive">
             <p className="min-w-0 flex-1">{saveError}</p>
             {bin.hydrated && <Button variant="outline" className="min-h-11 shrink-0" onClick={handleExportProject}>Download backup</Button>}

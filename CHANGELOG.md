@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.20.1 — 2026-11-26
+
+- Offer to resize an occupied bin for a new trace, preserving pockets, finger access, and raised text on the bin surface. Custom footprints require an explicit conversion to a rectangle.
+
 ## 1.20.0 — 2026-11-25
 
 - Open an editable design from a public HTTPS JSON link or a Google Drive file link on sites with Drive enabled. Choose a project from a shared library or link directly to it.

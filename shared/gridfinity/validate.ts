@@ -736,8 +736,9 @@ function validateFingerHoleAgainstBin(
   return issues;
 }
 
-function ringInsideBoundary(ring: Ring, boundary: Ring): boolean {
-  if (ring.some((point) => signedDistanceToFootprintRing(point, boundary) < -1e-7)) {
+/** All vertices and edges must stay inside a possibly concave boundary. */
+export function ringInsideBoundary(ring: Ring, boundary: Ring): boolean {
+  if (boundary.length < 3 || ring.some((point) => signedDistanceToFootprintRing(point, boundary) < -1e-7)) {
     return false;
   }
   for (let i = 0; i < ring.length; i++) {

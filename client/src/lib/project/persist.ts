@@ -417,17 +417,26 @@ export async function importProjectLibrary(input: unknown, mode: LibraryImportMo
 export type ProjectSaveResult = { success: true } | { success: false; error: Error };
 
 /** Preserve the original boolean API for callers that only need success. */
-export async function saveProjectDoc(doc: ProjectDoc, expectedProjectId?: string | null): Promise<boolean> {
-  return (await saveProjectDocResult(doc, expectedProjectId)).success;
+export async function saveProjectDoc(
+  doc: ProjectDoc,
+  expectedProjectId?: string | null,
+  pendingShapeIds?: readonly string[],
+): Promise<boolean> {
+  return (await saveProjectDocResult(doc, expectedProjectId, pendingShapeIds)).success;
 }
 
 /** Autosave with an actionable reason when durable storage rejects the write. */
 export async function saveProjectDocResult(
   doc: ProjectDoc,
   expectedProjectId?: string | null,
+  pendingShapeIds?: readonly string[],
 ): Promise<ProjectSaveResult> {
+  const queueKey = "pocketry:queued-tools";
+  let queueAtStart: string | null = null;
+  try { queueAtStart = sessionStorage.getItem(queueKey); }
+  catch { /* IndexedDB saves work even when the session queue is unavailable. */ }
   try {
-    await mutateLibrary(async (library, tx) => {
+    const activeProjectId = await mutateLibrary(async (library, tx) => {
       // A delayed write belongs to the project that scheduled it, even if a
       // different project has since become active. Check inside the queue.
       if (expectedProjectId !== undefined && library.activeProjectId !== expectedProjectId) {
@@ -441,16 +450,15 @@ export async function saveProjectDocResult(
       const previousDoc = parseProjectDoc(previous);
       const unchanged = previousDoc && restoredDocumentKey(previousDoc) === restoredDocumentKey(doc);
       if (!library.activeProjectId) {
-        if (unchanged) return;
-        tx.setWorkingCopy(doc, tx.folderDraft, tx.folderSaveRequest);
-        return;
+        if (!unchanged) tx.setWorkingCopy(doc, tx.folderDraft, tx.folderSaveRequest);
+        return null;
       }
       const index = library.projects.findIndex(
         (project) => project.id === library.activeProjectId,
       );
       if (index < 0) throw new ProjectStorageConflictError();
       const savedDoc = parseProjectDoc(library.projects[index].doc);
-      if (unchanged && savedDoc && restoredDocumentKey(savedDoc) === restoredDocumentKey(doc)) return;
+      if (unchanged && savedDoc && restoredDocumentKey(savedDoc) === restoredDocumentKey(doc)) return library.activeProjectId;
       const projects = [...library.projects];
       projects[index] = {
         ...projects[index],
@@ -459,17 +467,28 @@ export async function saveProjectDocResult(
       };
       tx.setWorkingCopy(doc, undefined, tx.folderSaveRequest);
       tx.set(PROJECT_LIBRARY_KEY, { ...library, projects });
+      return library.activeProjectId;
     });
-    // Clear only queued shapes whose placements have reached durable storage.
+    // Once Bin has consumed an arrival, the saved shape also covers Undo and
+    // an edit that replaces the redo branch. Without live queue information,
+    // require durable placement in the current layout or its history.
     try {
-      const queued: unknown = JSON.parse(sessionStorage.getItem("pocketry:queued-tools") ?? "[]");
+      // An arrival or retargeting during the write belongs to a later save.
+      const queued: unknown = queueAtStart !== null && sessionStorage.getItem(queueKey) === queueAtStart
+        ? JSON.parse(queueAtStart) : null;
       if (Array.isArray(queued)) {
-        const placedIds = new Set(doc.cutouts.map((cutout) => cutout.shapeId));
-        const remaining = queued.filter((shape: unknown) =>
-          typeof shape !== "object" || shape === null || !("id" in shape) ||
-          typeof shape.id !== "string" || !placedIds.has(shape.id),
-        );
-        sessionStorage.setItem("pocketry:queued-tools", JSON.stringify(remaining));
+        const storedIds = new Set(pendingShapeIds
+          ? doc.shapes.map(shape => shape.id)
+          : [...doc.cutouts, ...(doc.history?.stack.flatMap(entry => entry.doc.cutouts) ?? [])].map(cutout => cutout.shapeId));
+        const waiting = new Set(pendingShapeIds);
+        const remaining = queued.filter((shape: unknown) => {
+          if (typeof shape !== "object" || shape === null || !("id" in shape) ||
+              typeof shape.id !== "string" || !storedIds.has(shape.id) || waiting.has(shape.id)) return true;
+          const target = "pendingDestination" in shape ? shape.pendingDestination : undefined;
+          return !!target && typeof target === "object" && "key" in target && typeof target.key === "string"
+            && target.key.startsWith("project:") && target.key !== `project:${activeProjectId}`;
+        });
+        if (remaining.length !== queued.length) sessionStorage.setItem(queueKey, JSON.stringify(remaining));
       }
     } catch { /* Session recovery may be unavailable. */ }
     return { success: true };
@@ -681,7 +700,7 @@ export async function advanceFolderDraft(target: FolderDraft, match: FolderDraft
 }
 
 export interface DebouncedProjectSaver {
-  (doc: ProjectDoc, projectId?: string | null): void;
+  (doc: ProjectDoc, projectId?: string | null, pendingShapeIds?: readonly string[]): void;
   cancel(): void;
   /** Persist the latest committed edit before leaving the workspace. */
   flush(): Promise<boolean>;
@@ -691,7 +710,7 @@ export interface DebouncedProjectSaver {
 export function createDebouncedProjectSaver(delayMs = 500, onSaved?: (success: boolean, error?: Error) => void): DebouncedProjectSaver {
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let pending: { doc: ProjectDoc; projectId?: string | null } | null = null;
+  let pending: { doc: ProjectDoc; projectId?: string | null; pendingShapeIds?: readonly string[] } | null = null;
   let writing: Promise<boolean> = Promise.resolve(true);
   const clearPending = () => {
     if (timer !== null) clearTimeout(timer);
@@ -704,16 +723,16 @@ export function createDebouncedProjectSaver(delayMs = 500, onSaved?: (success: b
     const savingGeneration = generation;
     clearPending();
     if (next) {
-      writing = saveProjectDocResult(next.doc, next.projectId).then((result) => {
+      writing = saveProjectDocResult(next.doc, next.projectId, next.pendingShapeIds).then((result) => {
         if (generation === savingGeneration) onSaved?.(result.success, result.success ? undefined : result.error);
         return result.success;
       });
     }
     return writing;
   };
-  return Object.assign((doc: ProjectDoc, projectId?: string | null) => {
+  return Object.assign((doc: ProjectDoc, projectId?: string | null, pendingShapeIds?: readonly string[]) => {
     cancel();
-    pending = { doc, projectId };
+    pending = { doc, projectId, pendingShapeIds };
     timer = setTimeout(() => { void flush(); }, delayMs);
   }, { cancel, flush });
 }
