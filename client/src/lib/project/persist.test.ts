@@ -29,6 +29,7 @@ import {
   duplicateProjectInLibrary,
   exportProjectLibrary,
   importProjectToLibrary,
+  openLinkedProjectCopy,
   loadProjectDoc,
   readProjectOverview,
   loadProjectLibrary,
@@ -66,6 +67,21 @@ afterEach(() => {
 });
 
 describe("current project persistence", () => {
+  it("opens a linked design as a draft without changing saved library entries", async () => {
+    const saved = await saveProjectToLibrary(DOC, "Saved tray", null);
+    const original = await exportProjectLibrary();
+    const opened = await openLinkedProjectCopy({ ...WIDE_DOC, name: "Shared tray" });
+    expect(opened.doc).toEqual({ ...WIDE_DOC, name: undefined });
+    expect(opened.library.activeProjectId).toBeNull();
+    expect(opened.library.projects).toEqual(saved.projects);
+    expect(await loadProjectDoc()).toEqual({ ...WIDE_DOC, name: undefined });
+    expect(await exportProjectLibrary()).toEqual(original);
+    expect((await loadProjectLibrary(opened.doc)).activeProjectId).toBeNull();
+    await expect(openLinkedProjectCopy({ schemaVersion: 999 })).rejects.toThrow("linked design is invalid");
+    expect(await loadProjectDoc()).toEqual(opened.doc);
+    expect(await exportProjectLibrary()).toEqual(original);
+  });
+
   it("reads one project and exports a compact library without replacing the working copy or deleting its undo and redo", async () => {
     const bin = { spec: DOC.spec, cutouts: DOC.cutouts, fingerHoles: DOC.fingerHoles };
     const history = { index: 1, stack: [

@@ -3,8 +3,46 @@
 Pocketry turns tool photos into editable outlines and printable bins or
 positioning fixtures. Use Trace at / and Bin at /bin. The editor runs in the
 browser; photos and projects remain on the user's device during normal use.
-The browser-local project library is not cloud storage. Export an editable
-.pocketry.json backup when the user needs a portable copy of a bin design.
+Named projects can use browser storage or a connected local folder; neither is
+cloud storage. Export an editable .pocketry.json backup when the user needs a
+portable copy of a bin design. Keep the source photo separately.
+
+## Design a bin with the person
+
+1. Ask what tools the bin will hold and where it must fit. Work with the person
+   to confirm each tool's real length, width, thickness, raised parts, and
+   intended orientation. Ask about drawer height or Gridfinity footprint,
+   printer and material, and how they want to grasp and remove each tool. Mark
+   photo-derived dimensions as estimates until checked against a real tool.
+2. Outline each tool in Trace from a calibrated photo, or use a measured closed
+   SVG outline in Trace or Bin. Check the scale and at least one known dimension
+   with the person. Review tips, shadows, and protrusions that affect fit.
+3. Propose the bin footprint and height, pocket positions, pocket depths,
+   remaining floor, finger access or scoops, and extra pocket clearance. Discuss
+   clearance in millimeters per side, including any margin already added in
+   Trace. Check that the person can insert, grip, and remove every tool. Show
+   uncertain measurements and settings for the person to confirm; do not invent
+   precise dimensions or treat a photo outline as a physical fit test.
+4. Create the editable design in Pocketry. If local automation is available,
+   have the person connect **Library → Settings → Local folder** in a supported
+   desktop browser after enabling experimental features in App settings. Use
+   the CLI or MCP against that folder's `pocketry-library` subdirectory to
+   create a named project or import a valid editable project backup.
+   `create_project` makes an empty Gridfinity
+   bin; it cannot create a custom pocket layout. `import_project` can bring in
+   a complete editable design. The current edit commands can change an
+   existing pocket's clearance, but cannot add outlines or pockets, set pocket
+   depths, or add finger access. Make those changes in the editor or in a valid
+   backup before import. See the local automation guide below.
+5. Check validation findings, then refresh the connected folder in Pocketry and
+   open the named design in Bin. Review Layout and 3D with the person and let
+   them adjust outlines, depths, clearance, finger access, and other settings.
+   A CLI or MCP publication does not itself open the design in their browser.
+6. Encourage a thin **Check fit** print at 100% scale with the real tools before
+   printing the full bin. Adjust the design from that result. A surface fit
+   check tests openings, not full pocket depth, insertion, baseplate fit, or
+   every grip motion; inspect those separately. Export the final STL or 3MF
+   only after the person reviews the revised design.
 
 ## Helping with a trace
 
@@ -14,8 +52,8 @@ The browser-local project library is not cloud storage. Export an editable
 3. Select a region around one tool with some surrounding background, then trace.
 4. Review the outline against the photo, especially tips, shadows, reflections,
    and estimated edges. Use the visible correction and outline-editing controls.
-5. Add the outline to Bin, arrange pockets, choose depths and clearance, and
-   export STL or 3MF. Check scale and a known dimension before printing.
+5. Add the outline to Bin, then follow the bin-design steps above with the
+   person before exporting a printable model.
 
 Use the controls offered by the app. Do not fabricate a successful calibration,
 silently substitute a different photo, or claim a download or email was delivered
@@ -91,6 +129,10 @@ or available, give the user a reviewable draft or patch.
 
 - /llms.txt: a short index of app information and documentation.
 - Help in the app: the current photo-to-bin workflow and feedback links.
+- https://github.com/wcscr/pocketry/blob/main/docs/library-folder.md: connected
+  local folder setup and browser handoff.
+- https://github.com/wcscr/pocketry/blob/main/docs/local-automation.md: CLI and
+  MCP setup, supported commands, and edit limits.
 - https://github.com/wcscr/pocketry: source code and public issue tracker. Ask
   separately before sharing user photos or private project data publicly.
 - https://github.com/wcscr/pocketry/blob/main/CONTRIBUTING.md: contribution process,

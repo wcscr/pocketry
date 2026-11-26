@@ -650,6 +650,17 @@ export async function startNewProject(doc: ProjectDoc, saveDraft?: { doc: Projec
   });
 }
 
+/** Open a shared design as an unnamed working copy. Saved library entries stay
+ * intact, and detaching the active ID prevents autosave from editing one. */
+export async function openLinkedProjectCopy(input: unknown): Promise<{ doc: ProjectDoc; library: ProjectLibrarySnapshot }> {
+  const parsed = parseProjectDoc(input);
+  if (!parsed) throw new Error("The linked design is invalid or uses a newer Pocketry version.");
+  // A named draft could reconnect to or recover into the library on reload.
+  const doc = { ...parsed, name: undefined };
+  const library = await startNewProject(doc);
+  return { doc, library };
+}
+
 /** Record the draft before the folder write can publish. */
 export async function prepareFolderSave(doc: ProjectDoc, requestId: string): Promise<void> {
   return mutateLibrary(async (_library, tx) => {

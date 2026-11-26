@@ -1,8 +1,9 @@
 # Bin designer implementation reference
 
-This describes the current implementation, checked against the source on
-November 15, 2026 (`a627ee6b`, version 1.12.0). The filename is retained for existing links; this is not a
-roadmap. [GitHub issues](https://github.com/wcscr/pocketry/issues) track enhancement
+This describes implemented behavior. The original geometry review used the
+November 15, 2026 source (`a627ee6b`, version 1.12.0); later additions link
+to their own feature references. The filename is retained for existing links;
+this is not a roadmap. [GitHub issues](https://github.com/wcscr/pocketry/issues) track enhancement
 requests and problem reports. See the [documentation index](README.md) for
 feature references and dated investigation records, and [CHANGELOG.md](../CHANGELOG.md)
 for user-visible changes.
@@ -20,7 +21,7 @@ for user-visible changes.
 | Labels | Raised text and hardware symbols on filled surfaces or label shelves; hollow-bin labels use shelves | [Hardware symbols and label surfaces](hardware-symbols.md) |
 | Materials | Body, floor/interior, rim/top-border, optional divider-top, label-background, and text colors; non-overlapping material parts in multicolor 3MF | [Material schema](../shared/gridfinity/materials.ts), [builder](../client/src/lib/gridfinity/bin.ts) |
 | Fixtures | Wham Bam Systems ULTIM8-compatible pegs, arbitrary dimensions, and 1:1 alignment SVG | [Jig geometry and export](ultim8-peg-bottom.md) |
-| Persistence | Browser-local autosave, named library, undo/redo, project and library import/export | [Project schema/migrations](../shared/gridfinity/project.ts), [project storage](../client/src/lib/project/) |
+| Persistence | Browser-local draft recovery, named projects in browser storage or a connected local folder, undo/redo, and project/library import/export | [Connected folders](library-folder.md), [local automation](local-automation.md), [project storage](../client/src/lib/project/) |
 | Output | Single- or multi-color 3MF, STL, thin fit checks, and SVG/DXF layouts | [DXF](dxf-compatibility.md), [mesh writers](../client/src/lib/mesh/) |
 
 Construction is grouped into **Interior**, **Walls & rim**, **Compartments**,
@@ -114,7 +115,10 @@ number in this document. Migrations preserve supported older designs, history,
 explicit choices, geometry links, and font data. See [import limits](import-limits.md)
 for bounded parsing and unsupported/corrupt record handling.
 
-Projects and the named library live in IndexedDB in the current browser profile.
+Draft recovery and browser-library projects live in IndexedDB in the current
+browser profile. With experimental features enabled in a supported browser,
+named projects can instead be saved in a [connected local folder](library-folder.md)
+and accessed through the [local CLI or MCP](local-automation.md).
 Project/library exports are explicit backups, not cloud synchronization. Preserve
 an outgoing named project's changes before switching projects; confirm before
 replacing a nonempty unnamed draft. Failed saves or imports must retain recoverable

@@ -12,6 +12,7 @@ and internal refactors usually need no changelog entry.
 
 ## Start here
 
+- [Open in Pocketry links](open-in-pocketry.md): share an editable project or select one from a library export.
 - [Connected project folders](library-folder.md)
 - [Local automation CLI and MCP](local-automation.md)
 - [Photo-to-bin quick start](https://pocketry.xyz/quick-start/) and [sample downloads](https://pocketry.xyz/samples/).
@@ -22,7 +23,7 @@ and internal refactors usually need no changelog entry.
 - [In-app Help](../client/src/components/help/help-dialog.tsx): the shipped guide
   available from Help, or More options on a phone.
 - [Reporting a tracing problem](tracing-photo-reports.md): original-photo reports sent by email.
-- [AI assistant guide](../client/public/ai-guide.txt) and [AI information index](../client/public/llms.txt): app guidance, issue reporting, and development contributions.
+- [AI assistant guide](../client/public/ai-guide.txt) and [AI information index](../client/public/llms.txt): measurement review, editable bin handoff, local automation, and feedback.
 - [Sample projects](../samples/README.md): 16 editable designs, original print
   photos, and variant-specific limits.
 

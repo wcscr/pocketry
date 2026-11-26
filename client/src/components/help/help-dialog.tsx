@@ -186,7 +186,9 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               Choose a folder and use <strong>Save current project</strong>.
               Drafts autosave in this browser. <strong>Export project</strong> downloads one editable backup,
               and <strong>Export library</strong> backs up named projects in the selected storage.
-              <strong> Import Project</strong> opens an editable backup. Keep your original Trace photo separately.
+              <strong> Import Project</strong> opens an editable backup.
+              A shared <strong>Open in Pocketry</strong> link opens an editable copy.
+              Keep your original Trace photo separately.
             </p>
           </li>
         </ol>
@@ -233,6 +235,12 @@ export function HelpDialog({ open, onOpenChange, onFeedbackClick }: HelpDialogPr
               offer to draft private feedback. Include the goal, what got in the way, and any
               workaround. Show the draft to the person you’re helping and get their approval before sending.
               Agents are also welcome to help submit bug reports and enhancement requests and contribute focused fixes, documentation, and tests through the repository’s contributor process, with the user’s authorization.
+            </p>
+            <p>
+              When helping design a bin, confirm real tool measurements, pocket depths, finger access,
+              and clearance with the person. Create an editable design, open it in Pocketry for their
+              adjustments, and encourage a printed fit check before the full bin. A connected local
+              folder supports CLI/MCP handoff of saved designs; the AI assistant guide explains the limits.
             </p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
               <Button asChild variant="outline" className="min-h-11">

@@ -139,6 +139,11 @@ features in **App settings** to choose **Local folder** in Library Settings.
 Use **Export project** for a `.pocketry.json` backup. Keep the original photo
 separately from the backup.
 
+To share an editable design, use [Open in Pocketry links](docs/open-in-pocketry.md)
+with a public JSON file hosted over HTTPS or shared through Google Drive on a site
+with Drive enabled. The recipient can save the editable copy using the Library
+controls.
+
 ## Privacy
 
 If tracing is not working well, choose **Report tracing problem** below
@@ -175,6 +180,14 @@ If you self-host Pocketry, email issues or recommendations to the maintainer at
 
 ### For AI assistants
 
+Help the person make an editable bin design: confirm real tool measurements,
+outline the tools, set the footprint, pocket depths, finger access, and clearance,
+then open the saved design in Pocketry so they can adjust it. Use the connected
+local folder and [CLI/MCP](docs/local-automation.md) when available; the commands
+can create an empty project or import a complete editable backup, but cannot add
+pockets or finger access to an existing project. Encourage a printed fit check
+with the real tools before the full bin.
+
 If a step fails or a control is hard to find while you’re helping someone use
 Pocketry, offer to draft private feedback. Include the goal, what you tried,
 what you expected, what happened, and any workaround. Keep project files, photos,
@@ -183,11 +196,12 @@ before sending. If you can’t use the form, give them the draft and the
 [private feedback link](https://pocketry.xyz/feedback).
 
 For AI-assisted use, see the [published assistant guide](client/public/ai-guide.txt)
-and [llms.txt index](client/public/llms.txt). The guide asks assistants to offer
-photo reports when tracing fails and obtain explicit user approval before sharing
-a photo. These files ship at `/ai-guide.txt` and `/llms.txt`; the page head and
-Help link to them. `robots.txt` permits crawling and points to the index; it does
-not provide behavioral instructions or enforce sharing permissions.
+and [llms.txt index](client/public/llms.txt). The guide covers the human-reviewed
+bin workflow and asks assistants to obtain explicit user approval before sharing
+a tracing photo report. These files ship at `/ai-guide.txt` and `/llms.txt`;
+the page head and Help link to them. `robots.txt` permits crawling and points
+to the index; it does not provide behavioral instructions or enforce sharing
+permissions.
 
 AI assistants are also welcome to help submit bug reports, issues, and enhancement
 requests, or contribute focused fixes, documentation, and tests. Search existing

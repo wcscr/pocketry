@@ -89,6 +89,7 @@ import {
   loadProjectDoc,
   loadProjectLibrary,
   openProjectFromLibrary,
+  openLinkedProjectCopy,
   readSavedProject,
   renameProjectInLibrary,
   advanceFolderDraft, prepareFolderSave, saveFolderDraft,
@@ -252,6 +253,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [projectLibraryError, setProjectLibraryError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState<string | null>(null);
+  const [linkedCopyName, setLinkedCopyName] = useState<string | null>(null);
   const [keepBinSize, setKeepBinSize] = useState(false);
   const fixedBinSize = keepBinSize || !!spec.arbitrarySizeMm;
   const [restoredDestination, setRestoredDestination] = useState<string | null>(null);
@@ -373,8 +375,8 @@ function BinDesignerWorkspace(): JSX.Element {
     () =>
       projectLibrary.projects.find(
         (project) => project.id === projectLibrary.activeProjectId,
-      )?.name ?? folderProject?.name ?? draftName,
-    [projectLibrary, folderProject, draftName],
+      )?.name ?? folderProject?.name ?? draftName ?? linkedCopyName,
+    [projectLibrary, folderProject, draftName, linkedCopyName],
   );
 
   // Autosave everything the doc covers, debounced; suppressed until
@@ -390,7 +392,7 @@ function BinDesignerWorkspace(): JSX.Element {
   const currentProjectDoc = useMemo<ProjectDoc>(
     () => ({
       schemaVersion: PROJECT_SCHEMA_VERSION,
-      ...(currentProjectName ? { name: currentProjectName } : {}),
+      ...(currentProjectName && !linkedCopyName ? { name: currentProjectName } : {}),
       keepBinSize,
       materials,
       // A rejected arrival remains in the queue, outside the current project.
@@ -400,7 +402,7 @@ function BinDesignerWorkspace(): JSX.Element {
       history: bin.history,
       transformOrigins: retainTransformOrigins(bin.transformOrigins, bin.history.stack.map(e => e.doc)),
     }),
-    [library.shapes, library.pendingIds, committedDoc, bin.history, bin.transformOrigins, currentProjectName, keepBinSize, materials],
+    [library.shapes, library.pendingIds, committedDoc, bin.history, bin.transformOrigins, currentProjectName, linkedCopyName, keepBinSize, materials],
   );
   const browserWorkingDoc = useMemo(() => folderProject && !projectLibrary.activeProjectId
     ? { ...currentProjectDoc, name: undefined } : currentProjectDoc,
@@ -740,7 +742,7 @@ function BinDesignerWorkspace(): JSX.Element {
       }
       const result = await importProjectLibrary(input, mode, mode === "replace" ? currentProjectDoc : undefined);
       setProjectLibrary(result.library);
-      if (mode === "replace") { setDraftName(null); setFolderProject(null); }
+      if (mode === "replace") { setDraftName(null); setLinkedCopyName(null); setFolderProject(null); }
       toast({
         title: mode === "replace" ? "Library replaced" : "Library imported",
         description: mode === "replace"
@@ -773,6 +775,7 @@ function BinDesignerWorkspace(): JSX.Element {
     setFolderProject(target);
     setActivityVisit(Symbol("Opened folder project"));
     setDraftName(null);
+    setLinkedCopyName(null);
     setKeepBinSize(draft.keepBinSize ?? false);
     library.replaceShapes(draft.shapes, true);
     setRestoredDestination(projectDestinationKey(draft, null));
@@ -816,6 +819,7 @@ function BinDesignerWorkspace(): JSX.Element {
         setSaveStatus("saved");
         setSaveError(null);
         setDraftName(null);
+        setLinkedCopyName(null);
         setKeepBinSize(doc.keepBinSize ?? false);
         library.replaceShapes(doc.shapes, true);
         setRestoredDestination(projectDestinationKey(doc, opened.library.activeProjectId));
@@ -850,6 +854,40 @@ function BinDesignerWorkspace(): JSX.Element {
     [library, dispatch, saveBeforeReplacingProject, toast, libraryStorage, folderLibrary, loadFolderProject],
   );
 
+  /** Open a URL design as an unnamed working copy, leaving saved projects alone. */
+  const handleOpenLinkedProject = useCallback(async (input: ProjectDoc, name: string): Promise<boolean> => {
+    setProjectBusy(true);
+    try {
+      await saveBeforeReplacingProject();
+      const opened = await openLinkedProjectCopy(input);
+      const { doc } = opened;
+      setFolderProject(null);
+      setActivityVisit(Symbol("Linked project copy"));
+      setSaveStatus("saved");
+      setSaveError(null);
+      setDraftName(null);
+      setLinkedCopyName(name);
+      setKeepBinSize(doc.keepBinSize ?? false);
+      library.replaceShapes(doc.shapes, true);
+      setRestoredDestination(projectDestinationKey(doc, null));
+      dispatch({
+        type: "HYDRATE", materials: doc.materials, spec: doc.spec,
+        cutouts: doc.cutouts, fingerHoles: doc.fingerHoles,
+        history: doc.history, transformOrigins: doc.transformOrigins,
+      });
+      setSection(null);
+      setProjectLibrary(opened.library);
+      setProjectRestoreFailed(false);
+      toast({ title: "Editable copy opened", description: `“${name}” is ready to edit. Save it to your library when you’re ready.` });
+      return true;
+    } catch (cause) {
+      toast({ title: "Could not open linked design", description: cause instanceof Error ? cause.message : String(cause), variant: "destructive" });
+      return false;
+    } finally {
+      setProjectBusy(false);
+    }
+  }, [library, dispatch, saveBeforeReplacingProject, toast]);
+
   const recordFolderSave = useCallback(async (target: FolderDraft, match: FolderDraftMatch) => {
     const draft = { ...currentProjectDoc, name: undefined };
     if ("base" in match && !await saveProject.flush()) throw new Error("The current draft could not be saved in this browser.");
@@ -858,6 +896,7 @@ function BinDesignerWorkspace(): JSX.Element {
     setProjectLibrary(saved);
     setFolderProject(target);
     setDraftName(null);
+    setLinkedCopyName(null);
     setRestoredDestination(projectDestinationKey(draft, null));
     setProjectRestoreFailed(false);
   }, [currentProjectDoc, saveProject]);
@@ -891,6 +930,7 @@ function BinDesignerWorkspace(): JSX.Element {
       setSaveStatus("saved");
       setSaveError(null);
       setDraftName(null);
+      setLinkedCopyName(null);
       setKeepBinSize(false);
       library.replaceShapes([], true);
       setRestoredDestination(projectDestinationKey(doc, saved.activeProjectId));
@@ -954,6 +994,7 @@ function BinDesignerWorkspace(): JSX.Element {
       if (libraryStorage === "folder") {
         const target = await saveWorkingFolderDraft(name, asNew ? null : folderProject);
         if (!target) return false;
+        setLinkedCopyName(null);
         toast({ title: "Project saved to local folder" });
         return true;
       }
@@ -963,6 +1004,7 @@ function BinDesignerWorkspace(): JSX.Element {
         projectLibrary.activeProjectId,
       );
       setProjectLibrary(saved);
+      setLinkedCopyName(null);
       setFolderProject(null);
       setRestoredDestination(projectDestinationKey(currentProjectDoc, saved.activeProjectId));
       setProjectRestoreFailed(false);
@@ -1036,6 +1078,7 @@ function BinDesignerWorkspace(): JSX.Element {
       setSaveStatus("saved");
       setSaveError(null);
       setDraftName(opened.project.name);
+      setLinkedCopyName(null);
       setKeepBinSize(opened.doc.keepBinSize ?? false);
       library.replaceShapes(opened.doc.shapes, true);
       setRestoredDestination(projectDestinationKey(opened.doc, opened.library.activeProjectId));
@@ -1314,6 +1357,7 @@ function BinDesignerWorkspace(): JSX.Element {
           onAutoArrange={handleAutoArrange}
           onExportProject={handleExportProject}
           onImportProject={handleImportProject}
+          onOpenLinkedProject={handleOpenLinkedProject}
           projectLibraryReady={projectLibraryReady}
           projectBusy={projectBusy}
           activeProjectId={projectLibrary.activeProjectId}
